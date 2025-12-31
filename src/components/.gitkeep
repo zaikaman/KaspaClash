@@ -1,0 +1,13 @@
+// src/components/.gitkeep
+// This directory contains React components
+// Subdirectories:
+// - ui/         : shadcn/ui primitives
+// - game/       : Game-specific components (GameCanvas, HealthBar, etc.)
+// - wallet/     : Wallet connection components
+// - shared/     : Shared UI components (Header, Footer, etc.)
+// - matchmaking/: Matchmaking queue components
+// - leaderboard/: Leaderboard components
+// - player/     : Player profile components
+// - share/      : Match sharing components
+// - practice/   : Practice mode components
+// - providers/  : Context providers

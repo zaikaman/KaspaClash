@@ -1,0 +1,7 @@
+// src/lib/supabase/.gitkeep
+// This directory contains Supabase integration
+// Files planned:
+// - client.ts   : Browser client singleton
+// - server.ts   : Server client for API routes
+// - types.ts    : Generated Supabase types
+// - realtime.ts : Subscription helpers

@@ -1,0 +1,6 @@
+// src/lib/matchmaking/.gitkeep
+// This directory contains matchmaking logic
+// Files planned:
+// - queue.ts     : Queue management
+// - rooms.ts     : Private room management
+// - matchmaker.ts: Player pairing by rating

@@ -21,15 +21,15 @@
 
 **Purpose**: Initialize Next.js project with all dependencies and base configuration
 
-- [ ] T001 Initialize Next.js 16+ project with TypeScript in project root
-- [ ] T002 Install core dependencies: react@19, phaser@3.88, tailwindcss@4, @supabase/supabase-js
-- [ ] T003 [P] Install Kaspa dependencies: @aspect-staking/kaspa-wasm-web, kaspa-txscript-web
-- [ ] T004 [P] Install UI dependencies: shadcn/ui components, lucide-react, zustand
-- [ ] T005 [P] Configure Tailwind CSS in tailwind.config.ts with KaspaClash theme
-- [ ] T006 [P] Configure TypeScript strict mode in tsconfig.json
-- [ ] T007 Configure next.config.ts with WASM support and async WebAssembly
-- [ ] T008 [P] Create .env.local.example with required environment variables
-- [ ] T009 Create base project structure per plan.md (src/app, src/components, src/game, src/lib, src/hooks, src/stores, src/types)
+- [X] T001 Initialize Next.js 16+ project with TypeScript in project root
+- [X] T002 Install core dependencies: react@19, phaser@3.88, tailwindcss@4, @supabase/supabase-js
+- [X] T003 [P] Install Kaspa dependencies: kaspa-wasm@0.13.0
+- [X] T004 [P] Install UI dependencies: shadcn/ui components, lucide-react, zustand
+- [X] T005 [P] Configure Tailwind CSS in globals.css with KaspaClash theme
+- [X] T006 [P] Configure TypeScript strict mode in tsconfig.json
+- [X] T007 Configure next.config.ts with WASM support and async WebAssembly
+- [X] T008 [P] Create .env.local.example with required environment variables
+- [X] T009 Create base project structure per plan.md (src/app, src/components, src/game, src/lib, src/hooks, src/stores, src/types)
 
 ---
 

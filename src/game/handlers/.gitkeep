@@ -1,0 +1,4 @@
+// src/game/handlers/.gitkeep
+// Event handlers for game logic
+// Files planned:
+// - RoundAnimationHandler.ts : Play hit/block effects

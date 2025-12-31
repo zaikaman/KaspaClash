@@ -1,0 +1,9 @@
+// src/types/.gitkeep
+// This directory contains TypeScript type definitions
+// Files planned:
+// - index.ts     : Base types (Player, Character, Match, Round, Move)
+// - websocket.ts : WebSocket event types per contracts/websocket.md
+// - api.ts       : API response types per contracts/api.yaml
+// - constants.ts : Game constants (MOVE_PROPERTIES, GAME_CONSTANTS)
+// - kaspa.ts     : Kaspa blockchain types (WalletProvider, Transaction, Address)
+// - game.ts      : Game entity types

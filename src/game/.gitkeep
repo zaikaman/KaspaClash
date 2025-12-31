@@ -1,0 +1,14 @@
+// src/game/.gitkeep
+// This directory contains Phaser.js game engine code
+// Subdirectories:
+// - scenes/     : Phaser scenes (BootScene, FightScene, CharacterSelectScene, etc.)
+// - entities/   : Game objects (Fighter, EffectsManager)
+// - sprites/    : Sprite classes
+// - ui/         : In-game UI elements (health bars, move buttons, timers)
+// - handlers/   : Event handlers for game logic
+// - input/      : Input handling (touch, keyboard)
+// - config/     : Game configuration
+// Files:
+// - config.ts   : Phaser game configuration
+// - EventBus.ts : React-Phaser communication bridge
+// - SceneManager.ts : Scene transitions

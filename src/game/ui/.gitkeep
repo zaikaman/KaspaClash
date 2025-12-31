@@ -1,0 +1,11 @@
+// src/game/ui/.gitkeep
+// In-game UI elements (Phaser-based)
+// Files planned:
+// - MoveButton.ts      : Punch, kick, block, special buttons
+// - RoundTimer.ts      : 15-second countdown
+// - HealthBar.ts       : 100 HP with damage animations
+// - RoundScore.ts      : Best-of-3 tracking
+// - CharacterCard.ts   : Character selection card
+// - SelectionTimer.ts  : Selection countdown
+// - OpponentStatus.ts  : Opponent selection indicator
+// - MobileControls.ts  : Touch-friendly buttons

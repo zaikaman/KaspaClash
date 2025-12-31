@@ -1,0 +1,6 @@
+// src/components/wallet/.gitkeep
+// Wallet connection components
+// Files planned:
+// - ConnectWalletButton.tsx : Main wallet connect button
+// - WalletConnectModal.tsx  : Wallet selection modal
+// - WalletInfo.tsx          : Address and balance display

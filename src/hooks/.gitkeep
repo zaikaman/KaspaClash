@@ -1,0 +1,9 @@
+// src/hooks/.gitkeep
+// This directory contains custom React hooks
+// Files planned:
+// - useWallet.ts           : Wallet state and actions
+// - useMatch.ts            : Current match state
+// - useGameState.ts        : Phaser bridge hook
+// - useKaspaSubscription.ts: Blockchain event hook
+// - useGameChannel.ts      : WebSocket game channel
+// - useMatchmakingQueue.ts : Matchmaking queue presence

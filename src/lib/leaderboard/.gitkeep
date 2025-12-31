@@ -1,0 +1,4 @@
+// src/lib/leaderboard/.gitkeep
+// This directory contains leaderboard logic
+// Files planned:
+// - service.ts : Fetch, sort, rank players

@@ -1,0 +1,4 @@
+// src/game/sprites/.gitkeep
+// Sprite classes
+// Files planned:
+// - FighterSprite.ts : Character sprite with animations and health bar

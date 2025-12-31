@@ -1,0 +1,9 @@
+// src/lib/game/.gitkeep
+// This directory contains game logic utilities
+// Files planned:
+// - state-machine.ts     : Game state machine
+// - move-service.ts      : Move submission service
+// - round-resolver.ts    : Round resolution logic
+// - character-selection.ts: Character selection handler
+// - ai-opponent.ts       : AI decision engine
+// - ai-difficulty.ts     : AI difficulty levels

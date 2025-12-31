@@ -1,0 +1,6 @@
+// src/components/shared/.gitkeep
+// Shared UI components
+// Files planned:
+// - Header.tsx        : App header
+// - Footer.tsx        : App footer
+// - LoadingSpinner.tsx: Loading indicator

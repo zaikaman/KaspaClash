@@ -1,0 +1,6 @@
+// src/game/scenes/.gitkeep
+// Phaser scenes
+// Files planned:
+// - FightScene.ts          : Main combat scene
+// - CharacterSelectScene.ts: Character selection
+// - PracticeScene.ts       : Practice mode variant

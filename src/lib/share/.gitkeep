@@ -1,0 +1,5 @@
+// src/lib/share/.gitkeep
+// This directory contains sharing utilities
+// Files planned:
+// - url-builder.ts : Generate match summary URL
+// - og-meta.ts     : Open Graph meta generator

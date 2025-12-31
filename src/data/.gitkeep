@@ -1,0 +1,4 @@
+// src/data/.gitkeep
+// This directory contains static data definitions
+// Files planned:
+// - characters.ts : Character definitions (Cyber Ninja, DAG Warrior, etc.)

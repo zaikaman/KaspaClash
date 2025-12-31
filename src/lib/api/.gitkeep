@@ -1,0 +1,5 @@
+// src/lib/api/.gitkeep
+// This directory contains API utilities
+// Files planned:
+// - errors.ts     : Error codes and response formatting
+// - middleware.ts : Signature verification, rate limiting

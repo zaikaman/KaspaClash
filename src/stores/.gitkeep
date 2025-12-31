@@ -1,0 +1,7 @@
+// src/stores/.gitkeep
+// This directory contains Zustand state stores
+// Files planned:
+// - wallet-store.ts    : Wallet connection state (address, balance, connected)
+// - match-store.ts     : Current match state (match, rounds, moves)
+// - matchmaking-store.ts: Matchmaking queue state
+// - practice-store.ts  : Practice mode local state

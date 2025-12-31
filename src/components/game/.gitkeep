@@ -1,0 +1,5 @@
+// src/components/game/.gitkeep
+// Game-specific React components
+// Files planned:
+// - PhaserGame.tsx       : Phaser container with dynamic import
+// - MatchResults.tsx     : Match results overlay

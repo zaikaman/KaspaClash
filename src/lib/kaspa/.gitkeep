@@ -1,0 +1,10 @@
+// src/lib/kaspa/.gitkeep
+// This directory contains Kaspa blockchain integration
+// Files planned:
+// - loader.ts         : WASM loader utility (dynamic import pattern)
+// - wallet-discovery.ts: Wallet discovery (KIP-12 provider detection)
+// - wallet.ts         : Wallet connection service (connect, disconnect, sign)
+// - move-transaction.ts: Move transaction builder
+// - client.ts         : WASM SDK wrapper
+// - transactions.ts   : Transaction building & signing
+// - subscriptions.ts  : Real-time block/tx listeners
