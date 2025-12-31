@@ -222,13 +222,13 @@
 
 ### AI Opponent
 
-- [ ] T085 [P] [US4] Create AI decision engine in src/lib/game/ai-opponent.ts (random/weighted move selection)
-- [ ] T086 [US4] Create AI difficulty levels in src/lib/game/ai-difficulty.ts (easy, medium, hard patterns)
+- [X] T085 [P] [US4] Create AI decision engine in src/lib/game/ai-opponent.ts (random/weighted move selection)
+- [X] T086 [US4] Create AI difficulty levels in src/lib/game/ai-difficulty.ts (easy, medium, hard patterns)
 
 ### Practice Mode Scene
 
-- [ ] T087 [US4] Create PracticeScene variant in src/game/scenes/PracticeScene.ts (offline mode, AI opponent)
-- [ ] T088 [US4] Create practice mode match store in src/stores/practice-store.ts (local state only)
+- [X] T087 [US4] Create PracticeScene variant in src/game/scenes/PracticeScene.ts (offline mode, AI opponent)
+- [X] T088 [US4] Create practice mode match store in src/stores/practice-store.ts (local state only)
 - [X] T089 [US4] Create practice mode page at src/app/practice/page.tsx (no wallet required)
 
 ### Practice UI
