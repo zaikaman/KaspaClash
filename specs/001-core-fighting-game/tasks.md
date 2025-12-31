@@ -41,44 +41,44 @@
 
 ### Core Types
 
-- [ ] T010 [P] Create base TypeScript types in src/types/index.ts (Player, Character, Match, Round, Move)
-- [ ] T011 [P] Create WebSocket event types in src/types/websocket.ts per contracts/websocket.md
-- [ ] T012 [P] Create API response types in src/types/api.ts per contracts/api.yaml
-- [ ] T013 [P] Create game constants in src/types/constants.ts (MOVE_PROPERTIES, GAME_CONSTANTS)
+- [X] T010 [P] Create base TypeScript types in src/types/index.ts (Player, Character, Match, Round, Move)
+- [X] T011 [P] Create WebSocket event types in src/types/websocket.ts per contracts/websocket.md
+- [X] T012 [P] Create API response types in src/types/api.ts per contracts/api.yaml
+- [X] T013 [P] Create game constants in src/types/constants.ts (MOVE_PROPERTIES, GAME_CONSTANTS)
 
 ### Kaspa SDK Foundation
 
-- [ ] T014 Create Kaspa WASM loader utility in src/lib/kaspa/loader.ts (dynamic import pattern)
-- [ ] T015 [P] Create Kaspa types in src/types/kaspa.ts (WalletProvider, Transaction, Address)
-- [ ] T016 Create wallet discovery service in src/lib/kaspa/wallet-discovery.ts (KIP-12 provider detection)
-- [ ] T017 Create wallet connection service in src/lib/kaspa/wallet.ts (connect, disconnect, sign)
-- [ ] T018 Create wallet store in src/stores/wallet-store.ts (Zustand - address, balance, connected)
+- [X] T014 Create Kaspa WASM loader utility in src/lib/kaspa/loader.ts (dynamic import pattern)
+- [X] T015 [P] Create Kaspa types in src/types/kaspa.ts (WalletProvider, Transaction, Address)
+- [X] T016 Create wallet discovery service in src/lib/kaspa/wallet-discovery.ts (KIP-12 provider detection)
+- [X] T017 Create wallet connection service in src/lib/kaspa/wallet.ts (connect, disconnect, sign)
+- [X] T018 Create wallet store in src/stores/wallet-store.ts (Zustand - address, balance, connected)
 
 ### Supabase Foundation
 
-- [ ] T019 Create Supabase client in src/lib/supabase/client.ts (browser client singleton)
-- [ ] T020 [P] Create Supabase server client in src/lib/supabase/server.ts (for API routes)
-- [ ] T021 Create database schema migration in supabase/migrations/001_initial_schema.sql per data-model.md
-- [ ] T022 [P] Create Row Level Security policies in supabase/migrations/002_rls_policies.sql
+- [X] T019 Create Supabase client in src/lib/supabase/client.ts (browser client singleton)
+- [X] T020 [P] Create Supabase server client in src/lib/supabase/server.ts (for API routes)
+- [X] T021 Create database schema migration in supabase/migrations/001_initial_schema.sql per data-model.md
+- [X] T022 [P] Create Row Level Security policies in supabase/migrations/002_rls_policies.sql
 
 ### Phaser Foundation
 
-- [ ] T023 Create Phaser game config in src/game/config.ts (800x600, WebGL, physics)
-- [ ] T024 Create EventBus bridge in src/game/EventBus.ts (React ↔ Phaser communication)
-- [ ] T025 Create PhaserGame wrapper component in src/components/game/PhaserGame.tsx (dynamic import, ssr: false)
+- [X] T023 Create Phaser game config in src/game/config.ts (800x600, WebGL, physics)
+- [X] T024 Create EventBus bridge in src/game/EventBus.ts (React ↔ Phaser communication)
+- [X] T025 Create PhaserGame wrapper component in src/game/PhaserGame.tsx (dynamic import, ssr: false)
 
 ### API Foundation
 
-- [ ] T026 Create API error handler in src/lib/api/errors.ts (error codes, response formatting)
-- [ ] T027 [P] Create API middleware in src/lib/api/middleware.ts (signature verification, rate limiting)
-- [ ] T028 Create base API route structure with health check in src/app/api/health/route.ts
+- [X] T026 Create API error handler in src/lib/api/errors.ts (error codes, response formatting)
+- [X] T027 [P] Create API middleware in src/lib/api/middleware.ts (signature verification, rate limiting)
+- [X] T028 Create base API route structure with health check in src/app/api/health/route.ts
 
 ### UI Foundation
 
-- [ ] T029 Create root layout with Tailwind in src/app/layout.tsx
-- [ ] T030 [P] Create WalletProvider context in src/components/providers/WalletProvider.tsx
-- [ ] T031 [P] Create base UI components: Button, Card, Dialog in src/components/ui/
-- [ ] T032 Create ConnectWalletButton component in src/components/wallet/ConnectWalletButton.tsx
+- [X] T029 Create root layout with Tailwind in src/app/layout.tsx
+- [X] T030 [P] Create WalletProvider context in src/components/providers/WalletProvider.tsx
+- [X] T031 [P] Create base UI components: Button, Card, Dialog in src/components/ui/
+- [X] T032 Create ConnectWalletButton component in src/components/wallet/ConnectWalletButton.tsx
 
 **Checkpoint**: Foundation ready - user story implementation can now begin
 
