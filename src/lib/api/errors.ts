@@ -105,7 +105,7 @@ export class ApiError extends Error {
 /**
  * Create a NextResponse from an ApiError.
  */
-export function createErrorResponse(error: ApiError): NextResponse {
+export function createErrorResponse(error: ApiError): NextResponse<ApiErrorResponse> {
   return NextResponse.json(error.toResponse(), { status: error.statusCode });
 }
 

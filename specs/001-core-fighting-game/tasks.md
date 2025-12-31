@@ -150,32 +150,32 @@
 
 - [X] T058 [P] [US2] Create WalletConnectModal in src/components/wallet/WalletConnectModal.tsx (wallet selection)
 - [X] T059 [P] [US2] Create WalletInfo display in src/components/wallet/WalletInfo.tsx (address, balance)
-- [ ] T060 [US2] Create wallet hooks in src/hooks/useWallet.ts (connect, disconnect, sign message)
+- [X] T060 [US2] Create wallet hooks in src/hooks/useWallet.ts (connect, disconnect, sign message)
 
 ### Matchmaking Queue
 
-- [ ] T061 [US2] Create matchmaking store in src/stores/matchmaking-store.ts (queue status, players in queue)
-- [ ] T062 [US2] Create queue presence hook in src/hooks/useMatchmakingQueue.ts (Supabase Presence)
+- [X] T061 [US2] Create matchmaking store in src/stores/matchmaking-store.ts (queue status, players in queue)
+- [X] T062 [US2] Create queue presence hook in src/hooks/useMatchmakingQueue.ts (Supabase Presence)
 - [X] T063 [US2] Create MatchmakingQueue component in src/components/matchmaking/MatchmakingQueue.tsx (join/leave, queue count)
 - [X] T064 [US2] Create queue page at src/app/queue/page.tsx (wallet required, queue UI)
 
 ### Matchmaking API
 
-- [ ] T065 [US2] Create POST /api/matchmaking/queue/route.ts (join queue endpoint)
-- [ ] T066 [US2] Create DELETE /api/matchmaking/queue/route.ts (leave queue endpoint)
-- [ ] T067 [US2] Create matchmaking service in src/lib/matchmaking/matchmaker.ts (pair players by rating)
+- [X] T065 [US2] Create POST /api/matchmaking/queue/route.ts (join queue endpoint)
+- [X] T066 [US2] Create DELETE /api/matchmaking/queue/route.ts (leave queue endpoint)
+- [X] T067 [US2] Create matchmaking service in src/lib/matchmaking/matchmaker.ts (pair players by rating)
 
 ### Room-Based Matching (Private Games)
 
-- [ ] T068 [P] [US2] Create POST /api/matchmaking/rooms/route.ts (create room with code)
-- [ ] T069 [P] [US2] Create POST /api/matchmaking/rooms/join/route.ts (join room by code)
+- [X] T068 [P] [US2] Create POST /api/matchmaking/rooms/route.ts (create room with code)
+- [X] T069 [P] [US2] Create POST /api/matchmaking/rooms/join/route.ts (join room by code)
 - [X] T070 [US2] Create RoomCreate component in src/components/matchmaking/RoomCreate.tsx
 - [X] T071 [US2] Create RoomJoin component in src/components/matchmaking/RoomJoin.tsx
 
 ### Player Registration
 
-- [ ] T072 [US2] Create player registration on first connect in src/lib/player/registration.ts
-- [ ] T073 [US2] Create GET /api/players/[address]/route.ts (get player profile)
+- [X] T072 [US2] Create player registration on first connect in src/lib/player/registration.ts
+- [X] T073 [US2] Create GET /api/players/[address]/route.ts (get player profile)
 
 **Checkpoint**: User Story 2 complete - wallet connection and matchmaking functional
 
