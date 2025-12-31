@@ -54,6 +54,16 @@
   --color-warning: var(--warning);
   --color-health: var(--health);
   --color-damage: var(--damage);
+
+  /* Cyberpunk Theme */
+  --font-orbitron: var(--font-orbitron);
+  --font-montserrat: var(--font-montserrat);
+  --color-cyber-black: #010101;
+  --color-cyber-gold: #F0B71F;
+  --color-cyber-orange: #E03609;
+  --color-cyber-gray: #DDD;
+  --background-image-gradient-cyber: linear-gradient(90deg, #F0B71F 0%, #E03609 100%);
+  --background-image-gradient-cyber-270: linear-gradient(270deg, #F0B71F 0%, #E03609 100%);
 }
 
 :root {
