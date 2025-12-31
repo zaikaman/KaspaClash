@@ -248,8 +248,8 @@
 
 ### Leaderboard API
 
-- [ ] T092 [P] [US5] Create GET /api/leaderboard/route.ts (paginated leaderboard)
-- [ ] T093 [P] [US5] Create leaderboard service in src/lib/leaderboard/service.ts (fetch, sort, rank)
+- [X] T092 [P] [US5] Create GET /api/leaderboard/route.ts (paginated leaderboard)
+- [X] T093 [P] [US5] Create leaderboard service in src/lib/leaderboard/service.ts (fetch, sort, rank)
 
 ### Leaderboard UI
 
@@ -259,7 +259,7 @@
 
 ### Player Stats
 
-- [ ] T097 [US5] Create GET /api/players/[address]/matches/route.ts (match history)
+- [X] T097 [US5] Create GET /api/players/[address]/matches/route.ts (match history)
 - [X] T098 [US5] Create PlayerProfile page at src/app/player/[address]/page.tsx
 - [X] T099 [US5] Create MatchHistory component in src/components/player/MatchHistory.tsx
 
@@ -275,19 +275,19 @@
 
 ### Share URL Generation
 
-- [ ] T100 [P] [US6] Create share URL builder in src/lib/share/url-builder.ts (generate match summary URL)
-- [ ] T101 [P] [US6] Create Open Graph meta generator in src/lib/share/og-meta.ts (title, description, image)
+- [X] T100 [P] [US6] Create share URL builder in src/lib/share/url-builder.ts (generate match summary URL)
+- [X] T101 [P] [US6] Create Open Graph meta generator in src/lib/share/og-meta.ts (title, description, image)
 
 ### Share UI
 
 - [X] T102 [US6] Create ShareMatchButton in src/components/share/ShareMatchButton.tsx (copy link, social share)
-- [ ] T103 [US6] Integrate share button in MatchResults component
+- [X] T103 [US6] Integrate share button in MatchResults component
 
 ### Match Summary Page
 
 - [X] T104 [US6] Create public match page at src/app/m/[matchId]/page.tsx (shareable, no wallet required)
 - [X] T105 [US6] Create MatchSummary component in src/components/share/MatchSummary.tsx (winner, rounds, explorer links)
-- [ ] T106 [US6] Generate OG image for match share at src/app/m/[matchId]/opengraph-image.tsx
+- [X] T106 [US6] Generate OG image for match share at src/app/m/[matchId]/opengraph-image.tsx
 
 **Checkpoint**: User Story 6 complete - match results shareable with OG previews
 
@@ -301,20 +301,20 @@
 
 ### PWA Configuration
 
-- [ ] T107 [P] [US7] Create manifest.json for PWA in public/manifest.json
-- [ ] T108 [P] [US7] Create service worker in public/sw.js (offline caching)
-- [ ] T109 [US7] Configure PWA meta tags in src/app/layout.tsx (theme-color, icons)
+- [X] T107 [P] [US7] Create manifest.json for PWA in public/manifest.json
+- [X] T108 [P] [US7] Create service worker in public/sw.js (offline caching)
+- [X] T109 [US7] Configure PWA meta tags in src/app/layout.tsx (theme-color, icons)
 
 ### Responsive Design
 
-- [ ] T110 [US7] Make FightScene responsive in src/game/scenes/FightScene.ts (scale to viewport)
-- [ ] T111 [US7] Create mobile move controls in src/game/ui/MobileControls.ts (touch-friendly buttons)
+- [X] T110 [US7] Make FightScene responsive in src/game/scenes/FightScene.ts (scale to viewport)
+- [X] T111 [US7] Create mobile move controls in src/game/ui/MobileControls.ts (touch-friendly buttons)
 - [ ] T112 [US7] Add responsive breakpoints to all page components
 
 ### Touch Optimization
 
-- [ ] T113 [US7] Add touch event handlers to PhaserGame in src/components/game/PhaserGame.tsx
-- [ ] T114 [US7] Create swipe gesture support for moves in src/game/input/TouchInput.ts
+- [X] T113 [US7] Add touch event handlers to PhaserGame in src/components/game/PhaserGame.tsx
+- [X] T114 [US7] Create swipe gesture support for moves in src/game/input/TouchInput.ts
 
 **Checkpoint**: User Story 7 complete - mobile-optimized PWA experience
 

@@ -5,11 +5,12 @@
 
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getExplorerLink } from "@/lib/game/move-service";
+import { shareMatch, buildMatchUrl } from "@/lib/share/url-builder";
 import type { MatchResult } from "@/stores/match-store";
 import type { PlayerRole } from "@/types";
 
@@ -22,6 +23,8 @@ export interface MatchResultsProps {
   playerRole: PlayerRole;
   onClose: () => void;
   onPlayAgain?: () => void;
+  /** Winner character name for share message */
+  winnerCharacter?: string;
 }
 
 /**
@@ -33,7 +36,9 @@ export function MatchResults({
   playerRole,
   onClose,
   onPlayAgain,
+  winnerCharacter,
 }: MatchResultsProps) {
+  const [shareStatus, setShareStatus] = useState<"idle" | "copied" | "shared">("idle");
   const isWinner = result.winner === playerRole;
   const isDraw = result.winner === null;
 
@@ -44,6 +49,13 @@ export function MatchResults({
     }
     return null;
   }, [result.txIds]);
+
+  // Handle share button click
+  const handleShare = async () => {
+    const { copied } = await handleShareResult(matchId, isWinner ? winnerCharacter : undefined);
+    setShareStatus(copied ? "copied" : "shared");
+    setTimeout(() => setShareStatus("idle"), 2000);
+  };
 
   return (
     <Dialog open onOpenChange={() => onClose()}>
@@ -144,12 +156,13 @@ export function MatchResults({
 
           {/* Share Button */}
           <Button
-            onClick={() => handleShare(matchId)}
+            onClick={handleShare}
             variant="ghost"
-            className="w-full text-gray-400 hover:text-white"
+            className={`w-full ${shareStatus !== "idle" ? "text-[#49eacb]" : "text-gray-400"} hover:text-white`}
+            disabled={shareStatus !== "idle"}
           >
             <ShareIcon className="w-4 h-4 mr-2" />
-            Share Result
+            {shareStatus === "copied" ? "Link Copied!" : shareStatus === "shared" ? "Shared!" : "Share Result"}
           </Button>
         </div>
       </DialogContent>
@@ -160,21 +173,14 @@ export function MatchResults({
 /**
  * Handle sharing match result.
  */
-function handleShare(matchId: string) {
-  const shareUrl = `${window.location.origin}/match/${matchId}`;
-  const shareText = `Check out my KaspaClash match! ⚔️`;
-
-  if (navigator.share) {
-    navigator.share({
-      title: "KaspaClash Match",
-      text: shareText,
-      url: shareUrl,
-    });
-  } else {
-    // Fallback: copy to clipboard
-    navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-    alert("Link copied to clipboard!");
-  }
+async function handleShareResult(matchId: string, winnerCharacter?: string): Promise<{ copied: boolean }> {
+  const result = await shareMatch({
+    matchId,
+    winnerCharacter,
+    source: "direct",
+  });
+  
+  return { copied: result.method === "clipboard" && result.success };
 }
 
 /**

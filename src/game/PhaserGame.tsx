@@ -198,6 +198,23 @@ export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
         className={className}
         style={containerStyle}
         id="phaser-container"
+        // Touch event handlers for mobile optimization
+        onTouchStart={(e) => {
+          // Prevent default only if touching the game canvas
+          if ((e.target as HTMLElement).tagName === "CANVAS") {
+            e.preventDefault();
+          }
+        }}
+        onTouchMove={(e) => {
+          // Prevent scroll while interacting with game
+          if ((e.target as HTMLElement).tagName === "CANVAS") {
+            e.preventDefault();
+          }
+        }}
+        onContextMenu={(e) => {
+          // Prevent context menu on long press
+          e.preventDefault();
+        }}
       >
         {isLoading && (
           <div
