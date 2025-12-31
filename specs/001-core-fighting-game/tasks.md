@@ -189,26 +189,26 @@
 
 ### Character Data
 
-- [ ] T074 [P] [US3] Create character definitions in src/data/characters.ts (Cyber Ninja, DAG Warrior, Block Bruiser, Hash Hunter)
-- [ ] T075 [P] [US3] Create character sprites/assets placeholder in public/characters/
+- [X] T074 [P] [US3] Create character definitions in src/data/characters.ts (Cyber Ninja, DAG Warrior, Block Bruiser, Hash Hunter)
+- [X] T075 [P] [US3] Create character sprites/assets placeholder in public/characters/
 
 ### Character Selection UI
 
-- [ ] T076 [US3] Create CharacterSelectScene in src/game/scenes/CharacterSelectScene.ts (4 character grid)
-- [ ] T077 [US3] Create CharacterCard component in src/game/ui/CharacterCard.ts (portrait, name, theme)
-- [ ] T078 [US3] Create selection lock-in UI in src/game/ui/SelectionTimer.ts (countdown to lock)
-- [ ] T079 [US3] Create opponent selection indicator in src/game/ui/OpponentStatus.ts (selected/waiting)
+- [X] T076 [US3] Create CharacterSelectScene in src/game/scenes/CharacterSelectScene.ts (4 character grid)
+- [X] T077 [US3] Create CharacterCard component in src/game/ui/CharacterCard.ts (portrait, name, theme)
+- [X] T078 [US3] Create selection lock-in UI in src/game/ui/SelectionTimer.ts (countdown to lock)
+- [X] T079 [US3] Create opponent selection indicator in src/game/ui/OpponentStatus.ts (selected/waiting)
 
 ### Character Selection Logic
 
-- [ ] T080 [US3] Create character selection handler in src/lib/game/character-selection.ts (select, lock, reveal)
-- [ ] T081 [US3] Create POST /api/matches/[matchId]/character/route.ts (submit character selection)
-- [ ] T082 [US3] Handle character_selected WebSocket event in src/hooks/useGameChannel.ts
-- [ ] T083 [US3] Handle match_starting WebSocket event in src/hooks/useGameChannel.ts (transition to fight)
+- [X] T080 [US3] Create character selection handler in src/lib/game/character-selection.ts (select, lock, reveal)
+- [X] T081 [US3] Create POST /api/matches/[matchId]/character/route.ts (submit character selection)
+- [X] T082 [US3] Handle character_selected WebSocket event in src/hooks/useGameChannel.ts
+- [X] T083 [US3] Handle match_starting WebSocket event in src/hooks/useGameChannel.ts (transition to fight)
 
 ### Scene Integration
 
-- [ ] T084 [US3] Create scene manager in src/game/SceneManager.ts (CharacterSelect → Fight transitions)
+- [X] T084 [US3] Create scene manager in src/game/SceneManager.ts (CharacterSelect → Fight transitions)
 
 **Checkpoint**: User Story 3 complete - full character selection flow before matches
 

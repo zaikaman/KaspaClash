@@ -13,11 +13,36 @@ import type {
 } from "./index";
 
 // =============================================================================
+// COMMON RESPONSE TYPES
+// =============================================================================
+
+/**
+ * Standard API success response wrapper.
+ */
+export interface ApiSuccessResponse<T> {
+  success: true;
+  data: T;
+}
+
+/**
+ * Standard API error response.
+ */
+export interface ApiErrorResponse {
+  success: false;
+  error: {
+    code: string;
+    message: string;
+    details?: Record<string, unknown>;
+  };
+}
+
+// =============================================================================
 // COMMON ERROR RESPONSES
 // =============================================================================
 
 /**
  * Standard API error response.
+ * @deprecated Use ApiErrorResponse instead
  */
 export interface ApiError {
   error: {
