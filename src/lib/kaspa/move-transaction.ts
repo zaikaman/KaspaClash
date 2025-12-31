@@ -5,7 +5,7 @@
 
 import type { MoveType } from "@/types";
 import type { KaspaAddress, Transaction, TransactionOutput } from "@/types/kaspa";
-import { getConnectedAddress, getProvider } from "./wallet";
+import { getConnectedAddress, getProvider, getProviderWithRpc } from "./wallet";
 
 // =============================================================================
 // CONSTANTS
@@ -145,13 +145,13 @@ export async function buildMoveTransaction(
   request: MoveTransactionRequest
 ): Promise<TransactionBuildResult> {
   try {
-    const provider = getProvider();
+    const provider = getProviderWithRpc();
     const address = getConnectedAddress();
 
     if (!provider || !address) {
       return {
         success: false,
-        error: "Wallet not connected",
+        error: "Wallet not connected or does not support RPC requests",
       };
     }
 
@@ -281,7 +281,7 @@ export function verifyMoveMessage(
  */
 export async function estimateFee(): Promise<bigint> {
   try {
-    const provider = getProvider();
+    const provider = getProviderWithRpc();
     if (!provider) {
       return BigInt(1000); // Default minimum fee
     }

@@ -26,7 +26,7 @@ export function getSupabaseClient() {
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error(
       "Missing Supabase environment variables. " +
-        "Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY."
+      "Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY."
     );
   }
 
@@ -92,19 +92,28 @@ export function subscribeToBroadcast<T>(
 }
 
 /**
- * Broadcast a message to a channel.
+ * Broadcast a message to a channel via REST API.
+ * Note: Sending without subscribing explicitly uses HTTP (REST API).
+ * This is the recommended approach for server-side broadcasts.
  */
 export async function broadcast<T>(
   channelName: string,
   eventName: string,
   payload: T
 ) {
-  const channel = createChannel(channelName);
+  const client = getSupabaseClient();
+  const channel = client.channel(channelName);
 
-  await channel.subscribe();
-  await channel.send({
+  // Don't subscribe - sending without subscription explicitly uses HTTP/REST
+  // This avoids the deprecation warning about automatic fallback
+  const result = await channel.send({
     type: "broadcast",
     event: eventName,
     payload,
   });
+
+  // Clean up the channel after sending
+  await client.removeChannel(channel);
+
+  return result;
 }

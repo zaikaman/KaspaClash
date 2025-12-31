@@ -63,10 +63,10 @@ export async function POST(
     }
 
     // Check if already in queue
-    if (isInQueue(address)) {
+    if (await isInQueue(address)) {
       return NextResponse.json({
         success: true,
-        queueSize: getQueueSize(),
+        queueSize: await getQueueSize(),
       });
     }
 
@@ -96,14 +96,14 @@ export async function POST(
 
       return NextResponse.json({
         success: true,
-        queueSize: getQueueSize(),
+        queueSize: await getQueueSize(),
         matchId: matchResult.matchId,
       });
     }
 
     return NextResponse.json({
       success: true,
-      queueSize: getQueueSize(),
+      queueSize: await getQueueSize(),
     });
   } catch (error) {
     const apiError = handleError(error);
@@ -163,6 +163,6 @@ export async function DELETE(
  */
 export async function GET(): Promise<NextResponse<{ queueSize: number }>> {
   return NextResponse.json({
-    queueSize: getQueueSize(),
+    queueSize: await getQueueSize(),
   });
 }

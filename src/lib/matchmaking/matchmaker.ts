@@ -1,10 +1,10 @@
 /**
  * Matchmaker Service
  * Handles player pairing by rating and match creation
+ * Uses Supabase database for persistent queue storage (cross-instance support)
  */
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { Database } from "@/lib/supabase/types";
 
 /**
  * Player in queue representation.
@@ -39,22 +39,27 @@ const MATCHMAKING_CONFIG = {
 };
 
 /**
- * In-memory queue for active matchmaking.
- * In production, this should be replaced with Redis or similar.
- */
-const matchmakingQueue = new Map<string, QueuedPlayer>();
-
-/**
  * Add a player to the matchmaking queue.
  */
 export async function addToQueue(address: string, rating: number): Promise<void> {
-  const player: QueuedPlayer = {
-    address,
-    rating,
-    joinedAt: new Date(),
-  };
+  const supabase = await createSupabaseServerClient();
 
-  matchmakingQueue.set(address, player);
+  const { error } = await supabase
+    .from("matchmaking_queue")
+    .upsert({
+      address,
+      rating,
+      joined_at: new Date().toISOString(),
+      status: "searching",
+    }, {
+      onConflict: "address",
+    });
+
+  if (error) {
+    console.error("Failed to add player to queue:", error);
+    throw new Error("Failed to join queue");
+  }
+
   console.log(`Player ${address} added to queue (rating: ${rating})`);
 }
 
@@ -62,36 +67,88 @@ export async function addToQueue(address: string, rating: number): Promise<void>
  * Remove a player from the matchmaking queue.
  */
 export async function removeFromQueue(address: string): Promise<void> {
-  matchmakingQueue.delete(address);
+  const supabase = await createSupabaseServerClient();
+
+  const { error } = await supabase
+    .from("matchmaking_queue")
+    .delete()
+    .eq("address", address);
+
+  if (error) {
+    console.error("Failed to remove player from queue:", error);
+  }
+
   console.log(`Player ${address} removed from queue`);
 }
 
 /**
  * Check if a player is in the queue.
  */
-export function isInQueue(address: string): boolean {
-  return matchmakingQueue.has(address);
+export async function isInQueue(address: string): Promise<boolean> {
+  const supabase = await createSupabaseServerClient();
+
+  const { data, error } = await supabase
+    .from("matchmaking_queue")
+    .select("address")
+    .eq("address", address)
+    .eq("status", "searching")
+    .single();
+
+  if (error && error.code !== "PGRST116") { // PGRST116 = no rows returned
+    console.error("Failed to check queue status:", error);
+  }
+
+  return !!data;
 }
 
 /**
  * Get current queue size.
  */
-export function getQueueSize(): number {
-  return matchmakingQueue.size;
+export async function getQueueSize(): Promise<number> {
+  const supabase = await createSupabaseServerClient();
+
+  const { count, error } = await supabase
+    .from("matchmaking_queue")
+    .select("*", { count: "exact", head: true })
+    .eq("status", "searching");
+
+  if (error) {
+    console.error("Failed to get queue size:", error);
+    return 0;
+  }
+
+  return count ?? 0;
 }
 
 /**
  * Get all players in queue.
  */
-export function getQueuedPlayers(): QueuedPlayer[] {
-  return Array.from(matchmakingQueue.values());
+export async function getQueuedPlayers(): Promise<QueuedPlayer[]> {
+  const supabase = await createSupabaseServerClient();
+
+  const { data, error } = await supabase
+    .from("matchmaking_queue")
+    .select("address, rating, joined_at")
+    .eq("status", "searching")
+    .order("joined_at", { ascending: true });
+
+  if (error) {
+    console.error("Failed to get queued players:", error);
+    return [];
+  }
+
+  return (data || []).map(row => ({
+    address: row.address,
+    rating: row.rating,
+    joinedAt: new Date(row.joined_at),
+  }));
 }
 
 /**
  * Calculate the allowed rating range based on wait time.
  */
-function calculateRatingRange(player: QueuedPlayer): number {
-  const waitTimeSeconds = (Date.now() - player.joinedAt.getTime()) / 1000;
+function calculateRatingRange(joinedAt: Date): number {
+  const waitTimeSeconds = (Date.now() - joinedAt.getTime()) / 1000;
 
   if (waitTimeSeconds < MATCHMAKING_CONFIG.MIN_WAIT_BEFORE_EXPANSION) {
     return MATCHMAKING_CONFIG.INITIAL_RATING_RANGE;
@@ -110,35 +167,54 @@ function calculateRatingRange(player: QueuedPlayer): number {
 /**
  * Find a suitable opponent for a player.
  */
-export function findOpponent(
+export async function findOpponent(
   playerAddress: string,
   playerRating: number,
   playerJoinedAt: Date
-): QueuedPlayer | null {
-  const player: QueuedPlayer = {
-    address: playerAddress,
-    rating: playerRating,
-    joinedAt: playerJoinedAt,
-  };
+): Promise<QueuedPlayer | null> {
+  const supabase = await createSupabaseServerClient();
 
-  const ratingRange = calculateRatingRange(player);
+  const ratingRange = calculateRatingRange(playerJoinedAt);
+  const minRating = playerRating - ratingRange;
+  const maxRating = playerRating + ratingRange;
+
+  // Find players within rating range who are searching
+  const { data, error } = await supabase
+    .from("matchmaking_queue")
+    .select("address, rating, joined_at")
+    .eq("status", "searching")
+    .neq("address", playerAddress)
+    .gte("rating", minRating)
+    .lte("rating", maxRating)
+    .order("joined_at", { ascending: true })
+    .limit(10);
+
+  if (error) {
+    console.error("Failed to find opponent:", error);
+    return null;
+  }
+
+  if (!data || data.length === 0) {
+    return null;
+  }
+
+  // Find the best match (closest rating who also has us in their range)
   let bestMatch: QueuedPlayer | null = null;
   let smallestRatingDiff = Infinity;
 
-  for (const [address, candidate] of matchmakingQueue) {
-    // Skip self
-    if (address === playerAddress) continue;
-
+  for (const candidate of data) {
+    const candidateJoinedAt = new Date(candidate.joined_at);
+    const candidateRange = calculateRatingRange(candidateJoinedAt);
     const ratingDiff = Math.abs(candidate.rating - playerRating);
-    const candidateRange = calculateRatingRange(candidate);
 
-    // Check if both players are within each other's acceptable range
-    if (ratingDiff <= ratingRange && ratingDiff <= candidateRange) {
-      // Prefer closer rating matches
-      if (ratingDiff < smallestRatingDiff) {
-        smallestRatingDiff = ratingDiff;
-        bestMatch = candidate;
-      }
+    // Check if we're within the candidate's acceptable range
+    if (ratingDiff <= candidateRange && ratingDiff < smallestRatingDiff) {
+      smallestRatingDiff = ratingDiff;
+      bestMatch = {
+        address: candidate.address,
+        rating: candidate.rating,
+        joinedAt: candidateJoinedAt,
+      };
     }
   }
 
@@ -152,24 +228,58 @@ export function findOpponent(
 export async function attemptMatch(
   address: string
 ): Promise<MatchResult | null> {
-  const player = matchmakingQueue.get(address);
-  if (!player) return null;
+  const supabase = await createSupabaseServerClient();
 
-  const opponent = findOpponent(address, player.rating, player.joinedAt);
-  if (!opponent) return null;
+  // Get player from queue
+  const { data: player, error: playerError } = await supabase
+    .from("matchmaking_queue")
+    .select("address, rating, joined_at")
+    .eq("address", address)
+    .eq("status", "searching")
+    .single();
 
-  // Remove both players from queue
-  removeFromQueue(address);
-  removeFromQueue(opponent.address);
+  if (playerError || !player) {
+    return null;
+  }
+
+  const opponent = await findOpponent(
+    address,
+    player.rating,
+    new Date(player.joined_at)
+  );
+
+  if (!opponent) {
+    return null;
+  }
+
+  // Mark both players as matched (to prevent race conditions)
+  const { error: updateError } = await supabase
+    .from("matchmaking_queue")
+    .update({ status: "matched" })
+    .in("address", [address, opponent.address])
+    .eq("status", "searching");
+
+  if (updateError) {
+    console.error("Failed to mark players as matched:", updateError);
+    return null;
+  }
 
   // Create match in database
   const match = await createMatch(address, opponent.address);
   if (!match) {
-    // Re-add players to queue if match creation fails
-    await addToQueue(address, player.rating);
-    await addToQueue(opponent.address, opponent.rating);
+    // Reset players back to searching if match creation fails
+    await supabase
+      .from("matchmaking_queue")
+      .update({ status: "searching" })
+      .in("address", [address, opponent.address]);
     return null;
   }
+
+  // Remove both players from queue
+  await supabase
+    .from("matchmaking_queue")
+    .delete()
+    .in("address", [address, opponent.address]);
 
   return {
     matchId: match.id,
@@ -325,11 +435,12 @@ function generateRoomCode(): string {
 export async function runMatchmakingCycle(): Promise<MatchResult[]> {
   const results: MatchResult[] = [];
   const processedAddresses = new Set<string>();
+  const players = await getQueuedPlayers();
 
-  for (const [address] of matchmakingQueue) {
-    if (processedAddresses.has(address)) continue;
+  for (const player of players) {
+    if (processedAddresses.has(player.address)) continue;
 
-    const result = await attemptMatch(address);
+    const result = await attemptMatch(player.address);
     if (result) {
       results.push(result);
       processedAddresses.add(result.player1Address);
@@ -350,8 +461,11 @@ export async function broadcastMatchFound(
 ): Promise<void> {
   try {
     const supabase = await createSupabaseServerClient();
+    const channel = supabase.channel("matchmaking:queue");
 
-    await supabase.channel("matchmaking:queue").send({
+    // Send without subscribing - this explicitly uses HTTP/REST API
+    // This is the recommended approach for server-side broadcasts
+    await channel.send({
       type: "broadcast",
       event: "match_found",
       payload: {
@@ -361,8 +475,41 @@ export async function broadcastMatchFound(
       },
     });
 
+    // Clean up the channel after sending
+    await supabase.removeChannel(channel);
+
     console.log(`Match found event broadcast for ${matchId}`);
   } catch (error) {
     console.error("Failed to broadcast match found:", error);
   }
+}
+
+/**
+ * Clean up stale queue entries (players who have been in queue too long).
+ * Should be called periodically by a background job.
+ */
+export async function cleanupStaleQueueEntries(
+  maxAgeMinutes: number = 30
+): Promise<number> {
+  const supabase = await createSupabaseServerClient();
+
+  const cutoffTime = new Date(Date.now() - maxAgeMinutes * 60 * 1000).toISOString();
+
+  const { data, error } = await supabase
+    .from("matchmaking_queue")
+    .delete()
+    .lt("joined_at", cutoffTime)
+    .select("address");
+
+  if (error) {
+    console.error("Failed to clean up stale queue entries:", error);
+    return 0;
+  }
+
+  const count = data?.length ?? 0;
+  if (count > 0) {
+    console.log(`Cleaned up ${count} stale queue entries`);
+  }
+
+  return count;
 }

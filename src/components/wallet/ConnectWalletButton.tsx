@@ -5,7 +5,7 @@
  * Button to connect/disconnect Kaspa wallets
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,8 +15,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { useWallet } from "@/components/providers/WalletProvider";
-import { formatAddress, formatBalance } from "@/lib/utils";
+import { useWallet } from "@/hooks/useWallet";
+import { formatAddress } from "@/lib/utils";
 
 /**
  * Wallet icon component.
@@ -63,21 +63,33 @@ export function ConnectWalletButton({
     isConnecting,
     address,
     balance,
-    providerName,
     availableWallets,
-    isInitializing,
     connect,
     disconnect,
   } = useWallet();
 
   const [isOpen, setIsOpen] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  // Track when wallets have been discovered
+  useEffect(() => {
+    // Give wallets time to be discovered
+    const timer = setTimeout(() => {
+      setIsInitializing(false);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
   const [error, setError] = useState<string | null>(null);
 
   // Handle wallet connection
-  const handleConnect = async (providerId: string) => {
+  const handleConnect = async (walletName: string) => {
     try {
       setError(null);
-      await connect(providerId);
+      // Find the provider from available wallets
+      const wallet = availableWallets.find(
+        (w) => w.name.toLowerCase() === walletName.toLowerCase()
+      );
+      await connect(wallet?.provider);
       setIsOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to connect");
@@ -104,7 +116,7 @@ export function ConnectWalletButton({
           <DialogHeader>
             <DialogTitle>Wallet Connected</DialogTitle>
             <DialogDescription>
-              Connected via {providerName || "Unknown Wallet"}
+              Your Kaspa wallet is connected
             </DialogDescription>
           </DialogHeader>
 
@@ -119,7 +131,7 @@ export function ConnectWalletButton({
             <div className="rounded-lg bg-muted p-4">
               <p className="text-sm text-muted-foreground mb-1">Balance</p>
               <p className="text-2xl font-bold text-kaspa">
-                {balance !== null ? formatBalance(balance) : "Loading..."}
+                {balance || "Loading..."}
               </p>
             </div>
 

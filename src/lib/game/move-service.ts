@@ -10,7 +10,7 @@ import {
   buildMoveMessage,
   type MoveTransactionRequest,
 } from "@/lib/kaspa/move-transaction";
-import { signMessage, signTransaction, getConnectedAddress, getProvider } from "@/lib/kaspa/wallet";
+import { signMessage, signTransaction, getConnectedAddress, getProvider, getProviderWithRpc } from "@/lib/kaspa/wallet";
 import { EventBus } from "@/game/EventBus";
 
 // =============================================================================
@@ -164,12 +164,12 @@ export async function submitMoveWithTransaction(
     const signedTx = await signTransaction(buildResult.transaction.transaction);
 
     // Submit the transaction
-    const provider = getProvider();
+    const provider = getProviderWithRpc();
     if (!provider) {
       return {
         success: false,
         moveType,
-        error: "Wallet provider not available",
+        error: "Wallet provider not available or does not support RPC requests",
         timestamp,
       };
     }
@@ -253,13 +253,13 @@ export async function waitForConfirmation(
       }
 
       try {
-        const provider = getProvider();
+        const provider = getProviderWithRpc();
         if (!provider) {
           resolve({
             txId,
             confirmed: false,
             confirmations: 0,
-            error: "Wallet not connected",
+            error: "Wallet not connected or does not support RPC requests",
           });
           return;
         }
@@ -334,9 +334,9 @@ export async function verifyMoveOnChain(
   expectedMove: MoveType
 ): Promise<{ verified: boolean; error?: string }> {
   try {
-    const provider = getProvider();
+    const provider = getProviderWithRpc();
     if (!provider) {
-      return { verified: false, error: "Wallet not connected" };
+      return { verified: false, error: "Wallet not connected or does not support RPC requests" };
     }
 
     const txDetails = await provider.request<{ transaction: unknown }>(

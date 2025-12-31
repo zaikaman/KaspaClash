@@ -3,7 +3,14 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 interface MatchSummaryProps {
-    matchData: any; // Using any for rapid prototyping, define types properly in production
+    matchData: {
+        id: string;
+        winner: { name: string; address: string };
+        loser: { name: string; address: string };
+        score?: string;
+        status?: string;
+        txId?: string;
+    };
 }
 
 export default function MatchSummary({ matchData }: MatchSummaryProps) {
@@ -14,6 +21,11 @@ export default function MatchSummary({ matchData }: MatchSummaryProps) {
                 <h2 className="text-4xl md:text-6xl font-bold font-orbitron text-white mt-2">
                     {matchData.winner.name} WINS!
                 </h2>
+                {matchData.score && (
+                    <div className="text-2xl font-mono text-cyber-gold mt-2">
+                        {matchData.score}
+                    </div>
+                )}
                 <div className="flex justify-center mt-4">
                     <span className="bg-cyber-gold/20 text-cyber-gold border border-cyber-gold px-4 py-1 rounded text-sm font-mono flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>

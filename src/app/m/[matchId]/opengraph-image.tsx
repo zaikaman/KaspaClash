@@ -4,6 +4,7 @@
  */
 
 import { ImageResponse } from "next/og";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 // Image dimensions (Twitter/Facebook optimized)
 export const size = {
@@ -17,13 +18,58 @@ export const contentType = "image/png";
  * Character display data.
  */
 const characterData: Record<string, { emoji: string; color: string }> = {
-  "Cyber Ninja": { emoji: "🥷", color: "#F0B71F" },
-  "DAG Warrior": { emoji: "⚔️", color: "#FF6B6B" },
-  "Block Bruiser": { emoji: "🤖", color: "#4ECDC4" },
-  "Hash Hunter": { emoji: "🎯", color: "#A855F7" },
-  "Chain Champion": { emoji: "🏆", color: "#F59E0B" },
-  "Node Knight": { emoji: "🛡️", color: "#3B82F6" },
+  "cyber-ninja": { emoji: "🥷", color: "#F0B71F" },
+  "dag-warrior": { emoji: "⚔️", color: "#FF6B6B" },
+  "block-brawler": { emoji: "🤖", color: "#4ECDC4" },
+  "hash-hunter": { emoji: "🎯", color: "#A855F7" },
 };
+
+const CHARACTER_NAMES: Record<string, string> = {
+  "cyber-ninja": "Cyber Ninja",
+  "dag-warrior": "DAG Warrior",
+  "block-brawler": "Block Brawler",
+  "hash-hunter": "Hash Hunter",
+};
+
+interface MatchData {
+  id: string;
+  player1_address: string;
+  player2_address: string | null;
+  player1_character_id: string | null;
+  player2_character_id: string | null;
+  winner_address: string | null;
+  player1_rounds_won: number;
+  player2_rounds_won: number;
+}
+
+async function getMatchData(matchId: string): Promise<MatchData | null> {
+  try {
+    const supabase = await createSupabaseServerClient();
+
+    const { data, error } = await supabase
+      .from("matches")
+      .select("id, player1_address, player2_address, player1_character_id, player2_character_id, winner_address, player1_rounds_won, player2_rounds_won")
+      .eq("id", matchId)
+      .single();
+
+    if (error || !data) {
+      return null;
+    }
+
+    return data as MatchData;
+  } catch {
+    return null;
+  }
+}
+
+function formatAddress(address: string): string {
+  if (address.length > 16) {
+    const prefix = address.substring(0, 10);
+    const suffix = address.substring(address.length - 6);
+    return `${prefix}...${suffix}`;
+  }
+  return address;
+}
 
 /**
  * Generate OG image for a match.
@@ -34,19 +80,25 @@ export default async function Image({
   params: Promise<{ matchId: string }>;
 }) {
   const { matchId } = await params;
+  const match = await getMatchData(matchId);
 
-  // In production, this would fetch actual match data
-  // For now, use placeholder data based on matchId
-  const mockData = {
-    winnerName: "kaspa:qxyz...abcd",
-    winnerCharacter: "Cyber Ninja",
-    loserName: "kaspa:q789...1234",
-    loserCharacter: "Block Bruiser",
-    score: "2-1",
+  // Use match data or fallback to placeholder if not found
+  const isPlayer1Winner = match?.winner_address === match?.player1_address;
+  const winnerCharId = match ? (isPlayer1Winner ? match.player1_character_id : match.player2_character_id) : null;
+  const loserCharId = match ? (isPlayer1Winner ? match.player2_character_id : match.player1_character_id) : null;
+  const winnerAddress = match ? (isPlayer1Winner ? match.player1_address : match.player2_address || "Unknown") : "Unknown";
+  const loserAddress = match ? (isPlayer1Winner ? match.player2_address : match.player1_address) : "Unknown";
+
+  const matchDisplayData = {
+    winnerName: formatAddress(winnerAddress),
+    winnerCharacter: winnerCharId ? CHARACTER_NAMES[winnerCharId] || winnerCharId : "Unknown",
+    loserName: loserAddress ? formatAddress(loserAddress) : "Unknown",
+    loserCharacter: loserCharId ? CHARACTER_NAMES[loserCharId] || loserCharId : "Unknown",
+    score: match ? `${match.player1_rounds_won}-${match.player2_rounds_won}` : "0-0",
   };
 
-  const winnerInfo = characterData[mockData.winnerCharacter] || { emoji: "👤", color: "#F0B71F" };
-  const loserInfo = characterData[mockData.loserCharacter] || { emoji: "👤", color: "#666666" };
+  const winnerInfo = characterData[winnerCharId || ""] || { emoji: "👤", color: "#F0B71F" };
+  const loserInfo = characterData[loserCharId || ""] || { emoji: "👤", color: "#666666" };
 
   return new ImageResponse(
     (
@@ -138,7 +190,7 @@ export default async function Image({
                 color: "#FFFFFF",
               }}
             >
-              {mockData.winnerCharacter}
+              {matchDisplayData.winnerCharacter}
             </div>
             <div
               style={{
@@ -147,7 +199,7 @@ export default async function Image({
                 color: "#888888",
               }}
             >
-              {mockData.winnerName}
+              {matchDisplayData.winnerName}
             </div>
           </div>
 
@@ -167,7 +219,7 @@ export default async function Image({
                 letterSpacing: "0.1em",
               }}
             >
-              {mockData.score}
+              {matchDisplayData.score}
             </div>
             <div
               style={{
@@ -214,7 +266,7 @@ export default async function Image({
                 color: "#888888",
               }}
             >
-              {mockData.loserCharacter}
+              {matchDisplayData.loserCharacter}
             </div>
             <div
               style={{
@@ -223,7 +275,7 @@ export default async function Image({
                 color: "#666666",
               }}
             >
-              {mockData.loserName}
+              {matchDisplayData.loserName}
             </div>
           </div>
         </div>

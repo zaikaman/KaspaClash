@@ -255,15 +255,34 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
     if (!channel) return;
 
     const presenceState = channel.presenceState<GamePlayerPresence>();
-    const players = new Map<string, GamePlayerPresence>();
+    const newPlayers = new Map<string, GamePlayerPresence>();
 
     for (const [, presences] of Object.entries(presenceState)) {
       for (const presence of presences) {
-        players.set(presence.address, presence);
+        newPlayers.set(presence.address, presence);
       }
     }
 
-    setState((prev) => ({ ...prev, players }));
+    // Only update state if players have actually changed to avoid infinite loops
+    setState((prev) => {
+      // Compare players maps - check if they have the same keys and values
+      if (prev.players.size === newPlayers.size) {
+        let isSame = true;
+        for (const [address, presence] of newPlayers) {
+          const prevPresence = prev.players.get(address);
+          if (!prevPresence ||
+            prevPresence.role !== presence.role ||
+            prevPresence.isReady !== presence.isReady) {
+            isSame = false;
+            break;
+          }
+        }
+        if (isSame) {
+          return prev; // Return same reference to avoid re-render
+        }
+      }
+      return { ...prev, players: newPlayers };
+    });
   }, []);
 
   /**

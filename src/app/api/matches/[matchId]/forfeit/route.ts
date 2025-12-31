@@ -124,8 +124,10 @@ export async function POST(
     //   await supabase.rpc("increment_wins", { player_address: winnerAddress });
     // }
 
-    // Broadcast match_ended event
-    await supabase.channel(`game:${matchId}`).send({
+    // Broadcast match_ended event via Supabase Realtime REST API
+    // Server-side sends without subscribing explicitly use HTTP/REST
+    const gameChannel = supabase.channel(`game:${matchId}`);
+    await gameChannel.send({
       type: "broadcast",
       event: "match_ended",
       payload: {
@@ -149,6 +151,7 @@ export async function POST(
         explorerUrl: "",
       },
     });
+    await supabase.removeChannel(gameChannel);
 
     return NextResponse.json({
       winnerAddress,

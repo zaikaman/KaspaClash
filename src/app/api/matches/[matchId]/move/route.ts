@@ -195,8 +195,10 @@ export async function POST(
       updatedRound?.player1_move && updatedRound?.player2_move
     );
 
-    // Broadcast move_submitted event via Supabase Realtime
-    await supabase.channel(`game:${matchId}`).send({
+    // Broadcast move_submitted event via Supabase Realtime REST API
+    // Server-side sends without subscribing explicitly use HTTP/REST
+    const gameChannel = supabase.channel(`game:${matchId}`);
+    await gameChannel.send({
       type: "broadcast",
       event: "move_submitted",
       payload: {
@@ -205,6 +207,7 @@ export async function POST(
         submittedAt: Date.now(),
       },
     });
+    await supabase.removeChannel(gameChannel);
 
     return NextResponse.json({
       moveId: move.id,

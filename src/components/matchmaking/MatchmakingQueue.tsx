@@ -1,14 +1,113 @@
-import React from "react";
+"use client";
+
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { useMatchmakingQueue } from "@/hooks/useMatchmakingQueue";
+import { useWallet } from "@/hooks/useWallet";
+import { useRouter } from "next/navigation";
 
-interface MatchmakingQueueProps {
-    startTime?: number; // timestamp when queue started
-    playerCount?: number;
-    onCancel?: () => void;
-}
+export default function MatchmakingQueue() {
+    const router = useRouter();
+    const { isConnected, address } = useWallet();
+    const {
+        isInQueue,
+        isJoining,
+        isMatching,
+        waitTimeSeconds,
+        playerCount,
+        error,
+        matchResult,
+        joinQueue,
+        leaveQueue,
+        formatWaitTime,
+    } = useMatchmakingQueue();
 
-export default function MatchmakingQueue({ playerCount = 12, onCancel }: MatchmakingQueueProps) {
+    const [hasStarted, setHasStarted] = useState(false);
+
+    // Automatically join queue when component mounts if wallet is connected
+    useEffect(() => {
+        if (isConnected && !isInQueue && !hasStarted && !isJoining) {
+            setHasStarted(true);
+            joinQueue();
+        }
+    }, [isConnected, isInQueue, hasStarted, isJoining, joinQueue]);
+
+    // Navigate to match when matched
+    useEffect(() => {
+        if (matchResult) {
+            router.push(`/match/${matchResult.matchId}`);
+        }
+    }, [matchResult, router]);
+
+    // If wallet not connected, show connect message
+    if (!isConnected) {
+        return (
+            <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto relative">
+                <div className="text-center">
+                    <h2 className="text-2xl font-bold font-orbitron text-white mb-4">
+                        WALLET REQUIRED
+                    </h2>
+                    <p className="text-cyber-gray font-montserrat mb-8">
+                        Connect your wallet to search for opponents.
+                    </p>
+                    <Link href="/">
+                        <Button className="bg-gradient-cyber text-white border-0 font-orbitron">
+                            GO TO HOME
+                        </Button>
+                    </Link>
+                </div>
+            </div>
+        );
+    }
+
+    // Show error state
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto relative">
+                <div className="text-center">
+                    <h2 className="text-2xl font-bold font-orbitron text-red-500 mb-4">
+                        ERROR
+                    </h2>
+                    <p className="text-cyber-gray font-montserrat mb-8">
+                        {error}
+                    </p>
+                    <Button
+                        onClick={() => {
+                            setHasStarted(false);
+                            joinQueue();
+                        }}
+                        className="bg-gradient-cyber text-white border-0 font-orbitron"
+                    >
+                        TRY AGAIN
+                    </Button>
+                </div>
+            </div>
+        );
+    }
+
+    // Show matching state
+    if (isMatching) {
+        return (
+            <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto relative">
+                <div className="relative w-64 h-64 mb-12 flex items-center justify-center">
+                    <div className="absolute w-full h-full rounded-full border-4 border-green-500 animate-ping"></div>
+                    <div className="absolute w-32 h-32 rounded-full bg-green-500/20 flex items-center justify-center">
+                        <svg className="w-16 h-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
+                </div>
+                <h2 className="text-2xl font-bold font-orbitron text-green-500 mb-2">
+                    OPPONENT FOUND!
+                </h2>
+                <p className="text-cyber-gray font-montserrat">
+                    Preparing match...
+                </p>
+            </div>
+        );
+    }
+
     return (
         <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto relative">
             {/* Radar/Pulse Effect Container */}
@@ -34,30 +133,37 @@ export default function MatchmakingQueue({ playerCount = 12, onCancel }: Matchma
 
             {/* Status Text */}
             <h2 className="text-2xl font-bold font-orbitron text-white mb-2 animate-pulse">
-                SEARCHING FOR OPPONENT...
+                {isJoining ? "JOINING QUEUE..." : "SEARCHING FOR OPPONENT..."}
             </h2>
-            <p className="text-cyber-gray font-montserrat mb-8">
-                {playerCount} fighters in queue
+            <p className="text-cyber-gray font-montserrat mb-2">
+                {playerCount} {playerCount === 1 ? "fighter" : "fighters"} in queue
             </p>
+            {isInQueue && (
+                <p className="text-cyber-gold font-mono text-lg mb-8">
+                    {formatWaitTime(waitTimeSeconds)}
+                </p>
+            )}
 
             {/* Tips Carousel (Static for now) */}
             <div className="bg-black/40 border border-cyber-gray/20 rounded-lg p-4 mb-8 text-center max-w-xs backdrop-blur-sm">
                 <span className="text-cyber-gold text-xs font-bold uppercase block mb-1">Tip</span>
                 <p className="text-xs text-cyber-gray">
-                    Block high attacks by holding the BACK arrow.
+                    Block counters attacks! Use it wisely to turn the tide.
                 </p>
             </div>
 
             {/* Cancel Button */}
-            <Link href="/matchmaking" className="w-full">
-                <Button
-                    variant="outline"
-                    className="w-full border-red-500/50 text-red-500 hover:bg-red-500/10 hover:border-red-500 font-orbitron"
-                    onClick={onCancel}
-                >
-                    CANCEL SEARCH
-                </Button>
-            </Link>
+            <Button
+                variant="outline"
+                className="w-full border-red-500/50 text-red-500 hover:bg-red-500/10 hover:border-red-500 font-orbitron"
+                onClick={async () => {
+                    await leaveQueue();
+                    router.push("/matchmaking");
+                }}
+                disabled={isJoining}
+            >
+                CANCEL SEARCH
+            </Button>
         </div>
     );
 }

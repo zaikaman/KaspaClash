@@ -24,7 +24,7 @@ export interface UseWalletReturn {
   network: "mainnet" | "testnet" | null;
   error: string | null;
   availableWallets: WalletDiscoveryResult[];
-  
+
   // Actions
   connect: (provider?: KaspaProvider) => Promise<void>;
   disconnect: () => Promise<void>;
@@ -62,9 +62,28 @@ export function useWallet(): UseWalletReturn {
   const connect = useCallback(async (provider?: KaspaProvider): Promise<void> => {
     try {
       store.setConnecting();
-      
+
       const connection = await connectWallet(provider);
       store.setConnected(connection.address as KaspaAddress, connection.network || "mainnet");
+
+      // Auto-register player in database (creates new or returns existing)
+      try {
+        const response = await fetch(`/api/players/${encodeURIComponent(connection.address)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.isNewPlayer) {
+            console.log("New player registered:", connection.address);
+          } else {
+            console.log("Player already exists:", connection.address);
+          }
+        }
+      } catch (registerError) {
+        console.warn("Failed to register player:", registerError);
+        // Non-fatal - player may already exist
+      }
 
       // Fetch initial balance
       try {

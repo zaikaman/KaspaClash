@@ -166,7 +166,7 @@ export const selectFormattedBalance = (state: WalletStore): string | null => {
  * Get truncated address for display.
  */
 export const selectTruncatedAddress = (state: WalletStore): string | null => {
-  if (!state.address) return null;
+  if (!state.address || typeof state.address !== 'string') return null;
   const addr = state.address;
   // kaspa:qz0s...abc
   const prefix = addr.substring(0, 10);

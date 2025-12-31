@@ -249,6 +249,34 @@ export interface Database {
           }
         ];
       };
+      matchmaking_queue: {
+        Row: {
+          address: string;
+          rating: number;
+          joined_at: string;
+          status: string;
+        };
+        Insert: {
+          address: string;
+          rating?: number;
+          joined_at?: string;
+          status?: string;
+        };
+        Update: {
+          address?: string;
+          rating?: number;
+          joined_at?: string;
+          status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "matchmaking_queue_address_fkey";
+            columns: ["address"];
+            referencedRelation: "players";
+            referencedColumns: ["address"];
+          }
+        ];
+      };
     };
     Views: {};
     Functions: {};

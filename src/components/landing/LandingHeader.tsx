@@ -1,30 +1,55 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import WalletConnectModal from "@/components/wallet/WalletConnectModal";
 import WalletInfo from "@/components/wallet/WalletInfo";
+import { useWallet } from "@/hooks/useWallet";
 
 export default function LandingHeader() {
     const pathname = usePathname();
     const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
-    const [isConnected, setIsConnected] = useState(false);
 
-    // Mock wallet data - in a real app this would come from useWallet hook
-    const walletAddress = "kaspa:qxyz...abcd";
-    const walletBalance = "1,250";
+    // Use real wallet hook
+    const {
+        address,
+        balance,
+        truncatedAddress,
+        isConnected,
+        isConnecting,
+        connect,
+        disconnect,
+        discoverWallets
+    } = useWallet();
 
-    const handleConnect = (walletType: string) => {
-        // Here we would actually trigger the wallet connection logic
-        console.log(`Connecting to ${walletType}...`);
-        setIsConnected(true);
-        setIsWalletModalOpen(false);
+    // Discover wallets when modal opens
+    useEffect(() => {
+        if (isWalletModalOpen) {
+            discoverWallets().then(wallets => {
+                console.log("Discovered wallets:", wallets);
+            });
+        }
+    }, [isWalletModalOpen, discoverWallets]);
+
+    const handleConnect = async (walletType: string) => {
+        try {
+            console.log(`Attempting to connect wallet: ${walletType}`);
+            // Just connect - the discovery process will find the wallet
+            await connect();
+            setIsWalletModalOpen(false);
+        } catch (error) {
+            console.error("Failed to connect wallet:", error);
+        }
     };
 
-    const handleDisconnect = () => {
-        setIsConnected(false);
+    const handleDisconnect = async () => {
+        try {
+            await disconnect();
+        } catch (error) {
+            console.error("Failed to disconnect wallet:", error);
+        }
     };
 
     return (
@@ -65,23 +90,24 @@ export default function LandingHeader() {
 
                 {/* Wallet / CTA */}
                 <div className="hidden md:block">
-                    {isConnected ? (
+                    {isConnected && truncatedAddress ? (
                         <WalletInfo
-                            address={walletAddress}
-                            balance={walletBalance}
+                            address={truncatedAddress}
+                            balance={balance || "0"}
                             onDisconnect={handleDisconnect}
                         />
                     ) : (
                         <Button
                             onClick={() => setIsWalletModalOpen(true)}
+                            disabled={isConnecting}
                             className="bg-gradient-cyber text-white border-0 font-semibold text-[17px] hover:opacity-90 transition-opacity font-orbitron h-auto py-3 px-6"
                         >
-                            Connect Wallet
+                            {isConnecting ? "Connecting..." : "Connect Wallet"}
                         </Button>
                     )}
                 </div>
 
-                {/* Mobile Menu Button - TODO: Implement functionality */}
+                {/* Mobile Menu Button */}
                 <button className="md:hidden text-white p-2">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
