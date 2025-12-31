@@ -61,6 +61,7 @@
   --color-cyber-black: #010101;
   --color-cyber-gold: #F0B71F;
   --color-cyber-orange: #E03609;
+  --color-cyber-blue: #00F0FF;
   --color-cyber-gray: #DDD;
   --background-image-gradient-cyber: linear-gradient(90deg, #F0B71F 0%, #E03609 100%);
   --background-image-gradient-cyber-270: linear-gradient(270deg, #F0B71F 0%, #E03609 100%);
@@ -160,6 +161,7 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }

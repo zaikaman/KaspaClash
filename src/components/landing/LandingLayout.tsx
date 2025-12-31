@@ -1,5 +1,6 @@
-import Link from "next/link";
 import { ReactNode } from "react";
+import Link from "next/link";
+import LandingHeader from "./LandingHeader";
 
 interface LandingLayoutProps {
     children: ReactNode;
@@ -9,45 +10,7 @@ export default function LandingLayout({ children }: LandingLayoutProps) {
     return (
         <div className="min-h-screen bg-cyber-black text-white font-montserrat">
             {/* Header */}
-            <header className="relative z-50">
-                <nav className="container mx-auto px-6 lg:px-12 xl:px-24 py-6 flex items-center justify-between">
-                    {/* Logo */}
-                    <Link href="/" className="text-2xl font-bold bg-gradient-cyber bg-clip-text text-transparent font-orbitron">
-                        KaspaClash
-                    </Link>
-
-                    {/* Desktop Navigation */}
-                    <div className="hidden md:flex items-center gap-8 text-base font-medium">
-                        <Link href="/" className="hover:text-cyber-gold transition-colors">
-                            Home
-                        </Link>
-                        <Link href="/matchmaking" className="hover:text-cyber-gold transition-colors">
-                            Play Now
-                        </Link>
-                        <Link href="/leaderboard" className="hover:text-cyber-gold transition-colors">
-                            Leaderboard
-                        </Link>
-                        <Link href="/docs" className="hover:text-cyber-gold transition-colors">
-                            Docs
-                        </Link>
-                    </div>
-
-                    {/* CTA Button */}
-                    <Link
-                        href="/matchmaking"
-                        className="hidden md:block px-6 py-3 rounded-lg bg-gradient-cyber text-white font-semibold text-[17px] hover:opacity-90 transition-opacity font-orbitron"
-                    >
-                        Connect Wallet
-                    </Link>
-
-                    {/* Mobile Menu Button - TODO: Implement functionality */}
-                    <button className="md:hidden text-white p-2">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                        </svg>
-                    </button>
-                </nav>
-            </header>
+            <LandingHeader />
 
             {/* Main Content */}
             <main>{children}</main>

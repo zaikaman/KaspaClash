@@ -148,16 +148,16 @@
 
 ### Wallet UI Enhancements
 
-- [ ] T058 [P] [US2] Create WalletConnectModal in src/components/wallet/WalletConnectModal.tsx (wallet selection)
-- [ ] T059 [P] [US2] Create WalletInfo display in src/components/wallet/WalletInfo.tsx (address, balance)
+- [X] T058 [P] [US2] Create WalletConnectModal in src/components/wallet/WalletConnectModal.tsx (wallet selection)
+- [X] T059 [P] [US2] Create WalletInfo display in src/components/wallet/WalletInfo.tsx (address, balance)
 - [ ] T060 [US2] Create wallet hooks in src/hooks/useWallet.ts (connect, disconnect, sign message)
 
 ### Matchmaking Queue
 
 - [ ] T061 [US2] Create matchmaking store in src/stores/matchmaking-store.ts (queue status, players in queue)
 - [ ] T062 [US2] Create queue presence hook in src/hooks/useMatchmakingQueue.ts (Supabase Presence)
-- [ ] T063 [US2] Create MatchmakingQueue component in src/components/matchmaking/MatchmakingQueue.tsx (join/leave, queue count)
-- [ ] T064 [US2] Create queue page at src/app/queue/page.tsx (wallet required, queue UI)
+- [X] T063 [US2] Create MatchmakingQueue component in src/components/matchmaking/MatchmakingQueue.tsx (join/leave, queue count)
+- [X] T064 [US2] Create queue page at src/app/queue/page.tsx (wallet required, queue UI)
 
 ### Matchmaking API
 
@@ -169,8 +169,8 @@
 
 - [ ] T068 [P] [US2] Create POST /api/matchmaking/rooms/route.ts (create room with code)
 - [ ] T069 [P] [US2] Create POST /api/matchmaking/rooms/join/route.ts (join room by code)
-- [ ] T070 [US2] Create RoomCreate component in src/components/matchmaking/RoomCreate.tsx
-- [ ] T071 [US2] Create RoomJoin component in src/components/matchmaking/RoomJoin.tsx
+- [X] T070 [US2] Create RoomCreate component in src/components/matchmaking/RoomCreate.tsx
+- [X] T071 [US2] Create RoomJoin component in src/components/matchmaking/RoomJoin.tsx
 
 ### Player Registration
 
@@ -229,12 +229,12 @@
 
 - [ ] T087 [US4] Create PracticeScene variant in src/game/scenes/PracticeScene.ts (offline mode, AI opponent)
 - [ ] T088 [US4] Create practice mode match store in src/stores/practice-store.ts (local state only)
-- [ ] T089 [US4] Create practice mode page at src/app/practice/page.tsx (no wallet required)
+- [X] T089 [US4] Create practice mode page at src/app/practice/page.tsx (no wallet required)
 
 ### Practice UI
 
-- [ ] T090 [US4] Create practice mode menu in src/components/practice/PracticeMenu.tsx (character select, difficulty)
-- [ ] T091 [US4] Create practice results screen in src/components/practice/PracticeResults.tsx (no stats saved)
+- [X] T090 [US4] Create practice mode menu in src/components/practice/PracticeMenu.tsx (character select, difficulty)
+- [X] T091 [US4] Create practice results screen in src/components/practice/PracticeResults.tsx (no stats saved)
 
 **Checkpoint**: User Story 4 complete - offline practice mode available
 
@@ -253,15 +253,15 @@
 
 ### Leaderboard UI
 
-- [ ] T094 [US5] Create LeaderboardPage at src/app/leaderboard/page.tsx
-- [ ] T095 [US5] Create LeaderboardTable in src/components/leaderboard/LeaderboardTable.tsx (rank, address, wins, rating)
-- [ ] T096 [US5] Create PlayerRank display in src/components/leaderboard/PlayerRank.tsx (current user's rank)
+- [X] T094 [US5] Create LeaderboardPage at src/app/leaderboard/page.tsx
+- [X] T095 [US5] Create LeaderboardTable in src/components/leaderboard/LeaderboardTable.tsx (rank, address, wins, rating)
+- [X] T096 [US5] Create PlayerRank display in src/components/leaderboard/PlayerRank.tsx (current user's rank)
 
 ### Player Stats
 
 - [ ] T097 [US5] Create GET /api/players/[address]/matches/route.ts (match history)
-- [ ] T098 [US5] Create PlayerProfile page at src/app/player/[address]/page.tsx
-- [ ] T099 [US5] Create MatchHistory component in src/components/player/MatchHistory.tsx
+- [X] T098 [US5] Create PlayerProfile page at src/app/player/[address]/page.tsx
+- [X] T099 [US5] Create MatchHistory component in src/components/player/MatchHistory.tsx
 
 **Checkpoint**: User Story 5 complete - leaderboard and player profiles viewable
 
@@ -280,13 +280,13 @@
 
 ### Share UI
 
-- [ ] T102 [US6] Create ShareMatchButton in src/components/share/ShareMatchButton.tsx (copy link, social share)
+- [X] T102 [US6] Create ShareMatchButton in src/components/share/ShareMatchButton.tsx (copy link, social share)
 - [ ] T103 [US6] Integrate share button in MatchResults component
 
 ### Match Summary Page
 
-- [ ] T104 [US6] Create public match page at src/app/m/[matchId]/page.tsx (shareable, no wallet required)
-- [ ] T105 [US6] Create MatchSummary component in src/components/share/MatchSummary.tsx (winner, rounds, explorer links)
+- [X] T104 [US6] Create public match page at src/app/m/[matchId]/page.tsx (shareable, no wallet required)
+- [X] T105 [US6] Create MatchSummary component in src/components/share/MatchSummary.tsx (winner, rounds, explorer links)
 - [ ] T106 [US6] Generate OG image for match share at src/app/m/[matchId]/opengraph-image.tsx
 
 **Checkpoint**: User Story 6 complete - match results shareable with OG previews
