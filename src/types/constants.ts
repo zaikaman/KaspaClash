@@ -72,6 +72,12 @@ export const DAMAGE_MULTIPLIERS = {
   BLOCKED: 0.5,
   /** Critical hit multiplier (special vs special) */
   CRITICAL: 1.5,
+  /** Counter bonus (when your move beats their move) */
+  COUNTER_BONUS: 1.0,
+  /** Same move clash */
+  SAME_MOVE: 0.5,
+  /** Bonus damage at low health (< 30%) */
+  LOW_HEALTH_BONUS: 1.2,
 } as const;
 
 // =============================================================================

@@ -213,3 +213,26 @@ export function compose<T>(
   return (handler) =>
     middlewares.reduceRight((acc, middleware) => middleware(acc), handler);
 }
+
+/**
+ * Verify a Kaspa wallet signature.
+ * In a production environment, this would use the kaspa-wasm SDK
+ * to cryptographically verify the signature.
+ */
+export async function verifySignature(
+  _address: string,
+  _message: string,
+  _signature: string
+): Promise<boolean> {
+  // TODO: Implement actual signature verification using kaspa-wasm
+  // For now, return true for development
+  // In production, this should:
+  // 1. Load the kaspa-wasm SDK
+  // 2. Use PublicKey.fromAddress(address)
+  // 3. Verify the signature against the message
+  console.warn(
+    "verifySignature: Signature verification not implemented. " +
+    "Accepting all signatures for development."
+  );
+  return true;
+}

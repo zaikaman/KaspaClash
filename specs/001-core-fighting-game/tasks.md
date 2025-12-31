@@ -92,49 +92,49 @@
 
 ### Game Engine for US1
 
-- [ ] T033 [P] [US1] Create FightScene base in src/game/scenes/FightScene.ts (arena, UI zones)
-- [ ] T034 [P] [US1] Create FighterSprite class in src/game/sprites/FighterSprite.ts (animations, health bar)
-- [ ] T035 [P] [US1] Create MoveButton components in src/game/ui/MoveButton.ts (punch, kick, block, special)
-- [ ] T036 [US1] Create round timer display in src/game/ui/RoundTimer.ts (15-second countdown)
-- [ ] T037 [US1] Create health bar UI in src/game/ui/HealthBar.ts (100 HP, damage animations)
-- [ ] T038 [US1] Create round score display in src/game/ui/RoundScore.ts (best-of-3 tracking)
+- [X] T033 [P] [US1] Create FightScene base in src/game/scenes/FightScene.ts (arena, UI zones)
+- [X] T034 [P] [US1] Create FighterSprite class in src/game/sprites/FighterSprite.ts (animations, health bar)
+- [X] T035 [P] [US1] Create MoveButton components in src/game/ui/MoveButton.ts (punch, kick, block, special)
+- [X] T036 [US1] Create round timer display in src/game/ui/RoundTimer.ts (15-second countdown)
+- [X] T037 [US1] Create health bar UI in src/game/ui/HealthBar.ts (100 HP, damage animations)
+- [X] T038 [US1] Create round score display in src/game/ui/RoundScore.ts (best-of-3 tracking)
 
 ### Match State Management
 
-- [ ] T039 [US1] Create match store in src/stores/match-store.ts (currentMatch, rounds, moves)
-- [ ] T040 [US1] Create game state machine in src/lib/game/state-machine.ts (waiting → character_select → in_progress → completed)
+- [X] T039 [US1] Create match store in src/stores/match-store.ts (currentMatch, rounds, moves)
+- [X] T040 [US1] Create game state machine in src/lib/game/state-machine.ts (waiting → character_select → in_progress → completed)
 
 ### Move Submission Flow
 
-- [ ] T041 [US1] Create move transaction builder in src/lib/kaspa/move-transaction.ts (build minimal tx for move)
-- [ ] T042 [US1] Create move submission service in src/lib/game/move-service.ts (sign, submit, await confirmation)
-- [ ] T043 [US1] Integrate move submission with FightScene in src/game/scenes/FightScene.ts (button → tx → confirm)
+- [X] T041 [US1] Create move transaction builder in src/lib/kaspa/move-transaction.ts (build minimal tx for move)
+- [X] T042 [US1] Create move submission service in src/lib/game/move-service.ts (sign, submit, await confirmation)
+- [X] T043 [US1] Integrate move submission with FightScene in src/game/scenes/FightScene.ts (button → tx → confirm)
 
 ### Round Resolution
 
-- [ ] T044 [US1] Create round resolver logic in src/lib/game/round-resolver.ts (damage calculation per MOVE_PROPERTIES)
-- [ ] T045 [US1] Create round animation handler in src/game/handlers/RoundAnimationHandler.ts (play hit/block effects)
+- [X] T044 [US1] Create round resolver logic in src/lib/game/round-resolver.ts (damage calculation per MOVE_PROPERTIES)
+- [X] T045 [US1] Create round animation handler in src/game/handlers/RoundAnimationHandler.ts (play hit/block effects)
 
 ### WebSocket Integration
 
-- [ ] T046 [US1] Create game channel hook in src/hooks/useGameChannel.ts (subscribe to game:${matchId})
-- [ ] T047 [US1] Handle round_starting event in src/hooks/useGameChannel.ts (reset round state)
-- [ ] T048 [US1] Handle move_submitted event in src/hooks/useGameChannel.ts (show opponent pending)
-- [ ] T049 [US1] Handle move_confirmed event in src/hooks/useGameChannel.ts (show confirmed icon)
-- [ ] T050 [US1] Handle round_resolved event in src/hooks/useGameChannel.ts (trigger animations, update scores)
-- [ ] T051 [US1] Handle match_ended event in src/hooks/useGameChannel.ts (show results, explorer link)
+- [X] T046 [US1] Create game channel hook in src/hooks/useGameChannel.ts (subscribe to game:${matchId})
+- [X] T047 [US1] Handle round_starting event in src/hooks/useGameChannel.ts (reset round state)
+- [X] T048 [US1] Handle move_submitted event in src/hooks/useGameChannel.ts (show opponent pending)
+- [X] T049 [US1] Handle move_confirmed event in src/hooks/useGameChannel.ts (show confirmed icon)
+- [X] T050 [US1] Handle round_resolved event in src/hooks/useGameChannel.ts (trigger animations, update scores)
+- [X] T051 [US1] Handle match_ended event in src/hooks/useGameChannel.ts (show results, explorer link)
 
 ### Game Page
 
-- [ ] T052 [US1] Create match page at src/app/match/[matchId]/page.tsx (load match, render PhaserGame)
-- [ ] T053 [US1] Create match results overlay in src/components/game/MatchResults.tsx (winner, stats, explorer link)
+- [X] T052 [US1] Create match page at src/app/match/[matchId]/page.tsx (load match, render PhaserGame)
+- [X] T053 [US1] Create match results overlay in src/components/game/MatchResults.tsx (winner, stats, explorer link)
 
 ### API Endpoints for Match
 
-- [ ] T054 [US1] Create GET /api/matches/[matchId]/route.ts (fetch match state)
-- [ ] T055 [US1] Create POST /api/matches/[matchId]/move/route.ts (submit move with txId)
-- [ ] T056 [US1] Create GET /api/matches/[matchId]/rounds/route.ts (fetch round history)
-- [ ] T057 [US1] Create POST /api/matches/[matchId]/forfeit/route.ts (forfeit match)
+- [X] T054 [US1] Create GET /api/matches/[matchId]/route.ts (fetch match state)
+- [X] T055 [US1] Create POST /api/matches/[matchId]/move/route.ts (submit move with txId)
+- [X] T056 [US1] Create GET /api/matches/[matchId]/rounds/route.ts (fetch round history)
+- [X] T057 [US1] Create POST /api/matches/[matchId]/forfeit/route.ts (forfeit match)
 
 **Checkpoint**: User Story 1 complete - full 1v1 match playable with on-chain verification
 

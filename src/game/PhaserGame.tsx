@@ -15,6 +15,7 @@ import React, {
 } from "react";
 import { EventBus } from "./EventBus";
 import type { GameEvents } from "./EventBus";
+import type { FightSceneConfig } from "./scenes/FightScene";
 
 /**
  * Props for the PhaserGame component.
@@ -22,6 +23,8 @@ import type { GameEvents } from "./EventBus";
 export interface PhaserGameProps {
   /** Current scene key to start with */
   currentScene?: string;
+  /** Scene configuration for FightScene */
+  sceneConfig?: FightSceneConfig;
   /** Callback when scene is ready */
   onSceneReady?: (scene: Phaser.Scene) => void;
   /** Callback when current scene changes */
@@ -48,7 +51,7 @@ export interface PhaserGameRef {
  */
 export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
   function PhaserGame(
-    { currentScene, onSceneReady, onSceneChange, className, width, height },
+    { currentScene, sceneConfig, onSceneReady, onSceneChange, className, width, height },
     ref
   ) {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -84,9 +87,10 @@ export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
           // Dynamic import for Phaser (client-side only)
           const Phaser = (await import("phaser")).default;
           const { createGameConfig } = await import("./config");
+          const { FightScene } = await import("./scenes/FightScene");
           
-          // Scenes will be registered when they are created in Phase 3
-          const scenes: Phaser.Types.Scenes.SceneType[] = [];
+          // Register scenes - add FightScene
+          const scenes: Phaser.Types.Scenes.SceneType[] = [FightScene];
 
           if (!isMounted) return;
 
@@ -99,16 +103,25 @@ export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
           // Create the game instance
           gameRef.current = new Phaser.Game(config);
 
+          // If we have scene config, start the FightScene with it
+          if (sceneConfig) {
+            gameRef.current.events.once("ready", () => {
+              gameRef.current?.scene.start("FightScene", sceneConfig);
+            });
+          }
+
           // Listen for scene ready events
-          EventBus.on("scene:ready", (scene: Phaser.Scene) => {
+          EventBus.onEvent("scene:ready", (data) => {
             if (!isMounted) return;
+            const scene = data as Phaser.Scene;
             setCurrentActiveScene(scene);
             onSceneReady?.(scene);
           });
 
           // Listen for scene change events
-          EventBus.on("scene:change", (scene: Phaser.Scene) => {
+          EventBus.onEvent("scene:change", (data) => {
             if (!isMounted) return;
+            const scene = data as Phaser.Scene;
             setCurrentActiveScene(scene);
             onSceneChange?.(scene);
           });
