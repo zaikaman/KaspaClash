@@ -64,6 +64,46 @@ function getKaswareWallet(): KaswareWallet | null {
 }
 
 /**
+ * Try to silently reconnect to wallet without prompting user.
+ * Uses getAccounts() instead of requestAccounts() - this returns accounts
+ * only if the user has already authorized the site.
+ * Returns the address if connected, null otherwise.
+ */
+export async function tryReconnect(): Promise<WalletConnection | null> {
+  try {
+    const kasware = getKaswareWallet();
+
+    if (!kasware) {
+      return null;
+    }
+
+    // getAccounts() returns accounts without prompting if already authorized
+    const accounts = await kasware.getAccounts();
+
+    if (!accounts || accounts.length === 0) {
+      return null;
+    }
+
+    const address = accounts[0];
+    currentWallet = kasware;
+    currentAddress = address as KaspaAddress;
+
+    // Set up event listeners
+    setupKaswareListeners(kasware);
+
+    console.log("Wallet silently reconnected:", address);
+
+    return {
+      address,
+      network: detectNetwork(address),
+    };
+  } catch (error) {
+    console.warn("Silent reconnect failed:", error);
+    return null;
+  }
+}
+
+/**
  * Connect to a Kaspa wallet.
  * Will use Kasware wallet if available.
  */

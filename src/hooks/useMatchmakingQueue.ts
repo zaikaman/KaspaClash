@@ -1,6 +1,7 @@
 /**
  * useMatchmakingQueue Hook
- * React hook for matchmaking queue with Supabase Realtime Presence
+ * React hook for matchmaking queue with polling fallback
+ * Uses API polling for reliability, with optional Realtime for live updates
  */
 
 "use client";
@@ -9,9 +10,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import { 
-  useMatchmakingStore, 
-  selectIsInQueue, 
+import {
+  useMatchmakingStore,
+  selectIsInQueue,
   selectQueueWaitTime,
   selectPlayerCount,
   type QueuedPlayer,
@@ -20,22 +21,21 @@ import {
 import { useWallet } from "./useWallet";
 
 /**
- * Presence state for a player in queue.
- */
-interface QueuePresenceState {
-  address: string;
-  displayName: string | null;
-  rating: number;
-  joinedAt: number;
-}
-
-/**
  * Matchmaking event types from server.
  */
 interface MatchFoundEvent {
   matchId: string;
   player1Address: string;
   player2Address: string;
+}
+
+/**
+ * Queue status response from API.
+ */
+interface QueueStatusResponse {
+  inQueue: boolean;
+  queueSize: number;
+  matchFound?: MatchFoundEvent;
 }
 
 /**
@@ -51,11 +51,11 @@ export interface UseMatchmakingQueueReturn {
   playersInQueue: QueuedPlayer[];
   error: string | null;
   matchResult: MatchmakingResult | null;
-  
+
   // Actions
   joinQueue: () => Promise<void>;
   leaveQueue: () => Promise<void>;
-  
+
   // Utilities
   formatWaitTime: (seconds: number) => string;
 }
@@ -66,13 +66,20 @@ export interface UseMatchmakingQueueReturn {
 const QUEUE_CHANNEL = "matchmaking:queue";
 
 /**
+ * Polling interval in milliseconds (check for matches every 2 seconds).
+ */
+const POLL_INTERVAL = 2000;
+
+/**
  * React hook for matchmaking queue functionality.
+ * Uses polling for reliability with optional Realtime enhancement.
  */
 export function useMatchmakingQueue(): UseMatchmakingQueueReturn {
   const router = useRouter();
   const { address, isConnected } = useWallet();
   const store = useMatchmakingStore();
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [waitTimeSeconds, setWaitTimeSeconds] = useState(0);
 
   // Derived state
@@ -94,41 +101,15 @@ export function useMatchmakingQueue(): UseMatchmakingQueueReturn {
   }, [isInQueue, store.queuedAt, store]);
 
   /**
-   * Handle presence sync event.
+   * Handle match found - navigate to match.
    */
-  const handlePresenceSync = useCallback(() => {
-    const channel = channelRef.current;
-    if (!channel) return;
-
-    const presenceState = channel.presenceState<QueuePresenceState>();
-    const players: QueuedPlayer[] = [];
-
-    // Convert presence state to player list
-    Object.entries(presenceState).forEach(([key, presences]) => {
-      presences.forEach((presence) => {
-        players.push({
-          address: presence.address,
-          displayName: presence.displayName,
-          rating: presence.rating,
-          joinedAt: presence.joinedAt,
-          presenceRef: key,
-        });
-      });
-    });
-
-    // Sort by join time
-    players.sort((a, b) => a.joinedAt - b.joinedAt);
-    store.setPlayersInQueue(players);
-  }, [store]);
-
-  /**
-   * Handle match found broadcast event.
-   */
-  const handleMatchFound = useCallback((payload: { event: string; payload: MatchFoundEvent }) => {
-    const { matchId, player1Address, player2Address } = payload.payload;
+  const handleMatchFound = useCallback((matchData: MatchFoundEvent) => {
+    const { matchId, player1Address, player2Address } = matchData;
 
     // Check if this match involves the current player
     if (address && (player1Address === address || player2Address === address)) {
+      console.log("Match found!", matchData);
+
       store.setMatched({
         matchId,
         player1Address,
@@ -136,12 +117,82 @@ export function useMatchmakingQueue(): UseMatchmakingQueueReturn {
         createdAt: new Date(),
       });
 
+      // Stop polling
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+
       // Navigate to match after a short delay
       setTimeout(() => {
         router.push(`/match/${matchId}`);
       }, 1500);
     }
   }, [address, store, router]);
+
+  /**
+   * Poll for queue status and match results.
+   */
+  const pollQueueStatus = useCallback(async () => {
+    if (!address || !isInQueue) return;
+
+    try {
+      const response = await fetch(`/api/matchmaking/queue?address=${encodeURIComponent(address)}`);
+
+      if (response.ok) {
+        const data: QueueStatusResponse = await response.json();
+
+        // Update player count
+        store.setPlayersInQueue(
+          Array(data.queueSize).fill(null).map((_, i) => ({
+            address: `player-${i}`,
+            displayName: null,
+            rating: 1000,
+            joinedAt: Date.now(),
+          }))
+        );
+
+        // Check if match was found
+        if (data.matchFound) {
+          handleMatchFound(data.matchFound);
+        }
+      }
+    } catch (error) {
+      console.warn("Queue poll failed:", error);
+      // Don't set error - polling failures are expected occasionally
+    }
+  }, [address, isInQueue, store, handleMatchFound]);
+
+  /**
+   * Set up Realtime subscription for instant match notifications.
+   */
+  const setupRealtime = useCallback(() => {
+    if (!address) return;
+
+    try {
+      const supabase = getSupabaseClient();
+
+      const channel = supabase.channel(QUEUE_CHANNEL)
+        .on("broadcast", { event: "match_found" }, (payload) => {
+          console.log("Realtime match_found event:", payload);
+          if (payload.payload) {
+            handleMatchFound(payload.payload as MatchFoundEvent);
+          }
+        })
+        .subscribe((status) => {
+          console.log("Realtime subscription status:", status);
+          if (status === "SUBSCRIBED") {
+            channelRef.current = channel;
+          }
+        });
+
+      return channel;
+    } catch (error) {
+      console.warn("Failed to set up realtime:", error);
+      // Not critical - polling will handle it
+      return null;
+    }
+  }, [address, handleMatchFound]);
 
   /**
    * Join the matchmaking queue.
@@ -167,61 +218,50 @@ export function useMatchmakingQueue(): UseMatchmakingQueueReturn {
         throw new Error(error.error?.message || "Failed to join queue");
       }
 
-      const supabase = getSupabaseClient();
+      const result = await response.json();
 
-      // Subscribe to queue channel with presence
-      const channel = supabase.channel(QUEUE_CHANNEL, {
-        config: {
-          presence: {
-            key: address,
-          },
-        },
-      });
-
-      channel
-        .on("presence", { event: "sync" }, handlePresenceSync)
-        .on("presence", { event: "join" }, ({ newPresences }) => {
-          console.log("Player joined queue:", newPresences);
-          handlePresenceSync();
-        })
-        .on("presence", { event: "leave" }, ({ leftPresences }) => {
-          console.log("Player left queue:", leftPresences);
-          handlePresenceSync();
-        })
-        .on("broadcast", { event: "match_found" }, handleMatchFound)
-        .subscribe(async (status) => {
-          if (status === "SUBSCRIBED") {
-            // Track presence
-            const presenceState: QueuePresenceState = {
-              address,
-              displayName: null, // TODO: Get from player profile
-              rating: 1000, // TODO: Get from player profile
-              joinedAt: Date.now(),
-            };
-
-            await channel.track(presenceState);
-            channelRef.current = channel;
-            store.setQueued(Date.now());
-          } else if (status === "CLOSED" || status === "CHANNEL_ERROR") {
-            store.setQueueError("Connection lost. Please try again.");
-          }
+      // Check if immediately matched
+      if (result.matched && result.match) {
+        handleMatchFound({
+          matchId: result.match.id,
+          player1Address: result.match.player1Address,
+          player2Address: result.match.player2Address,
         });
+        return;
+      }
+
+      // Mark as queued
+      store.setQueued(Date.now());
+
+      // Set up Realtime for instant notifications
+      setupRealtime();
+
+      // Start polling as backup (more reliable)
+      pollIntervalRef.current = setInterval(pollQueueStatus, POLL_INTERVAL);
+
+      // Initial poll
+      pollQueueStatus();
 
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to join queue";
       store.setQueueError(message);
     }
-  }, [address, isConnected, store, handlePresenceSync, handleMatchFound]);
+  }, [address, isConnected, store, handleMatchFound, setupRealtime, pollQueueStatus]);
 
   /**
    * Leave the matchmaking queue.
    */
   const leaveQueue = useCallback(async (): Promise<void> => {
     try {
+      // Stop polling
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+
       // Unsubscribe from channel
       const channel = channelRef.current;
       if (channel) {
-        await channel.untrack();
         await channel.unsubscribe();
         channelRef.current = null;
       }
@@ -257,9 +297,11 @@ export function useMatchmakingQueue(): UseMatchmakingQueueReturn {
    */
   useEffect(() => {
     return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
       const channel = channelRef.current;
       if (channel) {
-        channel.untrack();
         channel.unsubscribe();
       }
     };

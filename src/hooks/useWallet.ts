@@ -6,9 +6,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useWalletStore, selectIsConnected, selectIsConnecting, selectFormattedBalance, selectTruncatedAddress } from "@/stores/wallet-store";
-import { connectWallet, disconnectWallet, signMessage as signWalletMessage, getBalance, isWalletConnected } from "@/lib/kaspa/wallet";
-import { discoverWallet, discoverAllWallets } from "@/lib/kaspa/wallet-discovery";
+import { useWalletStore, selectIsConnected, selectIsConnecting, selectFormattedBalance, selectTruncatedAddress, selectHasHydrated } from "@/stores/wallet-store";
+import { connectWallet, disconnectWallet, signMessage as signWalletMessage, getBalance, isWalletConnected, tryReconnect } from "@/lib/kaspa/wallet";
+import { discoverAllWallets } from "@/lib/kaspa/wallet-discovery";
 import type { KaspaAddress, KaspaProvider, WalletDiscoveryResult } from "@/types/kaspa";
 
 /**
@@ -46,6 +46,7 @@ export function useWallet(): UseWalletReturn {
   const isConnecting = useWalletStore(selectIsConnecting);
   const formattedBalance = useWalletStore(selectFormattedBalance);
   const truncatedAddress = useWalletStore(selectTruncatedAddress);
+  const hasHydrated = useWalletStore(selectHasHydrated);
 
   /**
    * Discover available wallets.
@@ -164,29 +165,44 @@ export function useWallet(): UseWalletReturn {
   }, [store, refreshBalance]);
 
   /**
-   * Auto-reconnect on mount if previously connected.
+   * Auto-reconnect after store hydration if previously connected.
    */
   useEffect(() => {
+    // Wait for store to hydrate from localStorage
+    if (!hasHydrated) return;
+
     const autoReconnect = async () => {
-      // If we have a stored address but not connected, try to reconnect
+      // If we have a stored address but wallet not connected, try to silently reconnect
       if (store.address && !isWalletConnected()) {
         try {
-          const provider = await discoverWallet();
-          if (provider) {
-            await connect(provider);
+          console.log("Auto-reconnecting wallet for address:", store.address);
+          // tryReconnect uses getAccounts() which doesn't prompt user
+          const result = await tryReconnect();
+          if (result) {
+            store.setConnected(result.address as KaspaAddress, result.network || "mainnet");
+
+            // Fetch balance
+            try {
+              const balance = await getBalance();
+              store.setBalance(balance);
+            } catch (e) {
+              console.warn("Failed to fetch balance after reconnect:", e);
+            }
+            console.log("Wallet auto-reconnected successfully");
+          } else {
+            console.log("Silent reconnect failed - wallet may require new authorization");
+            // Don't clear state - user may want to manually reconnect
           }
         } catch (error) {
           console.warn("Auto-reconnect failed:", error);
-          store.setDisconnected();
         }
       }
     };
 
-    // Only run on client
-    if (typeof window !== "undefined") {
-      autoReconnect();
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // Small delay to let wallet extension initialize
+    const timer = setTimeout(autoReconnect, 300);
+    return () => clearTimeout(timer);
+  }, [hasHydrated, store]);
 
   /**
    * Discover wallets on mount.

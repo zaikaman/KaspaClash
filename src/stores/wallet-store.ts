@@ -1,10 +1,10 @@
 /**
  * Wallet Store
- * Zustand store for wallet connection state
+ * Zustand store for wallet connection state with proper hydration handling
  */
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
 import type { KaspaAddress, WalletConnectionState } from "@/types/kaspa";
 
 /**
@@ -17,6 +17,7 @@ interface WalletStore {
   balance: bigint | null;
   network: "mainnet" | "testnet" | null;
   error: string | null;
+  _hasHydrated: boolean;
 
   // Actions
   setConnecting: () => void;
@@ -26,6 +27,7 @@ interface WalletStore {
   setBalance: (balance: bigint) => void;
   clearError: () => void;
   reset: () => void;
+  setHasHydrated: (state: boolean) => void;
 }
 
 /**
@@ -33,29 +35,11 @@ interface WalletStore {
  */
 const initialState = {
   connectionState: "disconnected" as WalletConnectionState,
-  address: null,
-  balance: null,
-  network: null,
-  error: null,
-};
-
-/**
- * Custom serializer for BigInt values in persisted state.
- */
-const bigIntSerializer = {
-  serialize: (state: WalletStore) => {
-    return JSON.stringify({
-      ...state,
-      balance: state.balance?.toString() ?? null,
-    });
-  },
-  deserialize: (str: string) => {
-    const parsed = JSON.parse(str);
-    return {
-      ...parsed,
-      balance: parsed.balance ? BigInt(parsed.balance) : null,
-    };
-  },
+  address: null as KaspaAddress | null,
+  balance: null as bigint | null,
+  network: null as "mainnet" | "testnet" | null,
+  error: null as string | null,
+  _hasHydrated: false,
 };
 
 /**
@@ -106,29 +90,24 @@ export const useWalletStore = create<WalletStore>()(
       clearError: () =>
         set({
           error: null,
-          connectionState:
-            initialState.connectionState,
+          connectionState: initialState.connectionState,
         }),
 
       reset: () => set(initialState),
+
+      setHasHydrated: (state) => set({ _hasHydrated: state }),
     }),
     {
       name: "kaspaclash-wallet",
-      // Only persist address and network, not connection state
+      // Only persist address and network
       partialize: (state) => ({
         address: state.address,
         network: state.network,
       }),
-      storage: {
-        getItem: (name) => {
-          const str = localStorage.getItem(name);
-          if (!str) return null;
-          return bigIntSerializer.deserialize(str);
-        },
-        setItem: (name, value) => {
-          localStorage.setItem(name, bigIntSerializer.serialize(value as unknown as WalletStore));
-        },
-        removeItem: (name) => localStorage.removeItem(name),
+      storage: createJSONStorage(() => localStorage),
+      onRehydrateStorage: () => (state) => {
+        // Called when hydration completes
+        state?.setHasHydrated(true);
       },
     }
   )
@@ -149,6 +128,18 @@ export const selectIsConnected = (state: WalletStore): boolean =>
  */
 export const selectIsConnecting = (state: WalletStore): boolean =>
   state.connectionState === "connecting";
+
+/**
+ * Check if store has finished hydrating from localStorage.
+ */
+export const selectHasHydrated = (state: WalletStore): boolean =>
+  state._hasHydrated;
+
+/**
+ * Get persisted address (even before wallet is reconnected).
+ */
+export const selectPersistedAddress = (state: WalletStore): KaspaAddress | null =>
+  state.address;
 
 /**
  * Get formatted balance in KAS.

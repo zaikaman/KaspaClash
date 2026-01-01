@@ -159,10 +159,91 @@ export async function DELETE(
 
 /**
  * GET /api/matchmaking/queue
- * Get queue status (for debugging/admin).
+ * Get queue status for a specific player.
+ * Also checks for existing matches and attempts to find new ones.
  */
-export async function GET(): Promise<NextResponse<{ queueSize: number }>> {
-  return NextResponse.json({
-    queueSize: await getQueueSize(),
-  });
+export async function GET(
+  request: NextRequest
+): Promise<NextResponse<{ inQueue: boolean; queueSize: number; matchFound?: { matchId: string; player1Address: string; player2Address: string } }>> {
+  try {
+    const { searchParams } = new URL(request.url);
+    const address = searchParams.get("address");
+
+    const queueSize = await getQueueSize();
+
+    // If no address provided, just return queue size
+    if (!address) {
+      return NextResponse.json({
+        inQueue: false,
+        queueSize,
+      });
+    }
+
+    // FIRST: Check if player has a pending/waiting match (they might have been matched by someone else)
+    const supabase = await createSupabaseServerClient();
+    const { data: pendingMatch } = await supabase
+      .from("matches")
+      .select("id, player1_address, player2_address, status")
+      .or(`player1_address.eq.${address},player2_address.eq.${address}`)
+      .in("status", ["waiting", "in_progress"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (pendingMatch) {
+      console.log("Found pending match for player:", address, pendingMatch);
+      return NextResponse.json({
+        inQueue: false,
+        queueSize: await getQueueSize(),
+        matchFound: {
+          matchId: pendingMatch.id,
+          player1Address: pendingMatch.player1_address,
+          player2Address: pendingMatch.player2_address || address,
+        },
+      });
+    }
+
+    // Check if player is in queue
+    const inQueue = await isInQueue(address);
+
+    if (!inQueue) {
+      return NextResponse.json({
+        inQueue: false,
+        queueSize,
+      });
+    }
+
+    // Try to find a match for this player
+    const matchResult = await attemptMatch(address);
+
+    if (matchResult) {
+      // Broadcast match found to both players
+      await broadcastMatchFound(
+        matchResult.matchId,
+        matchResult.player1Address,
+        matchResult.player2Address
+      );
+
+      return NextResponse.json({
+        inQueue: false, // No longer in queue after match
+        queueSize: await getQueueSize(),
+        matchFound: {
+          matchId: matchResult.matchId,
+          player1Address: matchResult.player1Address,
+          player2Address: matchResult.player2Address,
+        },
+      });
+    }
+
+    return NextResponse.json({
+      inQueue: true,
+      queueSize,
+    });
+  } catch (error) {
+    console.error("Queue status error:", error);
+    return NextResponse.json({
+      inQueue: false,
+      queueSize: 0,
+    });
+  }
 }
