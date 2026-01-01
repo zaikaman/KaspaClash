@@ -28,6 +28,21 @@ export interface CharacterCardConfig {
 type CardState = "default" | "hover" | "selected" | "locked" | "disabled";
 
 /**
+ * Animation configuration for smooth transitions.
+ */
+const ANIMATION_CONFIG = {
+  HOVER_SCALE: 1.03,
+  SELECTED_SCALE: 1.06,
+  DEFAULT_SCALE: 1,
+  HOVER_DURATION: 120,
+  SELECT_DURATION: 180,
+  DESELECT_DURATION: 150,
+  EASE_IN: "Sine.easeOut",
+  EASE_OUT: "Sine.easeIn",
+  EASE_BOUNCE: "Back.easeOut",
+};
+
+/**
  * CharacterCard - Selectable character portrait.
  */
 export class CharacterCard extends Phaser.GameObjects.Container {
@@ -40,6 +55,7 @@ export class CharacterCard extends Phaser.GameObjects.Container {
   // State
   private cardState: CardState = "default";
   private isInteractive: boolean = true;
+  private isAnimating: boolean = false;
 
   // Visual elements
   private background!: Phaser.GameObjects.Graphics;
@@ -52,6 +68,10 @@ export class CharacterCard extends Phaser.GameObjects.Container {
 
   // Colors
   private colors: { primary: number; secondary: number; glow: number };
+
+  // Tween references for cleanup
+  private currentTween?: Phaser.Tweens.Tween;
+  private glowTween?: Phaser.Tweens.Tween;
 
   constructor(scene: Phaser.Scene, config: CharacterCardConfig) {
     super(scene, config.x, config.y);
@@ -119,6 +139,9 @@ export class CharacterCard extends Phaser.GameObjects.Container {
       // Auto-fit logic: Scale to fit within 160x160 while maintaining aspect ratio
       const startScale = 160 / Math.max(this.portrait.width, this.portrait.height);
       this.portrait.setScale(startScale);
+
+      // Add portrait to container so it renders relative to card position
+      this.add(this.portrait);
     } else {
       // Placeholder
       const placeholder = this.scene.add.graphics();
@@ -180,10 +203,11 @@ export class CharacterCard extends Phaser.GameObjects.Container {
    * Set up interactive behavior.
    */
   private setupInteraction(): void {
-    // Create hit area
+    // Create hit area with offset to align with scaled/centered canvas rendering
+    // The offset compensates for coordinate transformation with Phaser's Scale.FIT mode
     const hitArea = new Phaser.Geom.Rectangle(
-      0,
-      0,
+      this.cardWidth * 0.5,   // Offset right by half card width
+      this.cardHeight * 0.45, // Offset down by 35% of card height
       this.cardWidth,
       this.cardHeight
     );
@@ -201,10 +225,10 @@ export class CharacterCard extends Phaser.GameObjects.Container {
    * Handle pointer over.
    */
   private handlePointerOver(): void {
-    if (!this.isInteractive) return;
+    if (!this.isInteractive || this.isAnimating) return;
     if (this.cardState === "default") {
       this.cardState = "hover";
-      this.updateVisuals();
+      this.animateToState();
     }
   }
 
@@ -215,7 +239,7 @@ export class CharacterCard extends Phaser.GameObjects.Container {
     if (!this.isInteractive) return;
     if (this.cardState === "hover") {
       this.cardState = "default";
-      this.updateVisuals();
+      this.animateToState();
     }
   }
 
@@ -223,8 +247,58 @@ export class CharacterCard extends Phaser.GameObjects.Container {
    * Handle pointer down (selection).
    */
   private handlePointerDown(): void {
-    if (!this.isInteractive) return;
+    if (!this.isInteractive || this.isAnimating) return;
     this.onSelect?.(this.character);
+  }
+
+  /**
+   * Animate to current state with smooth transitions.
+   */
+  private animateToState(): void {
+    // Stop any existing animation
+    this.currentTween?.stop();
+
+    let targetScale = ANIMATION_CONFIG.DEFAULT_SCALE;
+    let duration = ANIMATION_CONFIG.DESELECT_DURATION;
+    let ease = ANIMATION_CONFIG.EASE_OUT;
+
+    switch (this.cardState) {
+      case "hover":
+        targetScale = ANIMATION_CONFIG.HOVER_SCALE;
+        duration = ANIMATION_CONFIG.HOVER_DURATION;
+        ease = ANIMATION_CONFIG.EASE_IN;
+        break;
+      case "selected":
+      case "locked":
+        targetScale = ANIMATION_CONFIG.SELECTED_SCALE;
+        duration = ANIMATION_CONFIG.SELECT_DURATION;
+        ease = ANIMATION_CONFIG.EASE_BOUNCE;
+        break;
+      case "default":
+      case "disabled":
+      default:
+        targetScale = ANIMATION_CONFIG.DEFAULT_SCALE;
+        duration = ANIMATION_CONFIG.DESELECT_DURATION;
+        ease = ANIMATION_CONFIG.EASE_OUT;
+        break;
+    }
+
+    this.currentTween = this.scene.tweens.add({
+      targets: this,
+      scaleX: targetScale,
+      scaleY: targetScale,
+      duration,
+      ease,
+      onStart: () => {
+        this.isAnimating = true;
+      },
+      onComplete: () => {
+        this.isAnimating = false;
+      },
+    });
+
+    // Update graphics immediately (they don't need tweening)
+    this.updateVisuals();
   }
 
   /**
@@ -278,19 +352,18 @@ export class CharacterCard extends Phaser.GameObjects.Container {
    */
   private drawHoverState(radius: number): void {
     // Glow effect
-    this.glowEffect.fillStyle(this.colors.glow, 0.2);
-    this.glowEffect.fillRoundedRect(-5, -5, this.cardWidth + 10, this.cardHeight + 10, radius + 5);
+    this.glowEffect.fillStyle(this.colors.glow, 0.25);
+    this.glowEffect.fillRoundedRect(-6, -6, this.cardWidth + 12, this.cardHeight + 12, radius + 6);
 
     // Background
     this.background.fillStyle(0x1a1a2e, 0.95);
     this.background.fillRoundedRect(0, 0, this.cardWidth, this.cardHeight, radius);
 
-    // Border
+    // Border (slightly thicker for emphasis)
     this.border.lineStyle(3, this.colors.primary);
     this.border.strokeRoundedRect(0, 0, this.cardWidth, this.cardHeight, radius);
 
-    // Scale up slightly
-    this.setScale(1.02);
+    // Scale is handled by animateToState()
   }
 
   /**
@@ -298,18 +371,18 @@ export class CharacterCard extends Phaser.GameObjects.Container {
    */
   private drawSelectedState(radius: number): void {
     // Strong glow
-    this.glowEffect.fillStyle(this.colors.glow, 0.4);
-    this.glowEffect.fillRoundedRect(-8, -8, this.cardWidth + 16, this.cardHeight + 16, radius + 8);
+    this.glowEffect.fillStyle(this.colors.glow, 0.45);
+    this.glowEffect.fillRoundedRect(-10, -10, this.cardWidth + 20, this.cardHeight + 20, radius + 10);
 
     // Background with tint
-    this.background.fillStyle(this.colors.secondary, 0.3);
+    this.background.fillStyle(this.colors.secondary, 0.35);
     this.background.fillRoundedRect(0, 0, this.cardWidth, this.cardHeight, radius);
 
     // Bold border
     this.border.lineStyle(4, this.colors.primary);
     this.border.strokeRoundedRect(0, 0, this.cardWidth, this.cardHeight, radius);
 
-    this.setScale(1.05);
+    // Scale is handled by animateToState()
   }
 
   /**
@@ -358,7 +431,7 @@ export class CharacterCard extends Phaser.GameObjects.Container {
   select(): void {
     if (this.cardState === "disabled" || this.cardState === "locked") return;
     this.cardState = "selected";
-    this.updateVisuals();
+    this.animateToState();
   }
 
   /**
@@ -367,8 +440,7 @@ export class CharacterCard extends Phaser.GameObjects.Container {
   deselect(): void {
     if (this.cardState === "locked" || this.cardState === "disabled") return;
     this.cardState = "default";
-    this.setScale(1);
-    this.updateVisuals();
+    this.animateToState();
   }
 
   /**
@@ -377,7 +449,7 @@ export class CharacterCard extends Phaser.GameObjects.Container {
   lock(): void {
     this.cardState = "locked";
     this.isInteractive = false;
-    this.updateVisuals();
+    this.animateToState();
   }
 
   /**
@@ -386,7 +458,7 @@ export class CharacterCard extends Phaser.GameObjects.Container {
   disable(): void {
     this.cardState = "disabled";
     this.isInteractive = false;
-    this.updateVisuals();
+    this.animateToState();
   }
 
   /**

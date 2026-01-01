@@ -196,7 +196,8 @@ export class CharacterSelectScene extends Phaser.Scene {
     const totalWidth =
       this.CARD_WIDTH * this.GRID_COLS +
       this.CARD_SPACING * (this.GRID_COLS - 1);
-    const startX = (GAME_DIMENSIONS.WIDTH - totalWidth) / 2 + this.CARD_WIDTH / 2;
+    // Cards are drawn from (0,0) top-left, so no need for center offset
+    const startX = (GAME_DIMENSIONS.WIDTH - totalWidth) / 2;
 
     CHARACTER_ROSTER.forEach((character, index) => {
       const col = index % this.GRID_COLS;
