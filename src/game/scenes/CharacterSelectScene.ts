@@ -67,7 +67,14 @@ export class CharacterSelectScene extends Phaser.Scene {
    * Initialize scene with match data.
    */
   init(data: CharacterSelectSceneConfig): void {
-    this.config = data;
+    // Provide defaults if data is missing (e.g., if scene started without config)
+    this.config = {
+      matchId: data?.matchId || "unknown",
+      playerAddress: data?.playerAddress || "",
+      opponentAddress: data?.opponentAddress || "",
+      isHost: data?.isHost ?? true,
+      selectionTimeLimit: data?.selectionTimeLimit ?? 30,
+    };
     this.resetState();
   }
 
@@ -88,15 +95,22 @@ export class CharacterSelectScene extends Phaser.Scene {
   preload(): void {
     // Load character portraits
     for (const character of CHARACTER_ROSTER) {
+      // 1. Try SVGs first (preferred)
       this.load.svg(
         `portrait-${character.id}`,
         `/characters/${character.id}/portrait.svg`,
         { width: 180, height: 180 }
       );
+
+      // 2. Try PNG portraits
+      this.load.image(`portrait-${character.id}-png`, `/characters/${character.id}/portrait.png`);
+
+      // 3. Fallback to idle.png (for development/early testing)
+      this.load.image(`portrait-${character.id}-fallback`, `/characters/${character.id}/idle.png`);
     }
 
     // Load background
-    this.load.image("select-bg", "/assets/arena/select-background.png");
+    this.load.image("select-bg", "/assets/background_1.png");
   }
 
   /**

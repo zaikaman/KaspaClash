@@ -97,14 +97,28 @@ export class CharacterCard extends Phaser.GameObjects.Container {
     this.add(this.border);
 
     // Portrait placeholder (we'll use a colored rectangle if image not loaded)
-    const portraitKey = `portrait-${this.character.id}`;
+    const charId = this.character.id;
+    let portraitKey = `portrait-${charId}`;
+
+    // Check specifically for fallback keys if main one doesn't exist
+    if (!this.scene.textures.exists(portraitKey)) {
+      if (this.scene.textures.exists(`portrait-${charId}-png`)) {
+        portraitKey = `portrait-${charId}-png`;
+      } else if (this.scene.textures.exists(`portrait-${charId}-fallback`)) {
+        portraitKey = `portrait-${charId}-fallback`;
+      }
+    }
+
     if (this.scene.textures.exists(portraitKey)) {
       this.portrait = this.scene.add.image(
         this.cardWidth / 2,
         100,
         portraitKey
       );
-      this.portrait.setDisplaySize(160, 160);
+
+      // Auto-fit logic: Scale to fit within 160x160 while maintaining aspect ratio
+      const startScale = 160 / Math.max(this.portrait.width, this.portrait.height);
+      this.portrait.setScale(startScale);
     } else {
       // Placeholder
       const placeholder = this.scene.add.graphics();

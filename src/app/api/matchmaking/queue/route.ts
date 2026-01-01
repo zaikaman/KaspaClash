@@ -179,18 +179,20 @@ export async function GET(
       });
     }
 
-    // FIRST: Check if player has a pending/waiting match (they might have been matched by someone else)
     const supabase = await createSupabaseServerClient();
+
+    // FIRST: Check if player has a pending/active match (they might have been matched by someone else)
+    // Include character_select status as that's the initial match state
     const { data: pendingMatch } = await supabase
       .from("matches")
       .select("id, player1_address, player2_address, status")
       .or(`player1_address.eq.${address},player2_address.eq.${address}`)
-      .in("status", ["waiting", "in_progress"])
+      .in("status", ["waiting", "character_select", "in_progress"])
       .order("created_at", { ascending: false })
       .limit(1)
       .single();
 
-    if (pendingMatch) {
+    if (pendingMatch && pendingMatch.player2_address) {
       console.log("Found pending match for player:", address, pendingMatch);
       return NextResponse.json({
         inQueue: false,
@@ -198,25 +200,72 @@ export async function GET(
         matchFound: {
           matchId: pendingMatch.id,
           player1Address: pendingMatch.player1_address,
-          player2Address: pendingMatch.player2_address || address,
+          player2Address: pendingMatch.player2_address,
         },
       });
     }
 
-    // Check if player is in queue
-    const inQueue = await isInQueue(address);
+    // SECOND: Check if another player has claimed us via matched_with
+    const { data: queueEntry } = await supabase
+      .from("matchmaking_queue")
+      .select("status, matched_with")
+      .eq("address", address)
+      .single();
 
-    if (!inQueue) {
+    const shortAddr = address.slice(-8);
+    console.log(`[MATCHMAKING-GET] ${shortAddr}: Queue entry status = ${queueEntry?.status || 'not found'}, matched_with = ${queueEntry?.matched_with?.slice(-8) || 'null'}`);
+
+    // If we've been claimed by someone else (status = 'matched' and matched_with is set)
+    // Wait for them to create the match, then we'll find it
+    if (queueEntry?.status === "matched" && queueEntry?.matched_with) {
+      console.log(`[MATCHMAKING-GET] ${shortAddr}: We were claimed by ${queueEntry.matched_with.slice(-8)}, checking for created match...`);
+
+      // Check if the match was already created by the other player
+      const { data: matchFromOther } = await supabase
+        .from("matches")
+        .select("id, player1_address, player2_address")
+        .or(`player1_address.eq.${address},player2_address.eq.${address}`)
+        .in("status", ["character_select", "in_progress"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (matchFromOther && matchFromOther.player2_address) {
+        console.log(`[MATCHMAKING-GET] ${shortAddr}: ✓ Found match created by other player: ${matchFromOther.id}`);
+        return NextResponse.json({
+          inQueue: false,
+          queueSize: await getQueueSize(),
+          matchFound: {
+            matchId: matchFromOther.id,
+            player1Address: matchFromOther.player1_address,
+            player2Address: matchFromOther.player2_address,
+          },
+        });
+      }
+
+      // Match not created yet - wait for the other player to finish
+      console.log(`[MATCHMAKING-GET] ${shortAddr}: Match not created yet, waiting...`);
       return NextResponse.json({
-        inQueue: false,
+        inQueue: true,
+        queueSize: await getQueueSize(),
+      });
+    }
+
+    // Check if player is in queue with searching status
+    if (!queueEntry || queueEntry.status !== "searching") {
+      console.log(`[MATCHMAKING-GET] ${shortAddr}: Not in queue or not searching (status=${queueEntry?.status || 'none'})`);
+      return NextResponse.json({
+        inQueue: !!queueEntry,
         queueSize,
       });
     }
 
     // Try to find a match for this player
+    console.log(`[MATCHMAKING-GET] ${shortAddr}: Attempting to find match...`);
     const matchResult = await attemptMatch(address);
 
     if (matchResult) {
+      console.log(`[MATCHMAKING-GET] ${shortAddr}: ✓ Match found! ${matchResult.matchId}`);
       // Broadcast match found to both players
       await broadcastMatchFound(
         matchResult.matchId,
@@ -235,6 +284,7 @@ export async function GET(
       });
     }
 
+    console.log(`[MATCHMAKING-GET] ${shortAddr}: No match found this poll`);
     return NextResponse.json({
       inQueue: true,
       queueSize,

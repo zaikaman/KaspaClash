@@ -492,14 +492,22 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
 
   // Auto-subscribe on mount if matchId is provided
   useEffect(() => {
-    if (matchId) {
+    // Only subscribe if we have a matchId and haven't already subscribed
+    if (matchId && !channelRef.current) {
       subscribe();
     }
 
     return () => {
-      unsubscribe();
+      // Clean up on unmount
+      if (channelRef.current) {
+        console.log("[GameChannel] Cleanup: Unsubscribing");
+        channelRef.current.unsubscribe();
+        channelRef.current = null;
+      }
     };
-  }, [matchId, subscribe, unsubscribe]);
+    // Intentionally exclude subscribe from deps to prevent infinite loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchId]);
 
   return {
     state,

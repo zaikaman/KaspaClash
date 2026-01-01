@@ -11,6 +11,7 @@ import type { MoveType } from "@/types";
  */
 export type FighterAnimation =
   | "idle"
+  | "move"
   | "punch"
   | "kick"
   | "block"
@@ -36,16 +37,6 @@ export interface FighterConfig {
 }
 
 /**
- * Sprite sheet configuration per character.
- */
-export interface SpriteConfig {
-  sheet: string;
-  frames: number;
-  frameRate: number;
-  hitFrame?: number;
-}
-
-/**
  * FighterSprite class - handles character display and animations.
  */
 export class FighterSprite extends Phaser.GameObjects.Container {
@@ -63,6 +54,7 @@ export class FighterSprite extends Phaser.GameObjects.Container {
   private maxHealth: number = 100;
   private currentAnimation: FighterAnimation = "idle";
   private isFlipped: boolean = false;
+  private isBlocking: boolean = false;
 
   constructor(scene: Phaser.Scene, config: FighterConfig) {
     super(scene, config.x, config.y);
@@ -79,8 +71,8 @@ export class FighterSprite extends Phaser.GameObjects.Container {
    * Create the fighter sprite and UI elements.
    */
   private create(): void {
-    // Create placeholder sprite (will be replaced with actual character sprite)
-    this.createPlaceholderSprite();
+    // Create sprite
+    this.createSprite();
 
     // Create health bar above character
     this.createHealthBar();
@@ -93,7 +85,39 @@ export class FighterSprite extends Phaser.GameObjects.Container {
   }
 
   /**
-   * Create a placeholder sprite for the fighter.
+   * Create the fighter sprite.
+   * Looks for a loaded sprite/atlas first, falls back to placeholder if missing.
+   */
+  private createSprite(): void {
+    const key = `char_${this.config.characterId}`;
+
+    // Check if the texture exists
+    if (this.scene.textures.exists(key)) {
+      this.sprite = this.scene.add.sprite(0, 0, key);
+
+      // Scale if needed
+      if (this.config.scale) {
+        this.sprite.setScale(this.config.scale);
+      }
+    } else {
+      // Fallback to placeholder
+      this.createPlaceholderSprite();
+    }
+
+    this.sprite.setOrigin(0.5, 1);
+
+    if (this.isFlipped) {
+      this.sprite.setFlipX(true);
+    }
+
+    this.add(this.sprite);
+
+    // Start idle animation if it exists
+    this.playAnimation("idle");
+  }
+
+  /**
+   * Create a placeholder sprite for the fighter if no asset found.
    */
   private createPlaceholderSprite(): void {
     // Create a simple rectangle placeholder
@@ -115,13 +139,6 @@ export class FighterSprite extends Phaser.GameObjects.Container {
     graphics.destroy();
 
     this.sprite = this.scene.add.sprite(0, 0, key);
-    this.sprite.setOrigin(0.5, 1);
-
-    if (this.isFlipped) {
-      this.sprite.setFlipX(true);
-    }
-
-    this.add(this.sprite);
   }
 
   /**
@@ -218,6 +235,9 @@ export class FighterSprite extends Phaser.GameObjects.Container {
 
     // Flash red on damage
     if (health < previousHealth) {
+      if (!this.isBlocking) {
+        this.playAnimation("hurt");
+      }
       this.flashDamage();
     }
   }
@@ -232,36 +252,28 @@ export class FighterSprite extends Phaser.GameObjects.Container {
   /**
    * Play an animation.
    */
-  public playAnimation(animation: FighterAnimation): void {
-    this.currentAnimation = animation;
+  public playAnimation(animation: FighterAnimation, force: boolean = false): void {
+    if (this.currentAnimation === animation && !force) return;
 
-    // For now, use simple tweens as placeholders
-    switch (animation) {
-      case "punch":
-        this.playPunchAnimation();
-        break;
-      case "kick":
-        this.playKickAnimation();
-        break;
-      case "block":
-        this.playBlockAnimation();
-        break;
-      case "special":
-        this.playSpecialAnimation();
-        break;
-      case "hurt":
-        this.playHurtAnimation();
-        break;
-      case "victory":
-        this.playVictoryAnimation();
-        break;
-      case "defeat":
-        this.playDefeatAnimation();
-        break;
-      case "idle":
-      default:
-        this.playIdleAnimation();
-        break;
+    this.currentAnimation = animation;
+    const animKey = `${this.config.characterId}_${animation}`;
+
+    // Reset loop state
+    this.isBlocking = (animation === 'block');
+
+    // Check if real animation exists
+    if (this.scene.anims.exists(animKey)) {
+      this.sprite.play(animKey);
+
+      // Return to idle after non-looping animations
+      if (['punch', 'kick', 'special', 'hurt'].includes(animation)) {
+        this.sprite.once('animationcomplete', () => {
+          this.playAnimation('idle');
+        });
+      }
+    } else {
+      // Fallback to tween animations if no sprite animation
+      this.playTweenAnimation(animation);
     }
   }
 
@@ -269,7 +281,7 @@ export class FighterSprite extends Phaser.GameObjects.Container {
    * Play move animation based on move type.
    */
   public playMoveAnimation(move: MoveType): void {
-    this.playAnimation(move as FighterAnimation);
+    this.playAnimation(move as FighterAnimation, true);
   }
 
   /**
@@ -296,11 +308,44 @@ export class FighterSprite extends Phaser.GameObjects.Container {
   }
 
   // ===========================================================================
-  // ANIMATIONS
+  // FALLBACK TWEEN ANIMATIONS (Legacy Support)
   // ===========================================================================
 
-  private playIdleAnimation(): void {
-    // Subtle breathing animation
+  private playTweenAnimation(animation: FighterAnimation): void {
+    // Stop existing tweens
+    this.scene.tweens.killTweensOf(this);
+    this.scene.tweens.killTweensOf(this.sprite);
+    this.sprite.setAngle(0);
+
+    switch (animation) {
+      case "idle":
+        this.playIdleTween();
+        break;
+      case "punch":
+        this.playPunchTween();
+        break;
+      case "kick":
+        this.playKickTween();
+        break;
+      case "block":
+        this.playBlockTween();
+        break;
+      case "special":
+        this.playSpecialTween();
+        break;
+      case "hurt":
+        this.playHurtTween();
+        break;
+      case "victory":
+        this.playVictoryTween();
+        break;
+      case "defeat":
+        this.playDefeatTween();
+        break;
+    }
+  }
+
+  private playIdleTween(): void {
     this.scene.tweens.add({
       targets: this.sprite,
       scaleY: { from: 1, to: 1.02 },
@@ -311,11 +356,8 @@ export class FighterSprite extends Phaser.GameObjects.Container {
     });
   }
 
-  private playPunchAnimation(): void {
-    this.scene.tweens.killTweensOf(this.sprite);
-
+  private playPunchTween(): void {
     const direction = this.isFlipped ? -1 : 1;
-
     this.scene.tweens.add({
       targets: this,
       x: this.x + direction * 30,
@@ -323,19 +365,14 @@ export class FighterSprite extends Phaser.GameObjects.Container {
       yoyo: true,
       ease: "Power2",
       onComplete: () => {
-        this.playIdleAnimation();
+        this.playIdleTween();
       },
     });
-
-    // Punch effect
     this.createHitEffect();
   }
 
-  private playKickAnimation(): void {
-    this.scene.tweens.killTweensOf(this.sprite);
-
+  private playKickTween(): void {
     const direction = this.isFlipped ? -1 : 1;
-
     this.scene.tweens.add({
       targets: this,
       x: this.x + direction * 50,
@@ -343,34 +380,23 @@ export class FighterSprite extends Phaser.GameObjects.Container {
       yoyo: true,
       ease: "Power3",
       onComplete: () => {
-        this.playIdleAnimation();
+        this.playIdleTween();
       },
     });
-
-    // Kick effect
     this.createHitEffect();
   }
 
-  private playBlockAnimation(): void {
-    this.scene.tweens.killTweensOf(this.sprite);
-
-    // Flash teal for block
+  private playBlockTween(): void {
     this.sprite.setTint(0x40e0d0);
-
     this.scene.time.delayedCall(500, () => {
       this.sprite.clearTint();
-      this.playIdleAnimation();
+      this.playIdleTween();
     });
   }
 
-  private playSpecialAnimation(): void {
-    this.scene.tweens.killTweensOf(this.sprite);
-
+  private playSpecialTween(): void {
     const direction = this.isFlipped ? -1 : 1;
-
-    // Glow effect
     this.sprite.setTint(0xffff00);
-
     this.scene.tweens.add({
       targets: this,
       x: this.x + direction * 80,
@@ -379,21 +405,14 @@ export class FighterSprite extends Phaser.GameObjects.Container {
       ease: "Power4",
       onComplete: () => {
         this.sprite.clearTint();
-        this.playIdleAnimation();
+        this.playIdleTween();
       },
     });
-
-    // Big hit effect
     this.createHitEffect(true);
   }
 
-  private playHurtAnimation(): void {
-    this.scene.tweens.killTweensOf(this.sprite);
-
-    // Flash red
+  private playHurtTween(): void {
     this.sprite.setTint(0xff0000);
-
-    // Shake
     this.scene.tweens.add({
       targets: this,
       x: this.x + (this.isFlipped ? 20 : -20),
@@ -402,15 +421,12 @@ export class FighterSprite extends Phaser.GameObjects.Container {
       repeat: 3,
       onComplete: () => {
         this.sprite.clearTint();
-        this.playIdleAnimation();
+        this.playIdleTween();
       },
     });
   }
 
-  private playVictoryAnimation(): void {
-    this.scene.tweens.killTweensOf(this.sprite);
-
-    // Jump up
+  private playVictoryTween(): void {
     this.scene.tweens.add({
       targets: this,
       y: this.y - 50,
@@ -419,15 +435,10 @@ export class FighterSprite extends Phaser.GameObjects.Container {
       repeat: 2,
       ease: "Power2",
     });
-
-    // Show victory text
     this.showStatus("VICTORY!", 3000);
   }
 
-  private playDefeatAnimation(): void {
-    this.scene.tweens.killTweensOf(this.sprite);
-
-    // Fall down
+  private playDefeatTween(): void {
     this.scene.tweens.add({
       targets: this.sprite,
       angle: this.isFlipped ? -90 : 90,
@@ -474,7 +485,7 @@ export class FighterSprite extends Phaser.GameObjects.Container {
     this.sprite.setAngle(0);
     this.sprite.setAlpha(1);
     this.statusText.setAlpha(0);
-    this.playIdleAnimation();
+    this.playAnimation("idle", true);
   }
 
   /**
@@ -482,7 +493,9 @@ export class FighterSprite extends Phaser.GameObjects.Container {
    */
   public override destroy(): void {
     this.scene.tweens.killTweensOf(this);
-    this.scene.tweens.killTweensOf(this.sprite);
+    if (this.sprite) {
+      this.scene.tweens.killTweensOf(this.sprite);
+    }
     super.destroy();
   }
 }

@@ -72,7 +72,7 @@ export class FightScene extends Phaser.Scene {
    */
   preload(): void {
     // Load arena background
-    this.load.image("arena-bg", "/assets/arena/background.png");
+    this.load.image("arena-bg", "/assets/background_1.png");
 
     // Load UI elements
     this.load.image("health-bar-bg", "/assets/ui/health-bar-bg.png");
@@ -83,12 +83,42 @@ export class FightScene extends Phaser.Scene {
     this.load.image("icon-kick", "/assets/ui/icon-kick.png");
     this.load.image("icon-block", "/assets/ui/icon-block.png");
     this.load.image("icon-special", "/assets/ui/icon-special.png");
+
+    // Load character assets
+    const characters = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
+    characters.forEach((charId) => {
+      // 1. Try to load spritesheet (preferred)
+      this.load.spritesheet(`char_${charId}`, `/characters/${charId}/spritesheet.png`, {
+        frameWidth: 128,
+        frameHeight: 128,
+      });
+
+      // 2. Try to load idle.png as a fallback (or for static display) if no spritesheet 
+      // Note: In Phaser if both keys exist with same name, the second one might overwrite or error, 
+      // so we use a different key or careful order.
+      // Here let's just also try loading 'idle' separately for now, which the user mentioned they have.
+      this.load.image(`char_${charId}_idle_static`, `/characters/${charId}/idle.png`);
+
+      // If we want `idle.png` to be the "sprite" if spritesheet fails, we'd need more logic or just check existence.
+      // For now, let's assume if spritesheet fails to load, we can construct an animation from idle.png if we load it as a spritesheet too?
+      // Or just load it as an image.
+
+      // Let's try to load idle.png as a spritesheet too just in case it IS a strip, 
+      // or if it's a single frame, 128x128.
+      this.load.spritesheet(`char_${charId}_idle`, `/characters/${charId}/idle.png`, {
+        frameWidth: 128,
+        frameHeight: 128,
+      });
+    });
   }
 
   /**
    * Create scene elements.
    */
   create(): void {
+    // Create Animations
+    this.createAnimations();
+
     // Background
     this.createBackground();
 
@@ -104,6 +134,58 @@ export class FightScene extends Phaser.Scene {
 
     // Emit scene ready event
     EventBus.emit("scene:ready", this);
+  }
+
+  /**
+   * Create global animations for characters.
+   */
+  private createAnimations(): void {
+    const characters = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
+    const anims = [
+      { key: "idle", frames: { start: 0, end: 5 }, frameRate: 8, repeat: -1 },
+      { key: "move", frames: { start: 6, end: 11 }, frameRate: 10, repeat: -1 },
+      { key: "punch", frames: { start: 12, end: 15 }, frameRate: 12, repeat: 0 },
+      { key: "kick", frames: { start: 16, end: 19 }, frameRate: 12, repeat: 0 },
+      { key: "block", frames: { start: 20, end: 22 }, frameRate: 12, repeat: -1 }, // Block loop?
+      { key: "special", frames: { start: 23, end: 32 }, frameRate: 12, repeat: 0 },
+      { key: "hurt", frames: { start: 33, end: 35 }, frameRate: 12, repeat: 0 },
+      { key: "victory", frames: { start: 36, end: 40 }, frameRate: 8, repeat: -1 },
+      { key: "defeat", frames: { start: 41, end: 45 }, frameRate: 8, repeat: 0 },
+    ];
+
+    characters.forEach((charId) => {
+      // Check for main spritesheet
+      if (this.textures.exists(`char_${charId}`)) {
+        anims.forEach((anim) => {
+          this.anims.create({
+            key: `${charId}_${anim.key}`,
+            frames: this.anims.generateFrameNumbers(`char_${charId}`, anim.frames),
+            frameRate: anim.frameRate,
+            repeat: anim.repeat,
+          });
+        });
+      }
+      // Check for idle fallback
+      else if (this.textures.exists(`char_${charId}_idle`)) {
+        // Create at least an idle animation
+        this.anims.create({
+          key: `${charId}_idle`,
+          frames: this.anims.generateFrameNumbers(`char_${charId}_idle`, { start: 0, end: 0 }),
+          frameRate: 1,
+          repeat: -1,
+        });
+
+        // Map other animations to idle just so it doesn't crash/show nothing
+        ['move', 'punch', 'kick', 'block', 'special', 'hurt', 'victory', 'defeat'].forEach(key => {
+          this.anims.create({
+            key: `${charId}_${key}`,
+            frames: this.anims.generateFrameNumbers(`char_${charId}_idle`, { start: 0, end: 0 }),
+            frameRate: 1,
+            repeat: 0,
+          });
+        });
+      }
+    });
   }
 
   /**
@@ -123,7 +205,7 @@ export class FightScene extends Phaser.Scene {
   private createBackground(): void {
     // Create gradient background
     const graphics = this.add.graphics();
-    
+
     // Dark arena gradient
     graphics.fillGradientStyle(0x0a0a0a, 0x0a0a0a, 0x1a1a2e, 0x1a1a2e, 1);
     graphics.fillRect(0, 0, GAME_DIMENSIONS.WIDTH, GAME_DIMENSIONS.HEIGHT);

@@ -151,14 +151,18 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       {/* Phaser game container */}
       <div id="phaser-container" className="w-full h-screen">
         <PhaserGame
+          currentScene="CharacterSelectScene"
           sceneConfig={{
             matchId: match.id,
-            player1Address: match.player1Address,
-            player2Address: match.player2Address || "",
-            player1Character: match.player1CharacterId || "cyber-ninja",
-            player2Character: match.player2CharacterId || "dag-warrior",
-            playerRole,
-          }}
+            playerAddress: address,
+            opponentAddress:
+              playerRole === "player1"
+                ? match.player2Address || ""
+                : match.player1Address,
+            isHost: playerRole === "player1",
+            // Legacy/FightScene props just in case or for when we transition (though transition creates new scene config usually internal to scene flow)
+            // But CharacterSelectScene config is: matchId, playerAddress, opponentAddress, isHost
+          } as any}
         />
       </div>
 

@@ -88,9 +88,10 @@ export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
           const Phaser = (await import("phaser")).default;
           const { createGameConfig } = await import("./config");
           const { FightScene } = await import("./scenes/FightScene");
-          
-          // Register scenes - add FightScene
-          const scenes: Phaser.Types.Scenes.SceneType[] = [FightScene];
+          const { CharacterSelectScene } = await import("./scenes/CharacterSelectScene");
+
+          // Register scenes
+          const scenes: Phaser.Types.Scenes.SceneType[] = [CharacterSelectScene, FightScene];
 
           if (!isMounted) return;
 
@@ -103,10 +104,21 @@ export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
           // Create the game instance
           gameRef.current = new Phaser.Game(config);
 
-          // If we have scene config, start the FightScene with it
-          if (sceneConfig) {
+          // Start the initial scene provided in props
+          if (currentScene && sceneConfig) {
             gameRef.current.events.once("ready", () => {
-              gameRef.current?.scene.start("FightScene", sceneConfig);
+              gameRef.current?.scene.start(currentScene, sceneConfig);
+            });
+          } else if (sceneConfig) {
+            // Fallback to FightScene if no currentScene specified (legacy behavior)
+            // But ideally we want CharacterSelectScene to be the entry point if currentScene='CharacterSelectScene'
+            gameRef.current.events.once("ready", () => {
+              if (currentScene) {
+                gameRef.current?.scene.start(currentScene, sceneConfig);
+              } else {
+                // Default to FightScene for backward compatibility if not specified
+                gameRef.current?.scene.start("FightScene", sceneConfig);
+              }
             });
           }
 

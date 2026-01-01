@@ -223,68 +223,175 @@ export async function findOpponent(
 
 /**
  * Attempt to match a player with someone in the queue.
+ * Uses atomic UPDATE to prevent race conditions:
+ * 1. Find potential opponents (SELECT)
+ * 2. Try to claim each one atomically (UPDATE with status check)
+ * 3. First successful claim wins the match
  * Returns match result if successful, null otherwise.
  */
 export async function attemptMatch(
   address: string
 ): Promise<MatchResult | null> {
   const supabase = await createSupabaseServerClient();
+  const shortAddr = address.slice(-8); // Short address for logging
 
-  // Get player from queue
+  console.log(`[MATCHMAKING] ${shortAddr}: Starting attemptMatch`);
+
+  // Step 1: Get the current player from queue
   const { data: player, error: playerError } = await supabase
     .from("matchmaking_queue")
-    .select("address, rating, joined_at")
+    .select("address, rating, joined_at, status")
     .eq("address", address)
-    .eq("status", "searching")
     .single();
 
-  if (playerError || !player) {
+  if (playerError) {
+    console.log(`[MATCHMAKING] ${shortAddr}: Player not in queue - ${playerError.message}`);
     return null;
   }
 
-  const opponent = await findOpponent(
-    address,
-    player.rating,
-    new Date(player.joined_at)
-  );
-
-  if (!opponent) {
+  if (!player) {
+    console.log(`[MATCHMAKING] ${shortAddr}: Player not found in queue`);
     return null;
   }
 
-  // Mark both players as matched (to prevent race conditions)
-  const { error: updateError } = await supabase
+  if (player.status !== "searching") {
+    console.log(`[MATCHMAKING] ${shortAddr}: Player status is '${player.status}', not searching`);
+    return null;
+  }
+
+  console.log(`[MATCHMAKING] ${shortAddr}: Player in queue with rating ${player.rating}`);
+
+  const playerJoinedAt = new Date(player.joined_at);
+  const ratingRange = calculateRatingRange(playerJoinedAt);
+  const minRating = player.rating - ratingRange;
+  const maxRating = player.rating + ratingRange;
+
+  console.log(`[MATCHMAKING] ${shortAddr}: Looking for opponents with rating ${minRating}-${maxRating}`);
+
+  // Step 2: Find potential opponents (just SELECT, no update yet)
+  const { data: candidates, error: findError } = await supabase
     .from("matchmaking_queue")
-    .update({ status: "matched" })
-    .in("address", [address, opponent.address])
-    .eq("status", "searching");
+    .select("address, rating, status")
+    .eq("status", "searching")
+    .neq("address", address)
+    .gte("rating", minRating)
+    .lte("rating", maxRating)
+    .order("joined_at", { ascending: true })
+    .limit(5);
 
-  if (updateError) {
-    console.error("Failed to mark players as matched:", updateError);
+  if (findError) {
+    console.log(`[MATCHMAKING] ${shortAddr}: Error finding opponents - ${findError.message}`);
     return null;
   }
 
-  // Create match in database
-  const match = await createMatch(address, opponent.address);
-  if (!match) {
-    // Reset players back to searching if match creation fails
+  if (!candidates || candidates.length === 0) {
+    console.log(`[MATCHMAKING] ${shortAddr}: No opponents found in rating range`);
+    return null;
+  }
+
+  console.log(`[MATCHMAKING] ${shortAddr}: Found ${candidates.length} potential opponents: ${candidates.map(c => c.address.slice(-8)).join(', ')}`);
+
+  // Step 3: Try to atomically claim ONE opponent
+  // - UPDATE only succeeds if the row still has status='searching'
+  // - If another player already claimed, UPDATE affects 0 rows
+  let claimedOpponent: { address: string; rating: number } | null = null;
+
+  for (const candidate of candidates) {
+    const candidateShort = candidate.address.slice(-8);
+    console.log(`[MATCHMAKING] ${shortAddr}: Attempting to claim ${candidateShort}...`);
+
+    // Use 'matched' status (DB only allows 'searching' or 'matched')
+    const { data: claimed, error: claimError } = await supabase
+      .from("matchmaking_queue")
+      .update({
+        status: "matched",
+        matched_with: address
+      })
+      .eq("address", candidate.address)
+      .eq("status", "searching") // Critical: only claim if still searching
+      .select("address, rating");
+
+    if (claimError) {
+      console.log(`[MATCHMAKING] ${shortAddr}: Claim error for ${candidateShort} - ${claimError.message}`);
+      continue;
+    }
+
+    if (claimed && claimed.length > 0) {
+      claimedOpponent = claimed[0];
+      console.log(`[MATCHMAKING] ${shortAddr}: ✓ Successfully claimed ${candidateShort}`);
+      break;
+    } else {
+      console.log(`[MATCHMAKING] ${shortAddr}: ✗ Failed to claim ${candidateShort} (already claimed or not searching)`);
+    }
+  }
+
+  if (!claimedOpponent) {
+    console.log(`[MATCHMAKING] ${shortAddr}: Could not claim any opponent`);
+    return null;
+  }
+
+  // Step 4: Mark ourselves as matched too
+  console.log(`[MATCHMAKING] ${shortAddr}: Marking self as matched with ${claimedOpponent.address.slice(-8)}`);
+  const { data: selfUpdate, error: selfUpdateError } = await supabase
+    .from("matchmaking_queue")
+    .update({
+      status: "matched",
+      matched_with: claimedOpponent.address
+    })
+    .eq("address", address)
+    .eq("status", "searching")
+    .select("address");
+
+  if (selfUpdateError) {
+    console.log(`[MATCHMAKING] ${shortAddr}: Failed to update self - ${selfUpdateError.message}`);
+    // Rollback: release the opponent
     await supabase
       .from("matchmaking_queue")
-      .update({ status: "searching" })
-      .in("address", [address, opponent.address]);
+      .update({ status: "searching", matched_with: null })
+      .eq("address", claimedOpponent.address);
     return null;
   }
 
-  // Remove both players from queue
-  await supabase
+  if (!selfUpdate || selfUpdate.length === 0) {
+    console.log(`[MATCHMAKING] ${shortAddr}: Self update returned 0 rows (already matched by someone else?)`);
+    // Rollback: release the opponent
+    await supabase
+      .from("matchmaking_queue")
+      .update({ status: "searching", matched_with: null })
+      .eq("address", claimedOpponent.address);
+    return null;
+  }
+
+  // Step 5: Create the match
+  console.log(`[MATCHMAKING] ${shortAddr}: Creating match...`);
+  const match = await createMatch(address, claimedOpponent.address);
+  if (!match) {
+    console.log(`[MATCHMAKING] ${shortAddr}: Failed to create match, rolling back`);
+    // Rollback: release both players back to searching
+    await supabase
+      .from("matchmaking_queue")
+      .update({ status: "searching", matched_with: null })
+      .in("address", [address, claimedOpponent.address]);
+    return null;
+  }
+
+  // Step 6: Remove both players from the queue
+  console.log(`[MATCHMAKING] ${shortAddr}: Match created! Removing players from queue`);
+  const { error: deleteError } = await supabase
     .from("matchmaking_queue")
     .delete()
-    .in("address", [address, opponent.address]);
+    .in("address", [address, claimedOpponent.address]);
+
+  if (deleteError) {
+    console.log(`[MATCHMAKING] ${shortAddr}: Warning - failed to remove from queue: ${deleteError.message}`);
+  }
+
+  console.log(`[MATCHMAKING] ✓✓✓ Match ${match.id} created: ${shortAddr} vs ${claimedOpponent.address.slice(-8)}`);
 
   return {
     matchId: match.id,
     player1Address: address,
-    player2Address: opponent.address,
+    player2Address: claimedOpponent.address,
   };
 }
 

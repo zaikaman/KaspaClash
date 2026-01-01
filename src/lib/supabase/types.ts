@@ -255,23 +255,32 @@ export interface Database {
           rating: number;
           joined_at: string;
           status: string;
+          matched_with: string | null;
         };
         Insert: {
           address: string;
           rating?: number;
           joined_at?: string;
           status?: string;
+          matched_with?: string | null;
         };
         Update: {
           address?: string;
           rating?: number;
           joined_at?: string;
           status?: string;
+          matched_with?: string | null;
         };
         Relationships: [
           {
             foreignKeyName: "matchmaking_queue_address_fkey";
             columns: ["address"];
+            referencedRelation: "players";
+            referencedColumns: ["address"];
+          },
+          {
+            foreignKeyName: "matchmaking_queue_matched_with_fkey";
+            columns: ["matched_with"];
             referencedRelation: "players";
             referencedColumns: ["address"];
           }
