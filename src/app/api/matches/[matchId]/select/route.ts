@@ -162,7 +162,19 @@ export async function POST(
           !!updatedMatch.player1_character_id &&
           !!updatedMatch.player2_character_id;
 
-        // If both ready, update match status to active
+        // Broadcast character_selected event to opponent
+        const gameChannel = supabase.channel(`game:${matchId}`);
+        await gameChannel.send({
+          type: "broadcast",
+          event: "character_selected",
+          payload: {
+            player: isPlayer1 ? "player1" : "player2",
+            characterId: body.characterId,
+            locked: true,
+          },
+        });
+
+        // If both ready, update match status to active and broadcast match_starting
         if (matchReady) {
           await supabase
             .from("matches")
@@ -171,7 +183,28 @@ export async function POST(
               started_at: new Date().toISOString(),
             })
             .eq("id", matchId);
+
+          // Broadcast match_starting event to both players
+          await gameChannel.send({
+            type: "broadcast",
+            event: "match_starting",
+            payload: {
+              matchId,
+              player1: {
+                address: updatedMatch.player1_address,
+                characterId: updatedMatch.player1_character_id,
+              },
+              player2: {
+                address: updatedMatch.player2_address,
+                characterId: updatedMatch.player2_character_id,
+              },
+              format: updatedMatch.format || "best_of_3",
+              startsAt: Date.now() + 3000, // 3 second countdown
+            },
+          });
         }
+
+        await supabase.removeChannel(gameChannel);
       }
     }
 

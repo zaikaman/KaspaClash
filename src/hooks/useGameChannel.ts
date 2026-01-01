@@ -219,7 +219,19 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
     (payload: CharacterSelectedPayload) => {
       console.log("[GameChannel] character_selected:", payload);
 
-      // Emit to Phaser
+      // Emit to Phaser - use event name that CharacterSelectScene expects
+      // The scene listens for "opponent_character_confirmed" when opponent locks in
+      if (payload.locked && payload.characterId) {
+        EventBus.emit("opponent_character_confirmed", {
+          characterId: payload.characterId,
+        });
+      } else {
+        EventBus.emit("opponent_character_selected", {
+          characterId: payload.characterId,
+        });
+      }
+
+      // Also emit the generic event for other listeners
       EventBus.emit("game:characterSelected", payload);
 
       // Call user callback
@@ -238,7 +250,16 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
       // Transition game state
       matchActions.transitionTo(GameState.COUNTDOWN);
 
-      // Emit to Phaser (transition to fight)
+      // Emit to Phaser - use event name that CharacterSelectScene expects
+      // Calculate countdown in seconds from startsAt timestamp
+      const countdown = Math.max(1, Math.ceil((payload.startsAt - Date.now()) / 1000));
+      EventBus.emit("match_starting", { 
+        countdown,
+        player1CharacterId: payload.player1.characterId,
+        player2CharacterId: payload.player2.characterId,
+      });
+
+      // Also emit the generic event for other listeners
       EventBus.emit("game:matchStarting", payload);
 
       // Call user callback

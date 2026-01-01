@@ -350,8 +350,12 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     // Match starting (both players ready)
     EventBus.on("match_starting", (data: unknown) => {
-      const payload = data as { countdown: number };
-      this.onMatchStarting(payload.countdown);
+      const payload = data as { 
+        countdown: number; 
+        player1CharacterId?: string; 
+        player2CharacterId?: string; 
+      };
+      this.onMatchStarting(payload);
     });
 
     // Opponent disconnected
@@ -482,7 +486,35 @@ export class CharacterSelectScene extends Phaser.Scene {
   /**
    * Handle match starting countdown.
    */
-  private onMatchStarting(countdown: number): void {
+  private onMatchStarting(payload: { 
+    countdown: number; 
+    player1CharacterId?: string; 
+    player2CharacterId?: string; 
+  }): void {
+    const { countdown, player1CharacterId, player2CharacterId } = payload;
+    
+    // If we received character IDs from the server, use them to set opponent character
+    // This ensures we have the opponent's character even if we missed the earlier event
+    if (player1CharacterId && player2CharacterId) {
+      const opponentCharacterId = this.config.isHost ? player2CharacterId : player1CharacterId;
+      const playerCharacterId = this.config.isHost ? player1CharacterId : player2CharacterId;
+      
+      if (!this.opponentCharacter) {
+        const opponent = getCharacter(opponentCharacterId);
+        if (opponent) {
+          this.opponentCharacter = opponent;
+          this.opponentStatus.showCharacterPreview(opponent.name, opponent.theme);
+        }
+      }
+      
+      if (!this.confirmedCharacter) {
+        const player = getCharacter(playerCharacterId);
+        if (player) {
+          this.confirmedCharacter = player;
+        }
+      }
+    }
+    
     this.instructionText.setText(`Match starting in ${countdown}...`);
     this.instructionText.setColor("#22c55e");
 

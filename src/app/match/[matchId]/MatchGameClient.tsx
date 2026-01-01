@@ -84,14 +84,43 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       setShowResults(true);
     };
 
+    // Handle character selection confirmation from Phaser scene
+    const handleSelectionConfirmed = async (data: unknown) => {
+      const payload = data as { characterId: string };
+      if (!address || !match.id) return;
+
+      try {
+        const response = await fetch(`/api/matches/${match.id}/select`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            playerAddress: address,
+            characterId: payload.characterId,
+            confirm: true,
+          }),
+        });
+
+        if (!response.ok) {
+          console.error("Failed to confirm character selection:", await response.text());
+        } else {
+          const result = await response.json();
+          console.log("[MatchGameClient] Character selection confirmed:", result);
+        }
+      } catch (error) {
+        console.error("Error confirming character selection:", error);
+      }
+    };
+
     EventBus.on("scene:ready", handleSceneReady);
     EventBus.on("match:ended", handleMatchEnd);
+    EventBus.on("selection_confirmed", handleSelectionConfirmed);
 
     return () => {
       EventBus.off("scene:ready", handleSceneReady);
       EventBus.off("match:ended", handleMatchEnd);
+      EventBus.off("selection_confirmed", handleSelectionConfirmed);
     };
-  }, []);
+  }, [address, match.id]);
 
   // Handle closing results
   const handleCloseResults = useCallback(() => {
