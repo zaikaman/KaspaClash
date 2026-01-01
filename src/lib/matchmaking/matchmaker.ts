@@ -22,6 +22,7 @@ export interface MatchResult {
   matchId: string;
   player1Address: string;
   player2Address: string;
+  selectionDeadlineAt: string; // ISO timestamp for timer sync
 }
 
 /**
@@ -392,18 +393,30 @@ export async function attemptMatch(
     matchId: match.id,
     player1Address: address,
     player2Address: claimedOpponent.address,
+    selectionDeadlineAt: match.selectionDeadlineAt,
   };
 }
 
 /**
+ * Character selection timeout in seconds.
+ */
+const CHARACTER_SELECT_TIMEOUT_SECONDS = 30;
+
+/**
  * Create a new match in the database.
+ * Sets a server-managed selection deadline for timer synchronization.
  */
 export async function createMatch(
   player1Address: string,
   player2Address: string
-): Promise<{ id: string } | null> {
+): Promise<{ id: string; selectionDeadlineAt: string } | null> {
   try {
     const supabase = await createSupabaseServerClient();
+
+    // Calculate selection deadline (30 seconds from now)
+    const selectionDeadlineAt = new Date(
+      Date.now() + CHARACTER_SELECT_TIMEOUT_SECONDS * 1000
+    ).toISOString();
 
     const { data, error } = await supabase
       .from("matches")
@@ -412,8 +425,9 @@ export async function createMatch(
         player2_address: player2Address,
         status: "character_select",
         format: "best_of_3",
+        selection_deadline_at: selectionDeadlineAt,
       })
-      .select("id")
+      .select("id, selection_deadline_at")
       .single();
 
     if (error) {
@@ -421,8 +435,8 @@ export async function createMatch(
       return null;
     }
 
-    console.log(`Match created: ${data.id} (${player1Address} vs ${player2Address})`);
-    return data;
+    console.log(`Match created: ${data.id} (${player1Address} vs ${player2Address}), deadline: ${data.selection_deadline_at}`);
+    return { id: data.id, selectionDeadlineAt: data.selection_deadline_at! };
   } catch (error) {
     console.error("Error creating match:", error);
     return null;
@@ -472,7 +486,7 @@ export async function createRoom(hostAddress: string): Promise<{
 export async function joinRoom(
   guestAddress: string,
   roomCode: string
-): Promise<{ id: string; hostAddress: string } | null> {
+): Promise<{ id: string; hostAddress: string; selectionDeadlineAt: string } | null> {
   try {
     const supabase = await createSupabaseServerClient();
 
@@ -501,22 +515,34 @@ export async function joinRoom(
       return null;
     }
 
-    // Update match with second player
-    const { error: updateError } = await supabase
+    // Calculate selection deadline (30 seconds from now)
+    const selectionDeadlineAt = new Date(
+      Date.now() + CHARACTER_SELECT_TIMEOUT_SECONDS * 1000
+    ).toISOString();
+
+    // Update match with second player and set selection deadline
+    const { data: updatedMatch, error: updateError } = await supabase
       .from("matches")
       .update({
         player2_address: guestAddress,
         status: "character_select",
+        selection_deadline_at: selectionDeadlineAt,
       })
-      .eq("id", room.id);
+      .eq("id", room.id)
+      .select("selection_deadline_at")
+      .single();
 
     if (updateError) {
       console.error("Failed to join room:", updateError);
       return null;
     }
 
-    console.log(`Player ${guestAddress} joined room ${roomCode}`);
-    return { id: room.id, hostAddress: room.player1_address };
+    console.log(`Player ${guestAddress} joined room ${roomCode}, deadline: ${updatedMatch?.selection_deadline_at}`);
+    return {
+      id: room.id,
+      hostAddress: room.player1_address,
+      selectionDeadlineAt: updatedMatch?.selection_deadline_at ?? selectionDeadlineAt
+    };
   } catch (error) {
     console.error("Error joining room:", error);
     return null;
@@ -560,11 +586,13 @@ export async function runMatchmakingCycle(): Promise<MatchResult[]> {
 
 /**
  * Broadcast match found event via Supabase Realtime.
+ * Includes the selection deadline so both clients can sync their timers.
  */
 export async function broadcastMatchFound(
   matchId: string,
   player1Address: string,
-  player2Address: string
+  player2Address: string,
+  selectionDeadlineAt: string
 ): Promise<void> {
   try {
     const supabase = await createSupabaseServerClient();
@@ -579,13 +607,14 @@ export async function broadcastMatchFound(
         matchId,
         player1Address,
         player2Address,
+        selectionDeadlineAt, // Server-managed deadline for timer sync
       },
     });
 
     // Clean up the channel after sending
     await supabase.removeChannel(channel);
 
-    console.log(`Match found event broadcast for ${matchId}`);
+    console.log(`Match found event broadcast for ${matchId}, deadline: ${selectionDeadlineAt}`);
   } catch (error) {
     console.error("Failed to broadcast match found:", error);
   }

@@ -63,7 +63,7 @@ export class CharacterCard extends Phaser.GameObjects.Container {
   private portrait!: Phaser.GameObjects.Image;
   private nameText!: Phaser.GameObjects.Text;
   private themeText!: Phaser.GameObjects.Text;
-  private lockIcon?: Phaser.GameObjects.Text;
+  private lockIcon?: Phaser.GameObjects.Image;
   private glowEffect!: Phaser.GameObjects.Graphics;
 
   // Colors
@@ -207,7 +207,7 @@ export class CharacterCard extends Phaser.GameObjects.Container {
     // The offset compensates for coordinate transformation with Phaser's Scale.FIT mode
     const hitArea = new Phaser.Geom.Rectangle(
       this.cardWidth * 0.5,   // Offset right by half card width
-      this.cardHeight * 0.45, // Offset down by 35% of card height
+      this.cardHeight * 0.45, // Offset down by 45% of card height
       this.cardWidth,
       this.cardHeight
     );
@@ -392,16 +392,17 @@ export class CharacterCard extends Phaser.GameObjects.Container {
     // Same as selected but add lock icon
     this.drawSelectedState(radius);
 
-    // Add lock icon
-    this.lockIcon = this.scene.add.text(
+    // Add lock icon image
+    this.lockIcon = this.scene.add.image(
       this.cardWidth / 2,
-      this.cardHeight / 2,
-      "🔒",
-      {
-        fontSize: "48px",
-      }
+      130, // Positioned slightly differently for visual balance
+      "lock-icon"
     );
-    this.lockIcon.setOrigin(0.5);
+
+    // Scale the lock icon appropriately (e.g., 64x64 or 80x80)
+    const lockSize = 80;
+    this.lockIcon.setDisplaySize(lockSize, lockSize);
+
     this.add(this.lockIcon);
   }
 

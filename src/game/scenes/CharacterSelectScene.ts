@@ -19,6 +19,7 @@ export interface CharacterSelectSceneConfig {
   opponentAddress: string;
   isHost: boolean;
   selectionTimeLimit?: number; // Seconds, default 30
+  selectionDeadlineAt?: string; // ISO timestamp from server for timer sync
 }
 
 /**
@@ -111,6 +112,9 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     // Load background
     this.load.image("select-bg", "/assets/background_1.png");
+
+    // Load UI assets
+    this.load.image("lock-icon", "/assets/lock.png");
   }
 
   /**
@@ -219,12 +223,19 @@ export class CharacterSelectScene extends Phaser.Scene {
 
   /**
    * Create selection countdown timer.
+   * Uses server-provided deadline timestamp for synchronized countdown.
    */
   private createSelectionTimer(): void {
+    // Convert ISO timestamp to milliseconds for timer sync
+    const deadlineTimestamp = this.config.selectionDeadlineAt
+      ? new Date(this.config.selectionDeadlineAt).getTime()
+      : undefined;
+
     this.selectionTimer = new SelectionTimer(this, {
       x: GAME_DIMENSIONS.CENTER_X,
       y: 150,
       duration: this.config.selectionTimeLimit ?? 30,
+      deadlineTimestamp, // Server-synced deadline
       warningThreshold: 10,
       criticalThreshold: 5,
       onTimeUp: () => this.onTimeUp(),

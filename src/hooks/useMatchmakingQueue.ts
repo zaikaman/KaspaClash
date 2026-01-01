@@ -27,6 +27,7 @@ interface MatchFoundEvent {
   matchId: string;
   player1Address: string;
   player2Address: string;
+  selectionDeadlineAt?: string; // ISO timestamp for timer sync
 }
 
 /**
@@ -104,7 +105,7 @@ export function useMatchmakingQueue(): UseMatchmakingQueueReturn {
    * Handle match found - navigate to match.
    */
   const handleMatchFound = useCallback((matchData: MatchFoundEvent) => {
-    const { matchId, player1Address, player2Address } = matchData;
+    const { matchId, player1Address, player2Address, selectionDeadlineAt } = matchData;
 
     // Check if this match involves the current player
     if (address && (player1Address === address || player2Address === address)) {
@@ -115,6 +116,7 @@ export function useMatchmakingQueue(): UseMatchmakingQueueReturn {
         player1Address,
         player2Address,
         createdAt: new Date(),
+        selectionDeadlineAt, // Server-managed deadline for timer sync
       });
 
       // Stop polling

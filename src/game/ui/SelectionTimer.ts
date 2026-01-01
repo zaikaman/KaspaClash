@@ -1,6 +1,9 @@
 /**
  * SelectionTimer - Countdown timer for character lock-in
  * Displays remaining time to make selection before auto-lock
+ * 
+ * Uses real-world time (Date.now()) to ensure the timer continues
+ * counting down even when the browser tab is inactive.
  */
 
 import Phaser from "phaser";
@@ -13,6 +16,7 @@ export interface SelectionTimerConfig {
   x?: number;
   y?: number;
   duration?: number; // Total time in seconds
+  deadlineTimestamp?: number; // Server-provided deadline (ms since epoch)
   warningThreshold?: number; // Seconds remaining to show warning
   criticalThreshold?: number; // Seconds remaining to show critical
   onTimeUp?: () => void;
@@ -25,6 +29,9 @@ type TimerState = "normal" | "warning" | "critical" | "stopped";
 
 /**
  * SelectionTimer - Lock-in countdown display.
+ * 
+ * This timer uses real-world time (Date.now()) instead of game ticks
+ * to ensure accurate countdown even when the browser tab is inactive.
  */
 export class SelectionTimer extends Phaser.GameObjects.Container {
   // Configuration
@@ -33,12 +40,14 @@ export class SelectionTimer extends Phaser.GameObjects.Container {
   private criticalThreshold: number;
   private onTimeUp?: () => void;
 
-  // State
+  // State - using deadline timestamp for accurate time tracking
+  private deadlineTimestamp: number = 0;
   private timeRemaining: number;
   private timerState: TimerState = "normal";
   private isRunning: boolean = false;
+  private hasTimedOut: boolean = false;
 
-  // Timer event
+  // Timer event for visual updates (not for time tracking)
   private timerEvent?: Phaser.Time.TimerEvent;
 
   // Visual elements
@@ -64,10 +73,25 @@ export class SelectionTimer extends Phaser.GameObjects.Container {
     this.onTimeUp = config.onTimeUp;
     this.timeRemaining = this.duration;
 
+    // Use provided deadline or calculate from duration
+    if (config.deadlineTimestamp) {
+      this.deadlineTimestamp = config.deadlineTimestamp;
+      this.timeRemaining = this.calculateTimeRemaining();
+    }
+
     this.createElements();
     this.updateVisuals();
 
     scene.add.existing(this as unknown as Phaser.GameObjects.GameObject);
+  }
+
+  /**
+   * Calculate time remaining based on real-world deadline.
+   */
+  private calculateTimeRemaining(): number {
+    if (this.deadlineTimestamp === 0) return this.timeRemaining;
+    const remaining = Math.ceil((this.deadlineTimestamp - Date.now()) / 1000);
+    return Math.max(0, remaining);
   }
 
   /**
@@ -201,14 +225,18 @@ export class SelectionTimer extends Phaser.GameObjects.Container {
 
   /**
    * Timer tick handler.
+   * Uses real-world time to calculate remaining seconds,
+   * ensuring accuracy even when browser tab is inactive.
    */
   private tick(): void {
-    if (!this.isRunning) return;
+    if (!this.isRunning || this.hasTimedOut) return;
 
-    this.timeRemaining--;
+    // Calculate time remaining based on real-world deadline
+    this.timeRemaining = this.calculateTimeRemaining();
     this.updateVisuals();
 
-    if (this.timeRemaining <= 0) {
+    if (this.timeRemaining <= 0 && !this.hasTimedOut) {
+      this.hasTimedOut = true;
       this.stop();
       this.onTimeUp?.();
     }
@@ -220,16 +248,26 @@ export class SelectionTimer extends Phaser.GameObjects.Container {
 
   /**
    * Start the countdown timer.
+   * Sets a real-world deadline timestamp to track time accurately.
    */
   start(): void {
     if (this.isRunning) return;
 
     this.isRunning = true;
-    this.timeRemaining = this.duration;
+    this.hasTimedOut = false;
+
+    // Set deadline based on current time if not already set
+    if (this.deadlineTimestamp === 0) {
+      this.deadlineTimestamp = Date.now() + this.duration * 1000;
+    }
+
+    this.timeRemaining = this.calculateTimeRemaining();
     this.updateVisuals();
 
+    // Use a shorter interval (200ms) for smoother visual updates
+    // The actual time tracking uses Date.now(), so this just drives visuals
     this.timerEvent = this.scene.time.addEvent({
-      delay: 1000,
+      delay: 200,
       callback: this.tick,
       callbackScope: this,
       loop: true,
@@ -276,6 +314,8 @@ export class SelectionTimer extends Phaser.GameObjects.Container {
       this.duration = newDuration;
     }
     this.timeRemaining = this.duration;
+    this.deadlineTimestamp = 0; // Will be set when start() is called
+    this.hasTimedOut = false;
     this.timerState = "normal";
     this.updateVisuals();
   }
@@ -292,6 +332,32 @@ export class SelectionTimer extends Phaser.GameObjects.Container {
    */
   getIsRunning(): boolean {
     return this.isRunning;
+  }
+
+  /**
+   * Set the deadline timestamp from server.
+   * This allows syncing the timer with server-managed time.
+   * @param timestampMs - Unix timestamp in milliseconds when timer should expire
+   */
+  setDeadline(timestampMs: number): void {
+    this.deadlineTimestamp = timestampMs;
+    this.timeRemaining = this.calculateTimeRemaining();
+    this.hasTimedOut = false;
+    this.updateVisuals();
+
+    // If already timed out, trigger callback
+    if (this.timeRemaining <= 0 && this.isRunning && !this.hasTimedOut) {
+      this.hasTimedOut = true;
+      this.stop();
+      this.onTimeUp?.();
+    }
+  }
+
+  /**
+   * Get the current deadline timestamp.
+   */
+  getDeadlineTimestamp(): number {
+    return this.deadlineTimestamp;
   }
 
   /**

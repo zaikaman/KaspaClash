@@ -14,7 +14,7 @@ import type { Player } from "@/types";
 /**
  * Queue status states.
  */
-export type QueueStatus = 
+export type QueueStatus =
   | "idle"           // Not in queue
   | "joining"        // Attempting to join queue
   | "queued"         // Actively in queue
@@ -54,6 +54,7 @@ export interface MatchmakingResult {
   player1Address: string;
   player2Address: string;
   createdAt: Date;
+  selectionDeadlineAt?: string; // ISO timestamp for timer sync
 }
 
 /**
@@ -66,14 +67,14 @@ interface MatchmakingStore {
   queuePosition: number | null;
   playersInQueue: QueuedPlayer[];
   error: string | null;
-  
+
   // Room State
   currentRoom: MatchmakingRoom | null;
   roomCode: string | null;
-  
+
   // Match Result
   matchResult: MatchmakingResult | null;
-  
+
   // Actions - Queue
   joinQueue: () => void;
   setQueued: (queuedAt: number) => void;
@@ -82,18 +83,18 @@ interface MatchmakingStore {
   leaveQueue: () => void;
   setQueueError: (error: string) => void;
   setQueuePosition: (position: number) => void;
-  
+
   // Actions - Players in Queue
   setPlayersInQueue: (players: QueuedPlayer[]) => void;
   addPlayerToQueue: (player: QueuedPlayer) => void;
   removePlayerFromQueue: (address: string) => void;
-  
+
   // Actions - Rooms
   setRoom: (room: MatchmakingRoom) => void;
   setRoomCode: (code: string) => void;
   updateRoomStatus: (status: MatchmakingRoom["status"]) => void;
   clearRoom: () => void;
-  
+
   // Actions - General
   clearError: () => void;
   reset: () => void;

@@ -24,6 +24,7 @@ CREATE TABLE public.matches (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   started_at timestamp with time zone,
   completed_at timestamp with time zone,
+  selection_deadline_at timestamp with time zone,
   CONSTRAINT matches_pkey PRIMARY KEY (id),
   CONSTRAINT matches_player1_address_fkey FOREIGN KEY (player1_address) REFERENCES public.players(address),
   CONSTRAINT matches_player2_address_fkey FOREIGN KEY (player2_address) REFERENCES public.players(address),

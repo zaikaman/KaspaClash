@@ -91,7 +91,8 @@ export async function POST(
       await broadcastMatchFound(
         matchResult.matchId,
         matchResult.player1Address,
-        matchResult.player2Address
+        matchResult.player2Address,
+        matchResult.selectionDeadlineAt
       );
 
       return NextResponse.json({
@@ -270,7 +271,8 @@ export async function GET(
       await broadcastMatchFound(
         matchResult.matchId,
         matchResult.player1Address,
-        matchResult.player2Address
+        matchResult.player2Address,
+        matchResult.selectionDeadlineAt
       );
 
       return NextResponse.json({

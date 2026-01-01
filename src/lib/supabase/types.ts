@@ -85,6 +85,7 @@ export interface Database {
           created_at: string;
           started_at: string | null;
           completed_at: string | null;
+          selection_deadline_at: string | null;
         };
         Insert: {
           id?: string;
@@ -101,6 +102,7 @@ export interface Database {
           created_at?: string;
           started_at?: string | null;
           completed_at?: string | null;
+          selection_deadline_at?: string | null;
         };
         Update: {
           id?: string;
@@ -117,6 +119,7 @@ export interface Database {
           created_at?: string;
           started_at?: string | null;
           completed_at?: string | null;
+          selection_deadline_at?: string | null;
         };
         Relationships: [
           {
