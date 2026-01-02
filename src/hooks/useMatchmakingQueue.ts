@@ -36,6 +36,7 @@ interface MatchFoundEvent {
 interface QueueStatusResponse {
   inQueue: boolean;
   queueSize: number;
+  matchPending?: boolean; // True when a match is being created for us
   matchFound?: MatchFoundEvent;
 }
 
@@ -67,9 +68,9 @@ export interface UseMatchmakingQueueReturn {
 const QUEUE_CHANNEL = "matchmaking:queue";
 
 /**
- * Polling interval in milliseconds (check for matches every 2 seconds).
+ * Polling interval in milliseconds (check for matches every 1 second for faster detection).
  */
-const POLL_INTERVAL = 2000;
+const POLL_INTERVAL = 1000;
 
 /**
  * React hook for matchmaking queue functionality.
@@ -125,10 +126,10 @@ export function useMatchmakingQueue(): UseMatchmakingQueueReturn {
         pollIntervalRef.current = null;
       }
 
-      // Navigate to match after a short delay
+      // Navigate to match after a short delay (just show the "matched" UI briefly)
       setTimeout(() => {
         router.push(`/match/${matchId}`);
-      }, 1500);
+      }, 500);
     }
   }, [address, store, router]);
 
@@ -153,6 +154,12 @@ export function useMatchmakingQueue(): UseMatchmakingQueueReturn {
             joinedAt: Date.now(),
           }))
         );
+
+        // If match is pending (we've been claimed), show matching state
+        if (data.matchPending) {
+          console.log("Match pending - showing matching state");
+          store.setMatching();
+        }
 
         // Check if match was found
         if (data.matchFound) {

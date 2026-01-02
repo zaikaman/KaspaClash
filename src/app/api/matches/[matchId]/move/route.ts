@@ -209,10 +209,23 @@ export async function POST(
     });
     await supabase.removeChannel(gameChannel);
 
+    // If both players have submitted, trigger combat resolution
+    let resolution = null;
+    if (!awaitingOpponent) {
+      const { resolveRound } = await import("@/lib/game/combat-resolver");
+      resolution = await resolveRound(matchId, currentRound.id);
+    }
+
     return NextResponse.json({
       moveId: move.id,
       roundId: currentRound.id,
       awaitingOpponent,
+      resolution: resolution?.success ? {
+        narrative: resolution.narrative,
+        roundWinner: resolution.roundWinner,
+        isMatchOver: resolution.isMatchOver,
+        matchWinner: resolution.matchWinner,
+      } : null,
     });
   } catch (error) {
     console.error("Move submit error:", error);

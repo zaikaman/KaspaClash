@@ -124,15 +124,19 @@ export async function submitMoveWithSignature(
 
 /**
  * Submit a move with full on-chain transaction.
- * Uses a minimal Kaspa transaction for immutable move recording.
+ * Uses Kasware native send API with payload for immutable move recording.
  */
 export async function submitMoveWithTransaction(
   options: MoveSubmissionOptions
 ): Promise<MoveSubmissionResult> {
-  const { matchId, roundNumber, moveType, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
+  const { matchId, roundNumber, moveType } = options;
   const timestamp = Date.now();
 
   try {
+    // Import wallet functions
+    const { getConnectedAddress, sendKaspa } = await import("@/lib/kaspa/wallet");
+    const { buildOpReturnData, MIN_TRANSACTION_AMOUNT } = await import("@/lib/kaspa/move-transaction");
+
     const address = getConnectedAddress();
     if (!address) {
       return {
@@ -143,62 +147,74 @@ export async function submitMoveWithTransaction(
       };
     }
 
-    // Build the transaction
-    const buildResult = await buildMoveTransaction({
-      matchId,
-      roundNumber,
-      moveType,
-      playerAddress: address,
-    });
+    // Build the payload (OP_RETURN data encoding the move)
+    const payload = buildOpReturnData(matchId, roundNumber, moveType);
 
-    if (!buildResult.success || !buildResult.transaction) {
-      return {
-        success: false,
-        moveType,
-        error: buildResult.error || "Failed to build transaction",
-        timestamp,
-      };
-    }
-
-    // Sign the transaction
-    const signedTx = await signTransaction(buildResult.transaction.transaction);
-
-    // Submit the transaction
-    const provider = getProviderWithRpc();
-    if (!provider) {
-      return {
-        success: false,
-        moveType,
-        error: "Wallet provider not available or does not support RPC requests",
-        timestamp,
-      };
-    }
-
-    const submitResult = await provider.request<{ transactionId: string }>(
-      "kaspa_submitTransaction",
-      { transaction: signedTx }
+    // Send transaction using Kasware native send API
+    // Self-send minimal amount with payload containing the move data
+    const txResult = await sendKaspa(
+      address, // Send to self
+      Number(MIN_TRANSACTION_AMOUNT), // Minimal amount in sompi
+      payload // Payload containing move data
     );
 
-    if (!submitResult.transactionId) {
-      return {
-        success: false,
-        moveType,
-        error: "Failed to submit transaction",
-        timestamp,
-      };
+    // Kasware returns the transaction as a JSON string containing the full tx object
+    // The actual transaction ID is in the "id" field of this JSON
+    let txId: string;
+
+    console.log("[MoveService] Raw transaction result:", txResult, typeof txResult);
+
+    if (typeof txResult === 'string') {
+      // Check if it's a JSON string (starts with {)
+      if (txResult.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(txResult);
+          txId = parsed.id || parsed.txId || parsed.txid || parsed.transactionId || parsed.hash || '';
+          console.log("[MoveService] Extracted txId from JSON string:", txId);
+        } catch (e) {
+          console.error("[MoveService] Failed to parse JSON response:", e);
+          txId = txResult; // Fall back to using the raw string
+        }
+      } else {
+        // It's already a plain transaction ID string
+        txId = txResult;
+      }
+    } else if (typeof txResult === 'object' && txResult !== null) {
+      // Handle object response - try common field names
+      const obj = txResult as Record<string, unknown>;
+      txId = (obj.id || obj.txId || obj.txid || obj.transactionId || obj.hash || '') as string;
+      console.log("[MoveService] Extracted txId from object:", txId);
+
+      // If no known field found, log the structure
+      if (!txId) {
+        console.error("[MoveService] Unknown transaction result format:", JSON.stringify(txResult));
+        throw new Error("Unable to extract transaction ID from wallet response");
+      }
+    } else {
+      console.error("[MoveService] Unexpected transaction result type:", typeof txResult);
+      throw new Error("Unexpected transaction result type from wallet");
     }
+
+    // Validate the transaction ID format (should be 64 hex characters)
+    const txIdClean = txId.trim();
+    if (!/^[a-f0-9]{64}$/i.test(txIdClean)) {
+      console.error("[MoveService] Invalid transaction ID format:", txIdClean);
+      throw new Error(`Invalid transaction ID format received: ${txIdClean.substring(0, 100)}`);
+    }
+
+    txId = txIdClean;
 
     // Emit event for UI feedback
     EventBus.emit("match:moveSubmitted", {
       matchId,
       roundNumber,
       moveType,
-      txId: submitResult.transactionId,
+      txId,
     });
 
     return {
       success: true,
-      txId: submitResult.transactionId,
+      txId,
       moveType,
       timestamp,
     };

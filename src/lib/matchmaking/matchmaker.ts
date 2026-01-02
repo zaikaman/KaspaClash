@@ -224,10 +224,10 @@ export async function findOpponent(
 
 /**
  * Attempt to match a player with someone in the queue.
- * Uses atomic UPDATE to prevent race conditions:
- * 1. Find potential opponents (SELECT)
- * 2. Try to claim each one atomically (UPDATE with status check)
- * 3. First successful claim wins the match
+ * Uses a DETERMINISTIC TIE-BREAKER to prevent race conditions:
+ * - Only the player with the lexicographically "lower" address initiates claims
+ * - The "higher" address player waits to be claimed
+ * This ensures only one player ever tries to create the match.
  * Returns match result if successful, null otherwise.
  */
 export async function attemptMatch(
@@ -241,7 +241,7 @@ export async function attemptMatch(
   // Step 1: Get the current player from queue
   const { data: player, error: playerError } = await supabase
     .from("matchmaking_queue")
-    .select("address, rating, joined_at, status")
+    .select("address, rating, joined_at, status, matched_with")
     .eq("address", address)
     .single();
 
@@ -252,6 +252,12 @@ export async function attemptMatch(
 
   if (!player) {
     console.log(`[MATCHMAKING] ${shortAddr}: Player not found in queue`);
+    return null;
+  }
+
+  // If we've been claimed by someone else, don't try to initiate - just wait
+  if (player.status === "matched" && player.matched_with) {
+    console.log(`[MATCHMAKING] ${shortAddr}: Already claimed by ${player.matched_with.slice(-8)}, waiting for match creation`);
     return null;
   }
 
@@ -292,14 +298,21 @@ export async function attemptMatch(
 
   console.log(`[MATCHMAKING] ${shortAddr}: Found ${candidates.length} potential opponents: ${candidates.map(c => c.address.slice(-8)).join(', ')}`);
 
-  // Step 3: Try to atomically claim ONE opponent
-  // - UPDATE only succeeds if the row still has status='searching'
-  // - If another player already claimed, UPDATE affects 0 rows
+  // Step 3: DETERMINISTIC TIE-BREAKER
+  // Only attempt to claim if we have the "lower" address (lexicographically)
+  // This prevents both players from trying to claim each other simultaneously
   let claimedOpponent: { address: string; rating: number } | null = null;
 
   for (const candidate of candidates) {
     const candidateShort = candidate.address.slice(-8);
-    console.log(`[MATCHMAKING] ${shortAddr}: Attempting to claim ${candidateShort}...`);
+
+    // TIE-BREAKER: Only the lower address initiates the claim
+    if (address > candidate.address) {
+      console.log(`[MATCHMAKING] ${shortAddr}: Skipping ${candidateShort} - they should initiate (tie-breaker)`);
+      continue;
+    }
+
+    console.log(`[MATCHMAKING] ${shortAddr}: Attempting to claim ${candidateShort} (we are initiator)...`);
 
     // Use 'matched' status (DB only allows 'searching' or 'matched')
     const { data: claimed, error: claimError } = await supabase
@@ -327,7 +340,7 @@ export async function attemptMatch(
   }
 
   if (!claimedOpponent) {
-    console.log(`[MATCHMAKING] ${shortAddr}: Could not claim any opponent`);
+    console.log(`[MATCHMAKING] ${shortAddr}: Could not claim any opponent (waiting to be claimed or no valid targets)`);
     return null;
   }
 

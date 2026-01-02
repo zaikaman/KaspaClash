@@ -84,7 +84,47 @@ export async function POST(
     await addToQueue(address, rating);
 
     // Attempt immediate match
-    const matchResult = await attemptMatch(address);
+    let matchResult = await attemptMatch(address);
+
+    // If we didn't find a match (e.g., we're the "waiter" due to tie-breaker),
+    // trigger match attempts for OTHER players in the queue.
+    // This ensures the "initiator" player gets a chance to claim us immediately.
+    if (!matchResult) {
+      console.log(`[MATCHMAKING-POST] ${address.slice(-8)}: No match found, triggering cycle for other players`);
+
+      // Get all other searching players and try to match them
+      const { data: otherPlayers } = await supabase
+        .from("matchmaking_queue")
+        .select("address")
+        .eq("status", "searching")
+        .neq("address", address)
+        .limit(5);
+
+      if (otherPlayers && otherPlayers.length > 0) {
+        for (const otherPlayer of otherPlayers) {
+          const otherResult = await attemptMatch(otherPlayer.address);
+          if (otherResult) {
+            // A match was found by another player - broadcast it
+            await broadcastMatchFound(
+              otherResult.matchId,
+              otherResult.player1Address,
+              otherResult.player2Address,
+              otherResult.selectionDeadlineAt
+            );
+
+            // If the match involves us, return it
+            if (otherResult.player1Address === address || otherResult.player2Address === address) {
+              return NextResponse.json({
+                success: true,
+                queueSize: await getQueueSize(),
+                matchId: otherResult.matchId,
+              });
+            }
+            break; // One match per cycle is enough
+          }
+        }
+      }
+    }
 
     if (matchResult) {
       // Broadcast match found to both players
@@ -111,6 +151,7 @@ export async function POST(
     return createErrorResponse(apiError);
   }
 }
+
 
 /**
  * Leave queue request body.
@@ -165,7 +206,7 @@ export async function DELETE(
  */
 export async function GET(
   request: NextRequest
-): Promise<NextResponse<{ inQueue: boolean; queueSize: number; matchFound?: { matchId: string; player1Address: string; player2Address: string } }>> {
+): Promise<NextResponse<{ inQueue: boolean; queueSize: number; matchPending?: boolean; matchFound?: { matchId: string; player1Address: string; player2Address: string; selectionDeadlineAt?: string } }>> {
   try {
     const { searchParams } = new URL(request.url);
     const address = searchParams.get("address");
@@ -186,7 +227,7 @@ export async function GET(
     // Include character_select status as that's the initial match state
     const { data: pendingMatch } = await supabase
       .from("matches")
-      .select("id, player1_address, player2_address, status")
+      .select("id, player1_address, player2_address, status, selection_deadline_at")
       .or(`player1_address.eq.${address},player2_address.eq.${address}`)
       .in("status", ["waiting", "character_select", "in_progress"])
       .order("created_at", { ascending: false })
@@ -202,6 +243,7 @@ export async function GET(
           matchId: pendingMatch.id,
           player1Address: pendingMatch.player1_address,
           player2Address: pendingMatch.player2_address,
+          selectionDeadlineAt: pendingMatch.selection_deadline_at ?? undefined,
         },
       });
     }
@@ -217,38 +259,76 @@ export async function GET(
     console.log(`[MATCHMAKING-GET] ${shortAddr}: Queue entry status = ${queueEntry?.status || 'not found'}, matched_with = ${queueEntry?.matched_with?.slice(-8) || 'null'}`);
 
     // If we've been claimed by someone else (status = 'matched' and matched_with is set)
-    // Wait for them to create the match, then we'll find it
+    // Aggressively poll for the created match with retries
     if (queueEntry?.status === "matched" && queueEntry?.matched_with) {
       console.log(`[MATCHMAKING-GET] ${shortAddr}: We were claimed by ${queueEntry.matched_with.slice(-8)}, checking for created match...`);
 
-      // Check if the match was already created by the other player
-      const { data: matchFromOther } = await supabase
-        .from("matches")
-        .select("id, player1_address, player2_address")
-        .or(`player1_address.eq.${address},player2_address.eq.${address}`)
-        .in("status", ["character_select", "in_progress"])
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
+      // Try up to 3 times with small delays to find the match
+      for (let retry = 0; retry < 3; retry++) {
+        // Check if the match was already created by the other player
+        const { data: matchFromOther } = await supabase
+          .from("matches")
+          .select("id, player1_address, player2_address, selection_deadline_at")
+          .or(`player1_address.eq.${address},player2_address.eq.${address}`)
+          .in("status", ["character_select", "in_progress"])
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
 
-      if (matchFromOther && matchFromOther.player2_address) {
-        console.log(`[MATCHMAKING-GET] ${shortAddr}: ✓ Found match created by other player: ${matchFromOther.id}`);
-        return NextResponse.json({
-          inQueue: false,
-          queueSize: await getQueueSize(),
-          matchFound: {
-            matchId: matchFromOther.id,
-            player1Address: matchFromOther.player1_address,
-            player2Address: matchFromOther.player2_address,
-          },
-        });
+        if (matchFromOther && matchFromOther.player2_address) {
+          console.log(`[MATCHMAKING-GET] ${shortAddr}: ✓ Found match created by other player: ${matchFromOther.id}`);
+          return NextResponse.json({
+            inQueue: false,
+            queueSize: await getQueueSize(),
+            matchFound: {
+              matchId: matchFromOther.id,
+              player1Address: matchFromOther.player1_address,
+              player2Address: matchFromOther.player2_address,
+              selectionDeadlineAt: matchFromOther.selection_deadline_at ?? undefined,
+            },
+          });
+        }
+
+        // If not found and not last retry, wait a bit
+        if (retry < 2) {
+          console.log(`[MATCHMAKING-GET] ${shortAddr}: Match not found (attempt ${retry + 1}/3), waiting 200ms...`);
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
       }
 
-      // Match not created yet - wait for the other player to finish
-      console.log(`[MATCHMAKING-GET] ${shortAddr}: Match not created yet, waiting...`);
+      // Check for stale matched status (older than 10 seconds without match created)
+      const { data: queueEntryWithTime } = await supabase
+        .from("matchmaking_queue")
+        .select("joined_at")
+        .eq("address", address)
+        .single();
+
+      if (queueEntryWithTime) {
+        const joinedAt = new Date(queueEntryWithTime.joined_at).getTime();
+        const staleDuration = Date.now() - joinedAt;
+
+        // If we've been in queue for over 15 seconds with 'matched' status but no match created,
+        // something went wrong - reset to searching
+        if (staleDuration > 15000) {
+          console.log(`[MATCHMAKING-GET] ${shortAddr}: Stale matched status detected (${Math.round(staleDuration / 1000)}s), resetting to searching`);
+          await supabase
+            .from("matchmaking_queue")
+            .update({ status: "searching", matched_with: null })
+            .eq("address", address);
+
+          return NextResponse.json({
+            inQueue: true,
+            queueSize: await getQueueSize(),
+          });
+        }
+      }
+
+      // Match not created yet - tell client we're pending match creation
+      console.log(`[MATCHMAKING-GET] ${shortAddr}: Match not created yet, waiting for initiator...`);
       return NextResponse.json({
         inQueue: true,
         queueSize: await getQueueSize(),
+        matchPending: true, // Signal to client to show "matching" state
       });
     }
 
@@ -282,6 +362,7 @@ export async function GET(
           matchId: matchResult.matchId,
           player1Address: matchResult.player1Address,
           player2Address: matchResult.player2Address,
+          selectionDeadlineAt: matchResult.selectionDeadlineAt,
         },
       });
     }

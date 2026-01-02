@@ -1,12 +1,14 @@
 /**
  * FightScene - Main battle arena for KaspaClash
- * Core Phaser scene for 1v1 fighting matches
+ * Core Phaser scene for 1v1 fighting matches with full combat logic
  */
 
 import Phaser from "phaser";
 import { EventBus } from "../EventBus";
 import { GAME_DIMENSIONS, CHARACTER_POSITIONS, UI_POSITIONS } from "../config";
+import { CombatEngine, BASE_MOVE_STATS, getCharacterCombatStats } from "../combat";
 import type { MoveType, PlayerRole } from "@/types";
+import type { TurnResult, CombatState } from "../combat";
 
 /**
  * Fight scene configuration.
@@ -18,42 +20,69 @@ export interface FightSceneConfig {
   player1Character: string;
   player2Character: string;
   playerRole: PlayerRole; // Which player is the local user
+  isLocalTest?: boolean;  // If true, both players controlled locally for testing
 }
 
 /**
- * FightScene - The main battle arena.
+ * FightScene - The main battle arena with full combat logic.
  */
 export class FightScene extends Phaser.Scene {
   // Scene configuration
   private config!: FightSceneConfig;
 
+  // Combat Engine
+  private combatEngine!: CombatEngine;
+
   // UI Elements
   private player1HealthBar!: Phaser.GameObjects.Graphics;
   private player2HealthBar!: Phaser.GameObjects.Graphics;
+  private player1EnergyBar!: Phaser.GameObjects.Graphics;
+  private player2EnergyBar!: Phaser.GameObjects.Graphics;
+  private player1GuardMeter!: Phaser.GameObjects.Graphics;
+  private player2GuardMeter!: Phaser.GameObjects.Graphics;
   private roundTimerText!: Phaser.GameObjects.Text;
   private roundScoreText!: Phaser.GameObjects.Text;
   private countdownText!: Phaser.GameObjects.Text;
+  private narrativeText!: Phaser.GameObjects.Text;
+  private turnIndicatorText!: Phaser.GameObjects.Text;
 
-  // Health tracking
-  private player1Health: number = 100;
-  private player2Health: number = 100;
-
-  // Round tracking
-  private player1RoundsWon: number = 0;
-  private player2RoundsWon: number = 0;
-  private currentRound: number = 1;
-
-  // Timer
-  private roundTimer: number = 15;
-  private timerEvent?: Phaser.Time.TimerEvent;
+  // Character sprites
+  private player1Sprite!: Phaser.GameObjects.Sprite;
+  private player2Sprite!: Phaser.GameObjects.Sprite;
 
   // Move buttons
   private moveButtons: Map<MoveType, Phaser.GameObjects.Container> = new Map();
   private selectedMove: MoveType | null = null;
-  private moveSubmitted: boolean = false;
+  private opponentMove: MoveType | null = null; // For local testing
+
+  // Timer
+  private turnTimer: number = 15;
+  private timerEvent?: Phaser.Time.TimerEvent;
 
   // State
-  private isRoundActive: boolean = false;
+  private phase: "countdown" | "selecting" | "resolving" | "round_end" | "match_end" = "countdown";
+  private isWaitingForOpponent: boolean = false;
+  private moveDeadlineAt: number = 0; // Server-synchronized move deadline timestamp
+
+  // For local testing mode - opponent move selector
+  private opponentMoveButtons: Map<MoveType, Phaser.GameObjects.Container> = new Map();
+
+  // Server-synchronized state (production mode) - all game state comes from server
+  private serverState: {
+    player1Health: number;
+    player1MaxHealth: number;
+    player2Health: number;
+    player2MaxHealth: number;
+    player1Energy: number;
+    player1MaxEnergy: number;
+    player2Energy: number;
+    player2MaxEnergy: number;
+    player1GuardMeter: number;
+    player2GuardMeter: number;
+    player1RoundsWon: number;
+    player2RoundsWon: number;
+    currentRound: number;
+  } | null = null;
 
   constructor() {
     super({ key: "FightScene" });
@@ -63,8 +92,23 @@ export class FightScene extends Phaser.Scene {
    * Initialize scene with match data.
    */
   init(data: FightSceneConfig): void {
-    this.config = data;
-    this.resetRoundState();
+    this.config = {
+      ...data,
+      isLocalTest: data.isLocalTest ?? false, // Default to production mode
+    };
+    this.resetFullState();
+  }
+
+  /**
+   * Reset all state for new match.
+   */
+  private resetFullState(): void {
+    this.selectedMove = null;
+    this.opponentMove = null;
+    this.turnTimer = 15;
+    this.phase = "countdown";
+    this.isWaitingForOpponent = false;
+    this.serverState = null;
   }
 
   /**
@@ -72,42 +116,25 @@ export class FightScene extends Phaser.Scene {
    */
   preload(): void {
     // Load arena background
-    this.load.image("arena-bg", "/assets/background_1.png");
-
-    // Load UI elements
-    this.load.image("health-bar-bg", "/assets/ui/health-bar-bg.png");
-    this.load.image("health-bar-fill", "/assets/ui/health-bar-fill.png");
-
-    // Load move button icons
-    this.load.image("icon-punch", "/assets/ui/icon-punch.png");
-    this.load.image("icon-kick", "/assets/ui/icon-kick.png");
-    this.load.image("icon-block", "/assets/ui/icon-block.png");
-    this.load.image("icon-special", "/assets/ui/icon-special.png");
+    this.load.image("arena-bg", "/assets/background_2.webp");
 
     // Load character assets
     const characters = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
     characters.forEach((charId) => {
-      // 1. Try to load spritesheet (preferred)
-      this.load.spritesheet(`char_${charId}`, `/characters/${charId}/spritesheet.png`, {
-        frameWidth: 128,
-        frameHeight: 128,
-      });
-
-      // 2. Try to load idle.png as a fallback (or for static display) if no spritesheet 
-      // Note: In Phaser if both keys exist with same name, the second one might overwrite or error, 
-      // so we use a different key or careful order.
-      // Here let's just also try loading 'idle' separately for now, which the user mentioned they have.
-      this.load.image(`char_${charId}_idle_static`, `/characters/${charId}/idle.png`);
-
-      // If we want `idle.png` to be the "sprite" if spritesheet fails, we'd need more logic or just check existence.
-      // For now, let's assume if spritesheet fails to load, we can construct an animation from idle.png if we load it as a spritesheet too?
-      // Or just load it as an image.
-
-      // Let's try to load idle.png as a spritesheet too just in case it IS a strip, 
-      // or if it's a single frame, 128x128.
+      // idle.png: 1392x2700 total, 6x6 grid = 36 frames, each 232x450
       this.load.spritesheet(`char_${charId}_idle`, `/characters/${charId}/idle.png`, {
-        frameWidth: 128,
-        frameHeight: 128,
+        frameWidth: 232,
+        frameHeight: 450,
+      });
+      // run.png: 1278x1722 total, 6x6 grid = 36 frames, each 213x287
+      this.load.spritesheet(`char_${charId}_run`, `/characters/${charId}/run.png`, {
+        frameWidth: 213,
+        frameHeight: 287,
+      });
+      // punch.png: 1614x1560 total, 6x6 grid = 36 frames, each 269x260
+      this.load.spritesheet(`char_${charId}_punch`, `/characters/${charId}/punch.png`, {
+        frameWidth: 269,
+        frameHeight: 260,
       });
     });
   }
@@ -116,21 +143,46 @@ export class FightScene extends Phaser.Scene {
    * Create scene elements.
    */
   create(): void {
-    // Create Animations
+    // Initialize combat engine
+    this.combatEngine = new CombatEngine(
+      this.config.player1Character || "dag-warrior",
+      this.config.player2Character || "dag-warrior",
+      "best_of_5"
+    );
+
+    // Create animations
     this.createAnimations();
 
     // Background
     this.createBackground();
 
+    // Character sprites
+    this.createCharacterSprites();
+
     // UI Elements
     this.createHealthBars();
+    this.createEnergyBars();
+    this.createGuardMeters();
     this.createRoundTimer();
     this.createRoundScore();
     this.createMoveButtons();
+    this.createNarrativeDisplay();
+    this.createTurnIndicator();
     this.createCountdownOverlay();
+
+    // Create opponent move buttons for local testing
+    if (this.config.isLocalTest) {
+      this.createOpponentMoveButtons();
+    }
 
     // Setup event listeners
     this.setupEventListeners();
+
+    // Update UI with initial state
+    this.syncUIWithCombatState();
+
+    // Start the first round
+    this.startRound();
 
     // Emit scene ready event
     EventBus.emit("scene:ready", this);
@@ -138,53 +190,63 @@ export class FightScene extends Phaser.Scene {
 
   /**
    * Create global animations for characters.
+   * idle.png: 36 frames, 232x450 | run.png: 36 frames, 213x287 | punch.png: 36 frames, 269x260
    */
   private createAnimations(): void {
     const characters = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
-    const anims = [
-      { key: "idle", frames: { start: 0, end: 5 }, frameRate: 8, repeat: -1 },
-      { key: "move", frames: { start: 6, end: 11 }, frameRate: 10, repeat: -1 },
-      { key: "punch", frames: { start: 12, end: 15 }, frameRate: 12, repeat: 0 },
-      { key: "kick", frames: { start: 16, end: 19 }, frameRate: 12, repeat: 0 },
-      { key: "block", frames: { start: 20, end: 22 }, frameRate: 12, repeat: -1 }, // Block loop?
-      { key: "special", frames: { start: 23, end: 32 }, frameRate: 12, repeat: 0 },
-      { key: "hurt", frames: { start: 33, end: 35 }, frameRate: 12, repeat: 0 },
-      { key: "victory", frames: { start: 36, end: 40 }, frameRate: 8, repeat: -1 },
-      { key: "defeat", frames: { start: 41, end: 45 }, frameRate: 8, repeat: 0 },
-    ];
 
     characters.forEach((charId) => {
-      // Check for main spritesheet
-      if (this.textures.exists(`char_${charId}`)) {
-        anims.forEach((anim) => {
+      // Idle animation (12fps, loops)
+      const idleKey = `char_${charId}_idle`;
+      if (this.textures.exists(idleKey)) {
+        if (!this.anims.exists(`${charId}_idle`)) {
           this.anims.create({
-            key: `${charId}_${anim.key}`,
-            frames: this.anims.generateFrameNumbers(`char_${charId}`, anim.frames),
-            frameRate: anim.frameRate,
-            repeat: anim.repeat,
+            key: `${charId}_idle`,
+            frames: this.anims.generateFrameNumbers(idleKey, { start: 0, end: 35 }),
+            frameRate: 12,
+            repeat: -1,
           });
-        });
+        }
       }
-      // Check for idle fallback
-      else if (this.textures.exists(`char_${charId}_idle`)) {
-        // Create at least an idle animation
-        this.anims.create({
-          key: `${charId}_idle`,
-          frames: this.anims.generateFrameNumbers(`char_${charId}_idle`, { start: 0, end: 0 }),
-          frameRate: 1,
-          repeat: -1,
-        });
 
-        // Map other animations to idle just so it doesn't crash/show nothing
-        ['move', 'punch', 'kick', 'block', 'special', 'hurt', 'victory', 'defeat'].forEach(key => {
+      // Run animation (24fps = 2x speed, loops)
+      const runKey = `char_${charId}_run`;
+      if (this.textures.exists(runKey)) {
+        if (!this.anims.exists(`${charId}_run`)) {
           this.anims.create({
-            key: `${charId}_${key}`,
-            frames: this.anims.generateFrameNumbers(`char_${charId}_idle`, { start: 0, end: 0 }),
-            frameRate: 1,
+            key: `${charId}_run`,
+            frames: this.anims.generateFrameNumbers(runKey, { start: 0, end: 35 }),
+            frameRate: 24,
+            repeat: -1,
+          });
+        }
+      }
+
+      // Punch animation (24fps = 2x speed, plays once)
+      const punchKey = `char_${charId}_punch`;
+      if (this.textures.exists(punchKey)) {
+        if (!this.anims.exists(`${charId}_punch`)) {
+          this.anims.create({
+            key: `${charId}_punch`,
+            frames: this.anims.generateFrameNumbers(punchKey, { start: 0, end: 35 }),
+            frameRate: 24,
             repeat: 0,
           });
-        });
+        }
       }
+
+      // Fallback animations map to idle
+      ['kick', 'block', 'special', 'hurt', 'victory', 'defeat'].forEach(key => {
+        const fallbackKey = `${charId}_${key}`;
+        if (!this.anims.exists(fallbackKey) && this.textures.exists(idleKey)) {
+          this.anims.create({
+            key: fallbackKey,
+            frames: this.anims.generateFrameNumbers(idleKey, { start: 0, end: 35 }),
+            frameRate: 12,
+            repeat: key === 'block' ? -1 : 0,
+          });
+        }
+      });
     });
   }
 
@@ -192,9 +254,8 @@ export class FightScene extends Phaser.Scene {
    * Update loop.
    */
   update(_time: number, _delta: number): void {
-    // Update timer display
-    if (this.isRoundActive && this.roundTimerText) {
-      this.roundTimerText.setText(`${Math.ceil(this.roundTimer)}`);
+    if (this.phase === "selecting" && this.roundTimerText) {
+      this.roundTimerText.setText(`${Math.ceil(this.turnTimer)}`);
     }
   }
 
@@ -203,24 +264,59 @@ export class FightScene extends Phaser.Scene {
   // ===========================================================================
 
   private createBackground(): void {
-    // Create gradient background
-    const graphics = this.add.graphics();
+    // Use the background image
+    if (this.textures.exists("arena-bg")) {
+      const bg = this.add.image(GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.CENTER_Y, "arena-bg");
+      // Scale to fit the game dimensions
+      bg.setDisplaySize(GAME_DIMENSIONS.WIDTH, GAME_DIMENSIONS.HEIGHT);
+    } else {
+      // Fallback gradient if image not loaded
+      const graphics = this.add.graphics();
+      graphics.fillGradientStyle(0x0a0a0a, 0x0a0a0a, 0x1a1a2e, 0x1a1a2e, 1);
+      graphics.fillRect(0, 0, GAME_DIMENSIONS.WIDTH, GAME_DIMENSIONS.HEIGHT);
+    }
+  }
 
-    // Dark arena gradient
-    graphics.fillGradientStyle(0x0a0a0a, 0x0a0a0a, 0x1a1a2e, 0x1a1a2e, 1);
-    graphics.fillRect(0, 0, GAME_DIMENSIONS.WIDTH, GAME_DIMENSIONS.HEIGHT);
+  // ===========================================================================
+  // CHARACTER SPRITES
+  // ===========================================================================
 
-    // Arena floor
-    graphics.fillStyle(0x2d2d44, 1);
-    graphics.fillRect(0, GAME_DIMENSIONS.HEIGHT - 150, GAME_DIMENSIONS.WIDTH, 150);
+  private createCharacterSprites(): void {
+    const p1Char = this.config.player1Character || "dag-warrior";
+    const p2Char = this.config.player2Character || "dag-warrior";
 
-    // Arena floor line
-    graphics.lineStyle(2, 0x40e0d0, 0.5);
-    graphics.lineBetween(0, GAME_DIMENSIONS.HEIGHT - 150, GAME_DIMENSIONS.WIDTH, GAME_DIMENSIONS.HEIGHT - 150);
+    // Player 1 sprite (left side)
+    // Only use the idle spritesheet we loaded
+    const p1TextureKey = `char_${p1Char}_idle`;
 
-    // Center line
-    graphics.lineStyle(1, 0x40e0d0, 0.3);
-    graphics.lineBetween(GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.HEIGHT - 150, GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.HEIGHT);
+    this.player1Sprite = this.add.sprite(
+      CHARACTER_POSITIONS.PLAYER1.X,
+      CHARACTER_POSITIONS.PLAYER1.Y - 50,  // Raise up a bit from floor
+      p1TextureKey
+    );
+    this.player1Sprite.setScale(0.45);  // Scale down from 450px tall to fit
+    // Use center origin to prevent bouncing during animation
+    this.player1Sprite.setOrigin(0.5, 0.5);
+    if (this.anims.exists(`${p1Char}_idle`)) {
+      this.player1Sprite.play(`${p1Char}_idle`);
+    }
+
+    // Player 2 sprite (right side, flipped)
+    // Only use the idle spritesheet we loaded
+    const p2TextureKey = `char_${p2Char}_idle`;
+
+    this.player2Sprite = this.add.sprite(
+      CHARACTER_POSITIONS.PLAYER2.X,
+      CHARACTER_POSITIONS.PLAYER2.Y - 50,  // Raise up a bit from floor
+      p2TextureKey
+    );
+    this.player2Sprite.setScale(0.45);  // Scale down from 450px tall to fit
+    // Use center origin to prevent bouncing during animation
+    this.player2Sprite.setOrigin(0.5, 0.5);
+    this.player2Sprite.setFlipX(true);
+    if (this.anims.exists(`${p2Char}_idle`)) {
+      this.player2Sprite.play(`${p2Char}_idle`);
+    }
   }
 
   // ===========================================================================
@@ -228,10 +324,10 @@ export class FightScene extends Phaser.Scene {
   // ===========================================================================
 
   private createHealthBars(): void {
-    const barWidth = 400;
-    const barHeight = 30;
+    const barWidth = 350;
+    const barHeight = 25;
 
-    // Player 1 Health Bar (left side)
+    // Player 1 Health Bar
     this.createHealthBar(
       UI_POSITIONS.HEALTH_BAR.PLAYER1.X,
       UI_POSITIONS.HEALTH_BAR.PLAYER1.Y,
@@ -240,7 +336,7 @@ export class FightScene extends Phaser.Scene {
       "player1"
     );
 
-    // Player 2 Health Bar (right side, reversed)
+    // Player 2 Health Bar
     this.createHealthBar(
       UI_POSITIONS.HEALTH_BAR.PLAYER2.X,
       UI_POSITIONS.HEALTH_BAR.PLAYER2.Y,
@@ -249,26 +345,21 @@ export class FightScene extends Phaser.Scene {
       "player2"
     );
 
-    // Player labels
-    const labelStyle = {
-      fontFamily: "monospace",
-      fontSize: "14px",
-      color: "#40e0d0",
-    };
+    // Player labels with character names
+    const state = this.combatEngine.getState();
+    const labelStyle = { fontFamily: "monospace", fontSize: "12px", color: "#40e0d0" };
 
-    // Player 1 label
     this.add.text(
       UI_POSITIONS.HEALTH_BAR.PLAYER1.X,
-      UI_POSITIONS.HEALTH_BAR.PLAYER1.Y - 20,
-      this.formatAddress(this.config?.player1Address || "Player 1"),
+      UI_POSITIONS.HEALTH_BAR.PLAYER1.Y - 18,
+      `P1: ${state.player1.characterId.toUpperCase()} (${state.player1.maxHp} HP)`,
       labelStyle
     );
 
-    // Player 2 label
     this.add.text(
       UI_POSITIONS.HEALTH_BAR.PLAYER2.X + barWidth,
-      UI_POSITIONS.HEALTH_BAR.PLAYER2.Y - 20,
-      this.formatAddress(this.config?.player2Address || "Player 2"),
+      UI_POSITIONS.HEALTH_BAR.PLAYER2.Y - 18,
+      `P2: ${state.player2.characterId.toUpperCase()} (${state.player2.maxHp} HP)`,
       { ...labelStyle, align: "right" }
     ).setOrigin(1, 0);
   }
@@ -281,20 +372,12 @@ export class FightScene extends Phaser.Scene {
     player: "player1" | "player2"
   ): void {
     const graphics = this.add.graphics();
-
-    // Background
     graphics.fillStyle(0x333333, 1);
     graphics.fillRoundedRect(x, y, width, height, 4);
-
-    // Border
     graphics.lineStyle(2, 0x40e0d0, 1);
     graphics.strokeRoundedRect(x, y, width, height, 4);
 
-    // Health fill (will be updated)
     const healthGraphics = this.add.graphics();
-    healthGraphics.fillStyle(0x00ff88, 1);
-    healthGraphics.fillRoundedRect(x + 2, y + 2, width - 4, height - 4, 3);
-
     if (player === "player1") {
       this.player1HealthBar = healthGraphics;
     } else {
@@ -302,45 +385,114 @@ export class FightScene extends Phaser.Scene {
     }
   }
 
-  /**
-   * Update health bar display.
-   */
-  public updateHealthBar(player: "player1" | "player2", health: number): void {
-    const maxHealth = 100;
-    const healthPercent = Math.max(0, Math.min(health, maxHealth)) / maxHealth;
+  // ===========================================================================
+  // ENERGY BARS
+  // ===========================================================================
 
-    const barWidth = 400;
-    const barHeight = 30;
-    const innerWidth = (barWidth - 4) * healthPercent;
+  private createEnergyBars(): void {
+    const barWidth = 350;
+    const barHeight = 12;
+    const yOffset = 30; // Below health bar
 
-    const graphics = player === "player1" ? this.player1HealthBar : this.player2HealthBar;
-    const x = player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.X : UI_POSITIONS.HEALTH_BAR.PLAYER2.X;
-    const y = player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.Y : UI_POSITIONS.HEALTH_BAR.PLAYER2.Y;
+    // Player 1 Energy Bar
+    this.createEnergyBar(
+      UI_POSITIONS.HEALTH_BAR.PLAYER1.X,
+      UI_POSITIONS.HEALTH_BAR.PLAYER1.Y + yOffset,
+      barWidth,
+      barHeight,
+      "player1"
+    );
 
-    graphics.clear();
+    // Player 2 Energy Bar
+    this.createEnergyBar(
+      UI_POSITIONS.HEALTH_BAR.PLAYER2.X,
+      UI_POSITIONS.HEALTH_BAR.PLAYER2.Y + yOffset,
+      barWidth,
+      barHeight,
+      "player2"
+    );
 
-    // Color based on health
-    let color = 0x00ff88; // Green
-    if (healthPercent <= 0.25) {
-      color = 0xff4444; // Red
-    } else if (healthPercent <= 0.5) {
-      color = 0xffaa00; // Orange
-    }
+    // Energy labels
+    const labelStyle = { fontFamily: "monospace", fontSize: "10px", color: "#3b82f6" };
+    this.add.text(
+      UI_POSITIONS.HEALTH_BAR.PLAYER1.X + barWidth + 5,
+      UI_POSITIONS.HEALTH_BAR.PLAYER1.Y + yOffset,
+      "EN",
+      labelStyle
+    );
+    this.add.text(
+      UI_POSITIONS.HEALTH_BAR.PLAYER2.X - 20,
+      UI_POSITIONS.HEALTH_BAR.PLAYER2.Y + yOffset,
+      "EN",
+      labelStyle
+    );
+  }
 
-    graphics.fillStyle(color, 1);
+  private createEnergyBar(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    player: "player1" | "player2"
+  ): void {
+    const bg = this.add.graphics();
+    bg.fillStyle(0x222222, 1);
+    bg.fillRoundedRect(x, y, width, height, 2);
+    bg.lineStyle(1, 0x3b82f6, 0.5);
+    bg.strokeRoundedRect(x, y, width, height, 2);
 
-    if (player === "player2") {
-      // Right-aligned for player 2
-      graphics.fillRoundedRect(x + 2 + (barWidth - 4 - innerWidth), y + 2, innerWidth, barHeight - 4, 3);
-    } else {
-      graphics.fillRoundedRect(x + 2, y + 2, innerWidth, barHeight - 4, 3);
-    }
-
-    // Store health
+    const energyGraphics = this.add.graphics();
     if (player === "player1") {
-      this.player1Health = health;
+      this.player1EnergyBar = energyGraphics;
     } else {
-      this.player2Health = health;
+      this.player2EnergyBar = energyGraphics;
+    }
+  }
+
+  // ===========================================================================
+  // GUARD METERS
+  // ===========================================================================
+
+  private createGuardMeters(): void {
+    const barWidth = 350;
+    const barHeight = 6;
+    const yOffset = 45;
+
+    // Player 1 Guard Meter
+    this.createGuardMeter(
+      UI_POSITIONS.HEALTH_BAR.PLAYER1.X,
+      UI_POSITIONS.HEALTH_BAR.PLAYER1.Y + yOffset,
+      barWidth,
+      barHeight,
+      "player1"
+    );
+
+    // Player 2 Guard Meter
+    this.createGuardMeter(
+      UI_POSITIONS.HEALTH_BAR.PLAYER2.X,
+      UI_POSITIONS.HEALTH_BAR.PLAYER2.Y + yOffset,
+      barWidth,
+      barHeight,
+      "player2"
+    );
+  }
+
+  private createGuardMeter(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    player: "player1" | "player2"
+  ): void {
+    const bg = this.add.graphics();
+    bg.fillStyle(0x111111, 1);
+    bg.fillRect(x, y, width, height);
+
+    const guardGraphics = this.add.graphics();
+    if (player === "player1") {
+      this.player1GuardMeter = guardGraphics;
+    } else {
+      this.player2GuardMeter = guardGraphics;
     }
   }
 
@@ -349,69 +501,18 @@ export class FightScene extends Phaser.Scene {
   // ===========================================================================
 
   private createRoundTimer(): void {
-    // Timer background
     const timerBg = this.add.graphics();
     timerBg.fillStyle(0x1a1a2e, 0.9);
-    timerBg.fillCircle(UI_POSITIONS.TIMER.X, UI_POSITIONS.TIMER.Y, 40);
+    timerBg.fillCircle(UI_POSITIONS.TIMER.X, UI_POSITIONS.TIMER.Y, 35);
     timerBg.lineStyle(3, 0x40e0d0, 1);
-    timerBg.strokeCircle(UI_POSITIONS.TIMER.X, UI_POSITIONS.TIMER.Y, 40);
+    timerBg.strokeCircle(UI_POSITIONS.TIMER.X, UI_POSITIONS.TIMER.Y, 35);
 
-    // Timer text
     this.roundTimerText = this.add.text(
       UI_POSITIONS.TIMER.X,
       UI_POSITIONS.TIMER.Y,
       "15",
-      {
-        fontFamily: "monospace",
-        fontSize: "28px",
-        color: "#40e0d0",
-        fontStyle: "bold",
-      }
+      { fontFamily: "monospace", fontSize: "24px", color: "#40e0d0", fontStyle: "bold" }
     ).setOrigin(0.5);
-  }
-
-  /**
-   * Start the round timer.
-   */
-  public startRoundTimer(): void {
-    this.roundTimer = 15;
-    this.isRoundActive = true;
-
-    this.timerEvent = this.time.addEvent({
-      delay: 1000,
-      callback: () => {
-        this.roundTimer--;
-
-        if (this.roundTimer <= 5) {
-          this.roundTimerText.setColor("#ff4444");
-        }
-
-        if (this.roundTimer <= 0) {
-          this.onTimerExpired();
-        }
-      },
-      repeat: 14,
-    });
-  }
-
-  /**
-   * Stop the round timer.
-   */
-  public stopRoundTimer(): void {
-    this.isRoundActive = false;
-    if (this.timerEvent) {
-      this.timerEvent.destroy();
-      this.timerEvent = undefined;
-    }
-  }
-
-  private onTimerExpired(): void {
-    this.stopRoundTimer();
-
-    // If no move submitted, emit timeout
-    if (!this.moveSubmitted) {
-      EventBus.emitEvent("move:timeout", { playerId: this.config?.player1Address || "" });
-    }
   }
 
   // ===========================================================================
@@ -422,23 +523,9 @@ export class FightScene extends Phaser.Scene {
     this.roundScoreText = this.add.text(
       UI_POSITIONS.ROUND_INDICATOR.X,
       UI_POSITIONS.ROUND_INDICATOR.Y,
-      "Round 1  •  0 - 0",
-      {
-        fontFamily: "monospace",
-        fontSize: "18px",
-        color: "#ffffff",
-      }
+      "Round 1  •  0 - 0  (First to 3)",
+      { fontFamily: "monospace", fontSize: "16px", color: "#ffffff" }
     ).setOrigin(0.5);
-  }
-
-  /**
-   * Update round score display.
-   */
-  public updateRoundScore(round: number, p1Wins: number, p2Wins: number): void {
-    this.currentRound = round;
-    this.player1RoundsWon = p1Wins;
-    this.player2RoundsWon = p2Wins;
-    this.roundScoreText.setText(`Round ${round}  •  ${p1Wins} - ${p2Wins}`);
   }
 
   // ===========================================================================
@@ -447,17 +534,49 @@ export class FightScene extends Phaser.Scene {
 
   private createMoveButtons(): void {
     const moves: MoveType[] = ["punch", "kick", "block", "special"];
-    const buttonWidth = 120;
-    const buttonHeight = 80;
-    const spacing = 20;
+    const buttonWidth = 130;
+    const buttonHeight = 90;
+    const spacing = 15;
     const totalWidth = moves.length * buttonWidth + (moves.length - 1) * spacing;
     const startX = (GAME_DIMENSIONS.WIDTH - totalWidth) / 2;
-    const y = GAME_DIMENSIONS.HEIGHT - 100;
+    const y = GAME_DIMENSIONS.HEIGHT - 110;
+
+    // Label for player buttons
+    this.add.text(
+      GAME_DIMENSIONS.CENTER_X,
+      y - 30,
+      "YOUR MOVE",
+      { fontFamily: "monospace", fontSize: "14px", color: "#40e0d0" }
+    ).setOrigin(0.5);
 
     moves.forEach((move, index) => {
       const x = startX + index * (buttonWidth + spacing);
-      const button = this.createMoveButton(x, y, buttonWidth, buttonHeight, move);
+      const button = this.createMoveButton(x, y, buttonWidth, buttonHeight, move, false);
       this.moveButtons.set(move, button);
+    });
+  }
+
+  private createOpponentMoveButtons(): void {
+    const moves: MoveType[] = ["punch", "kick", "block", "special"];
+    const buttonWidth = 100;
+    const buttonHeight = 60;
+    const spacing = 10;
+    const totalWidth = moves.length * buttonWidth + (moves.length - 1) * spacing;
+    const startX = (GAME_DIMENSIONS.WIDTH - totalWidth) / 2;
+    const y = 160;
+
+    // Label
+    this.add.text(
+      GAME_DIMENSIONS.CENTER_X,
+      y - 25,
+      "OPPONENT MOVE (Test Mode)",
+      { fontFamily: "monospace", fontSize: "12px", color: "#ef4444" }
+    ).setOrigin(0.5);
+
+    moves.forEach((move, index) => {
+      const x = startX + index * (buttonWidth + spacing);
+      const button = this.createMoveButton(x, y, buttonWidth, buttonHeight, move, true);
+      this.opponentMoveButtons.set(move, button);
     });
   }
 
@@ -466,142 +585,243 @@ export class FightScene extends Phaser.Scene {
     y: number,
     width: number,
     height: number,
-    move: MoveType
+    move: MoveType,
+    isOpponent: boolean
   ): Phaser.GameObjects.Container {
     const container = this.add.container(x, y);
 
-    // Button background
     const bg = this.add.graphics();
-    bg.fillStyle(0x2d2d44, 1);
+    const baseColor = isOpponent ? 0x442222 : 0x2d2d44;
+    const highlightColor = isOpponent ? 0xef4444 : 0x40e0d0;
+
+    bg.fillStyle(baseColor, 1);
     bg.fillRoundedRect(0, 0, width, height, 8);
-    bg.lineStyle(2, 0x40e0d0, 0.5);
+    bg.lineStyle(2, highlightColor, 0.5);
     bg.strokeRoundedRect(0, 0, width, height, 8);
 
-    // Move label
-    const label = this.add.text(width / 2, height / 2, move.toUpperCase(), {
+    // Move name
+    const label = this.add.text(width / 2, 20, move.toUpperCase(), {
       fontFamily: "monospace",
-      fontSize: "14px",
-      color: "#40e0d0",
+      fontSize: isOpponent ? "12px" : "14px",
+      color: isOpponent ? "#ef4444" : "#40e0d0",
       fontStyle: "bold",
     }).setOrigin(0.5);
 
-    // Damage label
-    const damageText = this.getDamageText(move);
-    const damage = this.add.text(width / 2, height - 10, damageText, {
+    // Damage/info
+    const infoText = this.getMoveInfoText(move);
+    const info = this.add.text(width / 2, isOpponent ? 40 : 45, infoText, {
       fontFamily: "monospace",
-      fontSize: "10px",
+      fontSize: isOpponent ? "9px" : "10px",
       color: "#888888",
     }).setOrigin(0.5);
 
-    container.add([bg, label, damage]);
+    // Energy cost
+    const cost = BASE_MOVE_STATS[move].energyCost;
+    const costText = cost > 0 ? `${cost} EN` : "FREE";
+    const costLabel = this.add.text(width / 2, isOpponent ? 52 : 65, costText, {
+      fontFamily: "monospace",
+      fontSize: isOpponent ? "8px" : "10px",
+      color: cost > 0 ? "#3b82f6" : "#22c55e",
+    }).setOrigin(0.5);
 
-    // Make interactive
+    container.add([bg, label, info, costLabel]);
+
     const hitArea = new Phaser.Geom.Rectangle(0, 0, width, height);
     container.setInteractive(hitArea, Phaser.Geom.Rectangle.Contains);
 
     container.on("pointerover", () => {
-      if (!this.moveSubmitted) {
+      if (this.phase === "selecting") {
         bg.clear();
-        bg.fillStyle(0x40e0d0, 0.2);
+        bg.fillStyle(highlightColor, 0.2);
         bg.fillRoundedRect(0, 0, width, height, 8);
-        bg.lineStyle(2, 0x40e0d0, 1);
+        bg.lineStyle(2, highlightColor, 1);
         bg.strokeRoundedRect(0, 0, width, height, 8);
       }
     });
 
     container.on("pointerout", () => {
-      if (!this.moveSubmitted && this.selectedMove !== move) {
+      const selected = isOpponent ? this.opponentMove : this.selectedMove;
+      if (selected !== move) {
         bg.clear();
-        bg.fillStyle(0x2d2d44, 1);
+        bg.fillStyle(baseColor, 1);
         bg.fillRoundedRect(0, 0, width, height, 8);
-        bg.lineStyle(2, 0x40e0d0, 0.5);
+        bg.lineStyle(2, highlightColor, 0.5);
         bg.strokeRoundedRect(0, 0, width, height, 8);
       }
     });
 
     container.on("pointerdown", () => {
-      if (!this.moveSubmitted && this.isRoundActive) {
-        this.selectMove(move);
+      if (this.phase === "selecting") {
+        if (isOpponent) {
+          this.selectOpponentMove(move);
+        } else {
+          this.selectMove(move);
+        }
       }
     });
 
     return container;
   }
 
-  private getDamageText(move: MoveType): string {
-    const damages: Record<MoveType, string> = {
-      punch: "10 DMG",
-      kick: "15 DMG",
-      block: "GUARD",
-      special: "25 DMG",
+  private getMoveInfoText(move: MoveType): string {
+    const infos: Record<MoveType, string> = {
+      punch: "10 DMG • Fast • Beats Special",
+      kick: "15 DMG • Medium • Beats Punch",
+      block: "Guard • Reflects Kick",
+      special: "30 DMG • Slow • Beats Block",
     };
-    return damages[move];
+    return infos[move];
   }
 
   private selectMove(move: MoveType): void {
-    // Deselect previous
-    if (this.selectedMove) {
-      this.updateButtonState(this.selectedMove, false);
+    // Check if affordable
+    if (!this.combatEngine.canAffordMove("player1", move)) {
+      this.showFloatingText("Not enough energy!", GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.HEIGHT - 150, "#ff4444");
+      return;
     }
 
-    // Select new
-    this.selectedMove = move;
-    this.updateButtonState(move, true);
+    // Deselect previous
+    if (this.selectedMove) {
+      this.updateButtonState(this.selectedMove, false, false);
+    }
 
-    // Emit move selected event
-    EventBus.emitEvent("move:selected", { moveType: move });
+    this.selectedMove = move;
+    this.updateButtonState(move, true, false);
+
+    // In local test mode, check if both moves selected
+    if (this.config.isLocalTest) {
+      if (this.opponentMove) {
+        this.resolveTurn();
+      }
+    } else {
+      // Production mode: Emit event to submit move via API
+      // DO NOT call resolveTurn() locally - wait for server round_resolved event
+      this.isWaitingForOpponent = true;
+      this.turnIndicatorText.setText("Submitting move...");
+      this.turnIndicatorText.setColor("#f97316");
+
+      // Disable buttons while submitting
+      this.moveButtons.forEach(btn => btn.setAlpha(0.4).disableInteractive());
+
+      EventBus.emit("game:submitMove", {
+        matchId: this.config.matchId,
+        moveType: move,
+        playerRole: this.config.playerRole,
+      });
+
+      // In production, stop timer - server will send round_resolved when both players submit
+      if (this.timerEvent) {
+        this.timerEvent.destroy();
+        this.timerEvent = undefined;
+      }
+    }
   }
 
-  private updateButtonState(move: MoveType, selected: boolean): void {
-    const container = this.moveButtons.get(move);
+  private selectOpponentMove(move: MoveType): void {
+    if (!this.combatEngine.canAffordMove("player2", move)) {
+      this.showFloatingText("Opponent: Not enough energy!", GAME_DIMENSIONS.CENTER_X, 200, "#ff4444");
+      return;
+    }
+
+    if (this.opponentMove) {
+      this.updateButtonState(this.opponentMove, false, true);
+    }
+
+    this.opponentMove = move;
+    this.updateButtonState(move, true, true);
+
+    // Check if both moves selected
+    if (this.selectedMove) {
+      this.resolveTurn();
+    }
+  }
+
+  private updateButtonState(move: MoveType, selected: boolean, isOpponent: boolean): void {
+    const buttons = isOpponent ? this.opponentMoveButtons : this.moveButtons;
+    const container = buttons.get(move);
     if (!container) return;
 
     const bg = container.getAt(0) as Phaser.GameObjects.Graphics;
-    const width = 120;
-    const height = 80;
+    const width = isOpponent ? 100 : 130;
+    const height = isOpponent ? 60 : 90;
+    const baseColor = isOpponent ? 0x442222 : 0x2d2d44;
+    const highlightColor = isOpponent ? 0xef4444 : 0x40e0d0;
 
     bg.clear();
     if (selected) {
-      bg.fillStyle(0x40e0d0, 0.3);
+      bg.fillStyle(highlightColor, 0.3);
       bg.fillRoundedRect(0, 0, width, height, 8);
-      bg.lineStyle(3, 0x40e0d0, 1);
+      bg.lineStyle(3, highlightColor, 1);
       bg.strokeRoundedRect(0, 0, width, height, 8);
     } else {
-      bg.fillStyle(0x2d2d44, 1);
+      bg.fillStyle(baseColor, 1);
       bg.fillRoundedRect(0, 0, width, height, 8);
-      bg.lineStyle(2, 0x40e0d0, 0.5);
+      bg.lineStyle(2, highlightColor, 0.5);
       bg.strokeRoundedRect(0, 0, width, height, 8);
     }
   }
 
-  /**
-   * Lock in the selected move.
-   */
-  public lockMove(): void {
-    if (this.selectedMove) {
-      this.moveSubmitted = true;
-      this.disableAllMoveButtons();
-    }
-  }
+  private updateMoveButtonAffordability(): void {
+    const moves: MoveType[] = ["punch", "kick", "block", "special"];
 
-  /**
-   * Disable all move buttons.
-   */
-  private disableAllMoveButtons(): void {
-    this.moveButtons.forEach((container) => {
-      container.disableInteractive();
-      container.setAlpha(0.5);
+    moves.forEach((move) => {
+      let canAfford: boolean;
+
+      // In production mode, use server state for energy check
+      if (!this.config.isLocalTest && this.serverState) {
+        // Check affordability based on server-provided energy
+        // Get player's energy based on their role
+        const playerEnergy = this.config.playerRole === "player1"
+          ? this.serverState.player1Energy
+          : this.serverState.player2Energy;
+        const moveCost = BASE_MOVE_STATS[move].energyCost;
+        canAfford = playerEnergy >= moveCost;
+      } else {
+        // Local test mode - use local engine
+        canAfford = this.combatEngine.canAffordMove("player1", move);
+      }
+
+      const container = this.moveButtons.get(move);
+      if (container) {
+        container.setAlpha(canAfford ? 1 : 0.4);
+      }
+
+      if (this.config.isLocalTest) {
+        const canAffordP2 = this.combatEngine.canAffordMove("player2", move);
+        const opponentContainer = this.opponentMoveButtons.get(move);
+        if (opponentContainer) {
+          opponentContainer.setAlpha(canAffordP2 ? 1 : 0.4);
+        }
+      }
     });
   }
 
-  /**
-   * Enable all move buttons.
-   */
-  private enableAllMoveButtons(): void {
-    this.moveButtons.forEach((container) => {
-      container.setInteractive();
-      container.setAlpha(1);
-    });
+  // ===========================================================================
+  // NARRATIVE DISPLAY
+  // ===========================================================================
+
+  private createNarrativeDisplay(): void {
+    this.narrativeText = this.add.text(
+      GAME_DIMENSIONS.CENTER_X,
+      GAME_DIMENSIONS.CENTER_Y - 80,
+      "",
+      {
+        fontFamily: "monospace",
+        fontSize: "18px",
+        color: "#ffffff",
+        align: "center",
+        wordWrap: { width: 600 },
+      }
+    ).setOrigin(0.5).setAlpha(0);
+  }
+
+  private createTurnIndicator(): void {
+    this.turnIndicatorText = this.add.text(
+      GAME_DIMENSIONS.CENTER_X,
+      130,
+      "Select your move!",
+      { fontFamily: "monospace", fontSize: "14px", color: "#888888" }
+    ).setOrigin(0.5);
   }
 
   // ===========================================================================
@@ -613,19 +833,20 @@ export class FightScene extends Phaser.Scene {
       GAME_DIMENSIONS.CENTER_X,
       GAME_DIMENSIONS.CENTER_Y,
       "",
-      {
-        fontFamily: "monospace",
-        fontSize: "72px",
-        color: "#40e0d0",
-        fontStyle: "bold",
-      }
+      { fontFamily: "monospace", fontSize: "72px", color: "#40e0d0", fontStyle: "bold" }
     ).setOrigin(0.5).setAlpha(0);
   }
 
-  /**
-   * Show countdown before round.
-   */
-  public showCountdown(seconds: number): void {
+  // ===========================================================================
+  // GAME FLOW
+  // ===========================================================================
+
+  private startRound(): void {
+    this.phase = "countdown";
+    this.showCountdown(3);
+  }
+
+  private showCountdown(seconds: number): void {
     let count = seconds;
 
     const updateCountdown = () => {
@@ -650,6 +871,9 @@ export class FightScene extends Phaser.Scene {
                 alpha: 0,
                 duration: 500,
                 delay: 500,
+                onComplete: () => {
+                  this.startSelectionPhase();
+                },
               });
             }
           },
@@ -660,72 +884,905 @@ export class FightScene extends Phaser.Scene {
     updateCountdown();
   }
 
-  // ===========================================================================
-  // EVENT LISTENERS
-  // ===========================================================================
+  private startSelectionPhase(): void {
+    // IMPORTANT: Always destroy existing timer before creating a new one
+    if (this.timerEvent) {
+      this.timerEvent.destroy();
+      this.timerEvent = undefined;
+    }
 
-  private setupEventListeners(): void {
-    // Listen for round start
-    EventBus.onEvent("round:start", ({ roundNumber }) => {
-      this.resetRoundState();
-      this.updateRoundScore(roundNumber, this.player1RoundsWon, this.player2RoundsWon);
-      this.showCountdown(3);
-      this.time.delayedCall(3500, () => {
-        this.startRoundTimer();
-        this.enableAllMoveButtons();
-      });
+    this.phase = "selecting";
+    this.selectedMove = null;
+    this.opponentMove = null;
+    this.turnTimer = 15;
+    this.turnIndicatorText.setText("Select your move!");
+
+    // Update button affordability
+    this.updateMoveButtonAffordability();
+
+    // Start timer
+    this.timerEvent = this.time.addEvent({
+      delay: 1000,
+      callback: () => {
+        // Guard: only run if still in selecting phase
+        if (this.phase !== "selecting") return;
+
+        this.turnTimer--;
+        if (this.turnTimer <= 5) {
+          this.roundTimerText.setColor("#ff4444");
+        }
+        if (this.turnTimer <= 0) {
+          this.onTimerExpired();
+        }
+      },
+      repeat: 14,
     });
 
-    // Listen for health updates
-    EventBus.onEvent("health:update", ({ player1Health, player2Health }) => {
-      this.updateHealthBar("player1", player1Health);
-      this.updateHealthBar("player2", player2Health);
-    });
+    // Sync UI
+    this.syncUIWithCombatState();
+  }
 
-    // Listen for round end
-    EventBus.onEvent("round:end", ({ roundNumber, winner }) => {
-      this.stopRoundTimer();
-      this.disableAllMoveButtons();
+  private onTimerExpired(): void {
+    if (this.phase !== "selecting") return;
 
-      // Update round wins
-      if (winner === "player1") {
-        this.player1RoundsWon++;
-      } else if (winner === "player2") {
-        this.player2RoundsWon++;
+    // IMPORTANT: Stop the timer immediately to prevent multiple calls
+    if (this.timerEvent) {
+      this.timerEvent.destroy();
+      this.timerEvent = undefined;
+    }
+
+    // Auto-select punch if no move selected
+    if (!this.selectedMove) {
+      this.selectedMove = "punch";
+    }
+
+    if (this.config.isLocalTest) {
+      // Local test mode - resolve locally
+      if (!this.opponentMove) {
+        this.opponentMove = "punch";
       }
+      this.resolveTurn();
+    } else {
+      // Production mode - submit the auto-selected move to the server
+      // The server will handle resolution when both players have submitted
+      this.turnIndicatorText.setText("Time's up! Auto-submitting...");
+      this.turnIndicatorText.setColor("#ff8800");
 
-      this.updateRoundScore(roundNumber, this.player1RoundsWon, this.player2RoundsWon);
+      // Disable buttons
+      this.moveButtons.forEach(btn => btn.setAlpha(0.4).disableInteractive());
+
+      // Emit the move to the API
+      EventBus.emit("game:submitMove", {
+        matchId: this.config.matchId,
+        moveType: this.selectedMove,
+        playerRole: this.config.playerRole,
+      });
+    }
+  }
+
+  private resolveTurn(): void {
+    // IMPORTANT: This method is ONLY for local test mode
+    // In production mode, we wait for server's round_resolved event
+    if (!this.config.isLocalTest) {
+      console.warn("[FightScene] resolveTurn called in production mode - this should not happen");
+      return;
+    }
+
+    if (this.phase !== "selecting") return;
+    if (!this.selectedMove || !this.opponentMove) return;
+
+    this.phase = "resolving";
+
+    // Stop timer
+    if (this.timerEvent) {
+      this.timerEvent.destroy();
+      this.timerEvent = undefined;
+    }
+
+    // Resolve combat locally (test mode only)
+    const result = this.combatEngine.resolveTurn(
+      this.selectedMove,
+      this.opponentMove
+    );
+
+    // Show resolution animations
+    this.showTurnResolution(result);
+  }
+
+  private showTurnResolution(result: TurnResult): void {
+    const state = this.combatEngine.getState();
+    const p1Char = this.config.player1Character || "dag-warrior";
+    const p2Char = this.config.player2Character || "dag-warrior";
+
+    // Scale constants to maintain consistent visual size across different spritesheets
+    // Target height ~203px: idle (450px * 0.45), run (287px * 0.71), punch (260px * 0.78)
+    const IDLE_SCALE = 0.45;
+    const RUN_SCALE = 0.71;
+    const PUNCH_SCALE = 0.78;
+
+    // Store original positions
+    const p1OriginalX = CHARACTER_POSITIONS.PLAYER1.X;
+    const p2OriginalX = CHARACTER_POSITIONS.PLAYER2.X;
+    const meetingPointX = GAME_DIMENSIONS.CENTER_X;
+
+    // Phase 1: Both characters run toward center
+    // Switch to run animation with adjusted scale
+    if (this.anims.exists(`${p1Char}_run`)) {
+      this.player1Sprite.setScale(RUN_SCALE);
+      this.player1Sprite.play(`${p1Char}_run`);
+    }
+    if (this.anims.exists(`${p2Char}_run`)) {
+      this.player2Sprite.setScale(RUN_SCALE);
+      this.player2Sprite.play(`${p2Char}_run`);
+    }
+
+    // Tween both characters toward center
+    this.tweens.add({
+      targets: this.player1Sprite,
+      x: meetingPointX - 80,
+      duration: 600,
+      ease: 'Power2',
     });
+
+    this.tweens.add({
+      targets: this.player2Sprite,
+      x: meetingPointX + 80,
+      duration: 600,
+      ease: 'Power2',
+      onComplete: () => {
+        // Phase 2: Both characters punch with adjusted scale
+        if (this.anims.exists(`${p1Char}_punch`)) {
+          this.player1Sprite.setScale(PUNCH_SCALE);
+          this.player1Sprite.play(`${p1Char}_punch`);
+        }
+        if (this.anims.exists(`${p2Char}_punch`)) {
+          this.player2Sprite.setScale(PUNCH_SCALE);
+          this.player2Sprite.play(`${p2Char}_punch`);
+        }
+
+        // Show narrative
+        this.narrativeText.setText(result.narrative);
+        this.narrativeText.setAlpha(1);
+
+        // Delay damage effects until punch animation starts landing (around 800ms into the animation)
+        this.time.delayedCall(800, () => {
+          // Show damage numbers
+          if (result.player2.damageTaken > 0) {
+            this.showFloatingText(`-${result.player2.damageTaken}`, meetingPointX + 80, CHARACTER_POSITIONS.PLAYER2.Y - 130, "#ff4444");
+          }
+          if (result.player1.damageTaken > 0) {
+            this.showFloatingText(`-${result.player1.damageTaken}`, meetingPointX - 80, CHARACTER_POSITIONS.PLAYER1.Y - 130, "#ff4444");
+          }
+
+          // Update health bars when the punch lands
+          this.syncUIWithCombatState();
+        });
+
+        // Phase 3: After punch, run back to original positions
+        this.time.delayedCall(800, () => {
+          // Switch back to run animation with run scale
+          if (this.anims.exists(`${p1Char}_run`)) {
+            this.player1Sprite.setScale(RUN_SCALE);
+            this.player1Sprite.play(`${p1Char}_run`);
+          }
+          if (this.anims.exists(`${p2Char}_run`)) {
+            this.player2Sprite.setScale(RUN_SCALE);
+            this.player2Sprite.play(`${p2Char}_run`);
+          }
+
+          // Tween back to original positions
+          this.tweens.add({
+            targets: this.player1Sprite,
+            x: p1OriginalX,
+            duration: 600,
+            ease: 'Power2',
+          });
+
+          this.tweens.add({
+            targets: this.player2Sprite,
+            x: p2OriginalX,
+            duration: 600,
+            ease: 'Power2',
+            onComplete: () => {
+              // Phase 4: Return to idle animations with idle scale
+              if (this.anims.exists(`${p1Char}_idle`)) {
+                this.player1Sprite.setScale(IDLE_SCALE);
+                this.player1Sprite.play(`${p1Char}_idle`);
+              }
+              if (this.anims.exists(`${p2Char}_idle`)) {
+                this.player2Sprite.setScale(IDLE_SCALE);
+                this.player2Sprite.play(`${p2Char}_idle`);
+              }
+
+              // Fade out narrative
+              this.tweens.add({
+                targets: this.narrativeText,
+                alpha: 0,
+                duration: 300,
+              });
+
+              // Check for round/match end
+              if (state.isMatchOver) {
+                this.showMatchEnd(state);
+              } else if (state.isRoundOver) {
+                this.showRoundEnd(state);
+              } else {
+                // Continue to next turn
+                this.startSelectionPhase();
+              }
+            },
+          });
+        });
+      },
+    });
+  }
+
+  private showRoundEnd(state: CombatState): void {
+    this.phase = "round_end";
+
+    const winnerText = state.roundWinner === "player1" ? "PLAYER 1 WINS ROUND!" : "PLAYER 2 WINS ROUND!";
+    this.countdownText.setText(winnerText);
+    this.countdownText.setFontSize(36);
+    this.countdownText.setAlpha(1);
+
+    // Update round score
+    this.roundScoreText.setText(
+      `Round ${state.currentRound}  •  ${state.player1.roundsWon} - ${state.player2.roundsWon}  (First to 3)`
+    );
+
+    this.time.delayedCall(2000, () => {
+      this.countdownText.setAlpha(0);
+      this.countdownText.setFontSize(72);
+
+      // Start new round
+      this.combatEngine.startNewRound();
+      this.syncUIWithCombatState();
+      this.roundScoreText.setText(
+        `Round ${this.combatEngine.getState().currentRound}  •  ${state.player1.roundsWon} - ${state.player2.roundsWon}  (First to 3)`
+      );
+      this.startRound();
+    });
+  }
+
+  private showMatchEnd(state: CombatState): void {
+    this.phase = "match_end";
+
+    const winnerText = state.matchWinner === "player1" ? "PLAYER 1 WINS THE MATCH!" : "PLAYER 2 WINS THE MATCH!";
+    this.countdownText.setText(winnerText);
+    this.countdownText.setFontSize(32);
+    this.countdownText.setColor("#22c55e");
+    this.countdownText.setAlpha(1);
+
+    // Play victory/defeat animations
+    const p1Char = this.config.player1Character || "dag-warrior";
+    const p2Char = this.config.player2Character || "dag-warrior";
+
+    if (state.matchWinner === "player1") {
+      if (this.anims.exists(`${p1Char}_victory`)) this.player1Sprite.play(`${p1Char}_victory`);
+      if (this.anims.exists(`${p2Char}_defeat`)) this.player2Sprite.play(`${p2Char}_defeat`);
+    } else {
+      if (this.anims.exists(`${p1Char}_defeat`)) this.player1Sprite.play(`${p1Char}_defeat`);
+      if (this.anims.exists(`${p2Char}_victory`)) this.player2Sprite.play(`${p2Char}_victory`);
+    }
+
+    // Show rematch button after delay
+    this.time.delayedCall(3000, () => {
+      this.showRematchButton();
+    });
+  }
+
+  private showRematchButton(): void {
+    const buttonWidth = 200;
+    const buttonHeight = 50;
+    const x = GAME_DIMENSIONS.CENTER_X;
+    const y = GAME_DIMENSIONS.HEIGHT - 200;
+
+    const container = this.add.container(x, y);
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x22c55e, 1);
+    bg.fillRoundedRect(-buttonWidth / 2, -buttonHeight / 2, buttonWidth, buttonHeight, 8);
+
+    const text = this.add.text(0, 0, "REMATCH", {
+      fontFamily: "monospace",
+      fontSize: "20px",
+      color: "#ffffff",
+      fontStyle: "bold",
+    }).setOrigin(0.5);
+
+    container.add([bg, text]);
+    container.setSize(buttonWidth, buttonHeight);
+    container.setInteractive({ useHandCursor: true });
+
+    container.on("pointerdown", () => {
+      // Restart the scene
+      this.scene.restart(this.config);
+    });
+  }
+
+  // ===========================================================================
+  // UI SYNC
+  // ===========================================================================
+
+  private syncUIWithCombatState(): void {
+    // In production mode, prefer server state if available
+    if (!this.config.isLocalTest && this.serverState) {
+      // Use server-provided state (authoritative)
+      this.updateHealthBarDisplay("player1", this.serverState.player1Health, this.serverState.player1MaxHealth);
+      this.updateHealthBarDisplay("player2", this.serverState.player2Health, this.serverState.player2MaxHealth);
+      this.updateEnergyBarDisplay("player1", this.serverState.player1Energy, this.serverState.player1MaxEnergy);
+      this.updateEnergyBarDisplay("player2", this.serverState.player2Energy, this.serverState.player2MaxEnergy);
+      this.updateGuardMeterDisplay("player1", this.serverState.player1GuardMeter);
+      this.updateGuardMeterDisplay("player2", this.serverState.player2GuardMeter);
+    } else {
+      // Local test mode - use local combat engine state
+      const state = this.combatEngine.getState();
+      this.updateHealthBarDisplay("player1", state.player1.hp, state.player1.maxHp);
+      this.updateHealthBarDisplay("player2", state.player2.hp, state.player2.maxHp);
+      this.updateEnergyBarDisplay("player1", state.player1.energy, state.player1.maxEnergy);
+      this.updateEnergyBarDisplay("player2", state.player2.energy, state.player2.maxEnergy);
+      this.updateGuardMeterDisplay("player1", state.player1.guardMeter);
+      this.updateGuardMeterDisplay("player2", state.player2.guardMeter);
+    }
+
+    // Update timer color
+    this.roundTimerText.setColor("#40e0d0");
+
+    // Update move button affordability
+    this.updateMoveButtonAffordability();
+  }
+
+  private updateHealthBarDisplay(player: "player1" | "player2", hp: number, maxHp: number): void {
+    const barWidth = 350;
+    const barHeight = 25;
+    const healthPercent = Math.max(0, hp) / maxHp;
+    const innerWidth = (barWidth - 4) * healthPercent;
+
+    const graphics = player === "player1" ? this.player1HealthBar : this.player2HealthBar;
+    const x = player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.X : UI_POSITIONS.HEALTH_BAR.PLAYER2.X;
+    const y = player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.Y : UI_POSITIONS.HEALTH_BAR.PLAYER2.Y;
+
+    graphics.clear();
+
+    let color = 0x00ff88;
+    if (healthPercent <= 0.25) color = 0xff4444;
+    else if (healthPercent <= 0.5) color = 0xffaa00;
+
+    graphics.fillStyle(color, 1);
+    if (player === "player2") {
+      graphics.fillRoundedRect(x + 2 + (barWidth - 4 - innerWidth), y + 2, innerWidth, barHeight - 4, 3);
+    } else {
+      graphics.fillRoundedRect(x + 2, y + 2, innerWidth, barHeight - 4, 3);
+    }
+  }
+
+  private updateEnergyBarDisplay(player: "player1" | "player2", energy: number, maxEnergy: number): void {
+    const barWidth = 350;
+    const barHeight = 12;
+    const yOffset = 30;
+    const energyPercent = Math.max(0, energy) / maxEnergy;
+    const innerWidth = (barWidth - 2) * energyPercent;
+
+    const graphics = player === "player1" ? this.player1EnergyBar : this.player2EnergyBar;
+    const x = player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.X : UI_POSITIONS.HEALTH_BAR.PLAYER2.X;
+    const y = (player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.Y : UI_POSITIONS.HEALTH_BAR.PLAYER2.Y) + yOffset;
+
+    graphics.clear();
+    graphics.fillStyle(0x3b82f6, 1);
+
+    if (player === "player2") {
+      graphics.fillRoundedRect(x + 1 + (barWidth - 2 - innerWidth), y + 1, innerWidth, barHeight - 2, 2);
+    } else {
+      graphics.fillRoundedRect(x + 1, y + 1, innerWidth, barHeight - 2, 2);
+    }
+  }
+
+  private updateGuardMeterDisplay(player: "player1" | "player2", guardMeter: number): void {
+    const barWidth = 350;
+    const barHeight = 6;
+    const yOffset = 45;
+    const guardPercent = guardMeter / 100;
+    const innerWidth = barWidth * guardPercent;
+
+    const graphics = player === "player1" ? this.player1GuardMeter : this.player2GuardMeter;
+    const x = player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.X : UI_POSITIONS.HEALTH_BAR.PLAYER2.X;
+    const y = (player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.Y : UI_POSITIONS.HEALTH_BAR.PLAYER2.Y) + yOffset;
+
+    graphics.clear();
+
+    // Color based on guard level (orange = danger of breaking)
+    let color = 0xf97316;
+    if (guardPercent >= 0.75) color = 0xef4444;
+
+    graphics.fillStyle(color, 1);
+    if (player === "player2") {
+      graphics.fillRect(x + (barWidth - innerWidth), y, innerWidth, barHeight);
+    } else {
+      graphics.fillRect(x, y, innerWidth, barHeight);
+    }
   }
 
   // ===========================================================================
   // HELPERS
   // ===========================================================================
 
-  private resetRoundState(): void {
+  private showFloatingText(text: string, x: number, y: number, color: string): void {
+    const floatingText = this.add.text(x, y, text, {
+      fontFamily: "monospace",
+      fontSize: "24px",
+      color: color,
+      fontStyle: "bold",
+    }).setOrigin(0.5);
+
+    this.tweens.add({
+      targets: floatingText,
+      y: y - 50,
+      alpha: 0,
+      duration: 1000,
+      onComplete: () => floatingText.destroy(),
+    });
+  }
+
+  private setupEventListeners(): void {
+    // Listen for round start (triggered by React wrapper)
+    EventBus.onEvent("round:start", ({ roundNumber }) => {
+      this.startRound();
+    });
+
+    // ========================================
+    // PRODUCTION MODE EVENTS (from realtime channel)
+    // ========================================
+
+    // Listen for opponent's move submission (show "opponent ready" indicator)
+    EventBus.on("game:moveSubmitted", (data: unknown) => {
+      const payload = data as { player: string };
+      if (!this.config.isLocalTest) {
+        const isOpponentMove =
+          (this.config.playerRole === "player1" && payload.player === "player2") ||
+          (this.config.playerRole === "player2" && payload.player === "player1");
+
+        if (isOpponentMove) {
+          this.isWaitingForOpponent = false;
+          this.turnIndicatorText.setText("Opponent locked in!");
+          this.turnIndicatorText.setColor("#22c55e");
+        }
+      }
+    });
+
+    // Listen for round resolution (from server combat resolver)
+    EventBus.on("game:roundResolved", (data: unknown) => {
+      const payload = data as {
+        player1: { move: MoveType; damageDealt: number; damageTaken: number };
+        player2: { move: MoveType; damageDealt: number; damageTaken: number };
+        player1Health: number;
+        player2Health: number;
+        player1Energy: number;
+        player2Energy: number;
+        player1GuardMeter: number;
+        player2GuardMeter: number;
+        roundWinner: "player1" | "player2" | null;
+        isRoundOver: boolean;
+        isMatchOver: boolean;
+        matchWinner: "player1" | "player2" | null;
+        narrative: string;
+        player1RoundsWon: number;
+        player2RoundsWon: number;
+      };
+      if (!this.config.isLocalTest) {
+        // Update local state from server resolution
+        this.handleServerRoundResolved(payload);
+      }
+    });
+
+    // Listen for match ended (from server)
+    EventBus.on("game:matchEnded", (data: unknown) => {
+      const payload = data as {
+        winner: "player1" | "player2";
+        winnerAddress: string;
+        reason: string;
+      };
+      if (!this.config.isLocalTest) {
+        this.phase = "match_end";
+        const isWinner =
+          (this.config.playerRole === payload.winner);
+
+        this.countdownText.setText(isWinner ? "YOU WIN!" : "YOU LOSE");
+        this.countdownText.setFontSize(48);
+        this.countdownText.setColor(isWinner ? "#22c55e" : "#ef4444");
+        this.countdownText.setAlpha(1);
+
+        this.time.delayedCall(3000, () => {
+          this.showRematchButton();
+        });
+      }
+    });
+
+    // Listen for round starting (synchronized timing from server)
+    EventBus.on("game:roundStarting", (data: unknown) => {
+      const payload = data as {
+        roundNumber: number;
+        turnNumber: number;
+        moveDeadlineAt: number;
+        countdownSeconds: number;
+        player1Health: number;
+        player2Health: number;
+        player1Energy: number;
+        player2Energy: number;
+        player1GuardMeter: number;
+        player2GuardMeter: number;
+      };
+      if (!this.config.isLocalTest) {
+        this.startRoundFromServer(payload);
+      }
+    });
+  }
+
+  /**
+   * Start round from server broadcast (production mode - synchronized timing).
+   */
+  private startRoundFromServer(payload: {
+    roundNumber: number;
+    turnNumber: number;
+    moveDeadlineAt: number;
+    countdownSeconds: number;
+    player1Health: number;
+    player2Health: number;
+    player1MaxHealth?: number;
+    player2MaxHealth?: number;
+    player1Energy: number;
+    player2Energy: number;
+    player1MaxEnergy?: number;
+    player2MaxEnergy?: number;
+    player1GuardMeter: number;
+    player2GuardMeter: number;
+  }): void {
+    // Stop any existing timer
+    if (this.timerEvent) {
+      this.timerEvent.destroy();
+      this.timerEvent = undefined;
+    }
+
+    // Store the deadline for synchronized timing
+    this.moveDeadlineAt = payload.moveDeadlineAt;
+
+    // Get max values from local engine initially (server should provide these)
+    const localState = this.combatEngine.getState();
+
+    // Store server state (authoritative)
+    this.serverState = {
+      player1Health: payload.player1Health,
+      player1MaxHealth: payload.player1MaxHealth ?? localState.player1.maxHp,
+      player2Health: payload.player2Health,
+      player2MaxHealth: payload.player2MaxHealth ?? localState.player2.maxHp,
+      player1Energy: payload.player1Energy,
+      player1MaxEnergy: payload.player1MaxEnergy ?? localState.player1.maxEnergy,
+      player2Energy: payload.player2Energy,
+      player2MaxEnergy: payload.player2MaxEnergy ?? localState.player2.maxEnergy,
+      player1GuardMeter: payload.player1GuardMeter,
+      player2GuardMeter: payload.player2GuardMeter,
+      player1RoundsWon: this.serverState?.player1RoundsWon ?? 0,
+      player2RoundsWon: this.serverState?.player2RoundsWon ?? 0,
+      currentRound: payload.roundNumber,
+    };
+
+    // Update UI with server state
+    this.syncUIWithCombatState();
+
+    // Show countdown then start selection with synchronized timer
+    this.phase = "countdown";
+    this.showCountdownThenSync(payload.countdownSeconds, payload.moveDeadlineAt);
+  }
+
+  /**
+   * Show countdown then start synchronized selection phase.
+   */
+  private showCountdownThenSync(countdownSeconds: number, moveDeadlineAt: number): void {
+    let count = countdownSeconds;
+
+    const updateCountdown = () => {
+      if (count > 0) {
+        this.countdownText.setText(count.toString());
+        this.countdownText.setAlpha(1);
+
+        this.tweens.add({
+          targets: this.countdownText,
+          scale: { from: 1.5, to: 1 },
+          alpha: { from: 1, to: 0.5 },
+          duration: 800,
+          onComplete: () => {
+            count--;
+            if (count > 0) {
+              updateCountdown();
+            } else {
+              this.countdownText.setText("FIGHT!");
+              this.countdownText.setAlpha(1);
+              this.tweens.add({
+                targets: this.countdownText,
+                alpha: 0,
+                duration: 500,
+                delay: 500,
+                onComplete: () => {
+                  this.startSynchronizedSelectionPhase(moveDeadlineAt);
+                },
+              });
+            }
+          },
+        });
+      } else {
+        // No countdown, start immediately
+        this.startSynchronizedSelectionPhase(moveDeadlineAt);
+      }
+    };
+
+    updateCountdown();
+  }
+
+  /**
+   * Start selection phase with synchronized timer from server deadline.
+   */
+  private startSynchronizedSelectionPhase(moveDeadlineAt: number): void {
+    // IMPORTANT: Always destroy existing timer before creating a new one
+    if (this.timerEvent) {
+      this.timerEvent.destroy();
+      this.timerEvent = undefined;
+    }
+
+    this.phase = "selecting";
     this.selectedMove = null;
-    this.moveSubmitted = false;
-    this.roundTimer = 15;
-    this.roundTimerText?.setColor("#40e0d0");
-  }
+    this.isWaitingForOpponent = false;
+    this.turnIndicatorText.setText("Select your move!");
+    this.turnIndicatorText.setColor("#40e0d0");
 
-  private formatAddress(address: string): string {
-    if (!address || address.length < 20) return address;
-    return `${address.slice(0, 10)}...${address.slice(-6)}`;
+    // Update button affordability
+    this.updateMoveButtonAffordability();
+
+    // Re-enable move buttons
+    this.moveButtons.forEach(btn => btn.setAlpha(1).setInteractive());
+
+    // Calculate initial remaining time from server deadline
+    const remainingMs = moveDeadlineAt - Date.now();
+    this.turnTimer = Math.max(1, Math.floor(remainingMs / 1000));
+
+    // Start synchronized timer that updates every second based on deadline
+    this.timerEvent = this.time.addEvent({
+      delay: 1000,
+      callback: () => {
+        // Guard: only run if still in selecting phase
+        if (this.phase !== "selecting") return;
+
+        const nowRemainingMs = moveDeadlineAt - Date.now();
+        this.turnTimer = Math.max(0, Math.floor(nowRemainingMs / 1000));
+
+        this.roundTimerText.setText(`${this.turnTimer}s`);
+        if (this.turnTimer <= 5) {
+          this.roundTimerText.setColor("#ff4444");
+        } else {
+          this.roundTimerText.setColor("#40e0d0");
+        }
+
+        if (this.turnTimer <= 0 && !this.selectedMove) {
+          this.onTimerExpired();
+        }
+      },
+      loop: true,
+    });
+
+    // Update initial display
+    this.roundTimerText.setText(`${this.turnTimer}s`);
+    this.roundTimerText.setColor("#40e0d0");
   }
 
   /**
-   * Get the currently selected move.
+   * Handle server-resolved round (production mode).
    */
-  public getSelectedMove(): MoveType | null {
-    return this.selectedMove;
+  private handleServerRoundResolved(payload: {
+    player1: { move: MoveType; damageDealt: number; damageTaken: number };
+    player2: { move: MoveType; damageDealt: number; damageTaken: number };
+    player1Health: number;
+    player2Health: number;
+    player1MaxHealth?: number;
+    player2MaxHealth?: number;
+    player1Energy: number;
+    player2Energy: number;
+    player1MaxEnergy?: number;
+    player2MaxEnergy?: number;
+    player1GuardMeter: number;
+    player2GuardMeter: number;
+    roundWinner: "player1" | "player2" | null;
+    isRoundOver: boolean;
+    isMatchOver: boolean;
+    matchWinner: "player1" | "player2" | null;
+    narrative: string;
+    player1RoundsWon: number;
+    player2RoundsWon: number;
+  }): void {
+    this.phase = "resolving";
+
+    // Stop timer
+    if (this.timerEvent) {
+      this.timerEvent.destroy();
+      this.timerEvent = undefined;
+    }
+
+    // Get max values from local engine for fallback (server should provide these)
+    const localState = this.combatEngine.getState();
+
+    // Store server state (authoritative)
+    this.serverState = {
+      player1Health: payload.player1Health,
+      player1MaxHealth: payload.player1MaxHealth ?? localState.player1.maxHp,
+      player2Health: payload.player2Health,
+      player2MaxHealth: payload.player2MaxHealth ?? localState.player2.maxHp,
+      player1Energy: payload.player1Energy,
+      player1MaxEnergy: payload.player1MaxEnergy ?? localState.player1.maxEnergy,
+      player2Energy: payload.player2Energy,
+      player2MaxEnergy: payload.player2MaxEnergy ?? localState.player2.maxEnergy,
+      player1GuardMeter: payload.player1GuardMeter,
+      player2GuardMeter: payload.player2GuardMeter,
+      player1RoundsWon: payload.player1RoundsWon,
+      player2RoundsWon: payload.player2RoundsWon,
+      currentRound: this.serverState?.currentRound ?? 1,
+    };
+
+    const p1Char = this.config.player1Character || "dag-warrior";
+    const p2Char = this.config.player2Character || "dag-warrior";
+
+    // Scale constants to maintain consistent visual size
+    const IDLE_SCALE = 0.45;
+    const RUN_SCALE = 0.71;
+    const PUNCH_SCALE = 0.78;
+
+    // Store original positions
+    const p1OriginalX = CHARACTER_POSITIONS.PLAYER1.X;
+    const p2OriginalX = CHARACTER_POSITIONS.PLAYER2.X;
+    const meetingPointX = GAME_DIMENSIONS.CENTER_X;
+
+    // Phase 1: Both characters run toward center with run scale
+    if (this.anims.exists(`${p1Char}_run`)) {
+      this.player1Sprite.setScale(RUN_SCALE);
+      this.player1Sprite.play(`${p1Char}_run`);
+    }
+    if (this.anims.exists(`${p2Char}_run`)) {
+      this.player2Sprite.setScale(RUN_SCALE);
+      this.player2Sprite.play(`${p2Char}_run`);
+    }
+
+    // Tween both characters toward center
+    this.tweens.add({
+      targets: this.player1Sprite,
+      x: meetingPointX - 80,
+      duration: 600,
+      ease: 'Power2',
+    });
+
+    this.tweens.add({
+      targets: this.player2Sprite,
+      x: meetingPointX + 80,
+      duration: 600,
+      ease: 'Power2',
+      onComplete: () => {
+        // Phase 2: Both characters punch with punch scale
+        if (this.anims.exists(`${p1Char}_punch`)) {
+          this.player1Sprite.setScale(PUNCH_SCALE);
+          this.player1Sprite.play(`${p1Char}_punch`);
+        }
+        if (this.anims.exists(`${p2Char}_punch`)) {
+          this.player2Sprite.setScale(PUNCH_SCALE);
+          this.player2Sprite.play(`${p2Char}_punch`);
+        }
+
+        // Show narrative
+        this.narrativeText.setText(payload.narrative);
+        this.narrativeText.setAlpha(1);
+
+        // Delay damage effects until punch animation starts landing (around 800ms into the animation)
+        this.time.delayedCall(800, () => {
+          // Show damage numbers
+          if (payload.player2.damageTaken > 0) {
+            this.showFloatingText(`-${payload.player2.damageTaken}`, meetingPointX + 80, CHARACTER_POSITIONS.PLAYER2.Y - 130, "#ff4444");
+          }
+          if (payload.player1.damageTaken > 0) {
+            this.showFloatingText(`-${payload.player1.damageTaken}`, meetingPointX - 80, CHARACTER_POSITIONS.PLAYER1.Y - 130, "#ff4444");
+          }
+
+          // Update health bars when the punch lands
+          this.syncUIWithCombatState();
+          this.roundScoreText.setText(
+            `Round ${this.serverState?.currentRound ?? 1}  •  ${payload.player1RoundsWon} - ${payload.player2RoundsWon}  (First to 3)`
+          );
+        });
+
+        // Phase 3: After punch, run back to original positions
+        this.time.delayedCall(800, () => {
+          if (this.anims.exists(`${p1Char}_run`)) {
+            this.player1Sprite.setScale(RUN_SCALE);
+            this.player1Sprite.play(`${p1Char}_run`);
+          }
+          if (this.anims.exists(`${p2Char}_run`)) {
+            this.player2Sprite.setScale(RUN_SCALE);
+            this.player2Sprite.play(`${p2Char}_run`);
+          }
+
+          // Tween back to original positions
+          this.tweens.add({
+            targets: this.player1Sprite,
+            x: p1OriginalX,
+            duration: 600,
+            ease: 'Power2',
+          });
+
+          this.tweens.add({
+            targets: this.player2Sprite,
+            x: p2OriginalX,
+            duration: 600,
+            ease: 'Power2',
+            onComplete: () => {
+              // Phase 4: Return to idle animations with idle scale
+              if (this.anims.exists(`${p1Char}_idle`)) {
+                this.player1Sprite.setScale(IDLE_SCALE);
+                this.player1Sprite.play(`${p1Char}_idle`);
+              }
+              if (this.anims.exists(`${p2Char}_idle`)) {
+                this.player2Sprite.setScale(IDLE_SCALE);
+                this.player2Sprite.play(`${p2Char}_idle`);
+              }
+
+              // Fade out narrative
+              this.tweens.add({
+                targets: this.narrativeText,
+                alpha: 0,
+                duration: 300,
+              });
+
+              // Handle round/match end
+              if (payload.isMatchOver) {
+                // Match end will be handled by game:matchEnded event
+              } else if (payload.isRoundOver) {
+                this.showRoundEndFromServer(payload.roundWinner, payload.player1RoundsWon, payload.player2RoundsWon);
+              } else {
+                // Wait for server's round_starting event
+                this.selectedMove = null;
+                this.turnIndicatorText.setText("Waiting for next turn...");
+                this.turnIndicatorText.setColor("#888888");
+              }
+            },
+          });
+        });
+      },
+    });
   }
 
   /**
-   * Check if move has been submitted.
+   * Show round end from server data (production mode).
    */
-  public isMoveSubmitted(): boolean {
-    return this.moveSubmitted;
+  private showRoundEndFromServer(
+    roundWinner: "player1" | "player2" | null,
+    p1Wins: number,
+    p2Wins: number
+  ): void {
+    this.phase = "round_end";
+
+    const isLocalWinner = roundWinner === this.config.playerRole;
+    const winnerText = isLocalWinner ? "YOU WIN ROUND!" : "YOU LOSE ROUND";
+
+    this.countdownText.setText(winnerText);
+    this.countdownText.setFontSize(36);
+    this.countdownText.setColor(isLocalWinner ? "#22c55e" : "#ef4444");
+    this.countdownText.setAlpha(1);
+
+    this.time.delayedCall(2000, () => {
+      this.countdownText.setAlpha(0);
+      this.countdownText.setFontSize(72);
+
+      // In production mode, DON'T call local startRound() - wait for server's round_starting event
+      // The server broadcasts round_starting with synchronized deadline after round_resolved
+      // We just need to show "waiting" state until that event arrives
+      this.turnIndicatorText.setText("Starting next round...");
+      this.turnIndicatorText.setColor("#888888");
+
+      // Reset selected move for next round
+      this.selectedMove = null;
+    });
   }
 }
 

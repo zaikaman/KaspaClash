@@ -174,17 +174,28 @@ export async function POST(
           },
         });
 
-        // If both ready, update match status to active and broadcast match_starting
+        // If both ready, update match status to in_progress and broadcast match_starting
         if (matchReady) {
-          await supabase
+          const { error: startError } = await supabase
             .from("matches")
             .update({
-              status: "active",
+              status: "in_progress",
               started_at: new Date().toISOString(),
             })
             .eq("id", matchId);
 
+          if (startError) {
+            console.error("[Select API] Failed to start match:", startError);
+            return createErrorResponse(
+              new ApiError(ErrorCodes.INTERNAL_ERROR, "Failed to start match")
+            );
+          }
+
           // Broadcast match_starting event to both players
+          const ROUND_COUNTDOWN_MS = 3000;
+          const MOVE_TIMER_MS = 15000;
+          const moveDeadlineAt = Date.now() + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
+
           await gameChannel.send({
             type: "broadcast",
             event: "match_starting",
@@ -199,7 +210,27 @@ export async function POST(
                 characterId: updatedMatch.player2_character_id,
               },
               format: updatedMatch.format || "best_of_3",
-              startsAt: Date.now() + 3000, // 3 second countdown
+              startsAt: Date.now() + ROUND_COUNTDOWN_MS,
+            },
+          });
+
+          // Broadcast round_starting for round 1 with synchronized deadline
+          await gameChannel.send({
+            type: "broadcast",
+            event: "round_starting",
+            payload: {
+              roundNumber: 1,
+              turnNumber: 1,
+              moveDeadlineAt,
+              countdownSeconds: Math.floor(ROUND_COUNTDOWN_MS / 1000),
+              player1Health: 100,
+              player2Health: 100,
+              player1MaxHealth: 100,
+              player2MaxHealth: 100,
+              player1Energy: 100,
+              player2Energy: 100,
+              player1GuardMeter: 0,
+              player2GuardMeter: 0,
             },
           });
         }

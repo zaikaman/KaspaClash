@@ -111,14 +111,65 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       }
     };
 
+    // Handle move submission from Phaser - uses REAL Kaspa transactions
+    const handleMoveSubmitted = async (data: unknown) => {
+      const payload = data as { moveType: string; matchId: string };
+      if (!address || !match.id) return;
+
+      console.log("[MatchGameClient] Submitting move with real transaction:", payload.moveType);
+
+      try {
+        // Use real Kaspa transaction for immutable move recording
+        const { submitMoveWithTransaction } = await import("@/lib/game/move-service");
+
+        const result = await submitMoveWithTransaction({
+          matchId: match.id,
+          roundNumber: matchStore.currentRound.roundNumber,
+          moveType: payload.moveType as any,
+          useFullTransaction: true,
+        });
+
+        if (result.success && result.txId) {
+          console.log("[MatchGameClient] Transaction submitted:", result.txId);
+
+          // Submit to API with real txId
+          const response = await fetch(`/api/matches/${match.id}/move`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              address: address,
+              moveType: payload.moveType,
+              txId: result.txId,
+            }),
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error("Failed to submit move:", errorText);
+            EventBus.emit("game:moveError", { error: "Failed to submit move to server" });
+          } else {
+            console.log("[MatchGameClient] Move recorded on server");
+          }
+        } else {
+          console.error("Transaction failed:", result.error);
+          EventBus.emit("game:moveError", { error: result.error || "Failed to create transaction" });
+        }
+      } catch (error) {
+        console.error("Error submitting move:", error);
+        EventBus.emit("game:moveError", { error: "Transaction error" });
+      }
+    };
+
     EventBus.on("scene:ready", handleSceneReady);
     EventBus.on("match:ended", handleMatchEnd);
     EventBus.on("selection_confirmed", handleSelectionConfirmed);
+    EventBus.on("game:submitMove", handleMoveSubmitted);
 
     return () => {
       EventBus.off("scene:ready", handleSceneReady);
       EventBus.off("match:ended", handleMatchEnd);
       EventBus.off("selection_confirmed", handleSelectionConfirmed);
+      EventBus.off("game:submitMove", handleMoveSubmitted);
     };
   }, [address, match.id]);
 

@@ -11,28 +11,28 @@ export interface GameEvents {
   // Scene lifecycle events (scene is passed as unknown to avoid Phaser import)
   "scene:ready": unknown;
   "scene:change": unknown;
-  
+
   // Match events
   "match:start": { matchId: string };
   "match:end": { matchId: string; winnerId: string };
   "match:forfeit": { matchId: string; playerId: string };
-  
+
   // Round events
   "round:start": { roundNumber: number };
   "round:end": { roundNumber: number; winner: "player1" | "player2" | "draw" };
-  
+
   // Move events
   "move:selected": { moveType: "punch" | "kick" | "block" | "special" };
   "move:submitted": { moveType: string; txId?: string };
   "move:confirmed": { moveType: string; txId: string };
   "move:timeout": { playerId: string };
-  
+
   // Health events
   "health:update": {
     player1Health: number;
     player2Health: number;
   };
-  
+
   // Animation events
   "animation:attack": { playerId: string; moveType: string };
   "animation:hurt": { playerId: string; damage: number };
@@ -40,15 +40,26 @@ export interface GameEvents {
   "animation:victory": { playerId: string };
   "animation:defeat": { playerId: string };
   "animation:complete": { animationType: string };
-  
+
   // UI events
   "ui:showMoveSelect": void;
   "ui:hideMoveSelect": void;
   "ui:showResult": { winner: string; loser: string };
   "ui:countdown": { seconds: number };
-  
+
   // Error events
   "error:game": { message: string; code?: string };
+
+  // New Game Engine events
+  "game:submitMove": { matchId: string; moveType: string; playerRole: string };
+  "game:moveError": { error: string };
+  "game:roundStarting": any;
+  "game:moveSubmitted": any;
+  "game:moveConfirmed": any;
+  "game:roundResolved": any;
+  "game:matchEnded": any;
+  "game:characterSelected": any;
+  "game:matchStarting": any;
 }
 
 /**
@@ -124,7 +135,7 @@ class SSRSafeEventEmitter {
     }
 
     const listenersCopy = [...eventListeners];
-    
+
     listenersCopy.forEach((listener) => {
       if (listener.context) {
         listener.callback.call(listener.context, data);

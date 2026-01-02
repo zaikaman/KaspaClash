@@ -13,9 +13,9 @@ import { getConnectedAddress, getProvider, getProviderWithRpc } from "./wallet";
 
 /**
  * Minimum transaction amount in sompi (1 KAS = 100,000,000 sompi).
- * We use a minimal amount for move transactions.
+ * Kasware API requires at least 1 KAS for sendKaspa to work properly.
  */
-export const MIN_TRANSACTION_AMOUNT = BigInt(1000); // 0.00001 KAS
+export const MIN_TRANSACTION_AMOUNT = BigInt(100_000_000); // 1 KAS
 
 /**
  * Move type to OP_RETURN data mapping.

@@ -28,6 +28,12 @@ export interface KaswareWallet {
   removeListener?(event: string, handler: (...args: unknown[]) => void): void;
   // Generic RPC request method for advanced operations
   request?<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>;
+  // Kasware native sendKaspa method
+  sendKaspa?(
+    toAddress: string,
+    sompi: number,
+    options?: { priorityFee?: number; payload?: string }
+  ): Promise<string>;
 }
 
 /**
@@ -273,6 +279,39 @@ export async function getBalance(): Promise<bigint> {
   } catch (error) {
     console.error("Get balance error:", error);
     throw new Error("Failed to get wallet balance");
+  }
+}
+
+/**
+ * Send a Kaspa transaction using Kasware native send API.
+ * Returns the transaction ID.
+ */
+export async function sendKaspa(
+  toAddress: string,
+  sompi: number,
+  payload?: string
+): Promise<string> {
+  if (!currentWallet || !currentAddress) {
+    throw new Error("No wallet connected");
+  }
+
+  if (!currentWallet.sendKaspa) {
+    throw new Error("Wallet does not support sendKaspa method");
+  }
+
+  try {
+    console.log(`Sending ${sompi} sompi to ${toAddress} with payload: ${payload}`);
+    const txId = await currentWallet.sendKaspa(toAddress, sompi, {
+      priorityFee: 0,
+      payload: payload,
+    });
+    console.log("Transaction sent:", txId);
+    return txId;
+  } catch (error) {
+    console.error("Send transaction error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Failed to send transaction"
+    );
   }
 }
 
