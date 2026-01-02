@@ -55,7 +55,7 @@ export class OpponentStatus extends Phaser.GameObjects.Container {
     this.createElements();
     this.updateVisuals();
 
-    scene.add.existing(this);
+    // scene.add.existing(this);
   }
 
   /**
