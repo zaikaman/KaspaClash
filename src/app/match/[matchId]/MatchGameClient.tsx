@@ -229,7 +229,7 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       </div>
 
       {/* Phaser game container */}
-      <div id="phaser-container" className="w-full h-screen">
+      <div className="w-full h-screen">
         <PhaserGame
           currentScene="CharacterSelectScene"
           sceneConfig={{

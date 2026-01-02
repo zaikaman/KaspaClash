@@ -96,17 +96,20 @@ export class CharacterSelectScene extends Phaser.Scene {
   preload(): void {
     // Load character portraits
     for (const character of CHARACTER_ROSTER) {
-      // 1. Try SVGs first (preferred)
+      // 1. Try WebP first (best quality/size ratio)
+      this.load.image(`portrait-${character.id}`, `/characters/${character.id}/portrait.webp`);
+
+      // 2. Try SVG portraits
       this.load.svg(
-        `portrait-${character.id}`,
+        `portrait-${character.id}-svg`,
         `/characters/${character.id}/portrait.svg`,
         { width: 180, height: 180 }
       );
 
-      // 2. Try PNG portraits
+      // 3. Try PNG portraits
       this.load.image(`portrait-${character.id}-png`, `/characters/${character.id}/portrait.png`);
 
-      // 3. Fallback to idle.png (for development/early testing)
+      // 4. Fallback to idle.png (for development/early testing)
       this.load.image(`portrait-${character.id}-fallback`, `/characters/${character.id}/idle.png`);
     }
 

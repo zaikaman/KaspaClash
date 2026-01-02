@@ -8,7 +8,7 @@ import { EventBus } from "../EventBus";
 import { GAME_DIMENSIONS, CHARACTER_POSITIONS, UI_POSITIONS } from "../config";
 import { CombatEngine, BASE_MOVE_STATS, getCharacterCombatStats } from "../combat";
 import type { MoveType, PlayerRole } from "@/types";
-import type { TurnResult, CombatState } from "../combat";
+import type { CombatState } from "../combat";
 
 /**
  * Fight scene configuration.
@@ -20,7 +20,6 @@ export interface FightSceneConfig {
   player1Character: string;
   player2Character: string;
   playerRole: PlayerRole; // Which player is the local user
-  isLocalTest?: boolean;  // If true, both players controlled locally for testing
 }
 
 /**
@@ -53,7 +52,6 @@ export class FightScene extends Phaser.Scene {
   // Move buttons
   private moveButtons: Map<MoveType, Phaser.GameObjects.Container> = new Map();
   private selectedMove: MoveType | null = null;
-  private opponentMove: MoveType | null = null; // For local testing
 
   // Timer
   private turnTimer: number = 15;
@@ -63,9 +61,6 @@ export class FightScene extends Phaser.Scene {
   private phase: "countdown" | "selecting" | "resolving" | "round_end" | "match_end" = "countdown";
   private isWaitingForOpponent: boolean = false;
   private moveDeadlineAt: number = 0; // Server-synchronized move deadline timestamp
-
-  // For local testing mode - opponent move selector
-  private opponentMoveButtons: Map<MoveType, Phaser.GameObjects.Container> = new Map();
 
   // Server-synchronized state (production mode) - all game state comes from server
   private serverState: {
@@ -92,10 +87,7 @@ export class FightScene extends Phaser.Scene {
    * Initialize scene with match data.
    */
   init(data: FightSceneConfig): void {
-    this.config = {
-      ...data,
-      isLocalTest: data.isLocalTest ?? false, // Default to production mode
-    };
+    this.config = { ...data };
     this.resetFullState();
   }
 
@@ -104,7 +96,6 @@ export class FightScene extends Phaser.Scene {
    */
   private resetFullState(): void {
     this.selectedMove = null;
-    this.opponentMove = null;
     this.turnTimer = 15;
     this.phase = "countdown";
     this.isWaitingForOpponent = false;
@@ -122,19 +113,24 @@ export class FightScene extends Phaser.Scene {
     const characters = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
     characters.forEach((charId) => {
       // idle.png: 1392x2700 total, 6x6 grid = 36 frames, each 232x450
-      this.load.spritesheet(`char_${charId}_idle`, `/characters/${charId}/idle.png`, {
+      this.load.spritesheet(`char_${charId}_idle`, `/characters/${charId}/idle.webp`, {
         frameWidth: 232,
         frameHeight: 450,
       });
       // run.png: 1278x1722 total, 6x6 grid = 36 frames, each 213x287
-      this.load.spritesheet(`char_${charId}_run`, `/characters/${charId}/run.png`, {
+      this.load.spritesheet(`char_${charId}_run`, `/characters/${charId}/run.webp`, {
         frameWidth: 213,
         frameHeight: 287,
       });
       // punch.png: 1614x1560 total, 6x6 grid = 36 frames, each 269x260
-      this.load.spritesheet(`char_${charId}_punch`, `/characters/${charId}/punch.png`, {
+      this.load.spritesheet(`char_${charId}_punch`, `/characters/${charId}/punch.webp`, {
         frameWidth: 269,
         frameHeight: 260,
+      });
+      // kick.webp: 2070x1830 total, 6x6 grid = 36 frames, each 345x305
+      this.load.spritesheet(`char_${charId}_kick`, `/characters/${charId}/kick.webp`, {
+        frameWidth: 345,
+        frameHeight: 305,
       });
     });
   }
@@ -169,11 +165,6 @@ export class FightScene extends Phaser.Scene {
     this.createNarrativeDisplay();
     this.createTurnIndicator();
     this.createCountdownOverlay();
-
-    // Create opponent move buttons for local testing
-    if (this.config.isLocalTest) {
-      this.createOpponentMoveButtons();
-    }
 
     // Setup event listeners
     this.setupEventListeners();
@@ -235,8 +226,21 @@ export class FightScene extends Phaser.Scene {
         }
       }
 
+      // Kick animation (24fps = 2x speed, plays once)
+      const kickKey = `char_${charId}_kick`;
+      if (this.textures.exists(kickKey)) {
+        if (!this.anims.exists(`${charId}_kick`)) {
+          this.anims.create({
+            key: `${charId}_kick`,
+            frames: this.anims.generateFrameNumbers(kickKey, { start: 0, end: 35 }),
+            frameRate: 24,
+            repeat: 0,
+          });
+        }
+      }
+
       // Fallback animations map to idle
-      ['kick', 'block', 'special', 'hurt', 'victory', 'defeat'].forEach(key => {
+      ['block', 'special', 'hurt', 'victory', 'defeat'].forEach(key => {
         const fallbackKey = `${charId}_${key}`;
         if (!this.anims.exists(fallbackKey) && this.textures.exists(idleKey)) {
           this.anims.create({
@@ -551,32 +555,8 @@ export class FightScene extends Phaser.Scene {
 
     moves.forEach((move, index) => {
       const x = startX + index * (buttonWidth + spacing);
-      const button = this.createMoveButton(x, y, buttonWidth, buttonHeight, move, false);
+      const button = this.createMoveButton(x, y, buttonWidth, buttonHeight, move);
       this.moveButtons.set(move, button);
-    });
-  }
-
-  private createOpponentMoveButtons(): void {
-    const moves: MoveType[] = ["punch", "kick", "block", "special"];
-    const buttonWidth = 100;
-    const buttonHeight = 60;
-    const spacing = 10;
-    const totalWidth = moves.length * buttonWidth + (moves.length - 1) * spacing;
-    const startX = (GAME_DIMENSIONS.WIDTH - totalWidth) / 2;
-    const y = 160;
-
-    // Label
-    this.add.text(
-      GAME_DIMENSIONS.CENTER_X,
-      y - 25,
-      "OPPONENT MOVE (Test Mode)",
-      { fontFamily: "monospace", fontSize: "12px", color: "#ef4444" }
-    ).setOrigin(0.5);
-
-    moves.forEach((move, index) => {
-      const x = startX + index * (buttonWidth + spacing);
-      const button = this.createMoveButton(x, y, buttonWidth, buttonHeight, move, true);
-      this.opponentMoveButtons.set(move, button);
     });
   }
 
@@ -585,14 +565,13 @@ export class FightScene extends Phaser.Scene {
     y: number,
     width: number,
     height: number,
-    move: MoveType,
-    isOpponent: boolean
+    move: MoveType
   ): Phaser.GameObjects.Container {
     const container = this.add.container(x, y);
 
     const bg = this.add.graphics();
-    const baseColor = isOpponent ? 0x442222 : 0x2d2d44;
-    const highlightColor = isOpponent ? 0xef4444 : 0x40e0d0;
+    const baseColor = 0x2d2d44;
+    const highlightColor = 0x40e0d0;
 
     bg.fillStyle(baseColor, 1);
     bg.fillRoundedRect(0, 0, width, height, 8);
@@ -602,25 +581,25 @@ export class FightScene extends Phaser.Scene {
     // Move name
     const label = this.add.text(width / 2, 20, move.toUpperCase(), {
       fontFamily: "monospace",
-      fontSize: isOpponent ? "12px" : "14px",
-      color: isOpponent ? "#ef4444" : "#40e0d0",
+      fontSize: "14px",
+      color: "#40e0d0",
       fontStyle: "bold",
     }).setOrigin(0.5);
 
     // Damage/info
     const infoText = this.getMoveInfoText(move);
-    const info = this.add.text(width / 2, isOpponent ? 40 : 45, infoText, {
+    const info = this.add.text(width / 2, 45, infoText, {
       fontFamily: "monospace",
-      fontSize: isOpponent ? "9px" : "10px",
+      fontSize: "10px",
       color: "#888888",
     }).setOrigin(0.5);
 
     // Energy cost
     const cost = BASE_MOVE_STATS[move].energyCost;
     const costText = cost > 0 ? `${cost} EN` : "FREE";
-    const costLabel = this.add.text(width / 2, isOpponent ? 52 : 65, costText, {
+    const costLabel = this.add.text(width / 2, 65, costText, {
       fontFamily: "monospace",
-      fontSize: isOpponent ? "8px" : "10px",
+      fontSize: "10px",
       color: cost > 0 ? "#3b82f6" : "#22c55e",
     }).setOrigin(0.5);
 
@@ -640,7 +619,7 @@ export class FightScene extends Phaser.Scene {
     });
 
     container.on("pointerout", () => {
-      const selected = isOpponent ? this.opponentMove : this.selectedMove;
+      const selected = this.selectedMove;
       if (selected !== move) {
         bg.clear();
         bg.fillStyle(baseColor, 1);
@@ -652,11 +631,7 @@ export class FightScene extends Phaser.Scene {
 
     container.on("pointerdown", () => {
       if (this.phase === "selecting") {
-        if (isOpponent) {
-          this.selectOpponentMove(move);
-        } else {
-          this.selectMove(move);
-        }
+        this.selectMove(move);
       }
     });
 
@@ -682,70 +657,42 @@ export class FightScene extends Phaser.Scene {
 
     // Deselect previous
     if (this.selectedMove) {
-      this.updateButtonState(this.selectedMove, false, false);
+      this.updateButtonState(this.selectedMove, false);
     }
 
     this.selectedMove = move;
-    this.updateButtonState(move, true, false);
+    this.updateButtonState(move, true);
 
-    // In local test mode, check if both moves selected
-    if (this.config.isLocalTest) {
-      if (this.opponentMove) {
-        this.resolveTurn();
-      }
-    } else {
-      // Production mode: Emit event to submit move via API
-      // DO NOT call resolveTurn() locally - wait for server round_resolved event
-      this.isWaitingForOpponent = true;
-      this.turnIndicatorText.setText("Submitting move...");
-      this.turnIndicatorText.setColor("#f97316");
+    // Emit event to submit move via API
+    this.isWaitingForOpponent = true;
+    this.turnIndicatorText.setText("Submitting move...");
+    this.turnIndicatorText.setColor("#f97316");
 
-      // Disable buttons while submitting
-      this.moveButtons.forEach(btn => btn.setAlpha(0.4).disableInteractive());
+    // Disable buttons while submitting
+    this.moveButtons.forEach(btn => btn.setAlpha(0.4).disableInteractive());
 
-      EventBus.emit("game:submitMove", {
-        matchId: this.config.matchId,
-        moveType: move,
-        playerRole: this.config.playerRole,
-      });
+    EventBus.emit("game:submitMove", {
+      matchId: this.config.matchId,
+      moveType: move,
+      playerRole: this.config.playerRole,
+    });
 
-      // In production, stop timer - server will send round_resolved when both players submit
-      if (this.timerEvent) {
-        this.timerEvent.destroy();
-        this.timerEvent = undefined;
-      }
+    // Stop timer - server will send round_resolved when both players submit
+    if (this.timerEvent) {
+      this.timerEvent.destroy();
+      this.timerEvent = undefined;
     }
   }
 
-  private selectOpponentMove(move: MoveType): void {
-    if (!this.combatEngine.canAffordMove("player2", move)) {
-      this.showFloatingText("Opponent: Not enough energy!", GAME_DIMENSIONS.CENTER_X, 200, "#ff4444");
-      return;
-    }
-
-    if (this.opponentMove) {
-      this.updateButtonState(this.opponentMove, false, true);
-    }
-
-    this.opponentMove = move;
-    this.updateButtonState(move, true, true);
-
-    // Check if both moves selected
-    if (this.selectedMove) {
-      this.resolveTurn();
-    }
-  }
-
-  private updateButtonState(move: MoveType, selected: boolean, isOpponent: boolean): void {
-    const buttons = isOpponent ? this.opponentMoveButtons : this.moveButtons;
-    const container = buttons.get(move);
+  private updateButtonState(move: MoveType, selected: boolean): void {
+    const container = this.moveButtons.get(move);
     if (!container) return;
 
     const bg = container.getAt(0) as Phaser.GameObjects.Graphics;
-    const width = isOpponent ? 100 : 130;
-    const height = isOpponent ? 60 : 90;
-    const baseColor = isOpponent ? 0x442222 : 0x2d2d44;
-    const highlightColor = isOpponent ? 0xef4444 : 0x40e0d0;
+    const width = 130;
+    const height = 90;
+    const baseColor = 0x2d2d44;
+    const highlightColor = 0x40e0d0;
 
     bg.clear();
     if (selected) {
@@ -767,8 +714,8 @@ export class FightScene extends Phaser.Scene {
     moves.forEach((move) => {
       let canAfford: boolean;
 
-      // In production mode, use server state for energy check
-      if (!this.config.isLocalTest && this.serverState) {
+      // Use server state for energy check if available
+      if (this.serverState) {
         // Check affordability based on server-provided energy
         // Get player's energy based on their role
         const playerEnergy = this.config.playerRole === "player1"
@@ -777,21 +724,13 @@ export class FightScene extends Phaser.Scene {
         const moveCost = BASE_MOVE_STATS[move].energyCost;
         canAfford = playerEnergy >= moveCost;
       } else {
-        // Local test mode - use local engine
+        // Fallback to local engine
         canAfford = this.combatEngine.canAffordMove("player1", move);
       }
 
       const container = this.moveButtons.get(move);
       if (container) {
         container.setAlpha(canAfford ? 1 : 0.4);
-      }
-
-      if (this.config.isLocalTest) {
-        const canAffordP2 = this.combatEngine.canAffordMove("player2", move);
-        const opponentContainer = this.opponentMoveButtons.get(move);
-        if (opponentContainer) {
-          opponentContainer.setAlpha(canAffordP2 ? 1 : 0.4);
-        }
       }
     });
   }
@@ -893,7 +832,6 @@ export class FightScene extends Phaser.Scene {
 
     this.phase = "selecting";
     this.selectedMove = null;
-    this.opponentMove = null;
     this.turnTimer = 15;
     this.turnIndicatorText.setText("Select your move!");
 
@@ -936,184 +874,18 @@ export class FightScene extends Phaser.Scene {
       this.selectedMove = "punch";
     }
 
-    if (this.config.isLocalTest) {
-      // Local test mode - resolve locally
-      if (!this.opponentMove) {
-        this.opponentMove = "punch";
-      }
-      this.resolveTurn();
-    } else {
-      // Production mode - submit the auto-selected move to the server
-      // The server will handle resolution when both players have submitted
-      this.turnIndicatorText.setText("Time's up! Auto-submitting...");
-      this.turnIndicatorText.setColor("#ff8800");
+    // Submit the auto-selected move to the server
+    this.turnIndicatorText.setText("Time's up! Auto-submitting...");
+    this.turnIndicatorText.setColor("#ff8800");
 
-      // Disable buttons
-      this.moveButtons.forEach(btn => btn.setAlpha(0.4).disableInteractive());
+    // Disable buttons
+    this.moveButtons.forEach(btn => btn.setAlpha(0.4).disableInteractive());
 
-      // Emit the move to the API
-      EventBus.emit("game:submitMove", {
-        matchId: this.config.matchId,
-        moveType: this.selectedMove,
-        playerRole: this.config.playerRole,
-      });
-    }
-  }
-
-  private resolveTurn(): void {
-    // IMPORTANT: This method is ONLY for local test mode
-    // In production mode, we wait for server's round_resolved event
-    if (!this.config.isLocalTest) {
-      console.warn("[FightScene] resolveTurn called in production mode - this should not happen");
-      return;
-    }
-
-    if (this.phase !== "selecting") return;
-    if (!this.selectedMove || !this.opponentMove) return;
-
-    this.phase = "resolving";
-
-    // Stop timer
-    if (this.timerEvent) {
-      this.timerEvent.destroy();
-      this.timerEvent = undefined;
-    }
-
-    // Resolve combat locally (test mode only)
-    const result = this.combatEngine.resolveTurn(
-      this.selectedMove,
-      this.opponentMove
-    );
-
-    // Show resolution animations
-    this.showTurnResolution(result);
-  }
-
-  private showTurnResolution(result: TurnResult): void {
-    const state = this.combatEngine.getState();
-    const p1Char = this.config.player1Character || "dag-warrior";
-    const p2Char = this.config.player2Character || "dag-warrior";
-
-    // Scale constants to maintain consistent visual size across different spritesheets
-    // Target height ~203px: idle (450px * 0.45), run (287px * 0.71), punch (260px * 0.78)
-    const IDLE_SCALE = 0.45;
-    const RUN_SCALE = 0.71;
-    const PUNCH_SCALE = 0.78;
-
-    // Store original positions
-    const p1OriginalX = CHARACTER_POSITIONS.PLAYER1.X;
-    const p2OriginalX = CHARACTER_POSITIONS.PLAYER2.X;
-    const meetingPointX = GAME_DIMENSIONS.CENTER_X;
-
-    // Phase 1: Both characters run toward center
-    // Switch to run animation with adjusted scale
-    if (this.anims.exists(`${p1Char}_run`)) {
-      this.player1Sprite.setScale(RUN_SCALE);
-      this.player1Sprite.play(`${p1Char}_run`);
-    }
-    if (this.anims.exists(`${p2Char}_run`)) {
-      this.player2Sprite.setScale(RUN_SCALE);
-      this.player2Sprite.play(`${p2Char}_run`);
-    }
-
-    // Tween both characters toward center
-    this.tweens.add({
-      targets: this.player1Sprite,
-      x: meetingPointX - 80,
-      duration: 600,
-      ease: 'Power2',
-    });
-
-    this.tweens.add({
-      targets: this.player2Sprite,
-      x: meetingPointX + 80,
-      duration: 600,
-      ease: 'Power2',
-      onComplete: () => {
-        // Phase 2: Both characters punch with adjusted scale
-        if (this.anims.exists(`${p1Char}_punch`)) {
-          this.player1Sprite.setScale(PUNCH_SCALE);
-          this.player1Sprite.play(`${p1Char}_punch`);
-        }
-        if (this.anims.exists(`${p2Char}_punch`)) {
-          this.player2Sprite.setScale(PUNCH_SCALE);
-          this.player2Sprite.play(`${p2Char}_punch`);
-        }
-
-        // Show narrative
-        this.narrativeText.setText(result.narrative);
-        this.narrativeText.setAlpha(1);
-
-        // Delay damage effects until punch animation starts landing (around 800ms into the animation)
-        this.time.delayedCall(800, () => {
-          // Show damage numbers
-          if (result.player2.damageTaken > 0) {
-            this.showFloatingText(`-${result.player2.damageTaken}`, meetingPointX + 80, CHARACTER_POSITIONS.PLAYER2.Y - 130, "#ff4444");
-          }
-          if (result.player1.damageTaken > 0) {
-            this.showFloatingText(`-${result.player1.damageTaken}`, meetingPointX - 80, CHARACTER_POSITIONS.PLAYER1.Y - 130, "#ff4444");
-          }
-
-          // Update health bars when the punch lands
-          this.syncUIWithCombatState();
-        });
-
-        // Phase 3: After punch, run back to original positions
-        this.time.delayedCall(800, () => {
-          // Switch back to run animation with run scale
-          if (this.anims.exists(`${p1Char}_run`)) {
-            this.player1Sprite.setScale(RUN_SCALE);
-            this.player1Sprite.play(`${p1Char}_run`);
-          }
-          if (this.anims.exists(`${p2Char}_run`)) {
-            this.player2Sprite.setScale(RUN_SCALE);
-            this.player2Sprite.play(`${p2Char}_run`);
-          }
-
-          // Tween back to original positions
-          this.tweens.add({
-            targets: this.player1Sprite,
-            x: p1OriginalX,
-            duration: 600,
-            ease: 'Power2',
-          });
-
-          this.tweens.add({
-            targets: this.player2Sprite,
-            x: p2OriginalX,
-            duration: 600,
-            ease: 'Power2',
-            onComplete: () => {
-              // Phase 4: Return to idle animations with idle scale
-              if (this.anims.exists(`${p1Char}_idle`)) {
-                this.player1Sprite.setScale(IDLE_SCALE);
-                this.player1Sprite.play(`${p1Char}_idle`);
-              }
-              if (this.anims.exists(`${p2Char}_idle`)) {
-                this.player2Sprite.setScale(IDLE_SCALE);
-                this.player2Sprite.play(`${p2Char}_idle`);
-              }
-
-              // Fade out narrative
-              this.tweens.add({
-                targets: this.narrativeText,
-                alpha: 0,
-                duration: 300,
-              });
-
-              // Check for round/match end
-              if (state.isMatchOver) {
-                this.showMatchEnd(state);
-              } else if (state.isRoundOver) {
-                this.showRoundEnd(state);
-              } else {
-                // Continue to next turn
-                this.startSelectionPhase();
-              }
-            },
-          });
-        });
-      },
+    // Emit the move to the API
+    EventBus.emit("game:submitMove", {
+      matchId: this.config.matchId,
+      moveType: this.selectedMove,
+      playerRole: this.config.playerRole,
     });
   }
 
@@ -1205,8 +977,8 @@ export class FightScene extends Phaser.Scene {
   // ===========================================================================
 
   private syncUIWithCombatState(): void {
-    // In production mode, prefer server state if available
-    if (!this.config.isLocalTest && this.serverState) {
+    // Prefer server state if available
+    if (this.serverState) {
       // Use server-provided state (authoritative)
       this.updateHealthBarDisplay("player1", this.serverState.player1Health, this.serverState.player1MaxHealth);
       this.updateHealthBarDisplay("player2", this.serverState.player2Health, this.serverState.player2MaxHealth);
@@ -1215,7 +987,7 @@ export class FightScene extends Phaser.Scene {
       this.updateGuardMeterDisplay("player1", this.serverState.player1GuardMeter);
       this.updateGuardMeterDisplay("player2", this.serverState.player2GuardMeter);
     } else {
-      // Local test mode - use local combat engine state
+      // Fallback to local combat engine state
       const state = this.combatEngine.getState();
       this.updateHealthBarDisplay("player1", state.player1.hp, state.player1.maxHp);
       this.updateHealthBarDisplay("player2", state.player2.hp, state.player2.maxHp);
@@ -1336,16 +1108,14 @@ export class FightScene extends Phaser.Scene {
     // Listen for opponent's move submission (show "opponent ready" indicator)
     EventBus.on("game:moveSubmitted", (data: unknown) => {
       const payload = data as { player: string };
-      if (!this.config.isLocalTest) {
-        const isOpponentMove =
-          (this.config.playerRole === "player1" && payload.player === "player2") ||
-          (this.config.playerRole === "player2" && payload.player === "player1");
+      const isOpponentMove =
+        (this.config.playerRole === "player1" && payload.player === "player2") ||
+        (this.config.playerRole === "player2" && payload.player === "player1");
 
-        if (isOpponentMove) {
-          this.isWaitingForOpponent = false;
-          this.turnIndicatorText.setText("Opponent locked in!");
-          this.turnIndicatorText.setColor("#22c55e");
-        }
+      if (isOpponentMove) {
+        this.isWaitingForOpponent = false;
+        this.turnIndicatorText.setText("Opponent locked in!");
+        this.turnIndicatorText.setColor("#22c55e");
       }
     });
 
@@ -1368,10 +1138,8 @@ export class FightScene extends Phaser.Scene {
         player1RoundsWon: number;
         player2RoundsWon: number;
       };
-      if (!this.config.isLocalTest) {
-        // Update local state from server resolution
-        this.handleServerRoundResolved(payload);
-      }
+      // Update local state from server resolution
+      this.handleServerRoundResolved(payload);
     });
 
     // Listen for match ended (from server)
@@ -1381,20 +1149,18 @@ export class FightScene extends Phaser.Scene {
         winnerAddress: string;
         reason: string;
       };
-      if (!this.config.isLocalTest) {
-        this.phase = "match_end";
-        const isWinner =
-          (this.config.playerRole === payload.winner);
+      this.phase = "match_end";
+      const isWinner =
+        (this.config.playerRole === payload.winner);
 
-        this.countdownText.setText(isWinner ? "YOU WIN!" : "YOU LOSE");
-        this.countdownText.setFontSize(48);
-        this.countdownText.setColor(isWinner ? "#22c55e" : "#ef4444");
-        this.countdownText.setAlpha(1);
+      this.countdownText.setText(isWinner ? "YOU WIN!" : "YOU LOSE");
+      this.countdownText.setFontSize(48);
+      this.countdownText.setColor(isWinner ? "#22c55e" : "#ef4444");
+      this.countdownText.setAlpha(1);
 
-        this.time.delayedCall(3000, () => {
-          this.showRematchButton();
-        });
-      }
+      this.time.delayedCall(3000, () => {
+        this.showRematchButton();
+      });
     });
 
     // Listen for round starting (synchronized timing from server)
@@ -1411,9 +1177,7 @@ export class FightScene extends Phaser.Scene {
         player1GuardMeter: number;
         player2GuardMeter: number;
       };
-      if (!this.config.isLocalTest) {
-        this.startRoundFromServer(payload);
-      }
+      this.startRoundFromServer(payload);
     });
   }
 
@@ -1631,6 +1395,7 @@ export class FightScene extends Phaser.Scene {
     const IDLE_SCALE = 0.45;
     const RUN_SCALE = 0.71;
     const PUNCH_SCALE = 0.78;
+    const KICK_SCALE = 0.665;
 
     // Store original positions
     const p1OriginalX = CHARACTER_POSITIONS.PLAYER1.X;
@@ -1650,25 +1415,41 @@ export class FightScene extends Phaser.Scene {
     // Tween both characters toward center
     this.tweens.add({
       targets: this.player1Sprite,
-      x: meetingPointX - 80,
+      x: meetingPointX - 50,
       duration: 600,
       ease: 'Power2',
     });
 
     this.tweens.add({
       targets: this.player2Sprite,
-      x: meetingPointX + 80,
+      x: meetingPointX + 50,
       duration: 600,
       ease: 'Power2',
       onComplete: () => {
-        // Phase 2: Both characters punch with punch scale
-        if (this.anims.exists(`${p1Char}_punch`)) {
+        // Phase 2: Both characters attack with their selected move
+        const p1Move = payload.player1.move;
+        const p2Move = payload.player2.move;
+
+        // Player 1 attack animation
+        if (p1Move === "kick" && this.anims.exists(`${p1Char}_kick`)) {
+          this.player1Sprite.setScale(KICK_SCALE);
+          this.player1Sprite.play(`${p1Char}_kick`);
+        } else if (p1Move === "punch" && this.anims.exists(`${p1Char}_punch`)) {
           this.player1Sprite.setScale(PUNCH_SCALE);
           this.player1Sprite.play(`${p1Char}_punch`);
+        } else if (this.anims.exists(`${p1Char}_${p1Move}`)) {
+          this.player1Sprite.play(`${p1Char}_${p1Move}`);
         }
-        if (this.anims.exists(`${p2Char}_punch`)) {
+
+        // Player 2 attack animation
+        if (p2Move === "kick" && this.anims.exists(`${p2Char}_kick`)) {
+          this.player2Sprite.setScale(KICK_SCALE);
+          this.player2Sprite.play(`${p2Char}_kick`);
+        } else if (p2Move === "punch" && this.anims.exists(`${p2Char}_punch`)) {
           this.player2Sprite.setScale(PUNCH_SCALE);
           this.player2Sprite.play(`${p2Char}_punch`);
+        } else if (this.anims.exists(`${p2Char}_${p2Move}`)) {
+          this.player2Sprite.play(`${p2Char}_${p2Move}`);
         }
 
         // Show narrative
@@ -1679,10 +1460,10 @@ export class FightScene extends Phaser.Scene {
         this.time.delayedCall(800, () => {
           // Show damage numbers
           if (payload.player2.damageTaken > 0) {
-            this.showFloatingText(`-${payload.player2.damageTaken}`, meetingPointX + 80, CHARACTER_POSITIONS.PLAYER2.Y - 130, "#ff4444");
+            this.showFloatingText(`-${payload.player2.damageTaken}`, meetingPointX + 50, CHARACTER_POSITIONS.PLAYER2.Y - 130, "#ff4444");
           }
           if (payload.player1.damageTaken > 0) {
-            this.showFloatingText(`-${payload.player1.damageTaken}`, meetingPointX - 80, CHARACTER_POSITIONS.PLAYER1.Y - 130, "#ff4444");
+            this.showFloatingText(`-${payload.player1.damageTaken}`, meetingPointX - 50, CHARACTER_POSITIONS.PLAYER1.Y - 130, "#ff4444");
           }
 
           // Update health bars when the punch lands

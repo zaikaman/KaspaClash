@@ -11,7 +11,7 @@ import Phaser from "phaser";
  */
 export const BASE_GAME_CONFIG: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO, // WebGL with Canvas fallback
-  parent: "phaser-container",
+  parent: undefined, // Will be set dynamically by PhaserGame component
   backgroundColor: "#0a0a0a", // Dark background matching Kaspa theme
   
   // Game dimensions - optimized for web fighting game

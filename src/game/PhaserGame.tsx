@@ -98,7 +98,8 @@ export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
           // Create game config
           const config = createGameConfig(scenes);
 
-          // Override parent to use our container
+          // CRITICAL: Set parent to the actual DOM element ref, not a string ID
+          // This prevents "Cannot read properties of undefined (reading 'hasAttribute')" error
           config.parent = containerRef.current;
 
           // Create the game instance
@@ -209,7 +210,6 @@ export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
         ref={containerRef}
         className={className}
         style={containerStyle}
-        id="phaser-container"
         // Touch event handlers for mobile optimization
         onTouchStart={(e) => {
           // Prevent default only if touching the game canvas
