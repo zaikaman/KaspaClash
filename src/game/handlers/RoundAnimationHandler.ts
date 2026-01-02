@@ -38,12 +38,13 @@ interface AnimationStep {
 
 const TIMING = {
   MOVE_REVEAL_DELAY: 500,
-  MOVE_ANIMATION_DURATION: 600,
-  HIT_PAUSE: 200,
-  DAMAGE_NUMBER_DURATION: 1000,
-  HEALTH_BAR_ANIMATION: 500,
+  // Increased to allow full 36-frame animations (36 frames / 24fps = 1.5s) plus movement
+  MOVE_ANIMATION_DURATION: 1800,
+  HIT_PAUSE: 300,
+  DAMAGE_NUMBER_DURATION: 800,
+  HEALTH_BAR_ANIMATION: 600,
   RESULT_DISPLAY: 1500,
-  ROUND_END_PAUSE: 1000,
+  ROUND_END_PAUSE: 800,
 };
 
 // =============================================================================
@@ -399,24 +400,176 @@ export class RoundAnimationHandler {
     move: MoveType,
     player: "player1" | "player2"
   ): void {
-    // If sprite has animation methods, call them
+    // If sprite has animation methods (FighterSprite), call them
     // @ts-expect-error - Dynamic method call on sprite
     if (typeof sprite.playMove === "function") {
       // @ts-expect-error - Dynamic method call
       sprite.playMove(move);
-    } else {
-      // Fallback: simple lunge animation
-      const direction = player === "player1" ? 1 : -1;
-      const originalX = sprite.x;
-
-      this.scene.tweens.add({
-        targets: sprite,
-        x: originalX + 30 * direction,
-        duration: 150,
-        yoyo: true,
-        ease: "Power2",
-      });
+      return;
     }
+
+    // Try to identify character from texture key
+    let charId = "unknown";
+    if (sprite instanceof Phaser.GameObjects.Sprite) {
+      // Expected format: char_<id>_<anim>
+      const parts = sprite.texture.key.split('_');
+      if (parts.length >= 2) {
+        // Handle names with hyphens (e.g., cyber-ninja)
+        // char, cyber-ninja, idle -> parts[0]=char, parts[1..N-1]=id, parts[N]=anim
+        // actually existing keys are char_cyber-ninja_idle
+        // so parts: ["char", "cyber-ninja", "idle"]
+        if (parts.length === 3) {
+          charId = parts[1];
+        } else if (parts.length > 3) {
+          charId = parts.slice(1, parts.length - 1).join("-");
+        }
+      }
+    }
+
+    // Special sequence: Cyber Ninja Block
+    if (move === "block" && charId === "cyber-ninja") {
+      if (sprite instanceof Phaser.GameObjects.Sprite) {
+        const runKey = `${charId}_run`;
+        const blockKey = `${charId}_block`;
+
+        // Sequence: Run -> Block
+        if (this.scene.anims.exists(runKey) && this.scene.anims.exists(blockKey)) {
+          // Store original scale to restore later
+          const originalScaleX = sprite.scaleX;
+          const originalScaleY = sprite.scaleY;
+
+          // Scale compensation: idle frame is 450px tall, block is 350px tall
+          // To maintain same visual height: scale * (450/350) ≈ 1.286x
+          const blockScaleMultiplier = 450 / 350;
+
+          // Play run
+          sprite.play(runKey);
+
+          // Move forward slightly
+          const direction = player === "player1" ? 1 : -1;
+          const originalX = sprite.x;
+
+          this.scene.tweens.add({
+            targets: sprite,
+            x: originalX + 50 * direction,
+            duration: 200,
+            yoyo: true, // Go back after
+            hold: 400, // Hold while blocking
+            ease: "Power1",
+          });
+
+          // Switch to block after short delay
+          this.scene.time.delayedCall(200, () => {
+            // Apply scale compensation for block animation
+            sprite.setScale(originalScaleX * blockScaleMultiplier, originalScaleY * blockScaleMultiplier);
+            sprite.play(blockKey);
+
+            // Restore original scale after animation completes
+            sprite.once("animationcomplete", () => {
+              sprite.setScale(originalScaleX, originalScaleY);
+            });
+          });
+
+          return;
+        }
+      }
+    }
+
+    // Special sequence: Cyber Ninja Special
+    if (move === "special" && charId === "cyber-ninja") {
+      if (sprite instanceof Phaser.GameObjects.Sprite) {
+        const runKey = `${charId}_run`;
+        const specialKey = `${charId}_special`;
+
+        console.log("[DEBUG] Special animation check:", {
+          charId,
+          runKey,
+          specialKey,
+          runExists: this.scene.anims.exists(runKey),
+          specialExists: this.scene.anims.exists(specialKey),
+        });
+
+        // Sequence: Run -> Special
+        if (this.scene.anims.exists(runKey) && this.scene.anims.exists(specialKey)) {
+          // Store original scale to restore later
+          const originalScaleX = sprite.scaleX;
+          const originalScaleY = sprite.scaleY;
+
+          // Scale compensation: idle frame is 450px tall, special is 309px tall
+          // To maintain same visual height: scale * (450/309) ≈ 1.456x
+          // Using 1.6x to ensure character appears same size as idle
+          const specialScaleMultiplier = 1.6;
+
+          console.log("[DEBUG] Playing special sequence, scale compensation:", {
+            originalScaleX,
+            originalScaleY,
+            multiplier: specialScaleMultiplier,
+            newScale: originalScaleX * specialScaleMultiplier,
+          });
+
+          // Play run
+          sprite.play(runKey);
+
+          // Move forward more aggressively for a special attack
+          const direction = player === "player1" ? 1 : -1;
+          const originalX = sprite.x;
+
+          this.scene.tweens.add({
+            targets: sprite,
+            x: originalX + 80 * direction,
+            duration: 250,
+            yoyo: true, // Go back after
+            hold: 500, // Hold while performing special
+            ease: "Power2",
+          });
+
+          // Switch to special after short delay
+          this.scene.time.delayedCall(250, () => {
+            // Apply scale compensation for special animation
+            console.log("[DEBUG] Applying special scale:", originalScaleX * specialScaleMultiplier);
+            sprite.setScale(originalScaleX * specialScaleMultiplier, originalScaleY * specialScaleMultiplier);
+            sprite.play(specialKey);
+
+            // Restore original scale after animation completes
+            sprite.once("animationcomplete", () => {
+              console.log("[DEBUG] Restoring original scale:", originalScaleX);
+              sprite.setScale(originalScaleX, originalScaleY);
+            });
+          });
+
+          return;
+        }
+      }
+    }
+
+    // Generic Animation Playback
+    // Check if animation exists in Phaser registry
+    if (sprite instanceof Phaser.GameObjects.Sprite) {
+      // Try calling the move animation directly
+      const animKey = `${charId}_${move}`;
+
+      if (this.scene.anims.exists(animKey)) {
+        sprite.play(animKey);
+
+        // For non-looping moves, return to idle after complete? 
+        // FightScene sets them to not loop (except generic block fallback), 
+        // but let's ensure we go back to idle if needed or let RoundReset handle it.
+        // RoundReset calls resetToIdle() eventually.
+        return;
+      }
+    }
+
+    // Fallback: simple lunge animation
+    const direction = player === "player1" ? 1 : -1;
+    const originalX = sprite.x;
+
+    this.scene.tweens.add({
+      targets: sprite,
+      x: originalX + 30 * direction,
+      duration: 150,
+      yoyo: true,
+      ease: "Power2",
+    });
   }
 
   /**

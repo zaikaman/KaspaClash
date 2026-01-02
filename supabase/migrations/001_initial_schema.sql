@@ -76,6 +76,8 @@ CREATE TABLE public.rounds (
   player2_health_after integer CHECK (player2_health_after IS NULL OR player2_health_after >= 0 AND player2_health_after <= 100),
   winner_address text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
+  player1_rejected boolean DEFAULT false,
+  player2_rejected boolean DEFAULT false,
   CONSTRAINT rounds_pkey PRIMARY KEY (id),
   CONSTRAINT rounds_match_id_fkey FOREIGN KEY (match_id) REFERENCES public.matches(id),
   CONSTRAINT rounds_winner_address_fkey FOREIGN KEY (winner_address) REFERENCES public.players(address)

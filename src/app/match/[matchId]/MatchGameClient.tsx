@@ -111,6 +111,42 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       }
     };
 
+    // Helper to handle transaction rejection (rejection = forfeit round)
+    const handleTransactionRejection = async (matchId: string, playerAddress: string) => {
+      try {
+        console.log("[MatchGameClient] Reporting transaction rejection (forfeit) to server");
+        const rejectResponse = await fetch(`/api/matches/${matchId}/reject`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address: playerAddress }),
+        });
+
+        if (rejectResponse.ok) {
+          const rejectResult = await rejectResponse.json();
+          console.log("[MatchGameClient] Rejection result:", rejectResult);
+
+          if (rejectResult.status === "match_cancelled") {
+            // Both players rejected - emit cancellation event
+            EventBus.emit("game:matchCancelled", {
+              matchId,
+              reason: "both_rejected",
+              message: rejectResult.message,
+              redirectTo: rejectResult.redirectTo || "/matchmaking",
+            });
+          } else if (rejectResult.status === "opponent_wins") {
+            // We forfeited by rejecting - opponent wins this round
+            // The round_resolved event will be broadcast by the server
+            console.log("[MatchGameClient] We forfeited - opponent wins this round");
+          }
+        } else {
+          const errorText = await rejectResponse.text();
+          console.error("[MatchGameClient] Failed to record rejection:", errorText);
+        }
+      } catch (error) {
+        console.error("[MatchGameClient] Error recording rejection:", error);
+      }
+    };
+
     // Handle move submission from Phaser - uses REAL Kaspa transactions
     const handleMoveSubmitted = async (data: unknown) => {
       const payload = data as { moveType: string; matchId: string };
@@ -151,12 +187,19 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
             console.log("[MatchGameClient] Move recorded on server");
           }
         } else {
+          // Transaction failed - user likely rejected the wallet popup
           console.error("Transaction failed:", result.error);
           EventBus.emit("game:moveError", { error: result.error || "Failed to create transaction" });
+
+          // Notify server that this player rejected the transaction
+          await handleTransactionRejection(match.id, address);
         }
       } catch (error) {
         console.error("Error submitting move:", error);
         EventBus.emit("game:moveError", { error: "Transaction error" });
+
+        // Also report rejection on error
+        await handleTransactionRejection(match.id, address);
       }
     };
 

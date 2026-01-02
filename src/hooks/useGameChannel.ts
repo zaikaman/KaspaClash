@@ -253,7 +253,7 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
       // Emit to Phaser - use event name that CharacterSelectScene expects
       // Calculate countdown in seconds from startsAt timestamp
       const countdown = Math.max(1, Math.ceil((payload.startsAt - Date.now()) / 1000));
-      EventBus.emit("match_starting", { 
+      EventBus.emit("match_starting", {
         countdown,
         player1CharacterId: payload.player1.characterId,
         player2CharacterId: payload.player2.characterId,
@@ -266,6 +266,39 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
       onMatchStarting?.(payload);
     },
     [matchActions, onMatchStarting]
+  );
+
+  /**
+   * Handle move_rejected event.
+   * Called when opponent rejects their wallet transaction.
+   */
+  const handleMoveRejected = useCallback(
+    (payload: { player: "player1" | "player2"; rejectedAt: number }) => {
+      console.log("[GameChannel] move_rejected:", payload);
+
+      // Emit to Phaser to show opponent rejected message
+      EventBus.emit("game:moveRejected", payload);
+    },
+    []
+  );
+
+  /**
+   * Handle match_cancelled event.
+   * Called when both players reject transactions.
+   */
+  const handleMatchCancelled = useCallback(
+    (payload: { matchId: string; reason: string; message: string; redirectTo: string }) => {
+      console.log("[GameChannel] match_cancelled:", payload);
+
+      // Emit to Phaser to show cancellation message
+      EventBus.emit("game:matchCancelled", payload);
+
+      // Redirect after a short delay
+      setTimeout(() => {
+        window.location.href = payload.redirectTo;
+      }, 2000);
+    },
+    []
   );
 
   /**
@@ -397,6 +430,12 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
         })
         .on("broadcast", { event: "match_starting" }, ({ payload }) => {
           handleMatchStarting(payload as MatchStartingPayload);
+        })
+        .on("broadcast", { event: "move_rejected" }, ({ payload }) => {
+          handleMoveRejected(payload as { player: "player1" | "player2"; rejectedAt: number });
+        })
+        .on("broadcast", { event: "match_cancelled" }, ({ payload }) => {
+          handleMatchCancelled(payload as { matchId: string; reason: string; message: string; redirectTo: string });
         });
 
       // Set up presence listeners

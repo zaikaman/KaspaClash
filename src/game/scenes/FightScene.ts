@@ -132,6 +132,21 @@ export class FightScene extends Phaser.Scene {
         frameWidth: 345,
         frameHeight: 305,
       });
+
+      if (charId === "cyber-ninja") {
+        // block.webp: 2346x2100 total, 6x6 grid = 36 frames
+        // Frame size: 391x350
+        this.load.spritesheet(`char_${charId}_block`, `/characters/${charId}/block.webp`, {
+          frameWidth: 391,
+          frameHeight: 350,
+        });
+        // special.webp: 2304x1856 total, 6x6 grid = 36 frames
+        // Frame size: 384x309
+        this.load.spritesheet(`char_${charId}_special`, `/characters/${charId}/special.webp`, {
+          frameWidth: 384,
+          frameHeight: 309,
+        });
+      }
     });
   }
 
@@ -239,8 +254,37 @@ export class FightScene extends Phaser.Scene {
         }
       }
 
+      // Block animation (specific for cyber-ninja or others with assets)
+      const blockKey = `char_${charId}_block`;
+      if (this.textures.exists(blockKey)) {
+        if (!this.anims.exists(`${charId}_block`)) {
+          this.anims.create({
+            key: `${charId}_block`,
+            frames: this.anims.generateFrameNumbers(blockKey, { start: 0, end: 35 }),
+            frameRate: 24,
+            repeat: 0,
+          });
+        }
+      }
+
+      // Special animation (specific for cyber-ninja or others with assets)
+      const specialKey = `char_${charId}_special`;
+      if (this.textures.exists(specialKey)) {
+        if (!this.anims.exists(`${charId}_special`)) {
+          this.anims.create({
+            key: `${charId}_special`,
+            frames: this.anims.generateFrameNumbers(specialKey, { start: 0, end: 35 }),
+            frameRate: 24,
+            repeat: 0,
+          });
+        }
+      }
+
       // Fallback animations map to idle
       ['block', 'special', 'hurt', 'victory', 'defeat'].forEach(key => {
+        // If we already created a real animation (like block above), skip fallback
+        if (this.anims.exists(`${charId}_${key}`)) return;
+
         const fallbackKey = `${charId}_${key}`;
         if (!this.anims.exists(fallbackKey) && this.textures.exists(idleKey)) {
           this.anims.create({
@@ -1179,6 +1223,43 @@ export class FightScene extends Phaser.Scene {
       };
       this.startRoundFromServer(payload);
     });
+
+    // Listen for opponent move rejection
+    EventBus.on("game:moveRejected", (data: unknown) => {
+      const payload = data as { player: "player1" | "player2"; rejectedAt: number };
+
+      // Only show message if opponent rejected (not us)
+      if (payload.player !== this.config.playerRole) {
+        this.turnIndicatorText.setText("Opponent rejected transaction!");
+        this.turnIndicatorText.setColor("#f97316");
+        this.showFloatingText("OPPONENT REJECTED!", GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.CENTER_Y - 50, "#f97316");
+      }
+    });
+
+    // Listen for match cancellation (both players rejected)
+    EventBus.on("game:matchCancelled", (data: unknown) => {
+      const payload = data as { matchId: string; reason: string; message: string; redirectTo: string };
+
+      this.phase = "match_end";
+
+      // Stop any running timer
+      if (this.timerEvent) {
+        this.timerEvent.destroy();
+        this.timerEvent = undefined;
+      }
+
+      // Show cancellation message
+      this.countdownText.setText("MATCH CANCELLED");
+      this.countdownText.setFontSize(36);
+      this.countdownText.setColor("#f97316");
+      this.countdownText.setAlpha(1);
+
+      this.narrativeText.setText("Both players rejected transactions.\nRedirecting to matchmaking...");
+      this.narrativeText.setAlpha(1);
+
+      // Disable all buttons
+      this.moveButtons.forEach(btn => btn.setAlpha(0.3).disableInteractive());
+    });
   }
 
   /**
@@ -1300,8 +1381,12 @@ export class FightScene extends Phaser.Scene {
     // Update button affordability
     this.updateMoveButtonAffordability();
 
-    // Re-enable move buttons
-    this.moveButtons.forEach(btn => btn.setAlpha(1).setInteractive());
+    // Re-enable move buttons and reset their visual state
+    this.moveButtons.forEach((btn, move) => {
+      btn.setAlpha(1).setInteractive();
+      // Reset visual state to unselected/unhovered
+      this.updateButtonState(move, false);
+    });
 
     // Calculate initial remaining time from server deadline
     const remainingMs = moveDeadlineAt - Date.now();
@@ -1392,10 +1477,15 @@ export class FightScene extends Phaser.Scene {
     const p2Char = this.config.player2Character || "dag-warrior";
 
     // Scale constants to maintain consistent visual size
+    // Base: idle is 232x450, we use 0.45 scale
+    // Each animation has different frame sizes AND the character fills different amounts of each frame
+    // These values need visual tuning to match the idle character size
     const IDLE_SCALE = 0.45;
-    const RUN_SCALE = 0.71;
-    const PUNCH_SCALE = 0.78;
-    const KICK_SCALE = 0.665;
+    const RUN_SCALE = 0.71;      // run is 213x287
+    const PUNCH_SCALE = 0.78;    // punch is 269x260
+    const KICK_SCALE = 0.665;    // kick is 345x305
+    const BLOCK_SCALE = 0.80;    // block is 391x350 - increased for visual match
+    const SPECIAL_SCALE = 0.99;  // special is 384x309 - increased for visual match
 
     // Store original positions
     const p1OriginalX = CHARACTER_POSITIONS.PLAYER1.X;
@@ -1431,13 +1521,26 @@ export class FightScene extends Phaser.Scene {
         const p2Move = payload.player2.move;
 
         // Player 1 attack animation
+        console.log("[DEBUG P1] move:", p1Move, "char:", p1Char,
+          "block exists:", this.anims.exists(`${p1Char}_block`),
+          "special exists:", this.anims.exists(`${p1Char}_special`));
+
         if (p1Move === "kick" && this.anims.exists(`${p1Char}_kick`)) {
           this.player1Sprite.setScale(KICK_SCALE);
           this.player1Sprite.play(`${p1Char}_kick`);
         } else if (p1Move === "punch" && this.anims.exists(`${p1Char}_punch`)) {
           this.player1Sprite.setScale(PUNCH_SCALE);
           this.player1Sprite.play(`${p1Char}_punch`);
+        } else if (p1Move === "block" && this.anims.exists(`${p1Char}_block`)) {
+          console.log("[DEBUG P1] Playing BLOCK with scale:", BLOCK_SCALE);
+          this.player1Sprite.setScale(BLOCK_SCALE);
+          this.player1Sprite.play(`${p1Char}_block`);
+        } else if (p1Move === "special" && this.anims.exists(`${p1Char}_special`)) {
+          console.log("[DEBUG P1] Playing SPECIAL with scale:", SPECIAL_SCALE);
+          this.player1Sprite.setScale(SPECIAL_SCALE);
+          this.player1Sprite.play(`${p1Char}_special`);
         } else if (this.anims.exists(`${p1Char}_${p1Move}`)) {
+          console.log("[DEBUG P1] Playing FALLBACK:", `${p1Char}_${p1Move}`);
           this.player1Sprite.play(`${p1Char}_${p1Move}`);
         }
 
@@ -1448,6 +1551,12 @@ export class FightScene extends Phaser.Scene {
         } else if (p2Move === "punch" && this.anims.exists(`${p2Char}_punch`)) {
           this.player2Sprite.setScale(PUNCH_SCALE);
           this.player2Sprite.play(`${p2Char}_punch`);
+        } else if (p2Move === "block" && this.anims.exists(`${p2Char}_block`)) {
+          this.player2Sprite.setScale(BLOCK_SCALE);
+          this.player2Sprite.play(`${p2Char}_block`);
+        } else if (p2Move === "special" && this.anims.exists(`${p2Char}_special`)) {
+          this.player2Sprite.setScale(SPECIAL_SCALE);
+          this.player2Sprite.play(`${p2Char}_special`);
         } else if (this.anims.exists(`${p2Char}_${p2Move}`)) {
           this.player2Sprite.play(`${p2Char}_${p2Move}`);
         }
@@ -1456,8 +1565,9 @@ export class FightScene extends Phaser.Scene {
         this.narrativeText.setText(payload.narrative);
         this.narrativeText.setAlpha(1);
 
-        // Delay damage effects until punch animation starts landing (around 800ms into the animation)
-        this.time.delayedCall(800, () => {
+        // Delay damage effects until attack animation lands
+        // 36 frames at 24fps = 1.5s, show damage around 1s into the animation
+        this.time.delayedCall(1000, () => {
           // Show damage numbers
           if (payload.player2.damageTaken > 0) {
             this.showFloatingText(`-${payload.player2.damageTaken}`, meetingPointX + 50, CHARACTER_POSITIONS.PLAYER2.Y - 130, "#ff4444");
@@ -1466,15 +1576,15 @@ export class FightScene extends Phaser.Scene {
             this.showFloatingText(`-${payload.player1.damageTaken}`, meetingPointX - 50, CHARACTER_POSITIONS.PLAYER1.Y - 130, "#ff4444");
           }
 
-          // Update health bars when the punch lands
+          // Update health bars when the attack lands
           this.syncUIWithCombatState();
           this.roundScoreText.setText(
             `Round ${this.serverState?.currentRound ?? 1}  •  ${payload.player1RoundsWon} - ${payload.player2RoundsWon}  (First to 3)`
           );
         });
 
-        // Phase 3: After punch, run back to original positions
-        this.time.delayedCall(800, () => {
+        // Phase 3: After attack animation completes (1.5s), run back to original positions
+        this.time.delayedCall(1600, () => {
           if (this.anims.exists(`${p1Char}_run`)) {
             this.player1Sprite.setScale(RUN_SCALE);
             this.player1Sprite.play(`${p1Char}_run`);

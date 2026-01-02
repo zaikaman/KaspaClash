@@ -84,6 +84,10 @@ export function useMatchmakingQueue(): UseMatchmakingQueueReturn {
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [waitTimeSeconds, setWaitTimeSeconds] = useState(0);
 
+  // Guards against race conditions
+  const matchHandledRef = useRef<string | null>(null); // Prevents duplicate handleMatchFound calls
+  const navigationPendingRef = useRef(false); // Tracks if we're navigating
+
   // Derived state
   const isInQueue = useMatchmakingStore(selectIsInQueue);
   const playerCount = useMatchmakingStore(selectPlayerCount);
@@ -104,40 +108,86 @@ export function useMatchmakingQueue(): UseMatchmakingQueueReturn {
 
   /**
    * Handle match found - navigate to match.
+   * Includes guards against duplicate calls and race conditions.
    */
-  const handleMatchFound = useCallback((matchData: MatchFoundEvent) => {
+  const handleMatchFound = useCallback(async (matchData: MatchFoundEvent) => {
     const { matchId, player1Address, player2Address, selectionDeadlineAt } = matchData;
 
     // Check if this match involves the current player
-    if (address && (player1Address === address || player2Address === address)) {
-      console.log("Match found!", matchData);
-
-      store.setMatched({
-        matchId,
-        player1Address,
-        player2Address,
-        createdAt: new Date(),
-        selectionDeadlineAt, // Server-managed deadline for timer sync
-      });
-
-      // Stop polling
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-
-      // Navigate to match after a short delay (just show the "matched" UI briefly)
-      setTimeout(() => {
-        router.push(`/match/${matchId}`);
-      }, 500);
+    if (!address || (player1Address !== address && player2Address !== address)) {
+      return;
     }
+
+    // Guard against duplicate handleMatchFound calls for the same match
+    if (matchHandledRef.current === matchId) {
+      console.log("Match already handled, ignoring duplicate:", matchId);
+      return;
+    }
+
+    // Guard against calling while navigation is pending
+    if (navigationPendingRef.current) {
+      console.log("Navigation already pending, ignoring:", matchId);
+      return;
+    }
+
+    console.log("Match found!", matchData);
+
+    // Mark as handling this match immediately to prevent duplicates
+    matchHandledRef.current = matchId;
+    navigationPendingRef.current = true;
+
+    // Stop polling immediately
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+
+    // Verify match exists before navigation
+    try {
+      const verifyResponse = await fetch(`/api/matches/${matchId}/verify`);
+      if (!verifyResponse.ok) {
+        console.warn("Match verification failed, will retry on next poll");
+        // Reset guards to allow retry
+        matchHandledRef.current = null;
+        navigationPendingRef.current = false;
+        return;
+      }
+    } catch (error) {
+      console.warn("Match verification error:", error);
+      // Reset guards to allow retry
+      matchHandledRef.current = null;
+      navigationPendingRef.current = false;
+      return;
+    }
+
+    // Update store state
+    store.setMatched({
+      matchId,
+      player1Address,
+      player2Address,
+      createdAt: new Date(),
+      selectionDeadlineAt, // Server-managed deadline for timer sync
+    });
+
+    // Navigate to match after a short delay (just show the "matched" UI briefly)
+    setTimeout(() => {
+      router.push(`/match/${matchId}`);
+    }, 500);
   }, [address, store, router]);
 
   /**
    * Poll for queue status and match results.
+   * Continues polling until navigation is confirmed to prevent missed matches.
    */
   const pollQueueStatus = useCallback(async () => {
-    if (!address || !isInQueue) return;
+    // Skip if navigation is pending (we're about to leave this screen)
+    if (navigationPendingRef.current) {
+      console.log("Skipping poll - navigation pending");
+      return;
+    }
+
+    // Skip if no address
+    if (!address) return;
 
     try {
       const response = await fetch(`/api/matchmaking/queue?address=${encodeURIComponent(address)}`);
@@ -145,32 +195,34 @@ export function useMatchmakingQueue(): UseMatchmakingQueueReturn {
       if (response.ok) {
         const data: QueueStatusResponse = await response.json();
 
-        // Update player count
-        store.setPlayersInQueue(
-          Array(data.queueSize).fill(null).map((_, i) => ({
-            address: `player-${i}`,
-            displayName: null,
-            rating: 1000,
-            joinedAt: Date.now(),
-          }))
-        );
+        // Update player count (only if still in queue state)
+        if (!navigationPendingRef.current) {
+          store.setPlayersInQueue(
+            Array(data.queueSize).fill(null).map((_, i) => ({
+              address: `player-${i}`,
+              displayName: null,
+              rating: 1000,
+              joinedAt: Date.now(),
+            }))
+          );
+        }
 
         // If match is pending (we've been claimed), show matching state
-        if (data.matchPending) {
+        if (data.matchPending && !navigationPendingRef.current) {
           console.log("Match pending - showing matching state");
           store.setMatching();
         }
 
         // Check if match was found
         if (data.matchFound) {
-          handleMatchFound(data.matchFound);
+          await handleMatchFound(data.matchFound);
         }
       }
     } catch (error) {
       console.warn("Queue poll failed:", error);
       // Don't set error - polling failures are expected occasionally
     }
-  }, [address, isInQueue, store, handleMatchFound]);
+  }, [address, store, handleMatchFound]);
 
   /**
    * Set up Realtime subscription for instant match notifications.
@@ -275,6 +327,10 @@ export function useMatchmakingQueue(): UseMatchmakingQueueReturn {
         channelRef.current = null;
       }
 
+      // Reset match handling refs
+      matchHandledRef.current = null;
+      navigationPendingRef.current = false;
+
       // Call API to leave queue
       if (address) {
         await fetch("/api/matchmaking/queue", {
@@ -288,6 +344,8 @@ export function useMatchmakingQueue(): UseMatchmakingQueueReturn {
     } catch (error) {
       console.error("Error leaving queue:", error);
       // Still clear local state
+      matchHandledRef.current = null;
+      navigationPendingRef.current = false;
       store.leaveQueue();
     }
   }, [address, store]);

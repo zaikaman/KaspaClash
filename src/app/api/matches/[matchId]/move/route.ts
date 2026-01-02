@@ -134,13 +134,32 @@ export async function POST(
         .single();
 
       if (createError) {
-        console.error("Round creation error:", createError);
-        return createErrorResponse(
-          new ApiError(ErrorCodes.INTERNAL_ERROR, "Failed to create round")
-        );
-      }
+        // Handle race condition: if duplicate key error, another request already created the round
+        if (createError.code === '23505') {
+          console.log("Round already exists (race condition), fetching existing round");
+          const { data: existingRound, error: fetchError } = await supabase
+            .from("rounds")
+            .select("*")
+            .eq("match_id", matchId)
+            .eq("round_number", nextRoundNumber)
+            .single();
 
-      currentRound = newRound;
+          if (fetchError || !existingRound) {
+            console.error("Failed to fetch existing round after race condition:", fetchError);
+            return createErrorResponse(
+              new ApiError(ErrorCodes.INTERNAL_ERROR, "Failed to get round")
+            );
+          }
+          currentRound = existingRound;
+        } else {
+          console.error("Round creation error:", createError);
+          return createErrorResponse(
+            new ApiError(ErrorCodes.INTERNAL_ERROR, "Failed to create round")
+          );
+        }
+      } else {
+        currentRound = newRound;
+      }
     }
 
     // Check if player already submitted for this round
@@ -184,12 +203,17 @@ export async function POST(
       console.error("Round update error:", updateError);
     }
 
-    // Check if both players have submitted
+    // Check if both players have submitted OR if opponent rejected
     const { data: updatedRound } = await supabase
       .from("rounds")
       .select("*")
       .eq("id", currentRound.id)
       .single();
+
+    // Check opponent rejection status
+    const roundData = updatedRound as Record<string, unknown> | null;
+    const opponentRejectColumn = isPlayer1 ? "player2_rejected" : "player1_rejected";
+    const opponentRejected = !!roundData?.[opponentRejectColumn];
 
     const awaitingOpponent = !(
       updatedRound?.player1_move && updatedRound?.player2_move
@@ -209,7 +233,27 @@ export async function POST(
     });
     await supabase.removeChannel(gameChannel);
 
-    // If both players have submitted, trigger combat resolution
+    // If opponent already rejected, we win this round
+    if (opponentRejected) {
+      const { handleMoveRejection } = await import("@/lib/game/combat-resolver");
+      const opponentPlayer = isPlayer1 ? "player2" : "player1";
+      const resolution = await handleMoveRejection(matchId, currentRound.id, opponentPlayer);
+
+      return NextResponse.json({
+        moveId: move.id,
+        roundId: currentRound.id,
+        awaitingOpponent: false,
+        opponentRejected: true,
+        resolution: resolution.success ? {
+          narrative: resolution.narrative,
+          roundWinner: resolution.roundWinner,
+          isMatchOver: resolution.isMatchOver,
+          matchWinner: resolution.matchWinner,
+        } : null,
+      });
+    }
+
+    // If both players have submitted moves normally, trigger combat resolution
     let resolution = null;
     if (!awaitingOpponent) {
       const { resolveRound } = await import("@/lib/game/combat-resolver");

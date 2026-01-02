@@ -290,3 +290,173 @@ function createErrorResult(error: string): RoundResolutionResult {
         error,
     };
 }
+
+/**
+ * Handle move rejection result.
+ */
+export interface MoveRejectionResult {
+    success: boolean;
+    roundWinner: "player1" | "player2";
+    isMatchOver: boolean;
+    matchWinner: "player1" | "player2" | null;
+    narrative: string;
+    error?: string;
+}
+
+/**
+ * Handle when a player rejects their move transaction.
+ * Called when one player has submitted and the other has rejected.
+ * Awards the round to the player who submitted.
+ */
+export async function handleMoveRejection(
+    matchId: string,
+    roundId: string,
+    rejectingPlayer: "player1" | "player2"
+): Promise<MoveRejectionResult> {
+    const supabase = await createSupabaseServerClient();
+
+    // The winner is the opponent
+    const roundWinner = rejectingPlayer === "player1" ? "player2" : "player1";
+
+    // Fetch match
+    const { data: match, error: matchError } = await supabase
+        .from("matches")
+        .select("*")
+        .eq("id", matchId)
+        .single();
+
+    if (matchError || !match) {
+        return {
+            success: false,
+            roundWinner,
+            isMatchOver: false,
+            matchWinner: null,
+            narrative: "",
+            error: "Match not found",
+        };
+    }
+
+    // Update round scores
+    const player1RoundsWon = match.player1_rounds_won || 0;
+    const player2RoundsWon = match.player2_rounds_won || 0;
+
+    const newPlayer1RoundsWon = roundWinner === "player1" ? player1RoundsWon + 1 : player1RoundsWon;
+    const newPlayer2RoundsWon = roundWinner === "player2" ? player2RoundsWon + 1 : player2RoundsWon;
+
+    // Check if match is over (first to 3)
+    const isMatchOver = newPlayer1RoundsWon >= 3 || newPlayer2RoundsWon >= 3;
+    const matchWinner = isMatchOver
+        ? (newPlayer1RoundsWon >= 3 ? "player1" : "player2")
+        : null;
+
+    const winnerAddress = roundWinner === "player1" ? match.player1_address : match.player2_address;
+    const loserPlayer = rejectingPlayer;
+    const narrative = `${loserPlayer === "player1" ? "Player 1" : "Player 2"} rejected the transaction. ${roundWinner === "player1" ? "Player 1" : "Player 2"} wins this round!`;
+
+    // Update round with winner
+    await supabase
+        .from("rounds")
+        .update({
+            winner_address: winnerAddress,
+        })
+        .eq("id", roundId);
+
+    // Update match
+    const matchUpdate: Record<string, unknown> = {
+        player1_rounds_won: newPlayer1RoundsWon,
+        player2_rounds_won: newPlayer2RoundsWon,
+    };
+
+    if (isMatchOver) {
+        matchUpdate.status = "completed";
+        matchUpdate.winner_address = matchWinner === "player1"
+            ? match.player1_address
+            : match.player2_address;
+        matchUpdate.completed_at = new Date().toISOString();
+    }
+
+    await supabase
+        .from("matches")
+        .update(matchUpdate)
+        .eq("id", matchId);
+
+    // Broadcast round_resolved with rejection info
+    const gameChannel = supabase.channel(`game:${matchId}`);
+    await gameChannel.send({
+        type: "broadcast",
+        event: "round_resolved",
+        payload: {
+            roundWinner,
+            player1RoundsWon: newPlayer1RoundsWon,
+            player2RoundsWon: newPlayer2RoundsWon,
+            isRoundOver: true,
+            isMatchOver,
+            matchWinner,
+            narrative,
+            reason: "opponent_rejected",
+            // Stub values for players - no combat occurred
+            player1: { move: null, damageDealt: 0, damageTaken: 0 },
+            player2: { move: null, damageDealt: 0, damageTaken: 0 },
+            player1Health: 100,
+            player2Health: 100,
+            player1Energy: 100,
+            player2Energy: 100,
+            player1GuardMeter: 0,
+            player2GuardMeter: 0,
+        },
+    });
+    await supabase.removeChannel(gameChannel);
+
+    // If match is over, broadcast match_ended
+    if (isMatchOver) {
+        const endChannel = supabase.channel(`game:${matchId}`);
+        await endChannel.send({
+            type: "broadcast",
+            event: "match_ended",
+            payload: {
+                winner: matchWinner,
+                winnerAddress: matchWinner === "player1"
+                    ? match.player1_address
+                    : match.player2_address,
+                reason: "opponent_rejected",
+                finalScore: {
+                    player1RoundsWon: newPlayer1RoundsWon,
+                    player2RoundsWon: newPlayer2RoundsWon,
+                },
+            },
+        });
+        await supabase.removeChannel(endChannel);
+    } else {
+        // Start next round
+        const ROUND_COUNTDOWN_MS = 3000;
+        const MOVE_TIMER_MS = 15000;
+        const moveDeadlineAt = Date.now() + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
+
+        const nextChannel = supabase.channel(`game:${matchId}`);
+        await nextChannel.send({
+            type: "broadcast",
+            event: "round_starting",
+            payload: {
+                roundNumber: (match.player1_rounds_won || 0) + (match.player2_rounds_won || 0) + 2,
+                turnNumber: 1,
+                moveDeadlineAt,
+                countdownSeconds: Math.floor(ROUND_COUNTDOWN_MS / 1000),
+                player1Health: 100,
+                player2Health: 100,
+                player1Energy: 100,
+                player2Energy: 100,
+                player1GuardMeter: 0,
+                player2GuardMeter: 0,
+            },
+        });
+        await supabase.removeChannel(nextChannel);
+    }
+
+    return {
+        success: true,
+        roundWinner,
+        isMatchOver,
+        matchWinner,
+        narrative,
+    };
+}

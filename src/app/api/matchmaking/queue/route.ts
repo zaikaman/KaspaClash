@@ -227,7 +227,7 @@ export async function GET(
     // Include character_select status as that's the initial match state
     const { data: pendingMatch } = await supabase
       .from("matches")
-      .select("id, player1_address, player2_address, status, selection_deadline_at")
+      .select("id, player1_address, player2_address, status, selection_deadline_at, created_at")
       .or(`player1_address.eq.${address},player2_address.eq.${address}`)
       .in("status", ["waiting", "character_select", "in_progress"])
       .order("created_at", { ascending: false })
@@ -235,17 +235,58 @@ export async function GET(
       .single();
 
     if (pendingMatch && pendingMatch.player2_address) {
-      console.log("Found pending match for player:", address, pendingMatch);
-      return NextResponse.json({
-        inQueue: false,
-        queueSize: await getQueueSize(),
-        matchFound: {
-          matchId: pendingMatch.id,
-          player1Address: pendingMatch.player1_address,
-          player2Address: pendingMatch.player2_address,
-          selectionDeadlineAt: pendingMatch.selection_deadline_at ?? undefined,
-        },
-      });
+      // Check if the match is stale and should be cleaned up
+      const now = new Date();
+      let isStale = false;
+      let staleReason = "";
+
+      // Check 1: character_select deadline has passed
+      if (pendingMatch.status === "character_select" && pendingMatch.selection_deadline_at) {
+        const deadline = new Date(pendingMatch.selection_deadline_at);
+        // Add 30 second grace period after deadline
+        if (now.getTime() > deadline.getTime() + 30000) {
+          isStale = true;
+          staleReason = "selection_deadline_passed";
+        }
+      }
+
+      // Check 2: Match has been in any active state for too long (30 minutes max match duration)
+      if (!isStale && pendingMatch.created_at) {
+        const createdAt = new Date(pendingMatch.created_at);
+        const matchAgeMs = now.getTime() - createdAt.getTime();
+        const maxMatchDurationMs = 30 * 60 * 1000; // 30 minutes
+        if (matchAgeMs > maxMatchDurationMs) {
+          isStale = true;
+          staleReason = "match_timeout";
+        }
+      }
+
+      // If match is stale, mark it as abandoned and allow new matchmaking
+      if (isStale) {
+        console.log(`[MATCHMAKING-GET] Cleaning up stale match ${pendingMatch.id} (reason: ${staleReason})`);
+
+        await supabase
+          .from("matches")
+          .update({
+            status: "abandoned",
+            completed_at: now.toISOString(),
+          })
+          .eq("id", pendingMatch.id);
+
+        // Don't return the stale match - continue with normal queue logic
+      } else {
+        console.log("Found pending match for player:", address, pendingMatch);
+        return NextResponse.json({
+          inQueue: false,
+          queueSize: await getQueueSize(),
+          matchFound: {
+            matchId: pendingMatch.id,
+            player1Address: pendingMatch.player1_address,
+            player2Address: pendingMatch.player2_address,
+            selectionDeadlineAt: pendingMatch.selection_deadline_at ?? undefined,
+          },
+        });
+      }
     }
 
     // SECOND: Check if another player has claimed us via matched_with
