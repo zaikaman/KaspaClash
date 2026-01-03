@@ -11,8 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getExplorerLink } from "@/lib/game/move-service";
 import { shareMatch, buildMatchUrl } from "@/lib/share/url-builder";
-import type { MatchResult } from "@/stores/match-store";
-import type { PlayerRole } from "@/types";
+import type { MatchResult, PlayerRole } from "@/types";
 
 /**
  * Match results props.
@@ -179,7 +178,7 @@ async function handleShareResult(matchId: string, winnerCharacter?: string): Pro
     winnerCharacter,
     source: "direct",
   });
-  
+
   return { copied: result.method === "clipboard" && result.success };
 }
 

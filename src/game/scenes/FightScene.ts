@@ -135,39 +135,141 @@ export class FightScene extends Phaser.Scene {
     // Load character assets
     const characters = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
     characters.forEach((charId) => {
-      // idle.png: 1392x2700 total, 6x6 grid = 36 frames, each 232x450
-      this.load.spritesheet(`char_${charId}_idle`, `/characters/${charId}/idle.webp`, {
-        frameWidth: 232,
-        frameHeight: 450,
-      });
-      // run.png: 1278x1722 total, 6x6 grid = 36 frames, each 213x287
-      this.load.spritesheet(`char_${charId}_run`, `/characters/${charId}/run.webp`, {
-        frameWidth: 213,
-        frameHeight: 287,
-      });
-      // punch.png: 1614x1560 total, 6x6 grid = 36 frames, each 269x260
-      this.load.spritesheet(`char_${charId}_punch`, `/characters/${charId}/punch.webp`, {
-        frameWidth: 269,
-        frameHeight: 260,
-      });
-      // kick.webp: 2070x1830 total, 6x6 grid = 36 frames, each 345x305
-      this.load.spritesheet(`char_${charId}_kick`, `/characters/${charId}/kick.webp`, {
-        frameWidth: 345,
-        frameHeight: 305,
-      });
+      // idle: block-bruiser 305x260, dag-warrior 301x253, hash-hunter 310x234, standard 232x450
+      if (charId === "block-bruiser") {
+        this.load.spritesheet(`char_${charId}_idle`, `/characters/${charId}/idle.webp`, {
+          frameWidth: 305,
+          frameHeight: 260,
+        });
+      } else if (charId === "dag-warrior") {
+        this.load.spritesheet(`char_${charId}_idle`, `/characters/${charId}/idle.webp`, {
+          frameWidth: 301,
+          frameHeight: 253,
+        });
+      } else if (charId === "hash-hunter") {
+        this.load.spritesheet(`char_${charId}_idle`, `/characters/${charId}/idle.webp`, {
+          frameWidth: 310,
+          frameHeight: 234,
+        });
+      } else {
+        this.load.spritesheet(`char_${charId}_idle`, `/characters/${charId}/idle.webp`, {
+          frameWidth: 232,
+          frameHeight: 450,
+        });
+      }
 
+      // run: block-bruiser 291x298, dag-warrior 285x211, hash-hunter 275x214, standard 213x287
+      if (charId === "block-bruiser") {
+        this.load.spritesheet(`char_${charId}_run`, `/characters/${charId}/run.webp`, {
+          frameWidth: 291,
+          frameHeight: 298,
+        });
+      } else if (charId === "dag-warrior") {
+        this.load.spritesheet(`char_${charId}_run`, `/characters/${charId}/run.webp`, {
+          frameWidth: 285,
+          frameHeight: 211,
+        });
+      } else if (charId === "hash-hunter") {
+        this.load.spritesheet(`char_${charId}_run`, `/characters/${charId}/run.webp`, {
+          frameWidth: 275,
+          frameHeight: 214,
+        });
+      } else {
+        this.load.spritesheet(`char_${charId}_run`, `/characters/${charId}/run.webp`, {
+          frameWidth: 213,
+          frameHeight: 287,
+        });
+      }
+
+      // punch: block-bruiser 318x263, dag-warrior 406x232, hash-hunter 416x233, standard 269x260
+      if (charId === "block-bruiser") {
+        this.load.spritesheet(`char_${charId}_punch`, `/characters/${charId}/punch.webp`, {
+          frameWidth: 318,
+          frameHeight: 263,
+        });
+      } else if (charId === "dag-warrior") {
+        this.load.spritesheet(`char_${charId}_punch`, `/characters/${charId}/punch.webp`, {
+          frameWidth: 406,
+          frameHeight: 232,
+        });
+      } else if (charId === "hash-hunter") {
+        this.load.spritesheet(`char_${charId}_punch`, `/characters/${charId}/punch.webp`, {
+          frameWidth: 416,
+          frameHeight: 233,
+        });
+      } else {
+        this.load.spritesheet(`char_${charId}_punch`, `/characters/${charId}/punch.webp`, {
+          frameWidth: 269,
+          frameHeight: 260,
+        });
+      }
+
+      // kick: block-bruiser 477x329, dag-warrior 495x344, hash-hunter 425x295, standard 345x305
+      if (charId === "block-bruiser") {
+        this.load.spritesheet(`char_${charId}_kick`, `/characters/${charId}/kick.webp`, {
+          frameWidth: 477,
+          frameHeight: 329,
+        });
+      } else if (charId === "dag-warrior") {
+        this.load.spritesheet(`char_${charId}_kick`, `/characters/${charId}/kick.webp`, {
+          frameWidth: 495,
+          frameHeight: 344,
+        });
+      } else if (charId === "hash-hunter") {
+        this.load.spritesheet(`char_${charId}_kick`, `/characters/${charId}/kick.webp`, {
+          frameWidth: 425,
+          frameHeight: 295,
+        });
+      } else {
+        this.load.spritesheet(`char_${charId}_kick`, `/characters/${charId}/kick.webp`, {
+          frameWidth: 345,
+          frameHeight: 305,
+        });
+      }
+
+      // block: cyber-ninja 391x350, block-bruiser 243x366, dag-warrior 389x277, hash-hunter 360x259
       if (charId === "cyber-ninja") {
-        // block.webp: 2346x2100 total, 6x6 grid = 36 frames
-        // Frame size: 391x350
         this.load.spritesheet(`char_${charId}_block`, `/characters/${charId}/block.webp`, {
           frameWidth: 391,
           frameHeight: 350,
         });
-        // special.webp: 3150x2556 total, 6x6 grid = 36 frames
-        // Frame size: 525x426
+      } else if (charId === "block-bruiser") {
+        this.load.spritesheet(`char_${charId}_block`, `/characters/${charId}/block.webp`, {
+          frameWidth: 243,
+          frameHeight: 366,
+        });
+      } else if (charId === "dag-warrior") {
+        this.load.spritesheet(`char_${charId}_block`, `/characters/${charId}/block.webp`, {
+          frameWidth: 389,
+          frameHeight: 277,
+        });
+      } else if (charId === "hash-hunter") {
+        this.load.spritesheet(`char_${charId}_block`, `/characters/${charId}/block.webp`, {
+          frameWidth: 360,
+          frameHeight: 259,
+        });
+      }
+
+      // special: cyber-ninja 525x426, block-bruiser 583x379, dag-warrior 584x228, hash-hunter 621x302
+      if (charId === "cyber-ninja") {
         this.load.spritesheet(`char_${charId}_special`, `/characters/${charId}/special.webp`, {
           frameWidth: 525,
           frameHeight: 426,
+        });
+      } else if (charId === "block-bruiser") {
+        this.load.spritesheet(`char_${charId}_special`, `/characters/${charId}/special.webp`, {
+          frameWidth: 583,
+          frameHeight: 379,
+        });
+      } else if (charId === "dag-warrior") {
+        this.load.spritesheet(`char_${charId}_special`, `/characters/${charId}/special.webp`, {
+          frameWidth: 584,
+          frameHeight: 228,
+        });
+      } else if (charId === "hash-hunter") {
+        this.load.spritesheet(`char_${charId}_special`, `/characters/${charId}/special.webp`, {
+          frameWidth: 621,
+          frameHeight: 302,
         });
       }
     });
@@ -374,7 +476,11 @@ export class FightScene extends Phaser.Scene {
       CHARACTER_POSITIONS.PLAYER1.Y - 50,  // Raise up a bit from floor
       p1TextureKey
     );
-    this.player1Sprite.setScale(0.45);  // Scale down from 450px tall to fit
+
+    // Scale down to fit: Standard is 450px -> 0.45 = 202.5px.
+    // block-bruiser 0.95, dag-warrior 0.80, hash-hunter 0.90
+    const p1Scale = p1Char === "block-bruiser" ? 0.95 : p1Char === "dag-warrior" ? 0.80 : p1Char === "hash-hunter" ? 0.90 : 0.45;
+    this.player1Sprite.setScale(p1Scale);  // Scale down to fit
     // Use center origin to prevent bouncing during animation
     this.player1Sprite.setOrigin(0.5, 0.5);
     if (this.anims.exists(`${p1Char}_idle`)) {
@@ -390,7 +496,11 @@ export class FightScene extends Phaser.Scene {
       CHARACTER_POSITIONS.PLAYER2.Y - 50,  // Raise up a bit from floor
       p2TextureKey
     );
-    this.player2Sprite.setScale(0.45);  // Scale down from 450px tall to fit
+
+    // Scale down to fit: Standard is 450px -> 0.45 = 202.5px.
+    // block-bruiser 0.95, dag-warrior 0.80, hash-hunter 0.90
+    const p2Scale = p2Char === "block-bruiser" ? 0.95 : p2Char === "dag-warrior" ? 0.80 : p2Char === "hash-hunter" ? 0.90 : 0.45;
+    this.player2Sprite.setScale(p2Scale);  // Scale down to fit
     // Use center origin to prevent bouncing during animation
     this.player2Sprite.setOrigin(0.5, 0.5);
     this.player2Sprite.setFlipX(true);
@@ -1843,6 +1953,31 @@ export class FightScene extends Phaser.Scene {
     const BLOCK_SCALE = 0.80;    // block is 391x350 - increased for visual match
     const SPECIAL_SCALE = 0.80;  // special is 384x309 - increased for visual match
 
+    // Block Bruiser specific scales (idle is 260px height at 0.95 scale = 247px displayed)
+    // All scales calculated to match: targetHeight / frameHeight = scale
+    const BB_IDLE_SCALE = 0.95;     // 260px * 0.95 = 247px
+    const BB_RUN_SCALE = 0.90;      // 298px * 0.90 = 269px
+    const BB_PUNCH_SCALE = 0.94;    // 263px * 0.94 = 247px
+    const BB_KICK_SCALE = 0.90;     // 329px * 0.75 = 247px
+    const BB_BLOCK_SCALE = 0.90;   // 366px * 0.80 = 247px
+    const BB_SPECIAL_SCALE = 0.90;  // 379px * 0.80 = 247px
+
+    // DAG Warrior specific scales (idle is 253px height at 0.80 scale = 202px displayed)
+    const DW_IDLE_SCALE = 0.90;     // 253px * 0.80 = 202px
+    const DW_RUN_SCALE = 0.96;      // 211px * 0.96 = 202px
+    const DW_PUNCH_SCALE = 0.90;    // 232px * 0.87 = 202px
+    const DW_KICK_SCALE = 0.90;     // 344px * 0.59 = 203px
+    const DW_BLOCK_SCALE = 0.90;    // 277px * 0.73 = 202px
+    const DW_SPECIAL_SCALE = 0.90;  // 228px * 0.89 = 203px
+
+    // Hash Hunter specific scales (all 0.90 for consistent sizing)
+    const HH_IDLE_SCALE = 0.90;
+    const HH_RUN_SCALE = 0.90;
+    const HH_PUNCH_SCALE = 0.90;
+    const HH_KICK_SCALE = 0.90;
+    const HH_BLOCK_SCALE = 0.90;
+    const HH_SPECIAL_SCALE = 0.90;
+
     // Store original positions
     const p1OriginalX = CHARACTER_POSITIONS.PLAYER1.X;
     const p2OriginalX = CHARACTER_POSITIONS.PLAYER2.X;
@@ -1850,11 +1985,13 @@ export class FightScene extends Phaser.Scene {
 
     // Phase 1: Both characters run toward center with run scale
     if (this.anims.exists(`${p1Char}_run`)) {
-      this.player1Sprite.setScale(RUN_SCALE);
+      const p1RunScale = p1Char === "block-bruiser" ? BB_RUN_SCALE : p1Char === "dag-warrior" ? DW_RUN_SCALE : p1Char === "hash-hunter" ? HH_RUN_SCALE : RUN_SCALE;
+      this.player1Sprite.setScale(p1RunScale);
       this.player1Sprite.play(`${p1Char}_run`);
     }
     if (this.anims.exists(`${p2Char}_run`)) {
-      this.player2Sprite.setScale(RUN_SCALE);
+      const p2RunScale = p2Char === "block-bruiser" ? BB_RUN_SCALE : p2Char === "dag-warrior" ? DW_RUN_SCALE : p2Char === "hash-hunter" ? HH_RUN_SCALE : RUN_SCALE;
+      this.player2Sprite.setScale(p2RunScale);
       this.player2Sprite.play(`${p2Char}_run`);
     }
 
@@ -1882,18 +2019,22 @@ export class FightScene extends Phaser.Scene {
           "special exists:", this.anims.exists(`${p1Char}_special`));
 
         if (p1Move === "kick" && this.anims.exists(`${p1Char}_kick`)) {
-          this.player1Sprite.setScale(KICK_SCALE);
+          const kickScale = p1Char === "block-bruiser" ? BB_KICK_SCALE : p1Char === "dag-warrior" ? DW_KICK_SCALE : p1Char === "hash-hunter" ? HH_KICK_SCALE : KICK_SCALE;
+          this.player1Sprite.setScale(kickScale);
           this.player1Sprite.play(`${p1Char}_kick`);
         } else if (p1Move === "punch" && this.anims.exists(`${p1Char}_punch`)) {
-          this.player1Sprite.setScale(PUNCH_SCALE);
+          const punchScale = p1Char === "block-bruiser" ? BB_PUNCH_SCALE : p1Char === "dag-warrior" ? DW_PUNCH_SCALE : p1Char === "hash-hunter" ? HH_PUNCH_SCALE : PUNCH_SCALE;
+          this.player1Sprite.setScale(punchScale);
           this.player1Sprite.play(`${p1Char}_punch`);
         } else if (p1Move === "block" && this.anims.exists(`${p1Char}_block`)) {
-          console.log("[DEBUG P1] Playing BLOCK with scale:", BLOCK_SCALE);
-          this.player1Sprite.setScale(BLOCK_SCALE);
+          const blockScale = p1Char === "block-bruiser" ? BB_BLOCK_SCALE : p1Char === "dag-warrior" ? DW_BLOCK_SCALE : p1Char === "hash-hunter" ? HH_BLOCK_SCALE : BLOCK_SCALE;
+          console.log("[DEBUG P1] Playing BLOCK with scale:", blockScale);
+          this.player1Sprite.setScale(blockScale);
           this.player1Sprite.play(`${p1Char}_block`);
         } else if (p1Move === "special" && this.anims.exists(`${p1Char}_special`)) {
-          console.log("[DEBUG P1] Playing SPECIAL with scale:", SPECIAL_SCALE);
-          this.player1Sprite.setScale(SPECIAL_SCALE);
+          const specialScale = p1Char === "block-bruiser" ? BB_SPECIAL_SCALE : p1Char === "dag-warrior" ? DW_SPECIAL_SCALE : p1Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
+          console.log("[DEBUG P1] Playing SPECIAL with scale:", specialScale);
+          this.player1Sprite.setScale(specialScale);
           this.player1Sprite.play(`${p1Char}_special`);
         } else if (this.anims.exists(`${p1Char}_${p1Move}`)) {
           console.log("[DEBUG P1] Playing FALLBACK:", `${p1Char}_${p1Move}`);
@@ -1902,16 +2043,20 @@ export class FightScene extends Phaser.Scene {
 
         // Player 2 attack animation
         if (p2Move === "kick" && this.anims.exists(`${p2Char}_kick`)) {
-          this.player2Sprite.setScale(KICK_SCALE);
+          const kickScale = p2Char === "block-bruiser" ? BB_KICK_SCALE : p2Char === "dag-warrior" ? DW_KICK_SCALE : p2Char === "hash-hunter" ? HH_KICK_SCALE : KICK_SCALE;
+          this.player2Sprite.setScale(kickScale);
           this.player2Sprite.play(`${p2Char}_kick`);
         } else if (p2Move === "punch" && this.anims.exists(`${p2Char}_punch`)) {
-          this.player2Sprite.setScale(PUNCH_SCALE);
+          const punchScale = p2Char === "block-bruiser" ? BB_PUNCH_SCALE : p2Char === "dag-warrior" ? DW_PUNCH_SCALE : p2Char === "hash-hunter" ? HH_PUNCH_SCALE : PUNCH_SCALE;
+          this.player2Sprite.setScale(punchScale);
           this.player2Sprite.play(`${p2Char}_punch`);
         } else if (p2Move === "block" && this.anims.exists(`${p2Char}_block`)) {
-          this.player2Sprite.setScale(BLOCK_SCALE);
+          const blockScale = p2Char === "block-bruiser" ? BB_BLOCK_SCALE : p2Char === "dag-warrior" ? DW_BLOCK_SCALE : p2Char === "hash-hunter" ? HH_BLOCK_SCALE : BLOCK_SCALE;
+          this.player2Sprite.setScale(blockScale);
           this.player2Sprite.play(`${p2Char}_block`);
         } else if (p2Move === "special" && this.anims.exists(`${p2Char}_special`)) {
-          this.player2Sprite.setScale(SPECIAL_SCALE);
+          const specialScale = p2Char === "block-bruiser" ? BB_SPECIAL_SCALE : p2Char === "dag-warrior" ? DW_SPECIAL_SCALE : p2Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
+          this.player2Sprite.setScale(specialScale);
           this.player2Sprite.play(`${p2Char}_special`);
         } else if (this.anims.exists(`${p2Char}_${p2Move}`)) {
           this.player2Sprite.play(`${p2Char}_${p2Move}`);
@@ -1942,11 +2087,13 @@ export class FightScene extends Phaser.Scene {
         // Phase 3: After attack animation completes (1.5s), run back to original positions
         this.time.delayedCall(1600, () => {
           if (this.anims.exists(`${p1Char}_run`)) {
-            this.player1Sprite.setScale(RUN_SCALE);
+            const p1RunScale = p1Char === "block-bruiser" ? BB_RUN_SCALE : p1Char === "dag-warrior" ? DW_RUN_SCALE : p1Char === "hash-hunter" ? HH_RUN_SCALE : RUN_SCALE;
+            this.player1Sprite.setScale(p1RunScale);
             this.player1Sprite.play(`${p1Char}_run`);
           }
           if (this.anims.exists(`${p2Char}_run`)) {
-            this.player2Sprite.setScale(RUN_SCALE);
+            const p2RunScale = p2Char === "block-bruiser" ? BB_RUN_SCALE : p2Char === "dag-warrior" ? DW_RUN_SCALE : p2Char === "hash-hunter" ? HH_RUN_SCALE : RUN_SCALE;
+            this.player2Sprite.setScale(p2RunScale);
             this.player2Sprite.play(`${p2Char}_run`);
           }
 
@@ -1966,11 +2113,13 @@ export class FightScene extends Phaser.Scene {
             onComplete: () => {
               // Phase 4: Return to idle animations with idle scale
               if (this.anims.exists(`${p1Char}_idle`)) {
-                this.player1Sprite.setScale(IDLE_SCALE);
+                const p1IdleScale = p1Char === "block-bruiser" ? BB_IDLE_SCALE : p1Char === "dag-warrior" ? DW_IDLE_SCALE : p1Char === "hash-hunter" ? HH_IDLE_SCALE : IDLE_SCALE;
+                this.player1Sprite.setScale(p1IdleScale);
                 this.player1Sprite.play(`${p1Char}_idle`);
               }
               if (this.anims.exists(`${p2Char}_idle`)) {
-                this.player2Sprite.setScale(IDLE_SCALE);
+                const p2IdleScale = p2Char === "block-bruiser" ? BB_IDLE_SCALE : p2Char === "dag-warrior" ? DW_IDLE_SCALE : p2Char === "hash-hunter" ? HH_IDLE_SCALE : IDLE_SCALE;
+                this.player2Sprite.setScale(p2IdleScale);
                 this.player2Sprite.play(`${p2Char}_idle`);
               }
 

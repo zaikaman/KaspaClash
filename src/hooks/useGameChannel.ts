@@ -222,6 +222,13 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
     (payload: CharacterSelectedPayload) => {
       console.log("[GameChannel] character_selected:", payload);
 
+      // Only process opponent's selection, not our own
+      // Broadcasts go to all subscribers including the sender, so we must filter
+      if (payload.player === playerRole) {
+        console.log("[GameChannel] Ignoring own character_selected event");
+        return;
+      }
+
       // Emit to Phaser - use event name that CharacterSelectScene expects
       // The scene listens for "opponent_character_confirmed" when opponent locks in
       if (payload.locked && payload.characterId) {
@@ -240,7 +247,7 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
       // Call user callback
       onCharacterSelected?.(payload);
     },
-    [onCharacterSelected]
+    [playerRole, onCharacterSelected]
   );
 
   /**
