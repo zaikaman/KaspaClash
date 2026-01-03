@@ -336,14 +336,14 @@ export class FightScene extends Phaser.Scene {
     const characters = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
 
     characters.forEach((charId) => {
-      // Idle animation (12fps, loops)
+      // Idle animation (24fps, loops)
       const idleKey = `char_${charId}_idle`;
       if (this.textures.exists(idleKey)) {
         if (!this.anims.exists(`${charId}_idle`)) {
           this.anims.create({
             key: `${charId}_idle`,
             frames: this.anims.generateFrameNumbers(idleKey, { start: 0, end: 35 }),
-            frameRate: 12,
+            frameRate: 24,
             repeat: -1,
           });
         }
@@ -424,7 +424,7 @@ export class FightScene extends Phaser.Scene {
           this.anims.create({
             key: fallbackKey,
             frames: this.anims.generateFrameNumbers(idleKey, { start: 0, end: 35 }),
-            frameRate: 12,
+            frameRate: 24,
             repeat: key === 'block' ? -1 : 0,
           });
         }
