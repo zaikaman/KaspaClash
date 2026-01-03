@@ -1,10 +1,44 @@
-import React from "react";
+"use client";
+
+import React, { useState } from "react";
 import LandingLayout from "@/components/landing/LandingLayout";
 import DecorativeLine from "@/components/landing/DecorativeLine";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import RoomCreate from "@/components/matchmaking/RoomCreate";
+import RoomJoin from "@/components/matchmaking/RoomJoin";
+
+type ViewState = "main" | "create" | "join";
 
 export default function MatchmakingPage() {
+    const [view, setView] = useState<ViewState>("main");
+
+    // If showing create or join view, render in centered container
+    if (view !== "main") {
+        return (
+            <LandingLayout>
+                <div className="relative w-full min-h-screen pt-32 pb-20">
+                    {/* Background Grid Lines */}
+                    <div className="absolute top-0 bottom-0 left-[70.5px] w-px bg-cyber-orange/10 hidden md:block pointer-events-none"></div>
+                    <div className="absolute top-0 bottom-0 right-[70.5px] w-px bg-cyber-gold/10 hidden md:block pointer-events-none"></div>
+
+                    <div className="container mx-auto px-6 lg:px-12 xl:px-24 relative z-10 flex justify-center">
+                        {view === "create" && (
+                            <RoomCreate
+                                onCancel={() => setView("main")}
+                            />
+                        )}
+                        {view === "join" && (
+                            <RoomJoin
+                                onCancel={() => setView("main")}
+                            />
+                        )}
+                    </div>
+                </div>
+            </LandingLayout>
+        );
+    }
+
     return (
         <LandingLayout>
             <div className="relative w-full min-h-screen pt-32 pb-20">
@@ -63,7 +97,10 @@ export default function MatchmakingPage() {
                                     Host a private match. Generate a code and challenge a friend directly.
                                 </p>
 
-                                <Button className="w-full bg-transparent border border-cyber-blue text-cyber-blue font-orbitron hover:bg-cyber-blue/10">
+                                <Button
+                                    onClick={() => setView("create")}
+                                    className="w-full bg-transparent border border-cyber-blue text-cyber-blue font-orbitron hover:bg-cyber-blue/10"
+                                >
                                     CREATE LOBBY
                                 </Button>
                             </div>
@@ -85,15 +122,11 @@ export default function MatchmakingPage() {
                                     Have a code? Enter it here to join an existing lobby.
                                 </p>
 
-                                <div className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        placeholder="ROOM CODE"
-                                        className="bg-black/50 border border-cyber-gray/30 rounded px-3 py-2 text-white w-full focus:outline-none focus:border-cyber-orange font-mono text-sm"
-                                    />
-                                </div>
-                                <Button className="w-full mt-4 bg-transparent border border-cyber-orange text-cyber-orange font-orbitron hover:bg-cyber-orange/10">
-                                    JOIN
+                                <Button
+                                    onClick={() => setView("join")}
+                                    className="w-full bg-transparent border border-cyber-orange text-cyber-orange font-orbitron hover:bg-cyber-orange/10"
+                                >
+                                    ENTER CODE
                                 </Button>
                             </div>
                         </div>

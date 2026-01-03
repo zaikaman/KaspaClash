@@ -1,10 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Copy, Check, Loader2 } from "lucide-react";
 import { useWallet } from "@/hooks/useWallet";
+import { getSupabaseClient } from "@/lib/supabase/client";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 interface RoomCreateProps {
   onRoomCreated?: (matchId: string, roomCode: string) => void;
@@ -12,12 +15,55 @@ interface RoomCreateProps {
 }
 
 export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps) {
+  const router = useRouter();
   const { address, isConnected } = useWallet();
   const [isCreating, setIsCreating] = useState(false);
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [matchId, setMatchId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
+
+  // Subscribe to match updates when room is created
+  useEffect(() => {
+    if (!matchId) return;
+
+    const supabase = getSupabaseClient();
+    const channel = supabase
+      .channel(`room:${matchId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "matches",
+          filter: `id=eq.${matchId}`,
+        },
+        (payload) => {
+          console.log("[RoomCreate] Match updated:", payload);
+          const newData = payload.new as { player2_address?: string; status?: string };
+
+          // If player2 joined, navigate to match
+          if (newData.player2_address) {
+            console.log("[RoomCreate] Opponent joined! Navigating to match...");
+            router.push(`/match/${matchId}`);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log("[RoomCreate] Subscription status:", status);
+      });
+
+    channelRef.current = channel;
+
+    return () => {
+      console.log("[RoomCreate] Cleaning up subscription");
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, [matchId, router]);
 
   const handleCreateRoom = async () => {
     if (!isConnected || !address) {
@@ -53,7 +99,7 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
 
   const handleCopyCode = async () => {
     if (!roomCode) return;
-    
+
     try {
       await navigator.clipboard.writeText(roomCode);
       setCopied(true);
@@ -62,6 +108,16 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
       // Fallback for browsers without clipboard API
       console.error("Failed to copy to clipboard");
     }
+  };
+
+  const handleCancel = () => {
+    // Clean up subscription before canceling
+    if (channelRef.current) {
+      const supabase = getSupabaseClient();
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+    onCancel?.();
   };
 
   if (roomCode) {
@@ -108,7 +164,7 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
           {/* Cancel Button */}
           <Button
             variant="outline"
-            onClick={onCancel}
+            onClick={handleCancel}
             className="w-full border-red-500/50 text-red-500 hover:bg-red-500/10"
           >
             Cancel Room
@@ -153,7 +209,7 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
 
           <Button
             variant="ghost"
-            onClick={onCancel}
+            onClick={handleCancel}
             className="w-full text-cyber-gray hover:text-white"
           >
             Back
@@ -169,3 +225,4 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
     </Card>
   );
 }
+
