@@ -192,12 +192,15 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
     (payload: MatchEndedPayload) => {
       console.log("[GameChannel] match_ended:", payload);
 
+      // Get final health from current state
+      const { player1Health, player2Health } = useMatchStore.getState().currentRound;
+
       // Update match store
       matchActions.endMatch({
         winner: payload.winner,
         reason: payload.reason,
-        player1FinalHealth: 0, // Would come from last round
-        player2FinalHealth: 0,
+        player1FinalHealth: player1Health,
+        player2FinalHealth: player2Health,
         player1RoundsWon: payload.finalScore.player1RoundsWon,
         player2RoundsWon: payload.finalScore.player2RoundsWon,
         txIds: [], // Collect from rounds

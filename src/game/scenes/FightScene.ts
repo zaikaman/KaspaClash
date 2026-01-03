@@ -163,11 +163,11 @@ export class FightScene extends Phaser.Scene {
           frameWidth: 391,
           frameHeight: 350,
         });
-        // special.webp: 2304x1856 total, 6x6 grid = 36 frames
-        // Frame size: 384x309
+        // special.webp: 3150x2556 total, 6x6 grid = 36 frames
+        // Frame size: 525x426
         this.load.spritesheet(`char_${charId}_special`, `/characters/${charId}/special.webp`, {
-          frameWidth: 384,
-          frameHeight: 309,
+          frameWidth: 525,
+          frameHeight: 426,
         });
       }
     });
@@ -397,6 +397,51 @@ export class FightScene extends Phaser.Scene {
     if (this.anims.exists(`${p2Char}_idle`)) {
       this.player2Sprite.play(`${p2Char}_idle`);
     }
+
+    // Add identifier above the local player
+    this.createPlayerIndicator();
+  }
+
+  private createPlayerIndicator(): void {
+    const isP1You = this.config.playerRole === "player1";
+    const targetSprite = isP1You ? this.player1Sprite : this.player2Sprite;
+
+    // Position above the character
+    // Characters are approx 200-250px tall after scaling (450 * 0.45 = ~200)
+    const x = targetSprite.x;
+    const y = targetSprite.y - 120; // Adjust height based on scaling
+
+    // Create container for the indicator
+    const container = this.add.container(x, y);
+
+    // "YOU" text
+    const text = this.add.text(0, 0, "YOU", {
+      fontFamily: "monospace",
+      fontSize: "14px",
+      color: "#22c55e",
+      fontStyle: "bold",
+      backgroundColor: "#00000080",
+      padding: { x: 4, y: 2 }
+    }).setOrigin(0.5);
+
+    // Arrow pointing down
+    const arrow = this.add.text(0, 20, "▼", {
+      fontFamily: "monospace",
+      fontSize: "14px",
+      color: "#22c55e",
+    }).setOrigin(0.5);
+
+    container.add([text, arrow]);
+
+    // Add a simple bobbing animation
+    this.tweens.add({
+      targets: container,
+      y: y - 10,
+      duration: 1000,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut"
+    });
   }
 
   // ===========================================================================
@@ -427,20 +472,30 @@ export class FightScene extends Phaser.Scene {
 
     // Player labels with character names
     const state = this.combatEngine.getState();
-    const labelStyle = { fontFamily: "monospace", fontSize: "12px", color: "#40e0d0" };
+
+    // Identify local player
+    const isP1You = this.config.playerRole === "player1";
+    const isP2You = this.config.playerRole === "player2";
+
+    // Highlight local player
+    const p1Color = isP1You ? "#22c55e" : "#40e0d0";
+    const p2Color = isP2You ? "#22c55e" : "#40e0d0";
+
+    const p1LabelStyle = { fontFamily: "monospace", fontSize: "12px", color: p1Color, fontStyle: isP1You ? "bold" : "normal" };
+    const p2LabelStyle = { fontFamily: "monospace", fontSize: "12px", color: p2Color, fontStyle: isP2You ? "bold" : "normal" };
 
     this.add.text(
       UI_POSITIONS.HEALTH_BAR.PLAYER1.X,
       UI_POSITIONS.HEALTH_BAR.PLAYER1.Y - 18,
-      `P1: ${state.player1.characterId.toUpperCase()} (${state.player1.maxHp} HP)`,
-      labelStyle
+      `P1${isP1You ? " (YOU)" : ""}: ${state.player1.characterId.toUpperCase()} (${state.player1.maxHp} HP)`,
+      p1LabelStyle
     );
 
     this.add.text(
       UI_POSITIONS.HEALTH_BAR.PLAYER2.X + barWidth,
       UI_POSITIONS.HEALTH_BAR.PLAYER2.Y - 18,
-      `P2: ${state.player2.characterId.toUpperCase()} (${state.player2.maxHp} HP)`,
-      { ...labelStyle, align: "right" }
+      `P2${isP2You ? " (YOU)" : ""}: ${state.player2.characterId.toUpperCase()} (${state.player2.maxHp} HP)`,
+      { ...p2LabelStyle, align: "right" }
     ).setOrigin(1, 0);
   }
 
@@ -1237,7 +1292,28 @@ export class FightScene extends Phaser.Scene {
       this.countdownText.setAlpha(1);
 
       this.time.delayedCall(3000, () => {
-        this.showRematchButton();
+        // Construct detailed result from server state + payload
+        const result = {
+          winner: payload.winner,
+          reason: (payload.reason as any),
+          player1FinalHealth: this.serverState?.player1Health ?? 0,
+          player2FinalHealth: this.serverState?.player2Health ?? 0,
+          player1RoundsWon: this.serverState?.player1RoundsWon ?? 0,
+          player2RoundsWon: this.serverState?.player2RoundsWon ?? 0,
+          txIds: [],
+        };
+
+        // Emit for React components (optional)
+        EventBus.emit("match:ended", { result });
+
+        // Transition to ResultsScene
+        this.scene.start("ResultsScene", {
+          result,
+          playerRole: this.config.playerRole,
+          matchId: this.config.matchId,
+          player1CharacterId: this.config.player1Character,
+          player2CharacterId: this.config.player2Character,
+        });
       });
     });
 
@@ -1765,7 +1841,7 @@ export class FightScene extends Phaser.Scene {
     const PUNCH_SCALE = 0.78;    // punch is 269x260
     const KICK_SCALE = 0.75;    // kick is 345x305
     const BLOCK_SCALE = 0.80;    // block is 391x350 - increased for visual match
-    const SPECIAL_SCALE = 1.10;  // special is 384x309 - increased for visual match
+    const SPECIAL_SCALE = 0.80;  // special is 384x309 - increased for visual match
 
     // Store original positions
     const p1OriginalX = CHARACTER_POSITIONS.PLAYER1.X;

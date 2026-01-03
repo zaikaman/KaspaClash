@@ -14,6 +14,7 @@ import type {
   MatchStatus,
   RoundWinner,
   MatchEndReason,
+  MatchResult,
 } from "@/types";
 import { GAME_CONSTANTS, MOVE_PROPERTIES } from "@/types/constants";
 import { GameState, type GameStateType, getValidTransitions } from "@/lib/game/state-machine";
@@ -47,18 +48,7 @@ export interface MoveSubmission {
   error?: string;
 }
 
-/**
- * Match completion data.
- */
-export interface MatchResult {
-  winner: PlayerRole | null;
-  reason: MatchEndReason;
-  player1FinalHealth: number;
-  player2FinalHealth: number;
-  player1RoundsWon: number;
-  player2RoundsWon: number;
-  txIds: string[];
-}
+
 
 /**
  * Match store state.
@@ -78,7 +68,7 @@ export interface MatchState {
 
   // Move submission
   currentMove: MoveSubmission | null;
-  
+
   // Match result
   result: MatchResult | null;
 
@@ -96,17 +86,17 @@ export interface MatchState {
 
     // Game state transitions
     transitionTo: (newState: GameStateType) => boolean;
-    
+
     // Round management
     startRound: (roundNumber: number) => void;
     updateTimeRemaining: (seconds: number) => void;
-    
+
     // Move management
     selectMove: (move: MoveType) => void;
     submitMove: (move: MoveType, txId: string) => void;
     confirmMove: (playerRole: PlayerRole) => void;
     failMoveSubmission: (error: string) => void;
-    
+
     // Round resolution
     resolveRound: (
       player1Move: MoveType,
@@ -115,14 +105,14 @@ export interface MatchState {
       player2Damage: number
     ) => RoundWinner;
     setRoundWinner: (winner: RoundWinner) => void;
-    
+
     // Match completion
     endMatch: (result: MatchResult) => void;
 
     // Health management
     setPlayerHealth: (player: PlayerRole, health: number) => void;
     applyDamage: (player: PlayerRole, damage: number) => void;
-    
+
     // Error handling
     setError: (error: string | null) => void;
     setLoading: (loading: boolean) => void;

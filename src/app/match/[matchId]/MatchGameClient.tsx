@@ -11,7 +11,6 @@ import { useWalletStore } from "@/stores/wallet-store";
 import { useMatchStore, useMatchActions } from "@/stores/match-store";
 import { useGameChannel } from "@/hooks/useGameChannel";
 import { EventBus } from "@/game/EventBus";
-import { MatchResults } from "@/components/game/MatchResults";
 import { ConnectWalletButton } from "@/components/wallet/ConnectWalletButton";
 import type { Match, PlayerRole } from "@/types";
 
@@ -42,7 +41,10 @@ interface MatchGameClientProps {
 /**
  * Determine which scene to start based on match status.
  */
-function getInitialScene(match: MatchGameClientProps["match"]): "CharacterSelectScene" | "FightScene" {
+function getInitialScene(match: MatchGameClientProps["match"]): "CharacterSelectScene" | "FightScene" | "ResultsScene" {
+  if (match.status === "completed") {
+    return "ResultsScene";
+  }
   // If match is in_progress and both characters are selected, go directly to FightScene
   if (match.status === "in_progress" && match.player1CharacterId && match.player2CharacterId) {
     return "FightScene";
@@ -69,7 +71,6 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
   const { address, connectionState } = useWalletStore();
   const matchStore = useMatchStore();
   const matchActions = useMatchActions();
-  const [showResults, setShowResults] = useState(false);
   const [gameReady, setGameReady] = useState(false);
   // Start with isReconnecting=true for in_progress matches to prevent rendering game before state is fetched
   const needsReconnect = !!(match.status === "in_progress" && match.player1CharacterId && match.player2CharacterId);
@@ -118,9 +119,6 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
     matchId: match.id,
     playerAddress: address || "",
     playerRole: playerRole || "player1",
-    onMatchEnded: () => {
-      setShowResults(true);
-    },
   });
 
   // Notify scene when channel is connected - this allows scene to wait before making API calls
@@ -222,6 +220,24 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
   useEffect(() => {
     if (playerRole && match) {
       matchActions.initMatch(match as Match, playerRole);
+
+      // If match is completed, hydrate the result
+      if (match.status === "completed") {
+        // We might not have full health data here if we just loaded the page
+        // But we have rounds won and winner
+        const winnerRole = match.winnerAddress === match.player1Address ? "player1" :
+          match.winnerAddress === match.player2Address ? "player2" : null;
+
+        matchActions.endMatch({
+          winner: winnerRole,
+          reason: (match as any).endReason || "rounds_won",
+          player1FinalHealth: 0, // Not available in basic match data, would need fetch or optional
+          player2FinalHealth: 0,
+          player1RoundsWon: match.player1RoundsWon,
+          player2RoundsWon: match.player2RoundsWon,
+          txIds: [],
+        });
+      }
     }
   }, [match, playerRole, matchActions]);
 
@@ -229,10 +245,6 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
   useEffect(() => {
     const handleSceneReady = () => {
       setGameReady(true);
-    };
-
-    const handleMatchEnd = () => {
-      setShowResults(true);
     };
 
     // Handle character selection confirmation from Phaser scene
@@ -412,8 +424,8 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
           console.log("[MatchGameClient] Timeout claim result:", result);
 
           if (result.data?.result === "win") {
-            // Victory! Show results
-            setShowResults(true);
+            // Victory! Reload to show results scene
+            window.location.reload();
           } else if (result.data?.result === "cancelled") {
             // Both disconnected - redirect
             window.location.href = "/matchmaking";
@@ -428,7 +440,6 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
 
     console.log("[MatchGameClient] Registering EventBus listeners for selection_confirmed, etc.");
     EventBus.on("scene:ready", handleSceneReady);
-    EventBus.on("match:ended", handleMatchEnd);
     EventBus.on("selection_confirmed", handleSelectionConfirmed);
     EventBus.on("game:submitMove", handleMoveSubmitted);
     EventBus.on("game:claimTimeoutVictory", handleClaimTimeoutVictory);
@@ -437,7 +448,6 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
     return () => {
       console.log("[MatchGameClient] UNREGISTERING EventBus listeners (cleanup)");
       EventBus.off("scene:ready", handleSceneReady);
-      EventBus.off("match:ended", handleMatchEnd);
       EventBus.off("selection_confirmed", handleSelectionConfirmed);
       EventBus.off("game:submitMove", handleMoveSubmitted);
       EventBus.off("game:claimTimeoutVictory", handleClaimTimeoutVictory);
@@ -446,9 +456,9 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
   }, []); // Empty deps - register once, use refs for latest values
 
   // Handle closing results
-  const handleCloseResults = useCallback(() => {
-    setShowResults(false);
-  }, []);
+  // const handleCloseResults = useCallback(() => {
+  //   setShowResults(false);
+  // }, []);
 
   // Check if wallet is connected
   if (connectionState !== "connected" || !address) {
@@ -521,18 +531,33 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
         })()}
         <PhaserGame
           currentScene={initialScene}
-          sceneConfig={initialScene === "FightScene" ? {
-            matchId: match.id,
-            player1Address: match.player1Address,
-            player2Address: match.player2Address || "",
-            player1Character: match.player1CharacterId || "dag-warrior",
-            player2Character: match.player2CharacterId || "dag-warrior",
-            playerRole: playerRole,
-            // Pass reconnect state if available
-            isReconnect: !!reconnectState,
-            reconnectState: reconnectState?.gameState,
-          } as any : (() => {
-            const config = {
+          sceneConfig={
+            initialScene === "FightScene" ? {
+              matchId: match.id,
+              player1Address: match.player1Address,
+              player2Address: match.player2Address || "",
+              player1Character: match.player1CharacterId || "dag-warrior",
+              player2Character: match.player2CharacterId || "dag-warrior",
+              playerRole: playerRole,
+              // Pass reconnect state if available
+              isReconnect: !!reconnectState,
+              reconnectState: reconnectState?.gameState,
+            } : initialScene === "ResultsScene" ? {
+              result: {
+                winner: match.winnerAddress === match.player1Address ? "player1" :
+                  match.winnerAddress === match.player2Address ? "player2" : null,
+                reason: (match as any).endReason || "rounds_won",
+                player1FinalHealth: 0, // Fallback as basic match data lacks this
+                player2FinalHealth: 0,
+                player1RoundsWon: match.player1RoundsWon,
+                player2RoundsWon: match.player2RoundsWon,
+                txIds: [],
+              },
+              playerRole: playerRole,
+              matchId: match.id,
+              player1CharacterId: match.player1CharacterId || "dag-warrior",
+              player2CharacterId: match.player2CharacterId || "dag-warrior",
+            } : {
               matchId: match.id,
               playerAddress: address,
               opponentAddress:
@@ -549,23 +574,11 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
               existingOpponentCharacter: playerRole === "player1"
                 ? match.player2CharacterId
                 : match.player1CharacterId,
-            };
-            console.log("[MatchGameClient] CharacterSelectScene config:", config);
-            console.log("[MatchGameClient] Match data - p1Char:", match.player1CharacterId, "p2Char:", match.player2CharacterId);
-            return config;
-          })() as any}
+            } as any
+          }
         />
       </div>
 
-      {/* Match results overlay */}
-      {showResults && matchStore.result && (
-        <MatchResults
-          matchId={match.id}
-          result={matchStore.result}
-          playerRole={playerRole}
-          onClose={handleCloseResults}
-        />
-      )}
     </div>
   );
 }

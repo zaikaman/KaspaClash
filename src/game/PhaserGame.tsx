@@ -99,6 +99,7 @@ export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
           const { BASE_GAME_CONFIG } = await import("./config");
           const { FightScene } = await import("./scenes/FightScene");
           const { CharacterSelectScene } = await import("./scenes/CharacterSelectScene");
+          const { ResultsScene } = await import("./scenes/ResultsScene");
 
           if (!isMounted) return;
 
@@ -116,6 +117,7 @@ export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
           // Add scenes manually (they won't auto-start)
           gameRef.current.scene.add("CharacterSelectScene", CharacterSelectScene, false);
           gameRef.current.scene.add("FightScene", FightScene, false);
+          gameRef.current.scene.add("ResultsScene", ResultsScene, false);
 
           // Start the initial scene with data when game is ready
           // CRITICAL: Use refs to get the LATEST config values when "ready" fires

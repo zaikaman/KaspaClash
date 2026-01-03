@@ -208,3 +208,16 @@ export type RoundWinner = "player1" | "player2" | "draw";
  * Match end reason.
  */
 export type MatchEndReason = "knockout" | "rounds_won" | "forfeit" | "timeout";
+
+/**
+ * Match completion data.
+ */
+export interface MatchResult {
+  winner: PlayerRole | null;
+  reason: MatchEndReason;
+  player1FinalHealth: number;
+  player2FinalHealth: number;
+  player1RoundsWon: number;
+  player2RoundsWon: number;
+  txIds: string[];
+}
