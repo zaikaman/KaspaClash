@@ -259,19 +259,19 @@ export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
               backgroundColor: "#0a0a0a",
             }}
           >
-            <div style={{ textAlign: "center", color: "#40e0d0" }}>
+            <div style={{ textAlign: "center", color: "#F0B71F" }}>
               <div
                 style={{
                   width: 48,
                   height: 48,
-                  border: "4px solid #40e0d0",
+                  border: "4px solid #F0B71F",
                   borderTopColor: "transparent",
                   borderRadius: "50%",
                   margin: "0 auto 16px",
                   animation: "spin 1s linear infinite",
                 }}
               />
-              <p>Loading game engine...</p>
+              <p className="font-orbitron tracking-widest text-cyber-gold uppercase text-sm">Loading game engine...</p>
               <style>
                 {`@keyframes spin { to { transform: rotate(360deg); } }`}
               </style>

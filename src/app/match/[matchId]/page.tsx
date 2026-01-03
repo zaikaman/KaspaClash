@@ -16,8 +16,8 @@ function MatchLoading() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-[#0a0a0a]">
       <div className="text-center">
-        <div className="w-16 h-16 border-4 border-[#49eacb] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-[#49eacb] text-lg font-medium">Loading match...</p>
+        <div className="w-16 h-16 border-4 border-[#F0B71F] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-cyber-gold text-lg font-medium font-orbitron tracking-widest uppercase">Loading match...</p>
       </div>
     </div>
   );

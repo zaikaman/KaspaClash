@@ -496,8 +496,8 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
   if (isReconnecting) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-[#0a0a0a] p-4">
-        <div className="w-16 h-16 border-4 border-[#49eacb] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-[#49eacb] text-lg font-medium">Reconnecting to match...</p>
+        <div className="w-16 h-16 border-4 border-[#F0B71F] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-cyber-gold text-lg font-medium font-orbitron tracking-widest uppercase">Reconnecting to match...</p>
       </div>
     );
   }
@@ -505,18 +505,20 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
   return (
     <div className="relative min-h-screen bg-[#0a0a0a]">
       {/* Match info header */}
-      <div className="absolute top-0 left-0 right-0 z-10 flex justify-between items-center p-4 bg-gradient-to-b from-black/50 to-transparent">
+      <div className="absolute top-0 left-0 right-0 z-10 flex justify-between items-center p-4 bg-gradient-to-b from-black/80 to-transparent">
         <div className="flex items-center gap-4">
-          <span className="text-[#49eacb] font-bold">KaspaClash</span>
+          <span className="text-2xl font-bold font-orbitron text-white tracking-wider drop-shadow-[0_0_10px_rgba(240,183,31,0.5)]">
+            KASPA<span className="text-cyber-gold">CLASH</span>
+          </span>
           {!channelState.isConnected && (
-            <span className="text-yellow-400 text-sm flex items-center gap-1">
-              <span className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
-              Connecting...
+            <span className="text-cyber-gold text-sm flex items-center gap-1 font-orbitron tracking-wide">
+              <span className="w-2 h-2 bg-cyber-gold rounded-full animate-pulse" />
+              CONNECTING...
             </span>
           )}
         </div>
-        <div className="text-gray-400 text-sm">
-          Match: {match.id.slice(0, 8)}
+        <div className="text-cyber-gray text-xs font-orbitron tracking-widest opacity-80">
+          MATCH: <span className="text-cyber-gold">{match.id.slice(0, 8)}</span>
         </div>
       </div>
 
