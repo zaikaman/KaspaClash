@@ -71,7 +71,9 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
   const matchActions = useMatchActions();
   const [showResults, setShowResults] = useState(false);
   const [gameReady, setGameReady] = useState(false);
-  const [isReconnecting, setIsReconnecting] = useState(false);
+  // Start with isReconnecting=true for in_progress matches to prevent rendering game before state is fetched
+  const needsReconnect = !!(match.status === "in_progress" && match.player1CharacterId && match.player2CharacterId);
+  const [isReconnecting, setIsReconnecting] = useState(needsReconnect);
   const [reconnectState, setReconnectState] = useState<{
     gameState?: {
       status: string;
@@ -132,13 +134,27 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
 
   // Handle reconnection on mount
   useEffect(() => {
-    if (!address || !playerRole || !match.id) return;
+    console.log("[MatchGameClient] Reconnection useEffect triggered");
+    console.log("[MatchGameClient] address:", address ? address.substring(0, 20) + "..." : "NULL");
+    console.log("[MatchGameClient] playerRole:", playerRole);
+    console.log("[MatchGameClient] match.status:", match.status);
+    console.log("[MatchGameClient] needsReconnect (from initial):", needsReconnect);
+
+    if (!address || !playerRole || !match.id) {
+      console.log("[MatchGameClient] Skipping reconnection - missing dependencies");
+      return;
+    }
 
     // Check if we're reconnecting to an active match
     const handleReconnection = async () => {
       // Only handle reconnection for in_progress matches
-      if (match.status !== "in_progress") return;
+      if (match.status !== "in_progress") {
+        console.log("[MatchGameClient] Skipping reconnection - not in_progress");
+        setIsReconnecting(false);
+        return;
+      }
 
+      console.log("[MatchGameClient] Starting reconnection fetch...");
       setIsReconnecting(true);
       try {
         const response = await fetch(`/api/matches/${match.id}/disconnect`, {
@@ -152,24 +168,31 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
 
         if (response.ok) {
           const result = await response.json();
-          console.log("[MatchGameClient] Reconnection successful:", result);
+          console.log("[MatchGameClient] Reconnection API response:", result);
 
           if (result.data?.gameState) {
+            console.log("[MatchGameClient] Setting reconnectState with gameState:", result.data.gameState);
             setReconnectState({ gameState: result.data.gameState });
 
             // Emit state sync event to Phaser
             EventBus.emit("game:stateSync", result.data.gameState);
+          } else {
+            console.log("[MatchGameClient] No gameState in response!");
           }
+        } else {
+          console.error("[MatchGameClient] Reconnection API failed:", response.status);
         }
       } catch (error) {
         console.error("[MatchGameClient] Reconnection error:", error);
       } finally {
+        console.log("[MatchGameClient] Reconnection complete, setting isReconnecting=false");
         setIsReconnecting(false);
       }
     };
 
     handleReconnection();
-  }, [address, playerRole, match.id, match.status]);
+  }, [address, playerRole, match.id, match.status, needsReconnect]);
+
 
   // Handle page unload - notify disconnect
   useEffect(() => {
@@ -489,6 +512,13 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
 
       {/* Phaser game container */}
       <div className="w-full h-screen">
+        {(() => {
+          console.log("[MatchGameClient] Rendering PhaserGame with:");
+          console.log("[MatchGameClient]   initialScene:", initialScene);
+          console.log("[MatchGameClient]   reconnectState:", reconnectState);
+          console.log("[MatchGameClient]   isReconnect:", !!reconnectState);
+          return null;
+        })()}
         <PhaserGame
           currentScene={initialScene}
           sceneConfig={initialScene === "FightScene" ? {

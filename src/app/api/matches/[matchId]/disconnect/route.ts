@@ -230,10 +230,26 @@ export async function POST(
         .single();
 
       // Check if we have pending moves in current round
+      // A round is resolved if:
+      // 1. Both players have submitted moves
+      // 2. OR a winner is declared (e.g. from rejection or KO)
+      const hasWinner = !!currentRound?.winner_address;
+      const bothMoved = !!currentRound?.player1_move && !!currentRound?.player2_move;
+      const isRoundResolved = hasWinner || bothMoved;
+
       const pendingMoves = {
-        player1: !!currentRound?.player1_move,
-        player2: !!currentRound?.player2_move,
+        player1: !isRoundResolved && !!currentRound?.player1_move,
+        player2: !isRoundResolved && !!currentRound?.player2_move,
       };
+
+      console.log("[Disconnect API] Round state:", {
+        roundNumber: currentRound?.round_number,
+        hasWinner,
+        player1Move: currentRound?.player1_move,
+        player2Move: currentRound?.player2_move,
+        isRoundResolved,
+        pendingMoves
+      });
 
       // Broadcast reconnect event
       const gameChannel = supabase.channel(`game:${matchId}`);
@@ -252,9 +268,10 @@ export async function POST(
       // Default values for when round data isn't available
       const defaultHealth = 100;
       const defaultEnergy = 100;
-      
-      // Calculate move deadline (if in active round, give them the remaining time)
-      const moveDeadlineAt = match.status === "in_progress" && currentRound && !currentRound.winner_address
+
+      // Calculate move deadline
+      // If match is in progress, always give them time to move (either for current or next round)
+      const moveDeadlineAt = match.status === "in_progress"
         ? Date.now() + 15000 // Give them 15 seconds to make a move
         : null;
 

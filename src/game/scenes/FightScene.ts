@@ -207,11 +207,20 @@ export class FightScene extends Phaser.Scene {
     // Setup event listeners
     this.setupEventListeners();
 
-    // Update UI with initial state
-    this.syncUIWithCombatState();
+    // Check if we have reconnect state passed via config
+    console.log("[FightScene] create() - checking reconnect config");
+    console.log("[FightScene] config.isReconnect:", this.config.isReconnect);
+    console.log("[FightScene] config.reconnectState:", this.config.reconnectState);
 
-    // Start the first round
-    this.startRound();
+    if (this.config.isReconnect && this.config.reconnectState) {
+      console.log("[FightScene] Reconnect mode - applying server state from config");
+      this.handleStateSync(this.config.reconnectState);
+    } else {
+      // Update UI with initial state and start normally
+      console.log("[FightScene] Normal mode - starting fresh");
+      this.syncUIWithCombatState();
+      this.startRound();
+    }
 
     // Emit scene ready event
     EventBus.emit("scene:ready", this);
@@ -1499,22 +1508,37 @@ export class FightScene extends Phaser.Scene {
       `Round ${state.currentRound}  •  ${state.player1RoundsWon} - ${state.player2RoundsWon}  (First to 3)`
     );
 
-    // If there's a move deadline, start the selection phase
+    // If there's an active move deadline, start/continue the selection phase
+    console.log("[FightScene] handleStateSync - checking deadline:");
+    console.log("[FightScene]   moveDeadlineAt:", state.moveDeadlineAt);
+    console.log("[FightScene]   Date.now():", Date.now());
+    console.log("[FightScene]   deadline > now?:", state.moveDeadlineAt ? state.moveDeadlineAt > Date.now() : false);
+    console.log("[FightScene]   pendingMoves:", state.pendingMoves);
+    console.log("[FightScene]   playerRole:", this.config.playerRole);
+
     if (state.moveDeadlineAt && state.moveDeadlineAt > Date.now()) {
       const myRole = this.config.playerRole;
       const hasPendingMove = myRole === "player1" ? state.pendingMoves.player1 : state.pendingMoves.player2;
 
+      console.log("[FightScene]   hasPendingMove:", hasPendingMove);
+
       if (hasPendingMove) {
         // We already submitted a move - wait for opponent
+        console.log("[FightScene] Decision: Already submitted move, waiting for opponent");
         this.phase = "selecting";
         this.isWaitingForOpponent = true;
         this.turnIndicatorText.setText("Waiting for opponent...");
         this.turnIndicatorText.setColor("#f97316");
         this.moveButtons.forEach(btn => btn.setAlpha(0.4).disableInteractive());
       } else {
-        // We need to make a move
+        // We need to make a move - start synchronized selection with server deadline
+        console.log("[FightScene] Decision: Need to make move, starting synchronized selection phase");
         this.startSynchronizedSelectionPhase(state.moveDeadlineAt);
       }
+    } else {
+      // No active deadline - start a fresh round countdown
+      console.log("[FightScene] Decision: No active deadline, starting fresh round");
+      this.startRound();
     }
   }
 
@@ -1741,7 +1765,7 @@ export class FightScene extends Phaser.Scene {
     const PUNCH_SCALE = 0.78;    // punch is 269x260
     const KICK_SCALE = 0.75;    // kick is 345x305
     const BLOCK_SCALE = 0.80;    // block is 391x350 - increased for visual match
-    const SPECIAL_SCALE = 0.99;  // special is 384x309 - increased for visual match
+    const SPECIAL_SCALE = 1.10;  // special is 384x309 - increased for visual match
 
     // Store original positions
     const p1OriginalX = CHARACTER_POSITIONS.PLAYER1.X;
