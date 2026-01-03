@@ -132,13 +132,20 @@ export async function submitMoveWithTransaction(
   const { matchId, roundNumber, moveType } = options;
   const timestamp = Date.now();
 
+  console.log("[MoveService] submitMoveWithTransaction() called");
+  console.log("[MoveService] moveType:", moveType, "matchId:", matchId);
+
   try {
     // Import wallet functions
     const { getConnectedAddress, sendKaspa } = await import("@/lib/kaspa/wallet");
     const { buildOpReturnData, MIN_TRANSACTION_AMOUNT } = await import("@/lib/kaspa/move-transaction");
 
+    console.log("[MoveService] Checking wallet connection...");
     const address = getConnectedAddress();
+    console.log("[MoveService] getConnectedAddress() returned:", address ? address.substring(0, 20) + "..." : "NULL");
+
     if (!address) {
+      console.error("[MoveService] WALLET NOT CONNECTED - returning early with error!");
       return {
         success: false,
         moveType,

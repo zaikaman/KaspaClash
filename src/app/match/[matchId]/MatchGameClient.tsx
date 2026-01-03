@@ -302,7 +302,20 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
     // Handle move submission from Phaser - uses REAL Kaspa transactions
     const handleMoveSubmitted = async (data: unknown) => {
       const payload = data as { moveType: string; matchId: string };
-      if (!address || !match.id) return;
+
+      // Use refs for latest values (avoids stale closure after page refresh)
+      const currentAddress = addressRef.current;
+      const currentMatchId = matchIdRef.current;
+
+      console.log("[MatchGameClient] handleMoveSubmitted() called at:", Date.now());
+      console.log("[MatchGameClient] payload:", payload);
+      console.log("[MatchGameClient] currentAddress from ref:", currentAddress ? currentAddress.substring(0, 20) + "..." : "NULL");
+      console.log("[MatchGameClient] React connectionState:", useWalletStore.getState().connectionState);
+
+      if (!currentAddress || !currentMatchId) {
+        console.error("[MatchGameClient] Missing address or match.id!", { currentAddress, currentMatchId });
+        return;
+      }
 
       console.log("[MatchGameClient] Submitting move with real transaction:", payload.moveType);
 
@@ -311,7 +324,7 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
         const { submitMoveWithTransaction } = await import("@/lib/game/move-service");
 
         const result = await submitMoveWithTransaction({
-          matchId: match.id,
+          matchId: currentMatchId,
           roundNumber: matchStore.currentRound.roundNumber,
           moveType: payload.moveType as any,
           useFullTransaction: true,
@@ -321,11 +334,11 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
           console.log("[MatchGameClient] Transaction submitted:", result.txId);
 
           // Submit to API with real txId
-          const response = await fetch(`/api/matches/${match.id}/move`, {
+          const response = await fetch(`/api/matches/${currentMatchId}/move`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              address: address,
+              address: currentAddress,
               moveType: payload.moveType,
               txId: result.txId,
             }),
@@ -344,27 +357,31 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
           EventBus.emit("game:moveError", { error: result.error || "Failed to create transaction" });
 
           // Notify server that this player rejected the transaction
-          await handleTransactionRejection(match.id, address);
+          await handleTransactionRejection(currentMatchId, currentAddress);
         }
       } catch (error) {
         console.error("Error submitting move:", error);
         EventBus.emit("game:moveError", { error: "Transaction error" });
 
         // Also report rejection on error
-        await handleTransactionRejection(match.id, address);
+        if (currentMatchId && currentAddress) {
+          await handleTransactionRejection(currentMatchId, currentAddress);
+        }
       }
     };
 
     // Handle timeout victory claim
     const handleClaimTimeoutVictory = async (data: unknown) => {
       const payload = data as { matchId: string };
-      if (!address || !payload.matchId) return;
+      const currentAddress = addressRef.current;
+
+      if (!currentAddress || !payload.matchId) return;
 
       try {
         const response = await fetch(`/api/matches/${payload.matchId}/timeout`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ address }),
+          body: JSON.stringify({ address: currentAddress }),
         });
 
         if (response.ok) {

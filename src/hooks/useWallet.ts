@@ -175,7 +175,8 @@ export function useWallet(): UseWalletReturn {
       // If we have a stored address but wallet not connected, try to silently reconnect
       if (store.address && !isWalletConnected()) {
         try {
-          console.log("Auto-reconnecting wallet for address:", store.address);
+          console.log("[useWallet] Auto-reconnecting wallet at:", Date.now());
+          console.log("[useWallet] Stored address:", store.address?.substring(0, 20) + "...");
           // tryReconnect uses getAccounts() which doesn't prompt user
           const result = await tryReconnect();
           if (result) {
@@ -188,18 +189,23 @@ export function useWallet(): UseWalletReturn {
             } catch (e) {
               console.warn("Failed to fetch balance after reconnect:", e);
             }
-            console.log("Wallet auto-reconnected successfully");
+            console.log("[useWallet] Wallet auto-reconnected successfully at:", Date.now());
           } else {
-            console.log("Silent reconnect failed - wallet may require new authorization");
+            console.log("[useWallet] Silent reconnect failed - wallet may require new authorization");
             // Don't clear state - user may want to manually reconnect
           }
         } catch (error) {
-          console.warn("Auto-reconnect failed:", error);
+          console.warn("[useWallet] Auto-reconnect failed:", error);
         }
+      } else {
+        console.log("[useWallet] Auto-reconnect skipped - no stored address or already connected");
+        console.log("[useWallet] store.address:", store.address ? store.address.substring(0, 20) + "..." : "NULL");
+        console.log("[useWallet] isWalletConnected():", isWalletConnected());
       }
     };
 
     // Small delay to let wallet extension initialize
+    console.log("[useWallet] Scheduling auto-reconnect in 300ms at:", Date.now());
     const timer = setTimeout(autoReconnect, 300);
     return () => clearTimeout(timer);
   }, [hasHydrated, store]);

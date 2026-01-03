@@ -193,6 +193,8 @@ export async function disconnectWallet(): Promise<void> {
  * Get the current connected address.
  */
 export function getConnectedAddress(): KaspaAddress | null {
+  console.log("[Wallet] getConnectedAddress() called - currentAddress:", currentAddress ? currentAddress.substring(0, 20) + "..." : "NULL");
+  console.log("[Wallet] getConnectedAddress() - currentWallet exists:", currentWallet !== null);
   return currentAddress;
 }
 
@@ -291,7 +293,12 @@ export async function sendKaspa(
   sompi: number,
   payload?: string
 ): Promise<string> {
+  console.log("[Wallet] sendKaspa() called");
+  console.log("[Wallet] sendKaspa() - currentWallet exists:", currentWallet !== null);
+  console.log("[Wallet] sendKaspa() - currentAddress:", currentAddress ? currentAddress.substring(0, 20) + "..." : "NULL");
+
   if (!currentWallet || !currentAddress) {
+    console.error("[Wallet] sendKaspa() FAILED - wallet not connected!");
     throw new Error("No wallet connected");
   }
 
