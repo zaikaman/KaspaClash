@@ -245,7 +245,8 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
    */
   const handleMatchStarting = useCallback(
     (payload: MatchStartingPayload) => {
-      console.log("[GameChannel] match_starting:", payload);
+      console.log("[GameChannel] match_starting received at:", Date.now());
+      console.log("[GameChannel] match_starting payload:", JSON.stringify(payload));
 
       // Transition game state
       matchActions.transitionTo(GameState.COUNTDOWN);

@@ -605,12 +605,12 @@ export class FightScene extends Phaser.Scene {
 
   private createMoveButtons(): void {
     const moves: MoveType[] = ["punch", "kick", "block", "special"];
-    const buttonWidth = 130;
-    const buttonHeight = 90;
+    const buttonWidth = 220;
+    const buttonHeight = 120;
     const spacing = 15;
     const totalWidth = moves.length * buttonWidth + (moves.length - 1) * spacing;
     const startX = (GAME_DIMENSIONS.WIDTH - totalWidth) / 2;
-    const y = GAME_DIMENSIONS.HEIGHT - 110;
+    const y = GAME_DIMENSIONS.HEIGHT - 125;
 
     // Label for player buttons
     this.add.text(
@@ -655,16 +655,18 @@ export class FightScene extends Phaser.Scene {
 
     // Damage/info
     const infoText = this.getMoveInfoText(move);
-    const info = this.add.text(width / 2, 45, infoText, {
+    const info = this.add.text(width / 2, 58, infoText, {
       fontFamily: "monospace",
       fontSize: "10px",
       color: "#888888",
+      align: "center",
+      wordWrap: { width: width - 20 }
     }).setOrigin(0.5);
 
     // Energy cost
     const cost = BASE_MOVE_STATS[move].energyCost;
     const costText = cost > 0 ? `${cost} EN` : "FREE";
-    const costLabel = this.add.text(width / 2, 65, costText, {
+    const costLabel = this.add.text(width / 2, 95, costText, {
       fontFamily: "monospace",
       fontSize: "10px",
       color: cost > 0 ? "#3b82f6" : "#22c55e",
@@ -756,8 +758,8 @@ export class FightScene extends Phaser.Scene {
     if (!container) return;
 
     const bg = container.getAt(0) as Phaser.GameObjects.Graphics;
-    const width = 130;
-    const height = 90;
+    const width = 220;
+    const height = 120;
     const baseColor = 0x2d2d44;
     const highlightColor = 0x40e0d0;
 
@@ -1286,11 +1288,11 @@ export class FightScene extends Phaser.Scene {
 
     // Listen for opponent disconnect
     EventBus.on("game:playerDisconnected", (data: unknown) => {
-      const payload = data as { 
-        player: "player1" | "player2"; 
-        address: string; 
-        disconnectedAt: number; 
-        timeoutSeconds: number; 
+      const payload = data as {
+        player: "player1" | "player2";
+        address: string;
+        disconnectedAt: number;
+        timeoutSeconds: number;
       };
 
       // Only show overlay if opponent disconnected
@@ -1301,10 +1303,10 @@ export class FightScene extends Phaser.Scene {
 
     // Listen for opponent reconnect
     EventBus.on("game:playerReconnected", (data: unknown) => {
-      const payload = data as { 
-        player: "player1" | "player2"; 
-        address: string; 
-        reconnectedAt: number; 
+      const payload = data as {
+        player: "player1" | "player2";
+        address: string;
+        reconnectedAt: number;
       };
 
       // Only hide overlay if it was the opponent who reconnected
@@ -1401,7 +1403,7 @@ export class FightScene extends Phaser.Scene {
       delay: 1000,
       callback: () => {
         const remaining = Math.max(0, Math.ceil((this.disconnectTimeoutAt - Date.now()) / 1000));
-        
+
         if (this.disconnectTimerText) {
           this.disconnectTimerText.setText(`Waiting for reconnection: ${remaining}s`);
         }
@@ -1737,7 +1739,7 @@ export class FightScene extends Phaser.Scene {
     const IDLE_SCALE = 0.45;
     const RUN_SCALE = 0.71;      // run is 213x287
     const PUNCH_SCALE = 0.78;    // punch is 269x260
-    const KICK_SCALE = 0.665;    // kick is 345x305
+    const KICK_SCALE = 0.75;    // kick is 345x305
     const BLOCK_SCALE = 0.80;    // block is 391x350 - increased for visual match
     const SPECIAL_SCALE = 0.99;  // special is 384x309 - increased for visual match
 

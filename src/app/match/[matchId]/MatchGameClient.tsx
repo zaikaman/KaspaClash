@@ -5,7 +5,7 @@
 
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useWalletStore } from "@/stores/wallet-store";
 import { useMatchStore, useMatchActions } from "@/stores/match-store";
@@ -89,6 +89,17 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
     };
   } | null>(null);
 
+  // Use refs to track latest values for stable event handlers
+  const addressRef = useRef(address);
+  const matchIdRef = useRef(match.id);
+
+  // Keep refs in sync with latest values
+  useEffect(() => {
+    addressRef.current = address;
+    matchIdRef.current = match.id;
+  }, [address, match.id]);
+
+
   // Determine player role
   const playerRole: PlayerRole | null =
     address === match.player1Address
@@ -113,7 +124,8 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
   // Notify scene when channel is connected - this allows scene to wait before making API calls
   useEffect(() => {
     if (channelState.isSubscribed) {
-      console.log("[MatchGameClient] Channel subscribed, notifying scene");
+      console.log("[MatchGameClient] Channel subscribed at:", Date.now());
+      console.log("[MatchGameClient] Emitting channel_ready event now");
       EventBus.emit("channel_ready", { matchId: match.id });
     }
   }, [channelState.isSubscribed, match.id]);
@@ -203,14 +215,23 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
     // Handle character selection confirmation from Phaser scene
     const handleSelectionConfirmed = async (data: unknown) => {
       const payload = data as { characterId: string };
-      if (!address || !match.id) return;
+      console.log("[MatchGameClient] handleSelectionConfirmed called with:", payload);
+
+      const currentAddress = addressRef.current;
+      const currentMatchId = matchIdRef.current;
+
+      if (!currentAddress || !currentMatchId) {
+        console.log("[MatchGameClient] Missing address or match.id, aborting", { currentAddress, currentMatchId });
+        return;
+      }
 
       try {
-        const response = await fetch(`/api/matches/${match.id}/select`, {
+        console.log("[MatchGameClient] Calling /api/matches/" + currentMatchId + "/select...");
+        const response = await fetch(`/api/matches/${currentMatchId}/select`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            playerAddress: address,
+            playerAddress: currentAddress,
             characterId: payload.characterId,
             confirm: true,
           }),
@@ -220,17 +241,21 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
           console.error("Failed to confirm character selection:", await response.text());
         } else {
           const result = await response.json();
-          console.log("[MatchGameClient] Character selection confirmed:", result);
+          console.log("[MatchGameClient] Character selection API response:", JSON.stringify(result));
 
           // If matchReady is true, trigger match start locally
           // This handles the case where we lost the race and missed the broadcast
           if (result.data?.matchReady) {
-            console.log("[MatchGameClient] Match is ready, triggering local match_starting");
+            console.log("[MatchGameClient] matchReady=true, emitting local match_starting event");
+            console.log("[MatchGameClient] player1CharacterId:", result.data.player1CharacterId || match.player1CharacterId);
+            console.log("[MatchGameClient] player2CharacterId:", result.data.player2CharacterId || match.player2CharacterId);
             EventBus.emit("match_starting", {
               countdown: 3,
               player1CharacterId: result.data.player1CharacterId || match.player1CharacterId,
               player2CharacterId: result.data.player2CharacterId || match.player2CharacterId,
             });
+          } else {
+            console.log("[MatchGameClient] matchReady=false, waiting for broadcast");
           }
         }
       } catch (error) {
@@ -361,20 +386,24 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       }
     };
 
+    console.log("[MatchGameClient] Registering EventBus listeners for selection_confirmed, etc.");
     EventBus.on("scene:ready", handleSceneReady);
     EventBus.on("match:ended", handleMatchEnd);
     EventBus.on("selection_confirmed", handleSelectionConfirmed);
     EventBus.on("game:submitMove", handleMoveSubmitted);
     EventBus.on("game:claimTimeoutVictory", handleClaimTimeoutVictory);
+    console.log("[MatchGameClient] EventBus listeners registered at:", Date.now());
 
     return () => {
+      console.log("[MatchGameClient] UNREGISTERING EventBus listeners (cleanup)");
       EventBus.off("scene:ready", handleSceneReady);
       EventBus.off("match:ended", handleMatchEnd);
       EventBus.off("selection_confirmed", handleSelectionConfirmed);
       EventBus.off("game:submitMove", handleMoveSubmitted);
       EventBus.off("game:claimTimeoutVictory", handleClaimTimeoutVictory);
     };
-  }, [address, match.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - register once, use refs for latest values
 
   // Handle closing results
   const handleCloseResults = useCallback(() => {

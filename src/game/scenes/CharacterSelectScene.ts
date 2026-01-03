@@ -130,6 +130,14 @@ export class CharacterSelectScene extends Phaser.Scene {
    * Create scene elements.
    */
   create(): void {
+    console.log("[CharacterSelectScene] create() called");
+    console.log("[CharacterSelectScene] Config:", JSON.stringify({
+      matchId: this.config.matchId,
+      isHost: this.config.isHost,
+      existingPlayerCharacter: this.config.existingPlayerCharacter,
+      existingOpponentCharacter: this.config.existingOpponentCharacter,
+    }));
+
     this.createBackground();
     this.createTitle();
     this.createCharacterGrid();
@@ -151,6 +159,7 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     // Notify that scene is ready
     EventBus.emit("character_select_ready", { matchId: this.config.matchId });
+    console.log("[CharacterSelectScene] create() complete, scene ready");
   }
 
   /**
@@ -161,26 +170,37 @@ export class CharacterSelectScene extends Phaser.Scene {
     // If we have existing selections that need to trigger match start, wait for channel
     const needsMatchStart = this.confirmedCharacter && this.opponentCharacter;
     const needsConfirmation = this.confirmedCharacter && !this.opponentCharacter;
-    
+
+    console.log("[CharacterSelectScene] setupChannelReadyHandler:", {
+      hasConfirmedCharacter: !!this.confirmedCharacter,
+      hasOpponentCharacter: !!this.opponentCharacter,
+      needsMatchStart,
+      needsConfirmation,
+    });
+
     if (needsMatchStart || needsConfirmation) {
       console.log("[CharacterSelectScene] Waiting for channel ready before triggering API...");
-      
+
       const handleChannelReady = () => {
-        console.log("[CharacterSelectScene] Channel ready, triggering selection confirmation");
+        console.log("[CharacterSelectScene] channel_ready received! Triggering selection confirmation");
+        console.log("[CharacterSelectScene] confirmedCharacter:", this.confirmedCharacter?.id);
         EventBus.off("channel_ready", handleChannelReady);
-        
+
         // Now safe to emit selection_confirmed - channel is subscribed
         if (this.confirmedCharacter) {
+          console.log("[CharacterSelectScene] Emitting selection_confirmed event");
           EventBus.emit("selection_confirmed", {
             characterId: this.confirmedCharacter.id,
           });
         }
       };
-      
+
       EventBus.on("channel_ready", handleChannelReady);
-      
+      console.log("[CharacterSelectScene] Registered channel_ready listener");
+
       // Also set a timeout fallback in case channel_ready was already emitted
       this.time.delayedCall(500, () => {
+        console.log("[CharacterSelectScene] Timeout fallback check - isActive FightScene:", this.scene.isActive("FightScene"));
         if (this.confirmedCharacter && !this.scene.isActive("FightScene")) {
           console.log("[CharacterSelectScene] Timeout fallback - triggering selection confirmation");
           EventBus.off("channel_ready", handleChannelReady);
@@ -189,6 +209,8 @@ export class CharacterSelectScene extends Phaser.Scene {
           });
         }
       });
+    } else {
+      console.log("[CharacterSelectScene] No pending selections to confirm on channel ready");
     }
   }
 
@@ -200,7 +222,7 @@ export class CharacterSelectScene extends Phaser.Scene {
     console.log("[CharacterSelectScene] restoreExistingSelectionsUI called");
     console.log("[CharacterSelectScene] existingPlayerCharacter:", this.config.existingPlayerCharacter);
     console.log("[CharacterSelectScene] existingOpponentCharacter:", this.config.existingOpponentCharacter);
-    
+
     // Restore player's existing selection
     if (this.config.existingPlayerCharacter) {
       const character = getCharacter(this.config.existingPlayerCharacter);
@@ -454,10 +476,13 @@ export class CharacterSelectScene extends Phaser.Scene {
    * Setup event listeners for WebSocket events.
    */
   private setupEventListeners(): void {
+    console.log("[CharacterSelectScene] Setting up event listeners");
+
     // Opponent selected a character
     EventBus.on(
       "opponent_character_selected",
       (data: unknown) => {
+        console.log("[CharacterSelectScene] Received opponent_character_selected:", data);
         const payload = data as { characterId: string };
         this.onOpponentSelected(payload.characterId);
       }
@@ -467,6 +492,7 @@ export class CharacterSelectScene extends Phaser.Scene {
     EventBus.on(
       "opponent_character_confirmed",
       (data: unknown) => {
+        console.log("[CharacterSelectScene] Received opponent_character_confirmed:", data);
         const payload = data as { characterId: string };
         this.onOpponentConfirmed(payload.characterId);
       }
@@ -474,18 +500,22 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     // Match starting (both players ready)
     EventBus.on("match_starting", (data: unknown) => {
-      const payload = data as { 
-        countdown: number; 
-        player1CharacterId?: string; 
-        player2CharacterId?: string; 
+      console.log("[CharacterSelectScene] Received match_starting event:", data);
+      const payload = data as {
+        countdown: number;
+        player1CharacterId?: string;
+        player2CharacterId?: string;
       };
       this.onMatchStarting(payload);
     });
 
     // Opponent disconnected
     EventBus.on("opponent_disconnected", () => {
+      console.log("[CharacterSelectScene] Received opponent_disconnected");
       this.opponentStatus.setDisconnected();
     });
+
+    console.log("[CharacterSelectScene] Event listeners set up complete");
   }
 
   // ===========================================================================
@@ -524,7 +554,13 @@ export class CharacterSelectScene extends Phaser.Scene {
    * Confirm the character selection.
    */
   private confirmSelection(): void {
-    if (this.isConfirmed || !this.selectedCharacter) return;
+    console.log("[CharacterSelectScene] confirmSelection() called");
+    console.log("[CharacterSelectScene] isConfirmed:", this.isConfirmed, "selectedCharacter:", this.selectedCharacter?.id);
+
+    if (this.isConfirmed || !this.selectedCharacter) {
+      console.log("[CharacterSelectScene] Aborting - already confirmed or no selection");
+      return;
+    }
 
     this.isConfirmed = true;
     this.confirmedCharacter = this.selectedCharacter;
@@ -548,9 +584,11 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.instructionText.setText("Waiting for opponent...");
 
     // Emit confirmation event
+    console.log("[CharacterSelectScene] EMITTING selection_confirmed event with characterId:", this.confirmedCharacter.id);
     EventBus.emit("selection_confirmed", {
       characterId: this.confirmedCharacter.id,
     });
+    console.log("[CharacterSelectScene] selection_confirmed event emitted");
 
     // Check if both players ready
     this.checkBothReady();
@@ -610,40 +648,59 @@ export class CharacterSelectScene extends Phaser.Scene {
   /**
    * Handle match starting countdown.
    */
-  private onMatchStarting(payload: { 
-    countdown: number; 
-    player1CharacterId?: string; 
-    player2CharacterId?: string; 
+  private onMatchStarting(payload: {
+    countdown: number;
+    player1CharacterId?: string;
+    player2CharacterId?: string;
   }): void {
     const { countdown, player1CharacterId, player2CharacterId } = payload;
-    
+
+    console.log("[CharacterSelectScene] onMatchStarting called with:", {
+      countdown,
+      player1CharacterId,
+      player2CharacterId,
+      isHost: this.config.isHost,
+      currentConfirmedCharacter: this.confirmedCharacter?.id,
+      currentOpponentCharacter: this.opponentCharacter?.id,
+    });
+
     // If we received character IDs from the server, use them to set opponent character
     // This ensures we have the opponent's character even if we missed the earlier event
     if (player1CharacterId && player2CharacterId) {
       const opponentCharacterId = this.config.isHost ? player2CharacterId : player1CharacterId;
       const playerCharacterId = this.config.isHost ? player1CharacterId : player2CharacterId;
-      
+
+      console.log("[CharacterSelectScene] Derived character IDs:", {
+        opponentCharacterId,
+        playerCharacterId,
+      });
+
       if (!this.opponentCharacter) {
         const opponent = getCharacter(opponentCharacterId);
+        console.log("[CharacterSelectScene] Setting opponent character:", opponent?.name);
         if (opponent) {
           this.opponentCharacter = opponent;
           this.opponentStatus.showCharacterPreview(opponent.name, opponent.theme);
         }
       }
-      
+
       if (!this.confirmedCharacter) {
         const player = getCharacter(playerCharacterId);
+        console.log("[CharacterSelectScene] Setting player character:", player?.name);
         if (player) {
           this.confirmedCharacter = player;
         }
       }
     }
-    
+
     this.instructionText.setText(`Match starting in ${countdown}...`);
     this.instructionText.setColor("#22c55e");
 
+    console.log("[CharacterSelectScene] Scheduling transition to FightScene in", countdown, "seconds");
+
     // Transition to fight scene after countdown
     this.time.delayedCall(countdown * 1000, () => {
+      console.log("[CharacterSelectScene] Countdown complete, calling transitionToFight()");
       this.transitionToFight();
     });
   }

@@ -115,7 +115,7 @@ export async function POST(
     console.log(`[Select API] Match ${matchId} status: ${match.status}, confirm: ${body.confirm}`);
     console.log(`[Select API] Player: ${body.playerAddress.slice(0, 12)}..., isPlayer1: ${isPlayer1}`);
     console.log(`[Select API] P1 char: ${match.player1_character_id}, P2 char: ${match.player2_character_id}`);
-    
+
     if (match.status !== "character_select" && match.status !== "pending" && match.status !== "waiting" && match.status !== "in_progress") {
       return createErrorResponse(
         new ApiError(
@@ -126,21 +126,21 @@ export async function POST(
     }
 
     // Check if player has already selected a character
-    const existingCharacterId = isPlayer1 
-      ? match.player1_character_id 
+    const existingCharacterId = isPlayer1
+      ? match.player1_character_id
       : match.player2_character_id;
-    
+
     // If player already has a character selected and is confirming, 
     // check if both players are ready and trigger match start
     if (existingCharacterId && body.confirm) {
-      const opponentCharacterId = isPlayer1 
-        ? match.player2_character_id 
+      const opponentCharacterId = isPlayer1
+        ? match.player2_character_id
         : match.player1_character_id;
-      
+
       if (opponentCharacterId) {
         // Both players have already selected - trigger match start
         console.log("[Select API] Both players already have characters, triggering match start");
-        
+
         // Update match status if not already in_progress
         // Use conditional update to prevent race conditions - only update if status is still character_select/waiting
         // Cast to string to avoid TypeScript narrowing issues
@@ -156,11 +156,12 @@ export async function POST(
             .neq("status", "in_progress") // Only update if not already in_progress
             .select("id")
             .single();
-          
+
           // Only broadcast if we successfully updated (we won the race)
           if (!updateResult) {
             console.log("[Select API] Match already started by other player, skipping broadcast");
-            
+            console.log("[Select API] Returning matchReady=true for local match start fallback");
+
             const character = getCharacter(existingCharacterId);
             const response: ApiSuccessResponse<SelectionResponse> = {
               success: true,
@@ -180,7 +181,7 @@ export async function POST(
             return NextResponse.json(response);
           }
         }
-        
+
         // Broadcast match_starting and round_starting events using proper subscription
         const ROUND_COUNTDOWN_MS = 3000;
         const MOVE_TIMER_MS = 15000;
@@ -287,11 +288,12 @@ export async function POST(
         matchReady =
           !!updatedMatch.player1_character_id &&
           !!updatedMatch.player2_character_id;
-        
+
         // Store character IDs for response
         if (matchReady) {
           player1CharId = updatedMatch.player1_character_id || undefined;
           player2CharId = updatedMatch.player2_character_id || undefined;
+          console.log("[Select API] Match is ready! p1:", player1CharId, "p2:", player2CharId);
         }
 
         // Broadcast character_selected event to opponent using proper subscription
@@ -325,6 +327,7 @@ export async function POST(
           const moveDeadlineAt = Date.now() + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
 
           console.log("[Select API] Broadcasting match_starting and round_starting events (normal flow)");
+          console.log("[Select API] Broadcasting to channel: game:", matchId);
           await broadcastMultipleToChannel(supabase, `game:${matchId}`, [
             {
               event: "match_starting",
@@ -360,6 +363,7 @@ export async function POST(
               },
             },
           ]);
+          console.log("[Select API] Broadcast complete");
         }
       }
     }

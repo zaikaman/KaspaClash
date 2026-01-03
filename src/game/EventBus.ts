@@ -82,10 +82,24 @@ class SSRSafeEventEmitter {
    * Add an event listener.
    */
   on(event: string, callback: (data: unknown) => void, context?: unknown): this {
+    // Debug log for specific events
+    if (event === "selection_confirmed" || event === "match_starting") {
+      // Check if this is from window global
+      const isFromWindow = typeof window !== 'undefined' && (window as any).__KASPA_CLASH_EVENT_BUS__ === (this as unknown);
+      console.log(`[EventBus] on('${event}') called - isFromWindow: ${isFromWindow}`);
+      console.log(`[EventBus] on() - listeners Map id: ${(this.listeners as any)._debugId || 'unset'}`);
+    }
+
     if (!this.listeners.has(event)) {
       this.listeners.set(event, []);
     }
     this.listeners.get(event)!.push({ callback, context, once: false });
+
+    // Verify listener was added
+    if (event === "selection_confirmed" || event === "match_starting") {
+      const count = this.listeners.get(event)?.length ?? 0;
+      console.log(`[EventBus] on('${event}') DONE - total listeners now: ${count}`);
+    }
     return this;
   }
 
@@ -104,6 +118,13 @@ class SSRSafeEventEmitter {
    * Remove an event listener.
    */
   off(event: string, callback?: (data: unknown) => void, context?: unknown): this {
+    // Debug log for specific events
+    if (event === "selection_confirmed" || event === "match_starting") {
+      const currentCount = this.listeners.get(event)?.length ?? 0;
+      console.log(`[EventBus] off('${event}') called - current listeners: ${currentCount}`);
+      console.log(`[EventBus] off() stack trace:`, new Error().stack);
+    }
+
     if (!callback) {
       this.listeners.delete(event);
       return this;
@@ -121,6 +142,10 @@ class SSRSafeEventEmitter {
       } else {
         this.listeners.set(event, filtered);
       }
+
+      if (event === "selection_confirmed" || event === "match_starting") {
+        console.log(`[EventBus] off('${event}') - after removal: ${this.listeners.get(event)?.length ?? 0} listeners`);
+      }
     }
     return this;
   }
@@ -130,7 +155,17 @@ class SSRSafeEventEmitter {
    */
   emit(event: string, data?: unknown): boolean {
     const eventListeners = this.listeners.get(event);
+
+    // Debug log for selection_confirmed event
+    if (event === "selection_confirmed" || event === "match_starting") {
+      const isFromWindow = typeof window !== 'undefined' && (window as any).__KASPA_CLASH_EVENT_BUS__ === this;
+      console.log(`[EventBus:${(this as any).instanceId || 'unknown'}] emit('${event}') - listeners: ${eventListeners?.length ?? 0}, isFromWindow: ${isFromWindow}`);
+    }
+
     if (!eventListeners || eventListeners.length === 0) {
+      if (event === "selection_confirmed" || event === "match_starting") {
+        console.log(`[EventBus] WARNING: No listeners for '${event}' event!`);
+      }
       return false;
     }
 
@@ -155,6 +190,8 @@ class SSRSafeEventEmitter {
    * Remove all listeners.
    */
   removeAllListeners(): this {
+    console.log("[EventBus] removeAllListeners() called!");
+    console.log("[EventBus] removeAllListeners() stack:", new Error().stack);
     this.listeners.clear();
     return this;
   }
@@ -166,9 +203,12 @@ class SSRSafeEventEmitter {
  */
 class GameEventBus extends SSRSafeEventEmitter {
   private static instance: GameEventBus | null = null;
+  private readonly instanceId: string;
 
   private constructor() {
     super();
+    this.instanceId = Math.random().toString(36).substring(7);
+    console.log("[EventBus] Created new instance with ID:", this.instanceId);
   }
 
   /**
@@ -179,6 +219,13 @@ class GameEventBus extends SSRSafeEventEmitter {
       GameEventBus.instance = new GameEventBus();
     }
     return GameEventBus.instance;
+  }
+
+  /**
+   * Get the instance ID for debugging.
+   */
+  getInstanceId(): string {
+    return this.instanceId;
   }
 
   /**
@@ -244,8 +291,28 @@ class GameEventBus extends SSRSafeEventEmitter {
 
 /**
  * Export singleton instance.
+ * Uses window global to ensure true singleton across all module bundles (React + Phaser).
  */
-export const EventBus = GameEventBus.getInstance();
+declare global {
+  interface Window {
+    __KASPA_CLASH_EVENT_BUS__?: GameEventBus;
+  }
+}
+
+function getGlobalEventBus(): GameEventBus {
+  // In browser, use window to ensure true singleton
+  if (typeof window !== 'undefined') {
+    if (!window.__KASPA_CLASH_EVENT_BUS__) {
+      window.__KASPA_CLASH_EVENT_BUS__ = GameEventBus.getInstance();
+      console.log("[EventBus] Stored in window global");
+    }
+    return window.__KASPA_CLASH_EVENT_BUS__;
+  }
+  // SSR fallback
+  return GameEventBus.getInstance();
+}
+
+export const EventBus = getGlobalEventBus();
 
 /**
  * Export type for callback functions.

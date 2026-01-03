@@ -173,7 +173,10 @@ export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
           gameRef.current.destroy(true);
           gameRef.current = null;
         }
-        EventBus.removeAllListeners();
+        // Only remove the specific listeners we registered
+        // DO NOT call removeAllListeners() as it clears listeners from other components!
+        EventBus.off("scene:ready");
+        EventBus.off("scene:change");
       };
     }, [onSceneReady, onSceneChange]);
 
