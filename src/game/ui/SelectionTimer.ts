@@ -74,9 +74,14 @@ export class SelectionTimer extends Phaser.GameObjects.Container {
     this.timeRemaining = this.duration;
 
     // Use provided deadline or calculate from duration
-    if (config.deadlineTimestamp) {
+    if (config.deadlineTimestamp && config.deadlineTimestamp > 0) {
       this.deadlineTimestamp = config.deadlineTimestamp;
       this.timeRemaining = this.calculateTimeRemaining();
+      console.log(`[SelectionTimer] Using server deadline: ${new Date(this.deadlineTimestamp).toISOString()}`);
+      console.log(`[SelectionTimer] Current time: ${new Date().toISOString()}`);
+      console.log(`[SelectionTimer] Initial time remaining: ${this.timeRemaining}s`);
+    } else {
+      console.log(`[SelectionTimer] No server deadline provided, will create new deadline on start()`);
     }
 
     this.createElements();
@@ -259,10 +264,23 @@ export class SelectionTimer extends Phaser.GameObjects.Container {
     // Set deadline based on current time if not already set
     if (this.deadlineTimestamp === 0) {
       this.deadlineTimestamp = Date.now() + this.duration * 1000;
+      console.log(`[SelectionTimer] Created new deadline: ${new Date(this.deadlineTimestamp).toISOString()}`);
+    } else {
+      console.log(`[SelectionTimer] Using existing deadline: ${new Date(this.deadlineTimestamp).toISOString()}`);
     }
 
     this.timeRemaining = this.calculateTimeRemaining();
+    console.log(`[SelectionTimer] Timer started with ${this.timeRemaining}s remaining`);
     this.updateVisuals();
+
+    // Handle edge case: if time has already expired, trigger callback immediately
+    if (this.timeRemaining <= 0) {
+      console.log(`[SelectionTimer] Time already expired on start, triggering onTimeUp immediately`);
+      this.hasTimedOut = true;
+      this.stop();
+      this.onTimeUp?.();
+      return;
+    }
 
     // Use a shorter interval (200ms) for smoother visual updates
     // The actual time tracking uses Date.now(), so this just drives visuals
@@ -273,6 +291,7 @@ export class SelectionTimer extends Phaser.GameObjects.Container {
       loop: true,
     });
   }
+
 
   /**
    * Stop the countdown timer.

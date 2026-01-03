@@ -109,6 +109,8 @@ export interface Match {
   format: MatchFormat;
   /** Current state */
   status: MatchStatus;
+  /** Selection deadline for character select timer sync */
+  selectionDeadlineAt: string | null;
   /** Winner address (set on completion) */
   winnerAddress: string | null;
   /** P1 round wins */

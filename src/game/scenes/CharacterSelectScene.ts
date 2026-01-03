@@ -20,6 +20,9 @@ export interface CharacterSelectSceneConfig {
   isHost: boolean;
   selectionTimeLimit?: number; // Seconds, default 30
   selectionDeadlineAt?: string; // ISO timestamp from server for timer sync
+  // For reconnection - existing character selections
+  existingPlayerCharacter?: string | null;
+  existingOpponentCharacter?: string | null;
 }
 
 /**
@@ -75,6 +78,9 @@ export class CharacterSelectScene extends Phaser.Scene {
       opponentAddress: data?.opponentAddress || "",
       isHost: data?.isHost ?? true,
       selectionTimeLimit: data?.selectionTimeLimit ?? 30,
+      selectionDeadlineAt: data?.selectionDeadlineAt,
+      existingPlayerCharacter: data?.existingPlayerCharacter,
+      existingOpponentCharacter: data?.existingOpponentCharacter,
     };
     this.resetState();
   }
@@ -133,11 +139,119 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.createInstructions();
     this.setupEventListeners();
 
+    // Restore existing selections UI (for reconnection scenarios)
+    // This only restores the visual state - API calls are deferred until channel is ready
+    this.restoreExistingSelectionsUI();
+
+    // Listen for channel ready to trigger API calls
+    this.setupChannelReadyHandler();
+
     // Start the selection timer
     this.selectionTimer.start();
 
     // Notify that scene is ready
     EventBus.emit("character_select_ready", { matchId: this.config.matchId });
+  }
+
+  /**
+   * Set up handler for when channel is ready.
+   * This defers API calls until we're sure we can receive broadcasts.
+   */
+  private setupChannelReadyHandler(): void {
+    // If we have existing selections that need to trigger match start, wait for channel
+    const needsMatchStart = this.confirmedCharacter && this.opponentCharacter;
+    const needsConfirmation = this.confirmedCharacter && !this.opponentCharacter;
+    
+    if (needsMatchStart || needsConfirmation) {
+      console.log("[CharacterSelectScene] Waiting for channel ready before triggering API...");
+      
+      const handleChannelReady = () => {
+        console.log("[CharacterSelectScene] Channel ready, triggering selection confirmation");
+        EventBus.off("channel_ready", handleChannelReady);
+        
+        // Now safe to emit selection_confirmed - channel is subscribed
+        if (this.confirmedCharacter) {
+          EventBus.emit("selection_confirmed", {
+            characterId: this.confirmedCharacter.id,
+          });
+        }
+      };
+      
+      EventBus.on("channel_ready", handleChannelReady);
+      
+      // Also set a timeout fallback in case channel_ready was already emitted
+      this.time.delayedCall(500, () => {
+        if (this.confirmedCharacter && !this.scene.isActive("FightScene")) {
+          console.log("[CharacterSelectScene] Timeout fallback - triggering selection confirmation");
+          EventBus.off("channel_ready", handleChannelReady);
+          EventBus.emit("selection_confirmed", {
+            characterId: this.confirmedCharacter.id,
+          });
+        }
+      });
+    }
+  }
+
+  /**
+   * Restore existing character selections on reconnection (UI only).
+   * API calls are deferred until channel is ready.
+   */
+  private restoreExistingSelectionsUI(): void {
+    console.log("[CharacterSelectScene] restoreExistingSelectionsUI called");
+    console.log("[CharacterSelectScene] existingPlayerCharacter:", this.config.existingPlayerCharacter);
+    console.log("[CharacterSelectScene] existingOpponentCharacter:", this.config.existingOpponentCharacter);
+    
+    // Restore player's existing selection
+    if (this.config.existingPlayerCharacter) {
+      const character = getCharacter(this.config.existingPlayerCharacter);
+      console.log("[CharacterSelectScene] Restoring player character:", character?.name);
+      if (character) {
+        this.selectedCharacter = character;
+        this.confirmedCharacter = character;
+        this.isConfirmed = true;
+
+        // Find and update the card
+        const card = this.characterCards.find(
+          (c) => c.getCharacter()?.id === character.id
+        );
+        if (card) {
+          card.select();
+          card.lock();
+        }
+
+        // Disable other cards
+        this.characterCards.forEach((c) => {
+          if (c.getCharacter()?.id !== character.id) {
+            c.disable();
+          }
+        });
+
+        // Update UI
+        this.hideConfirmButton();
+        this.selectionTimer.showLockedIn();
+        this.instructionText.setText("Waiting for opponent...");
+      }
+    }
+
+    // Restore opponent's existing selection
+    if (this.config.existingOpponentCharacter) {
+      const opponent = getCharacter(this.config.existingOpponentCharacter);
+      console.log("[CharacterSelectScene] Restoring opponent character:", opponent?.name);
+      if (opponent) {
+        this.opponentCharacter = opponent;
+        this.opponentStatus.showCharacterPreview(opponent.name, opponent.theme);
+      }
+    }
+
+    // Update UI text if both are ready (API call is deferred to setupChannelReadyHandler)
+    if (this.confirmedCharacter && this.opponentCharacter) {
+      console.log("[CharacterSelectScene] Both players have selections, showing ready message");
+      this.instructionText.setText("Both players ready! Connecting...");
+      this.instructionText.setColor("#22c55e");
+    } else {
+      console.log("[CharacterSelectScene] Missing selection - confirmedCharacter:", !!this.confirmedCharacter, "opponentCharacter:", !!this.opponentCharacter);
+    }
+    // Note: API calls (selection_confirmed events) are deferred to setupChannelReadyHandler
   }
 
   /**
@@ -233,6 +347,13 @@ export class CharacterSelectScene extends Phaser.Scene {
     const deadlineTimestamp = this.config.selectionDeadlineAt
       ? new Date(this.config.selectionDeadlineAt).getTime()
       : undefined;
+
+    console.log("[CharacterSelectScene] selectionDeadlineAt:", this.config.selectionDeadlineAt);
+    console.log("[CharacterSelectScene] deadlineTimestamp:", deadlineTimestamp);
+    console.log("[CharacterSelectScene] Current time:", Date.now());
+    if (deadlineTimestamp) {
+      console.log("[CharacterSelectScene] Time remaining (seconds):", Math.ceil((deadlineTimestamp - Date.now()) / 1000));
+    }
 
     this.selectionTimer = new SelectionTimer(this, {
       x: GAME_DIMENSIONS.CENTER_X,
@@ -604,5 +725,6 @@ export class CharacterSelectScene extends Phaser.Scene {
     EventBus.off("opponent_character_confirmed");
     EventBus.off("match_starting");
     EventBus.off("opponent_disconnected");
+    EventBus.off("channel_ready");
   }
 }

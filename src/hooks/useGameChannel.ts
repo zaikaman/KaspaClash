@@ -302,6 +302,34 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
   );
 
   /**
+   * Handle player_disconnected event.
+   * Called when opponent disconnects from the match.
+   */
+  const handlePlayerDisconnected = useCallback(
+    (payload: { player: "player1" | "player2"; address: string; disconnectedAt: number; timeoutSeconds: number }) => {
+      console.log("[GameChannel] player_disconnected:", payload);
+
+      // Emit to Phaser to show disconnect overlay
+      EventBus.emit("game:playerDisconnected", payload);
+    },
+    []
+  );
+
+  /**
+   * Handle player_reconnected event.
+   * Called when a disconnected player returns.
+   */
+  const handlePlayerReconnected = useCallback(
+    (payload: { player: "player1" | "player2"; address: string; reconnectedAt: number }) => {
+      console.log("[GameChannel] player_reconnected:", payload);
+
+      // Emit to Phaser to hide disconnect overlay
+      EventBus.emit("game:playerReconnected", payload);
+    },
+    []
+  );
+
+  /**
    * Handle presence sync.
    */
   const handlePresenceSync = useCallback(() => {
@@ -436,6 +464,12 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
         })
         .on("broadcast", { event: "match_cancelled" }, ({ payload }) => {
           handleMatchCancelled(payload as { matchId: string; reason: string; message: string; redirectTo: string });
+        })
+        .on("broadcast", { event: "player_disconnected" }, ({ payload }) => {
+          handlePlayerDisconnected(payload as { player: "player1" | "player2"; address: string; disconnectedAt: number; timeoutSeconds: number });
+        })
+        .on("broadcast", { event: "player_reconnected" }, ({ payload }) => {
+          handlePlayerReconnected(payload as { player: "player1" | "player2"; address: string; reconnectedAt: number });
         });
 
       // Set up presence listeners
@@ -506,6 +540,10 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
     handleMatchEnded,
     handleCharacterSelected,
     handleMatchStarting,
+    handleMoveRejected,
+    handleMatchCancelled,
+    handlePlayerDisconnected,
+    handlePlayerReconnected,
     handlePresenceSync,
     handlePresenceJoin,
     handlePresenceLeave,

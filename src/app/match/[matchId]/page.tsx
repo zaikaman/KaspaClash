@@ -45,6 +45,7 @@ function transformMatchData(
     player2_character_id: string | null;
     format: string;
     status: string;
+    selection_deadline_at: string | null;
     winner_address: string | null;
     player1_rounds_won: number;
     player2_rounds_won: number;
@@ -67,6 +68,7 @@ function transformMatchData(
     player2CharacterId: dbMatch.player2_character_id,
     format: dbMatch.format as MatchFormat,
     status: dbMatch.status as MatchStatus,
+    selectionDeadlineAt: dbMatch.selection_deadline_at,
     winnerAddress: dbMatch.winner_address,
     player1RoundsWon: dbMatch.player1_rounds_won,
     player2RoundsWon: dbMatch.player2_rounds_won,
@@ -110,8 +112,14 @@ export default async function MatchPage({ params }: MatchPageProps) {
     notFound();
   }
 
+  // Debug: Log raw database value for selection_deadline_at
+  console.log("[MatchPage] Raw DB selection_deadline_at:", dbMatch.selection_deadline_at);
+
   // Transform to camelCase
   const match = transformMatchData(dbMatch);
+
+  console.log("[MatchPage] Transformed selectionDeadlineAt:", match.selectionDeadlineAt);
+
 
   // Check if match is in a valid state
   if (match.status === "completed") {

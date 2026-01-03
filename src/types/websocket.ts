@@ -214,6 +214,17 @@ export interface PlayerReconnectedPayload {
 }
 
 /**
+ * Event: player_disconnected
+ * Sent when a player disconnects from an active match.
+ */
+export interface PlayerDisconnectedPayload {
+  player: PlayerRole;
+  address: string;
+  disconnectedAt: number;
+  timeoutSeconds: number;
+}
+
+/**
  * Event: state_sync
  * Sent to reconnecting players with current game state.
  */
@@ -248,6 +259,7 @@ export interface WebSocketEventMap {
   round_resolved: RoundResolvedPayload;
   match_ended: MatchEndedPayload;
   player_reconnected: PlayerReconnectedPayload;
+  player_disconnected: PlayerDisconnectedPayload;
   state_sync: StateSyncPayload;
 }
 

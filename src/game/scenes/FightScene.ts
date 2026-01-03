@@ -20,6 +20,20 @@ export interface FightSceneConfig {
   player1Character: string;
   player2Character: string;
   playerRole: PlayerRole; // Which player is the local user
+  // For reconnection
+  isReconnect?: boolean;
+  reconnectState?: {
+    status: string;
+    currentRound: number;
+    player1Health: number;
+    player2Health: number;
+    player1RoundsWon: number;
+    player2RoundsWon: number;
+    player1Energy: number;
+    player2Energy: number;
+    moveDeadlineAt: number | null;
+    pendingMoves: { player1: boolean; player2: boolean };
+  };
 }
 
 /**
@@ -62,6 +76,13 @@ export class FightScene extends Phaser.Scene {
   private isWaitingForOpponent: boolean = false;
   private moveDeadlineAt: number = 0; // Server-synchronized move deadline timestamp
 
+  // Disconnect handling
+  private disconnectOverlay?: Phaser.GameObjects.Container;
+  private disconnectTimerText?: Phaser.GameObjects.Text;
+  private disconnectTimeoutAt: number = 0;
+  private disconnectTimerEvent?: Phaser.Time.TimerEvent;
+  private opponentDisconnected: boolean = false;
+
   // Server-synchronized state (production mode) - all game state comes from server
   private serverState: {
     player1Health: number;
@@ -98,6 +119,8 @@ export class FightScene extends Phaser.Scene {
     this.selectedMove = null;
     this.turnTimer = 15;
     this.phase = "countdown";
+    this.opponentDisconnected = false;
+    this.disconnectTimeoutAt = 0;
     this.isWaitingForOpponent = false;
     this.serverState = null;
   }
@@ -1260,6 +1283,237 @@ export class FightScene extends Phaser.Scene {
       // Disable all buttons
       this.moveButtons.forEach(btn => btn.setAlpha(0.3).disableInteractive());
     });
+
+    // Listen for opponent disconnect
+    EventBus.on("game:playerDisconnected", (data: unknown) => {
+      const payload = data as { 
+        player: "player1" | "player2"; 
+        address: string; 
+        disconnectedAt: number; 
+        timeoutSeconds: number; 
+      };
+
+      // Only show overlay if opponent disconnected
+      if (payload.player !== this.config.playerRole) {
+        this.showDisconnectOverlay(payload.timeoutSeconds);
+      }
+    });
+
+    // Listen for opponent reconnect
+    EventBus.on("game:playerReconnected", (data: unknown) => {
+      const payload = data as { 
+        player: "player1" | "player2"; 
+        address: string; 
+        reconnectedAt: number; 
+      };
+
+      // Only hide overlay if it was the opponent who reconnected
+      if (payload.player !== this.config.playerRole) {
+        this.hideDisconnectOverlay();
+      }
+    });
+
+    // Listen for state sync (reconnection)
+    EventBus.on("game:stateSync", (data: unknown) => {
+      const state = data as {
+        status: string;
+        currentRound: number;
+        player1Health: number;
+        player2Health: number;
+        player1RoundsWon: number;
+        player2RoundsWon: number;
+        player1Energy: number;
+        player2Energy: number;
+        moveDeadlineAt: number | null;
+        pendingMoves: { player1: boolean; player2: boolean };
+      };
+      this.handleStateSync(state);
+    });
+  }
+
+  /**
+   * Show disconnect overlay with countdown.
+   */
+  private showDisconnectOverlay(timeoutSeconds: number): void {
+    this.opponentDisconnected = true;
+    this.disconnectTimeoutAt = Date.now() + timeoutSeconds * 1000;
+
+    // Create overlay if it doesn't exist
+    if (!this.disconnectOverlay) {
+      this.disconnectOverlay = this.add.container(0, 0);
+      this.disconnectOverlay.setDepth(1000);
+
+      // Semi-transparent background
+      const bg = this.add.graphics();
+      bg.fillStyle(0x000000, 0.7);
+      bg.fillRect(0, 0, GAME_DIMENSIONS.WIDTH, GAME_DIMENSIONS.HEIGHT);
+      this.disconnectOverlay.add(bg);
+
+      // Title
+      const title = this.add.text(
+        GAME_DIMENSIONS.CENTER_X,
+        GAME_DIMENSIONS.CENTER_Y - 80,
+        "OPPONENT DISCONNECTED",
+        {
+          fontFamily: "Orbitron, sans-serif",
+          fontSize: "32px",
+          color: "#f97316",
+          fontStyle: "bold",
+        }
+      ).setOrigin(0.5);
+      this.disconnectOverlay.add(title);
+
+      // Timer text
+      this.disconnectTimerText = this.add.text(
+        GAME_DIMENSIONS.CENTER_X,
+        GAME_DIMENSIONS.CENTER_Y,
+        `Waiting for reconnection: ${timeoutSeconds}s`,
+        {
+          fontFamily: "Orbitron, sans-serif",
+          fontSize: "24px",
+          color: "#ffffff",
+        }
+      ).setOrigin(0.5);
+      this.disconnectOverlay.add(this.disconnectTimerText);
+
+      // Info text
+      const info = this.add.text(
+        GAME_DIMENSIONS.CENTER_X,
+        GAME_DIMENSIONS.CENTER_Y + 60,
+        "If opponent doesn't return, you win!",
+        {
+          fontFamily: "monospace",
+          fontSize: "16px",
+          color: "#888888",
+        }
+      ).setOrigin(0.5);
+      this.disconnectOverlay.add(info);
+    }
+
+    this.disconnectOverlay.setVisible(true);
+
+    // Start countdown timer
+    if (this.disconnectTimerEvent) {
+      this.disconnectTimerEvent.destroy();
+    }
+
+    this.disconnectTimerEvent = this.time.addEvent({
+      delay: 1000,
+      callback: () => {
+        const remaining = Math.max(0, Math.ceil((this.disconnectTimeoutAt - Date.now()) / 1000));
+        
+        if (this.disconnectTimerText) {
+          this.disconnectTimerText.setText(`Waiting for reconnection: ${remaining}s`);
+        }
+
+        if (remaining <= 0) {
+          // Timeout expired - claim victory
+          this.handleDisconnectTimeout();
+        }
+      },
+      loop: true,
+    });
+  }
+
+  /**
+   * Hide disconnect overlay (opponent reconnected).
+   */
+  private hideDisconnectOverlay(): void {
+    this.opponentDisconnected = false;
+
+    if (this.disconnectTimerEvent) {
+      this.disconnectTimerEvent.destroy();
+      this.disconnectTimerEvent = undefined;
+    }
+
+    if (this.disconnectOverlay) {
+      this.disconnectOverlay.setVisible(false);
+    }
+
+    // Show reconnection message
+    this.showFloatingText("Opponent reconnected!", GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.CENTER_Y - 50, "#22c55e");
+  }
+
+  /**
+   * Handle disconnect timeout - claim victory.
+   */
+  private handleDisconnectTimeout(): void {
+    if (this.disconnectTimerEvent) {
+      this.disconnectTimerEvent.destroy();
+      this.disconnectTimerEvent = undefined;
+    }
+
+    // Update overlay to show claiming victory
+    if (this.disconnectTimerText) {
+      this.disconnectTimerText.setText("Claiming victory...");
+    }
+
+    // Call timeout API to claim victory
+    EventBus.emit("game:claimTimeoutVictory", {
+      matchId: this.config.matchId,
+    });
+  }
+
+  /**
+   * Handle state sync for reconnection.
+   */
+  private handleStateSync(state: {
+    status: string;
+    currentRound: number;
+    player1Health: number;
+    player2Health: number;
+    player1RoundsWon: number;
+    player2RoundsWon: number;
+    player1Energy: number;
+    player2Energy: number;
+    moveDeadlineAt: number | null;
+    pendingMoves: { player1: boolean; player2: boolean };
+  }): void {
+    console.log("[FightScene] Restoring state from sync:", state);
+
+    // Get max values from local engine for defaults
+    const localState = this.combatEngine.getState();
+
+    // Update server state
+    this.serverState = {
+      player1Health: state.player1Health,
+      player1MaxHealth: localState.player1.maxHp,
+      player2Health: state.player2Health,
+      player2MaxHealth: localState.player2.maxHp,
+      player1Energy: state.player1Energy,
+      player1MaxEnergy: localState.player1.maxEnergy,
+      player2Energy: state.player2Energy,
+      player2MaxEnergy: localState.player2.maxEnergy,
+      player1GuardMeter: 0,
+      player2GuardMeter: 0,
+      player1RoundsWon: state.player1RoundsWon,
+      player2RoundsWon: state.player2RoundsWon,
+      currentRound: state.currentRound,
+    };
+
+    // Update UI
+    this.syncUIWithCombatState();
+    this.roundScoreText.setText(
+      `Round ${state.currentRound}  •  ${state.player1RoundsWon} - ${state.player2RoundsWon}  (First to 3)`
+    );
+
+    // If there's a move deadline, start the selection phase
+    if (state.moveDeadlineAt && state.moveDeadlineAt > Date.now()) {
+      const myRole = this.config.playerRole;
+      const hasPendingMove = myRole === "player1" ? state.pendingMoves.player1 : state.pendingMoves.player2;
+
+      if (hasPendingMove) {
+        // We already submitted a move - wait for opponent
+        this.phase = "selecting";
+        this.isWaitingForOpponent = true;
+        this.turnIndicatorText.setText("Waiting for opponent...");
+        this.turnIndicatorText.setColor("#f97316");
+        this.moveButtons.forEach(btn => btn.setAlpha(0.4).disableInteractive());
+      } else {
+        // We need to make a move
+        this.startSynchronizedSelectionPhase(state.moveDeadlineAt);
+      }
+    }
   }
 
   /**

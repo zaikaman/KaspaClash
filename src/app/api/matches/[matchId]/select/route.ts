@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { broadcastMultipleToChannel } from "@/lib/supabase/broadcast";
 import { ApiError, ErrorCodes, createErrorResponse } from "@/lib/api/errors";
 import { isValidCharacterId, getCharacter } from "@/data/characters";
 import type { ApiSuccessResponse } from "@/types/api";
@@ -29,6 +30,9 @@ interface SelectionResponse {
   isConfirmed: boolean;
   opponentReady: boolean;
   matchReady: boolean;
+  // Added for reconnection scenarios - allows client to start match locally
+  player1CharacterId?: string;
+  player2CharacterId?: string;
 }
 
 /**
@@ -107,14 +111,134 @@ export async function POST(
       );
     }
 
-    // Check match status
-    if (match.status !== "character_select" && match.status !== "pending") {
+    // Check match status - allow waiting, pending, character_select, or in_progress (for reconnection)
+    console.log(`[Select API] Match ${matchId} status: ${match.status}, confirm: ${body.confirm}`);
+    console.log(`[Select API] Player: ${body.playerAddress.slice(0, 12)}..., isPlayer1: ${isPlayer1}`);
+    console.log(`[Select API] P1 char: ${match.player1_character_id}, P2 char: ${match.player2_character_id}`);
+    
+    if (match.status !== "character_select" && match.status !== "pending" && match.status !== "waiting" && match.status !== "in_progress") {
       return createErrorResponse(
         new ApiError(
           ErrorCodes.CONFLICT,
           `Cannot select character in match status: ${match.status}`
         )
       );
+    }
+
+    // Check if player has already selected a character
+    const existingCharacterId = isPlayer1 
+      ? match.player1_character_id 
+      : match.player2_character_id;
+    
+    // If player already has a character selected and is confirming, 
+    // check if both players are ready and trigger match start
+    if (existingCharacterId && body.confirm) {
+      const opponentCharacterId = isPlayer1 
+        ? match.player2_character_id 
+        : match.player1_character_id;
+      
+      if (opponentCharacterId) {
+        // Both players have already selected - trigger match start
+        console.log("[Select API] Both players already have characters, triggering match start");
+        
+        // Update match status if not already in_progress
+        // Use conditional update to prevent race conditions - only update if status is still character_select/waiting
+        // Cast to string to avoid TypeScript narrowing issues
+        const currentStatus = match.status as string;
+        if (currentStatus !== "in_progress") {
+          const { data: updateResult } = await supabase
+            .from("matches")
+            .update({
+              status: "in_progress",
+              started_at: new Date().toISOString(),
+            })
+            .eq("id", matchId)
+            .neq("status", "in_progress") // Only update if not already in_progress
+            .select("id")
+            .single();
+          
+          // Only broadcast if we successfully updated (we won the race)
+          if (!updateResult) {
+            console.log("[Select API] Match already started by other player, skipping broadcast");
+            
+            const character = getCharacter(existingCharacterId);
+            const response: ApiSuccessResponse<SelectionResponse> = {
+              success: true,
+              data: {
+                matchId,
+                playerAddress: body.playerAddress,
+                characterId: existingCharacterId,
+                characterName: character?.name || "Unknown",
+                isConfirmed: true,
+                opponentReady: true,
+                matchReady: true,
+                // Include both character IDs for local match start
+                player1CharacterId: match.player1_character_id || undefined,
+                player2CharacterId: match.player2_character_id || undefined,
+              },
+            };
+            return NextResponse.json(response);
+          }
+        }
+        
+        // Broadcast match_starting and round_starting events using proper subscription
+        const ROUND_COUNTDOWN_MS = 3000;
+        const MOVE_TIMER_MS = 15000;
+        const moveDeadlineAt = Date.now() + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
+
+        console.log("[Select API] Broadcasting match_starting and round_starting events");
+        await broadcastMultipleToChannel(supabase, `game:${matchId}`, [
+          {
+            event: "match_starting",
+            payload: {
+              matchId,
+              player1: {
+                address: match.player1_address,
+                characterId: match.player1_character_id,
+              },
+              player2: {
+                address: match.player2_address,
+                characterId: match.player2_character_id,
+              },
+              format: match.format || "best_of_3",
+              startsAt: Date.now() + ROUND_COUNTDOWN_MS,
+            },
+          },
+          {
+            event: "round_starting",
+            payload: {
+              roundNumber: 1,
+              turnNumber: 1,
+              moveDeadlineAt,
+              countdownSeconds: Math.floor(ROUND_COUNTDOWN_MS / 1000),
+              player1Health: 100,
+              player2Health: 100,
+              player1MaxHealth: 100,
+              player2MaxHealth: 100,
+              player1Energy: 100,
+              player2Energy: 100,
+              player1GuardMeter: 0,
+              player2GuardMeter: 0,
+            },
+          },
+        ]);
+
+        const character = getCharacter(existingCharacterId);
+        const response: ApiSuccessResponse<SelectionResponse> = {
+          success: true,
+          data: {
+            matchId,
+            playerAddress: body.playerAddress,
+            characterId: existingCharacterId,
+            characterName: character?.name || "Unknown",
+            isConfirmed: true,
+            opponentReady: true,
+            matchReady: true,
+          },
+        };
+
+        return NextResponse.json(response);
+      }
     }
 
     // Determine which column to update
@@ -144,6 +268,8 @@ export async function POST(
     // If confirm flag is set, check if match can start
     let matchReady = false;
     let opponentReady = false;
+    let player1CharId: string | undefined = undefined;
+    let player2CharId: string | undefined = undefined;
 
     if (body.confirm) {
       // Refetch to get updated state
@@ -161,17 +287,19 @@ export async function POST(
         matchReady =
           !!updatedMatch.player1_character_id &&
           !!updatedMatch.player2_character_id;
+        
+        // Store character IDs for response
+        if (matchReady) {
+          player1CharId = updatedMatch.player1_character_id || undefined;
+          player2CharId = updatedMatch.player2_character_id || undefined;
+        }
 
-        // Broadcast character_selected event to opponent
-        const gameChannel = supabase.channel(`game:${matchId}`);
-        await gameChannel.send({
-          type: "broadcast",
-          event: "character_selected",
-          payload: {
-            player: isPlayer1 ? "player1" : "player2",
-            characterId: body.characterId,
-            locked: true,
-          },
+        // Broadcast character_selected event to opponent using proper subscription
+        const { broadcastToChannel } = await import("@/lib/supabase/broadcast");
+        await broadcastToChannel(supabase, `game:${matchId}`, "character_selected", {
+          player: isPlayer1 ? "player1" : "player2",
+          characterId: body.characterId,
+          locked: true,
         });
 
         // If both ready, update match status to in_progress and broadcast match_starting
@@ -196,46 +324,43 @@ export async function POST(
           const MOVE_TIMER_MS = 15000;
           const moveDeadlineAt = Date.now() + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
 
-          await gameChannel.send({
-            type: "broadcast",
-            event: "match_starting",
-            payload: {
-              matchId,
-              player1: {
-                address: updatedMatch.player1_address,
-                characterId: updatedMatch.player1_character_id,
+          console.log("[Select API] Broadcasting match_starting and round_starting events (normal flow)");
+          await broadcastMultipleToChannel(supabase, `game:${matchId}`, [
+            {
+              event: "match_starting",
+              payload: {
+                matchId,
+                player1: {
+                  address: updatedMatch.player1_address,
+                  characterId: updatedMatch.player1_character_id,
+                },
+                player2: {
+                  address: updatedMatch.player2_address,
+                  characterId: updatedMatch.player2_character_id,
+                },
+                format: updatedMatch.format || "best_of_3",
+                startsAt: Date.now() + ROUND_COUNTDOWN_MS,
               },
-              player2: {
-                address: updatedMatch.player2_address,
-                characterId: updatedMatch.player2_character_id,
+            },
+            {
+              event: "round_starting",
+              payload: {
+                roundNumber: 1,
+                turnNumber: 1,
+                moveDeadlineAt,
+                countdownSeconds: Math.floor(ROUND_COUNTDOWN_MS / 1000),
+                player1Health: 100,
+                player2Health: 100,
+                player1MaxHealth: 100,
+                player2MaxHealth: 100,
+                player1Energy: 100,
+                player2Energy: 100,
+                player1GuardMeter: 0,
+                player2GuardMeter: 0,
               },
-              format: updatedMatch.format || "best_of_3",
-              startsAt: Date.now() + ROUND_COUNTDOWN_MS,
             },
-          });
-
-          // Broadcast round_starting for round 1 with synchronized deadline
-          await gameChannel.send({
-            type: "broadcast",
-            event: "round_starting",
-            payload: {
-              roundNumber: 1,
-              turnNumber: 1,
-              moveDeadlineAt,
-              countdownSeconds: Math.floor(ROUND_COUNTDOWN_MS / 1000),
-              player1Health: 100,
-              player2Health: 100,
-              player1MaxHealth: 100,
-              player2MaxHealth: 100,
-              player1Energy: 100,
-              player2Energy: 100,
-              player1GuardMeter: 0,
-              player2GuardMeter: 0,
-            },
-          });
+          ]);
         }
-
-        await supabase.removeChannel(gameChannel);
       }
     }
 
@@ -249,6 +374,9 @@ export async function POST(
         isConfirmed: body.confirm ?? false,
         opponentReady,
         matchReady,
+        // Include character IDs for local match start when matchReady is true
+        player1CharacterId: player1CharId,
+        player2CharacterId: player2CharId,
       },
     };
 

@@ -56,10 +56,20 @@ export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
   ) {
     const containerRef = useRef<HTMLDivElement>(null);
     const gameRef = useRef<Phaser.Game | null>(null);
+    // Use refs to store latest props to avoid stale closures in async callbacks
+    const sceneConfigRef = useRef(sceneConfig);
+    const currentSceneRef = useRef(currentScene);
     const [currentActiveScene, setCurrentActiveScene] =
       useState<Phaser.Scene | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    // Keep refs updated with latest prop values
+    useEffect(() => {
+      sceneConfigRef.current = sceneConfig;
+      currentSceneRef.current = currentScene;
+    }, [sceneConfig, currentScene]);
+
 
     // Expose game instance and methods to parent
     useImperativeHandle(
@@ -86,42 +96,47 @@ export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
 
           // Dynamic import for Phaser (client-side only)
           const Phaser = (await import("phaser")).default;
-          const { createGameConfig } = await import("./config");
+          const { BASE_GAME_CONFIG } = await import("./config");
           const { FightScene } = await import("./scenes/FightScene");
           const { CharacterSelectScene } = await import("./scenes/CharacterSelectScene");
 
-          // Register scenes
-          const scenes: Phaser.Types.Scenes.SceneType[] = [CharacterSelectScene, FightScene];
-
           if (!isMounted) return;
 
-          // Create game config
-          const config = createGameConfig(scenes);
-
-          // CRITICAL: Set parent to the actual DOM element ref, not a string ID
-          // This prevents "Cannot read properties of undefined (reading 'hasAttribute')" error
-          config.parent = containerRef.current;
+          // Create game config WITHOUT scenes to prevent auto-start
+          // We'll add scenes manually and start the correct one with data
+          const config: Phaser.Types.Core.GameConfig = {
+            ...BASE_GAME_CONFIG,
+            scene: [], // Empty - we'll add scenes manually
+            parent: containerRef.current,
+          };
 
           // Create the game instance
           gameRef.current = new Phaser.Game(config);
 
-          // Start the initial scene provided in props
-          if (currentScene && sceneConfig) {
-            gameRef.current.events.once("ready", () => {
-              gameRef.current?.scene.start(currentScene, sceneConfig);
-            });
-          } else if (sceneConfig) {
-            // Fallback to FightScene if no currentScene specified (legacy behavior)
-            // But ideally we want CharacterSelectScene to be the entry point if currentScene='CharacterSelectScene'
-            gameRef.current.events.once("ready", () => {
-              if (currentScene) {
-                gameRef.current?.scene.start(currentScene, sceneConfig);
-              } else {
-                // Default to FightScene for backward compatibility if not specified
-                gameRef.current?.scene.start("FightScene", sceneConfig);
-              }
-            });
-          }
+          // Add scenes manually (they won't auto-start)
+          gameRef.current.scene.add("CharacterSelectScene", CharacterSelectScene, false);
+          gameRef.current.scene.add("FightScene", FightScene, false);
+
+          // Start the initial scene with data when game is ready
+          // CRITICAL: Use refs to get the LATEST config values when "ready" fires
+          gameRef.current.events.once("ready", () => {
+            const latestScene = currentSceneRef.current;
+            const latestConfig = sceneConfigRef.current;
+
+            console.log("[PhaserGame] Ready event fired, starting scene:", latestScene);
+            console.log("[PhaserGame] Scene config:", latestConfig);
+            // Explicitly log deadline to debug
+            const deadline = (latestConfig as any)?.selectionDeadlineAt;
+            console.log("[PhaserGame] DEADLINE in config:", deadline ?? "UNDEFINED/NULL");
+
+            if (latestScene && latestConfig) {
+              // Start the scene with data - this is the FIRST time it runs
+              gameRef.current?.scene.start(latestScene, latestConfig);
+            } else if (latestConfig) {
+              // Default to FightScene for backward compatibility if not specified
+              gameRef.current?.scene.start("FightScene", latestConfig);
+            }
+          });
 
           // Listen for scene ready events
           EventBus.onEvent("scene:ready", (data) => {
