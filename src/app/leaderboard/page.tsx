@@ -22,7 +22,7 @@ export default function LeaderboardPage() {
 
                     <DecorativeLine className="mb-12" variant="left-red-right-gold" />
 
-                    <div className="mb-8 flex justify-end">
+                    <div className="mb-8 flex justify-end pr-28">
                         {/* Filter/Sort Controls Placeholder */}
                         <div className="flex gap-4">
                             <span className="text-cyber-gray text-sm uppercase font-bold self-center">Season 1</span>
