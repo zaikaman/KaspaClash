@@ -148,8 +148,8 @@ export const selectFormattedBalance = (state: WalletStore): string | null => {
   if (state.balance === null) return null;
   const kas = Number(state.balance) / 100000000; // SOMPI_PER_KAS
   return kas.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 8,
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
   });
 };
 
