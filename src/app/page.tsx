@@ -1,12 +1,30 @@
+"use client";
+
 import LandingLayout from "@/components/landing/LandingLayout";
 import DecorativeLine from "@/components/landing/DecorativeLine";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
 
 export default function Home() {
+  const fadeInUp = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.6 } },
+  };
+
+  const staggerContainer = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.2,
+      },
+    },
+  };
+
   return (
     <LandingLayout>
-      <div className="relative w-full">
+      <div className="relative w-full overflow-hidden">
         {/* Global Vertical Grid Lines connecting all sections */}
         <div className="absolute top-[-90px] bottom-0 left-[70.5px] w-px bg-cyber-orange/30 hidden md:block z-0 pointer-events-none"></div>
         <div className="absolute top-[-90px] bottom-0 right-[70.5px] w-px bg-cyber-gold/30 hidden md:block z-0 pointer-events-none"></div>
@@ -22,14 +40,22 @@ export default function Home() {
             <div className="relative mb-24">
               {/* Title BEHIND the character */}
               <div className="absolute top-[7%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full text-center z-0 pointer-events-none">
-                <h1 className="text-[60px] sm:text-[80px] lg:text-[130px] xl:text-[160px] font-bold leading-none font-orbitron text-white opacity-90 tracking-wider whitespace-nowrap">
+                <motion.h1
+                  initial={{ opacity: 0, y: 50, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ duration: 1, ease: "easeOut" }}
+                  className="text-[60px] sm:text-[80px] lg:text-[130px] xl:text-[160px] font-bold leading-none font-orbitron text-white opacity-90 tracking-wider whitespace-nowrap"
+                >
                   KASPA CLASH
-                </h1>
+                </motion.h1>
               </div>
 
               {/* Character Image */}
               <div className="relative z-10 flex justify-center">
-                <img
+                <motion.img
+                  initial={{ opacity: 0, y: 100 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
                   src="/assets/hero.webp"
                   alt="Cyberpunk Fighter"
                   className="w-auto h-[400px] md:h-[600px] lg:h-[700px] object-contain drop-shadow-[0_0_30px_rgba(240,183,31,0.3)]"
@@ -37,18 +63,28 @@ export default function Home() {
               </div>
 
               {/* "True Ownership" - Left Side (Stories & Lore style) */}
-              <div className="absolute top-[40%] left-0 lg:left-10 z-20 hidden md:block max-w-[250px]">
+              <motion.div
+                initial={{ x: -50, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ duration: 0.8, delay: 0.5 }}
+                className="absolute top-[40%] left-0 lg:left-10 z-20 hidden md:block max-w-[250px]"
+              >
                 <div className="flex items-center gap-4 mb-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
                   <h3 className="text-xl font-semibold font-orbitron text-white">True Ownership</h3>
                 </div>
-                  <p className="text-cyber-gray text-sm leading-relaxed">
-                    Your fighters, your stats, your history. All verifiable on the BlockDAG.
-                  </p>
-              </div>
+                <p className="text-cyber-gray text-sm leading-relaxed">
+                  Your fighters, your stats, your history. All verifiable on the BlockDAG.
+                </p>
+              </motion.div>
 
               {/* "Live Matches" - Right Side (Events style) */}
-              <div className="absolute top-[40%] right-0 lg:right-10 z-20 hidden md:block max-w-[250px] text-right">
+              <motion.div
+                initial={{ x: 50, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ duration: 0.8, delay: 0.5 }}
+                className="absolute top-[40%] right-0 lg:right-10 z-20 hidden md:block max-w-[250px] text-right"
+              >
                 <h3 className="text-xl font-semibold font-orbitron text-white mb-2 leading-tight">
                   LIVE MATCHES<br />AND UPDATES
                 </h3>
@@ -56,18 +92,26 @@ export default function Home() {
                   Spectate real-time battles powered by Kaspa's sub-second block times.
                 </p>
                 <Link href="/matchmaking">
-                  <Button className="bg-gradient-cyber text-white border-0 hover:opacity-90 font-orbitron text-sm px-6 py-2 h-auto rounded-lg">
-                    Watch Live
-                  </Button>
+                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                    <Button className="bg-gradient-cyber text-white border-0 hover:opacity-90 font-orbitron text-sm px-6 py-2 h-auto rounded-lg">
+                      Watch Live
+                    </Button>
+                  </motion.div>
                 </Link>
-              </div>
+              </motion.div>
             </div>
 
             {/* Bottom Cards Section */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-end relative z-20">
+            <motion.div
+              variants={staggerContainer}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.3 }}
+              className="grid grid-cols-1 md:grid-cols-12 gap-8 items-end relative z-20"
+            >
 
               {/* Left Card - 1 BPS (Experience the Future style) */}
-              <div className="md:col-span-4 lg:col-span-5 relative rounded-[20px] border border-cyber-gold/30 bg-black/40 backdrop-blur-md p-6 group hover:border-cyber-gold transition-colors">
+              <motion.div variants={fadeInUp} className="md:col-span-4 lg:col-span-5 relative rounded-[20px] border border-cyber-gold/30 bg-black/40 backdrop-blur-md p-6 group hover:border-cyber-gold transition-colors">
                 <div className="flex gap-4 items-center">
                   <img
                     src="/assets/second-hero.webp"
@@ -82,20 +126,20 @@ export default function Home() {
                     </p>
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
               {/* Center Text - Micro Fees (Art & Design style) */}
-              <div className="md:col-span-4 lg:col-span-4 text-center pb-4">
+              <motion.div variants={fadeInUp} className="md:col-span-4 lg:col-span-4 text-center pb-4">
                 <h3 className="text-2xl md:text-3xl font-semibold uppercase mb-2 font-orbitron text-white tracking-widest">
                   MICRO <br /> <span className="text-cyber-orange font-bold">FEES</span>
                 </h3>
                 <p className="text-cyber-gray text-sm max-w-[200px] mx-auto">
                   Feast your eyes on stunning visuals without paying gas.
                 </p>
-              </div>
+              </motion.div>
 
               {/* Right Card - 100% Fair Play (17+ Years style) */}
-              <div className="md:col-span-4 lg:col-span-3">
+              <motion.div variants={fadeInUp} className="md:col-span-4 lg:col-span-3">
                 <div className="rounded-[20px] border border-cyber-gold/30 bg-black/40 backdrop-blur-md p-8 text-center h-full flex flex-col justify-center items-center hover:border-cyber-orange transition-colors">
                   <h2 className="text-5xl md:text-6xl font-bold bg-gradient-cyber bg-clip-text text-transparent mb-2 font-orbitron">
                     100%
@@ -107,8 +151,8 @@ export default function Home() {
                     Verifiable Logic
                   </p>
                 </div>
-              </div>
-            </div>
+              </motion.div>
+            </motion.div>
           </div>
 
           {/* Bottom Corner Accents */}
@@ -117,10 +161,16 @@ export default function Home() {
         </section>
 
         {/* About Section 1 - Neon Dreams */}
-        <section className="py-20">
+        <motion.section
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.3 }}
+          variants={staggerContainer}
+          className="py-20"
+        >
           <div className="container mx-auto px-6 lg:px-12 xl:px-24">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-              <div>
+              <motion.div variants={fadeInUp}>
                 <h2 className="text-4xl lg:text-[57px] font-bold leading-tight mb-8 font-orbitron">
                   <span className="text-white">Where </span>
                   <span className="bg-gradient-cyber bg-clip-text text-transparent">Skill Meets </span>
@@ -132,51 +182,57 @@ export default function Home() {
 
                 {/* Stats */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
-                  <div>
+                  <motion.div variants={fadeInUp}>
                     <h3 className="text-4xl lg:text-[47px] font-semibold bg-gradient-cyber bg-clip-text text-transparent mb-2 font-orbitron">
                       3+
                     </h3>
                     <p className="text-white text-lg">Unique Fighters</p>
-                  </div>
-                  <div>
+                  </motion.div>
+                  <motion.div variants={fadeInUp}>
                     <h3 className="text-4xl lg:text-[47px] font-semibold bg-gradient-cyber bg-clip-text text-transparent mb-2 font-orbitron">
                       P2P
                     </h3>
                     <p className="text-white text-lg">Direct Battles</p>
-                  </div>
-                  <div>
+                  </motion.div>
+                  <motion.div variants={fadeInUp}>
                     <h3 className="text-4xl lg:text-[47px] font-semibold bg-gradient-cyber bg-clip-text text-transparent mb-2 font-orbitron">
                       WASM
                     </h3>
                     <p className="text-white text-lg">High Performance</p>
-                  </div>
+                  </motion.div>
                 </div>
-              </div>
+              </motion.div>
 
-              <div>
+              <motion.div variants={fadeInUp}>
                 <img
                   src="/assets/3.webp"
                   alt="Cyberpunk scene"
                   className="w-full h-auto rounded-lg shadow-2xl shadow-cyber-gold/20"
                 />
-              </div>
+              </motion.div>
             </div>
           </div>
-        </section>
+        </motion.section>
 
         {/* About Section 2 - Cybernetic Underworld */}
-        <section className="py-20">
+        <motion.section
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.3 }}
+          variants={staggerContainer}
+          className="py-20"
+        >
           <div className="container mx-auto px-6 lg:px-12 xl:px-24">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-              <div className="order-2 lg:order-1">
+              <motion.div variants={fadeInUp} className="order-2 lg:order-1">
                 <img
                   src="/assets/4.webp"
                   alt="Cyberpunk portrait"
                   className="w-full h-auto rounded-lg shadow-2xl shadow-cyber-orange/20"
                 />
-              </div>
+              </motion.div>
 
-              <div className="order-1 lg:order-2">
+              <motion.div variants={fadeInUp} className="order-1 lg:order-2">
                 <h2 className="text-4xl lg:text-[55px] font-bold leading-tight mb-8 font-orbitron">
                   <span className="text-white">Unveil </span>
                   <span className="bg-gradient-cyber bg-clip-text text-transparent">the Power of </span>
@@ -207,17 +263,23 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             </div>
           </div>
-        </section>
+        </motion.section>
 
         <DecorativeLine className="my-20" variant="left-gold-right-red" />
 
-        {/* Banner Section - FIX: Removed Image with Baked-in Text */}
-        <section className="py-20 relative">
+        {/* Banner Section */}
+        <motion.section
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.3 }}
+          variants={staggerContainer}
+          className="py-20 relative"
+        >
           <div className="container mx-auto px-6 lg:px-12 xl:px-24">
-            <div className="relative rounded-lg overflow-hidden min-h-[500px] flex items-center">
+            <motion.div variants={fadeInUp} className="relative rounded-lg overflow-hidden min-h-[500px] flex items-center">
               {/* Background Image (Generic Scene) */}
               <div
                 className="absolute inset-0 bg-cover bg-center opacity-40 mix-blend-overlay"
@@ -238,14 +300,18 @@ export default function Home() {
                     </p>
                     <div className="flex gap-4">
                       <Link href="/matchmaking">
-                        <Button size="lg" className="bg-gradient-cyber text-white border-0 hover:opacity-90 font-orbitron text-lg px-8 py-6 h-auto">
-                          Play Now
-                        </Button>
+                        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                          <Button size="lg" className="bg-gradient-cyber text-white border-0 hover:opacity-90 font-orbitron text-lg px-8 py-6 h-auto">
+                            Play Now
+                          </Button>
+                        </motion.div>
                       </Link>
                       <Link href="/docs">
-                        <Button variant="outline" size="lg" className="border-cyber-gold text-cyber-gold hover:bg-cyber-gold/10 font-orbitron text-lg px-8 py-6 h-auto">
-                          Learn More
-                        </Button>
+                        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                          <Button variant="outline" size="lg" className="border-cyber-gold text-cyber-gold hover:bg-cyber-gold/10 font-orbitron text-lg px-8 py-6 h-auto">
+                            Learn More
+                          </Button>
+                        </motion.div>
                       </Link>
                     </div>
                   </div>
@@ -281,23 +347,29 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-            </div>
+            </motion.div>
           </div>
-        </section>
+        </motion.section>
 
         <DecorativeLine className="my-20" variant="left-red-right-gold" />
 
         {/* Services Section (Game Modes) */}
-        <section className="py-20">
+        <motion.section
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.3 }}
+          variants={staggerContainer}
+          className="py-20"
+        >
           <div className="container mx-auto px-6 lg:px-12 xl:px-24">
             <div className="text-center max-w-4xl mx-auto mb-16">
-              <h2 className="text-4xl lg:text-[55px] font-bold leading-tight mb-6 font-orbitron">
+              <motion.h2 variants={fadeInUp} className="text-4xl lg:text-[55px] font-bold leading-tight mb-6 font-orbitron">
                 <span className="text-white">Choose Your </span>
                 <span className="bg-gradient-cyber bg-clip-text text-transparent">Path</span>
-              </h2>
-              <p className="text-cyber-gray text-lg leading-8">
+              </motion.h2>
+              <motion.p variants={fadeInUp} className="text-cyber-gray text-lg leading-8">
                 Whether you're here to train, compete, or spectate, KaspaClash offers multiple ways to engage with the arena.
-              </p>
+              </motion.p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
@@ -348,7 +420,7 @@ export default function Home() {
                   ),
                 },
               ].map((service, index) => (
-                <div key={index}>
+                <motion.div variants={fadeInUp} key={index}>
                   <div className="flex gap-6">
                     <div className="w-20 h-20 rounded-[11px] border-2 border-cyber-gold flex items-center justify-center flex-shrink-0">
                       {service.icon}
@@ -362,27 +434,33 @@ export default function Home() {
                       </p>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </div>
-        </section>
+        </motion.section>
 
         <DecorativeLine className="my-20" variant="left-gold-right-red" />
 
         {/* Portal Section */}
-        <section className="py-20">
+        <motion.section
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.3 }}
+          variants={staggerContainer}
+          className="py-20"
+        >
           <div className="container mx-auto px-6 lg:px-12 xl:px-24">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-              <div>
+              <motion.div variants={fadeInUp}>
                 <img
                   src="/assets/6.webp"
                   alt="Gritty future"
                   className="w-full h-auto rounded-2xl shadow-2xl shadow-cyber-gold/20"
                 />
-              </div>
+              </motion.div>
 
-              <div>
+              <motion.div variants={fadeInUp}>
                 <h2 className="text-4xl lg:text-[55px] font-bold leading-tight mb-8 font-orbitron">
                   <span className="text-white">Your </span>
                   <span className="bg-gradient-cyber bg-clip-text text-transparent">Portal to</span>
@@ -394,34 +472,44 @@ export default function Home() {
 
                 <div className="flex gap-4">
                   <Link href="/leaderboard">
-                    <Button size="lg" className="bg-gradient-cyber text-white border-0 hover:opacity-90 font-orbitron text-lg px-6 py-3 h-auto">
-                      View Leaderboard
-                    </Button>
+                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                      <Button size="lg" className="bg-gradient-cyber text-white border-0 hover:opacity-90 font-orbitron text-lg px-6 py-3 h-auto">
+                        View Leaderboard
+                      </Button>
+                    </motion.div>
                   </Link>
                   <Link href="/docs">
-                    <Button variant="outline" size="lg" className="border-cyber-gold text-cyber-gold hover:bg-cyber-gold/10 font-orbitron text-lg px-6 py-3 h-auto">
-                      Game Manual
-                    </Button>
+                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                      <Button variant="outline" size="lg" className="border-cyber-gold text-cyber-gold hover:bg-cyber-gold/10 font-orbitron text-lg px-6 py-3 h-auto">
+                        Game Manual
+                      </Button>
+                    </motion.div>
                   </Link>
                 </div>
-              </div>
+              </motion.div>
             </div>
           </div>
-        </section>
+        </motion.section>
 
         <DecorativeLine className="my-20" variant="left-gold-right-red" />
 
         {/* FAQs Section */}
-        <section className="py-20">
+        <motion.section
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.3 }}
+          variants={staggerContainer}
+          className="py-20"
+        >
           <div className="container mx-auto px-6 lg:px-12 xl:px-24">
             <div className="text-center max-w-4xl mx-auto mb-16">
-              <h2 className="text-4xl lg:text-[55px] font-bold leading-tight mb-6 font-orbitron">
+              <motion.h2 variants={fadeInUp} className="text-4xl lg:text-[55px] font-bold leading-tight mb-6 font-orbitron">
                 <span className="text-white">Frequently Asked </span>
                 <span className="bg-gradient-cyber bg-clip-text text-transparent">Questions</span>
-              </h2>
-              <p className="text-cyber-gray text-lg leading-8">
+              </motion.h2>
+              <motion.p variants={fadeInUp} className="text-cyber-gray text-lg leading-8">
                 Everything you need to know about the first Kaspa-native fighting game.
-              </p>
+              </motion.p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
@@ -447,7 +535,7 @@ export default function Home() {
                   answer: "Yes. Every move is hashed and submitted to the leaderboard. You can verify every single punch and kick on the Kaspa explorer."
                 },
               ].map((faq, index) => (
-                <div key={index} className="pb-8 border-b border-gradient-cyber-270">
+                <motion.div variants={fadeInUp} key={index} className="pb-8 border-b border-gradient-cyber-270">
                   <div className="flex gap-6">
                     <span className="text-5xl font-medium bg-gradient-cyber bg-clip-text text-transparent leading-tight font-orbitron">
                       {faq.number}
@@ -461,11 +549,11 @@ export default function Home() {
                       </p>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </div>
-        </section>
+        </motion.section>
 
         <DecorativeLine className="my-20" variant="left-gold-right-red" />
       </div>
