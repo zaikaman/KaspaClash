@@ -23,6 +23,7 @@ export interface KaswareWallet {
   signMessage(message: string): Promise<string>;
   signPsbt?(psbtHex: string): Promise<string>;
   disconnect?(): Promise<void>;
+  switchNetwork?(network: string): Promise<void>;
   on?(event: string, handler: (...args: unknown[]) => void): void;
   off?(event: string, handler: (...args: unknown[]) => void): void;
   removeListener?(event: string, handler: (...args: unknown[]) => void): void;
@@ -187,6 +188,44 @@ export async function disconnectWallet(): Promise<void> {
   currentAddress = null;
 
   console.log("Wallet disconnected");
+}
+
+/**
+ * Switch the wallet to a different network.
+ * This will trigger a Kasware popup asking the user to switch networks.
+ * @param network - The target network ("mainnet" or "testnet")
+ * @returns true if switch was successful, false otherwise
+ */
+export async function switchNetwork(network: "mainnet" | "testnet"): Promise<boolean> {
+  if (!currentWallet) {
+    console.error("No wallet connected");
+    return false;
+  }
+
+  if (!currentWallet.switchNetwork) {
+    console.warn("Wallet does not support programmatic network switching");
+    // Return false but don't throw - let the UI handle this gracefully
+    return false;
+  }
+
+  try {
+    // Kasware uses "mainnet", "testnet", "devnet" as network identifiers
+    console.log(`Requesting wallet to switch to ${network}...`);
+    await currentWallet.switchNetwork(network);
+
+    // After switching, get the new address (it will change with network)
+    const accounts = await currentWallet.getAccounts();
+    if (accounts && accounts.length > 0) {
+      currentAddress = accounts[0] as KaspaAddress;
+      console.log("Network switched successfully, new address:", currentAddress);
+    }
+
+    return true;
+  } catch (error) {
+    // User may have rejected the switch or wallet doesn't support it
+    console.warn("Network switch failed or was rejected:", error);
+    return false;
+  }
 }
 
 /**

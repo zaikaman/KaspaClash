@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import WalletConnectModal from "@/components/wallet/WalletConnectModal";
 import WalletInfo from "@/components/wallet/WalletInfo";
+import NetworkModeIndicator from "@/components/shared/NetworkModeIndicator";
 import { useWallet } from "@/hooks/useWallet";
 
 export default function LandingHeader() {
@@ -94,8 +95,9 @@ export default function LandingHeader() {
                     </Link>
                 </div>
 
-                {/* Wallet / CTA */}
-                <div className="hidden md:block">
+                {/* Network Mode & Wallet / CTA */}
+                <div className="hidden md:flex items-center gap-3">
+                    <NetworkModeIndicator />
                     {isConnected && truncatedAddress ? (
                         <WalletInfo
                             address={truncatedAddress}

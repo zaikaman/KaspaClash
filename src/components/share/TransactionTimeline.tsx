@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { NETWORK_CONFIG, type NetworkType } from "@/types/constants";
 
 export interface TransactionData {
     txId: string;
@@ -64,7 +65,7 @@ function getTimeDiff(startTime: string, endTime: string): string {
     const start = new Date(startTime).getTime();
     const end = new Date(endTime).getTime();
     const diffMs = end - start;
-    
+
     if (diffMs < 1000) {
         return `${diffMs}ms`;
     } else if (diffMs < 60000) {
@@ -79,13 +80,13 @@ function getTimeDiff(startTime: string, endTime: string): string {
 function calculateAverageConfirmationTime(transactions: TransactionData[]): string | null {
     const confirmedTxs = transactions.filter(tx => tx.confirmedAt);
     if (confirmedTxs.length === 0) return null;
-    
+
     const totalMs = confirmedTxs.reduce((sum, tx) => {
         const created = new Date(tx.createdAt).getTime();
         const confirmed = new Date(tx.confirmedAt!).getTime();
         return sum + (confirmed - created);
     }, 0);
-    
+
     const avgMs = totalMs / confirmedTxs.length;
     if (avgMs < 1000) {
         return `${Math.round(avgMs)}ms`;
@@ -93,37 +94,35 @@ function calculateAverageConfirmationTime(transactions: TransactionData[]): stri
     return `${(avgMs / 1000).toFixed(2)}s`;
 }
 
-export default function TransactionTimeline({ 
-    transactions, 
-    matchCreatedAt, 
+export default function TransactionTimeline({
+    transactions,
+    matchCreatedAt,
     matchCompletedAt,
     network: propNetwork
 }: TransactionTimelineProps) {
     const [expanded, setExpanded] = useState(false);
-    
+
     // Detect network from player addresses or use provided prop
-    const detectedNetwork = propNetwork || (transactions.length > 0 
-        ? detectNetwork(transactions[0].playerAddress) 
+    const detectedNetwork = propNetwork || (transactions.length > 0
+        ? detectNetwork(transactions[0].playerAddress)
         : "mainnet");
-    
+
     const sortedTxs = [...transactions].sort(
         (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
-    
+
     const avgConfirmTime = calculateAverageConfirmationTime(transactions);
-    const matchDuration = matchCompletedAt 
+    const matchDuration = matchCompletedAt
         ? getTimeDiff(matchCreatedAt, matchCompletedAt)
         : null;
-    
+
     const displayedTxs = expanded ? sortedTxs : sortedTxs.slice(0, 3);
-    
+
     const getExplorerUrl = (txId: string) => {
-        if (detectedNetwork === "testnet") {
-            return `https://explorer-tn10.kaspa.org/txs/${txId}`;
-        }
-        return `https://explorer.kaspa.org/txs/${txId}`;
+        const network = detectedNetwork as NetworkType;
+        return `${NETWORK_CONFIG[network].explorerUrl}/txs/${txId}`;
     };
-    
+
     if (transactions.length === 0) {
         return (
             <div className="bg-black/40 border border-cyber-gold/20 rounded-xl p-6 backdrop-blur-md max-w-4xl mx-auto">
@@ -141,7 +140,7 @@ export default function TransactionTimeline({
             </div>
         );
     }
-    
+
     return (
         <div className="bg-black/40 border border-cyber-gold/20 rounded-xl p-6 backdrop-blur-md max-w-4xl mx-auto">
             {/* Header */}
@@ -161,7 +160,7 @@ export default function TransactionTimeline({
                         </p>
                     </div>
                 </div>
-                
+
                 {/* Speed Stats */}
                 <div className="hidden md:flex items-center gap-4">
                     {avgConfirmTime && (
@@ -178,7 +177,7 @@ export default function TransactionTimeline({
                     )}
                 </div>
             </div>
-            
+
             {/* Kaspa Speed Highlight */}
             <div className="bg-gradient-to-r from-cyber-gold/10 to-transparent border-l-2 border-cyber-gold px-4 py-3 rounded-r mb-6">
                 <div className="flex items-center gap-2">
@@ -188,11 +187,11 @@ export default function TransactionTimeline({
                     </span>
                 </div>
             </div>
-            
+
             {/* Transaction List */}
             <div className="space-y-3">
                 {displayedTxs.map((tx, index) => (
-                    <div 
+                    <div
                         key={tx.txId}
                         className="group bg-black/30 border border-white/5 hover:border-cyber-gold/30 rounded-lg p-4 transition-all"
                     >
@@ -208,7 +207,7 @@ export default function TransactionTimeline({
                                         <div className="w-px h-6 bg-gradient-to-b from-cyber-gold/30 to-transparent mt-1" />
                                     )}
                                 </div>
-                                
+
                                 {/* Move Info */}
                                 <div>
                                     <div className="flex items-center gap-2">
@@ -224,7 +223,7 @@ export default function TransactionTimeline({
                                     </div>
                                 </div>
                             </div>
-                            
+
                             {/* TX Link */}
                             <div className="flex items-center gap-3">
                                 {tx.confirmedAt && (
@@ -252,7 +251,7 @@ export default function TransactionTimeline({
                     </div>
                 ))}
             </div>
-            
+
             {/* Show More/Less Button */}
             {sortedTxs.length > 3 && (
                 <div className="mt-4 text-center">
@@ -261,14 +260,14 @@ export default function TransactionTimeline({
                         onClick={() => setExpanded(!expanded)}
                         className="text-cyber-gray hover:text-cyber-gold font-mono text-xs"
                     >
-                        {expanded 
-                            ? `Show Less ↑` 
+                        {expanded
+                            ? `Show Less ↑`
                             : `Show All ${sortedTxs.length} Transactions ↓`
                         }
                     </Button>
                 </div>
             )}
-            
+
             {/* Mobile Stats */}
             <div className="md:hidden flex justify-center gap-6 mt-4 pt-4 border-t border-white/5">
                 {avgConfirmTime && (

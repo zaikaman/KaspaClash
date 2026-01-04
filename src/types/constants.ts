@@ -165,11 +165,51 @@ export const UI_CONSTANTS = {
 } as const;
 
 // =============================================================================
-// KASPA CONSTANTS
+// NETWORK CONFIGURATION
+// =============================================================================
+
+/**
+ * Network type definition.
+ */
+export type NetworkType = "mainnet" | "testnet";
+
+/**
+ * Network-specific configuration for mainnet and testnet.
+ */
+export const NETWORK_CONFIG = {
+  mainnet: {
+    /** Address prefix */
+    prefix: "kaspa:",
+    /** Block explorer URL */
+    explorerUrl: "https://explorer.kaspa.org",
+    /** RPC endpoint */
+    rpcUrl: "wss://mainnet.kaspathon.com/wrpc",
+    /** Display name */
+    displayName: "Mainnet",
+    /** Badge color class */
+    badgeClass: "bg-green-500/20 text-green-400 border-green-500/30",
+  },
+  testnet: {
+    /** Address prefix */
+    prefix: "kaspatest:",
+    /** Block explorer URL (TN10) */
+    explorerUrl: "https://explorer-tn10.kaspa.org",
+    /** RPC endpoint */
+    rpcUrl: "wss://testnet.kaspathon.com/wrpc",
+    /** Display name */
+    displayName: "Testnet",
+    /** Badge color class */
+    badgeClass: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+  },
+} as const;
+
+// =============================================================================
+// KASPA CONSTANTS (Legacy - use NETWORK_CONFIG for new code)
 // =============================================================================
 
 /**
  * Kaspa blockchain configuration.
+ * @deprecated Use NETWORK_CONFIG for network-specific values
  */
 export const KASPA_CONSTANTS = {
   /** Address prefix for mainnet */
@@ -187,8 +227,8 @@ export const KASPA_CONSTANTS = {
   /** Kaspa explorer base URL */
   EXPLORER_URL: "https://explorer.kaspa.org",
 
-  /** Testnet explorer base URL */
-  TESTNET_EXPLORER_URL: "https://explorer-tn.kaspa.org",
+  /** Testnet explorer base URL (TN10) */
+  TESTNET_EXPLORER_URL: "https://explorer-tn10.kaspa.org",
 
   /** Sompi per KAS */
   SOMPI_PER_KAS: 100000000,

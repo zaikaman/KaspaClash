@@ -4,6 +4,7 @@
  */
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { NETWORK_CONFIG, type NetworkType } from "@/types/constants";
 
 // =============================================================================
 // TYPES
@@ -141,6 +142,8 @@ export async function getPlayerMatchHistory(
     const score = `${playerRoundsWon}-${opponentRoundsWon}`;
 
     // Extract the first transaction ID from the match's moves for explorer verification
+    // Detect network from player address for correct explorer URL
+    const playerNetwork: NetworkType = playerAddress.startsWith("kaspatest:") ? "testnet" : "mainnet";
     let explorerUrl: string | null = null;
     const rounds = match.rounds as Array<{ moves: Array<{ tx_id: string | null }> }> | null;
     if (rounds) {
@@ -148,8 +151,7 @@ export async function getPlayerMatchHistory(
         if (round.moves) {
           for (const move of round.moves) {
             if (move.tx_id) {
-              // Use testnet explorer for verification
-              explorerUrl = `https://explorer-tn10.kaspa.org/txs/${move.tx_id}`;
+              explorerUrl = `${NETWORK_CONFIG[playerNetwork].explorerUrl}/txs/${move.tx_id}`;
               break;
             }
           }

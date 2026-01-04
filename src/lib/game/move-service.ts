@@ -391,14 +391,13 @@ export async function verifyMoveOnChain(
 // EXPLORER LINKS
 // =============================================================================
 
+import { NETWORK_CONFIG, type NetworkType } from "@/types/constants";
+
 /**
  * Get Kaspa explorer link for a transaction.
  */
-export function getExplorerLink(txId: string, network: "mainnet" | "testnet" = "mainnet"): string {
-  if (network === "testnet") {
-    return `https://explorer-tn10.kaspa.org/txs/${txId}`;
-  }
-  return `https://explorer.kaspa.org/txs/${txId}`;
+export function getExplorerLink(txId: string, network: NetworkType = "testnet"): string {
+  return `${NETWORK_CONFIG[network].explorerUrl}/txs/${txId}`;
 }
 
 /**
@@ -406,10 +405,7 @@ export function getExplorerLink(txId: string, network: "mainnet" | "testnet" = "
  */
 export function getAddressExplorerLink(
   address: string,
-  network: "mainnet" | "testnet" = "mainnet"
+  network: NetworkType = "testnet"
 ): string {
-  if (network === "testnet") {
-    return `https://explorer-tn10.kaspa.org/addresses/${address}`;
-  }
-  return `https://explorer.kaspa.org/addresses/${address}`;
+  return `${NETWORK_CONFIG[network].explorerUrl}/addresses/${address}`;
 }
