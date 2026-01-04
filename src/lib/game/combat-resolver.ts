@@ -250,7 +250,7 @@ export async function resolveRound(
         // Total: 9 seconds extra when round is over
         const ROUND_END_ANIMATION_MS = 9000; // Extra time for death animation + text + countdown
         const ROUND_COUNTDOWN_MS = 3000;
-        const MOVE_TIMER_MS = 15000;
+        const MOVE_TIMER_MS = 20000;
         const animationTime = state.isRoundOver ? ROUND_END_ANIMATION_MS : 0;
         const moveDeadlineAt = Date.now() + animationTime + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
 
@@ -487,7 +487,7 @@ export async function handleMoveRejection(
         // Add extra time for client death animation sequence (9 seconds)
         const ROUND_END_ANIMATION_MS = 9000;
         const ROUND_COUNTDOWN_MS = 3000;
-        const MOVE_TIMER_MS = 15000;
+        const MOVE_TIMER_MS = 20000;
         const moveDeadlineAt = Date.now() + ROUND_END_ANIMATION_MS + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
 
         const nextChannel = supabase.channel(`game:${matchId}`);

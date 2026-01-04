@@ -95,6 +95,7 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
   // Use refs to track latest values for stable event handlers
   const addressRef = useRef(address);
   const matchIdRef = useRef(match.id);
+  const moveSubmittedRef = useRef(false); // Track if move was already submitted this round
 
   // Keep refs in sync with latest values
   useEffect(() => {
@@ -284,11 +285,34 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
             console.log("[MatchGameClient] matchReady=true, emitting local match_starting event");
             console.log("[MatchGameClient] player1CharacterId:", result.data.player1CharacterId || match.player1CharacterId);
             console.log("[MatchGameClient] player2CharacterId:", result.data.player2CharacterId || match.player2CharacterId);
+
+            // Calculate synchronized deadline (3s countdown + 20s timer)
+            const ROUND_COUNTDOWN_MS = 3000;
+            const MOVE_TIMER_MS = 20000;
+            const moveDeadlineAt = Date.now() + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
+
             EventBus.emit("match_starting", {
               countdown: 3,
               player1CharacterId: result.data.player1CharacterId || match.player1CharacterId,
               player2CharacterId: result.data.player2CharacterId || match.player2CharacterId,
             });
+
+            // Also emit round_starting for FightScene to start synchronized timer
+            // This ensures the FightScene doesn't get stuck waiting for a broadcast it missed
+            setTimeout(() => {
+              EventBus.emit("game:roundStarting", {
+                roundNumber: 1,
+                turnNumber: 1,
+                moveDeadlineAt,
+                countdownSeconds: Math.floor(ROUND_COUNTDOWN_MS / 1000),
+                player1Health: 100,
+                player2Health: 100,
+                player1Energy: 100,
+                player2Energy: 100,
+                player1GuardMeter: 0,
+                player2GuardMeter: 0,
+              });
+            }, 100); // Small delay to ensure FightScene is created first
           } else {
             console.log("[MatchGameClient] matchReady=false, waiting for broadcast");
           }
@@ -385,14 +409,20 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
             EventBus.emit("game:moveError", { error: "Failed to submit move to server" });
           } else {
             console.log("[MatchGameClient] Move recorded on server");
+            // Mark move as submitted to prevent double-submission
+            moveSubmittedRef.current = true;
           }
         } else {
           // Transaction failed - user likely rejected the wallet popup
           console.error("Transaction failed:", result.error);
           EventBus.emit("game:moveError", { error: result.error || "Failed to create transaction" });
 
-          // Notify server that this player rejected the transaction
-          await handleTransactionRejection(currentMatchId, currentAddress);
+          // Only notify server of rejection if we haven't already submitted a move
+          if (!moveSubmittedRef.current) {
+            await handleTransactionRejection(currentMatchId, currentAddress);
+          } else {
+            console.log("[MatchGameClient] Move already submitted, skipping rejection notification");
+          }
         }
       } catch (error) {
         console.error("Error submitting move:", error);
@@ -437,12 +467,46 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
         console.error("[MatchGameClient] Timeout claim error:", error);
       }
     };
+    // Handle FightScene requesting round state (in case it missed the broadcast)
+    const handleRequestRoundState = (data: unknown) => {
+      const payload = data as { matchId: string };
+      console.log("[MatchGameClient] FightScene requested round state for match:", payload.matchId);
+
+      // Only respond if this is for our match and we're in a state where the match should be starting
+      if (payload.matchId === matchIdRef.current) {
+        // Calculate synchronized deadline (3s countdown + 20s timer)
+        const ROUND_COUNTDOWN_MS = 3000;
+        const MOVE_TIMER_MS = 20000;
+        const moveDeadlineAt = Date.now() + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
+
+        console.log("[MatchGameClient] Responding with game:roundStarting, deadline:", moveDeadlineAt);
+        EventBus.emit("game:roundStarting", {
+          roundNumber: 1,
+          turnNumber: 1,
+          moveDeadlineAt,
+          countdownSeconds: Math.floor(ROUND_COUNTDOWN_MS / 1000),
+          player1Health: 100,
+          player2Health: 100,
+          player1Energy: 100,
+          player2Energy: 100,
+          player1GuardMeter: 0,
+          player2GuardMeter: 0,
+        });
+      }
+    };
+    // Reset move submission tracking when a new turn starts
+    const handleRoundStarting = () => {
+      console.log("[MatchGameClient] New round/turn starting, resetting moveSubmittedRef");
+      moveSubmittedRef.current = false;
+    };
 
     console.log("[MatchGameClient] Registering EventBus listeners for selection_confirmed, etc.");
     EventBus.on("scene:ready", handleSceneReady);
     EventBus.on("selection_confirmed", handleSelectionConfirmed);
     EventBus.on("game:submitMove", handleMoveSubmitted);
     EventBus.on("game:claimTimeoutVictory", handleClaimTimeoutVictory);
+    EventBus.on("fight:requestRoundState", handleRequestRoundState);
+    EventBus.on("game:roundStarting", handleRoundStarting);
     console.log("[MatchGameClient] EventBus listeners registered at:", Date.now());
 
     return () => {
@@ -451,6 +515,8 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       EventBus.off("selection_confirmed", handleSelectionConfirmed);
       EventBus.off("game:submitMove", handleMoveSubmitted);
       EventBus.off("game:claimTimeoutVictory", handleClaimTimeoutVictory);
+      EventBus.off("fight:requestRoundState", handleRequestRoundState);
+      EventBus.off("game:roundStarting", handleRoundStarting);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - register once, use refs for latest values

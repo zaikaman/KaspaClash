@@ -184,7 +184,7 @@ export async function POST(
 
         // Broadcast match_starting and round_starting events using proper subscription
         const ROUND_COUNTDOWN_MS = 3000;
-        const MOVE_TIMER_MS = 15000;
+        const MOVE_TIMER_MS = 20000;
         const moveDeadlineAt = Date.now() + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
 
         console.log("[Select API] Broadcasting match_starting and round_starting events");
@@ -323,7 +323,7 @@ export async function POST(
 
           // Broadcast match_starting event to both players
           const ROUND_COUNTDOWN_MS = 3000;
-          const MOVE_TIMER_MS = 15000;
+          const MOVE_TIMER_MS = 20000;
           const moveDeadlineAt = Date.now() + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
 
           console.log("[Select API] Broadcasting match_starting and round_starting events (normal flow)");

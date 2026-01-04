@@ -176,14 +176,14 @@ class SSRSafeEventEmitter {
       if (event === "scene:ready") {
         console.log(`[EventBus] Calling listener ${index + 1}/${listenersCopy.length} for '${event}'`);
       }
-      
+
       try {
         if (listener.context) {
           listener.callback.call(listener.context, data);
         } else {
           listener.callback(data);
         }
-        
+
         if (event === "scene:ready") {
           console.log(`[EventBus] Listener ${index + 1} completed successfully`);
         }

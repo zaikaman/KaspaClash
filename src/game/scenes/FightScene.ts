@@ -72,7 +72,7 @@ export class FightScene extends Phaser.Scene {
   private timerEvent?: Phaser.Time.TimerEvent;
 
   // State
-  private phase: "countdown" | "selecting" | "resolving" | "round_end" | "match_end" = "countdown";
+  private phase: "waiting" | "countdown" | "selecting" | "resolving" | "round_end" | "match_end" = "waiting";
   private isWaitingForOpponent: boolean = false;
   private moveDeadlineAt: number = 0; // Server-synchronized move deadline timestamp
 
@@ -359,10 +359,22 @@ export class FightScene extends Phaser.Scene {
       console.log("[FightScene] Reconnect mode - applying server state from config");
       this.handleStateSync(this.config.reconnectState);
     } else {
-      // Update UI with initial state and start normally
-      console.log("[FightScene] Normal mode - starting fresh");
+      // Update UI with initial state
+      console.log("[FightScene] Normal mode - waiting for server round_starting event");
       this.syncUIWithCombatState();
-      this.startRound();
+
+      // Don't start a client-side timer - wait for server's round_starting event
+      // which includes moveDeadlineAt for synchronized timing across both players.
+      // The server broadcasts round_starting when match_starting is sent.
+      this.phase = "waiting";
+      this.turnIndicatorText.setText("Waiting for round to start...");
+      this.turnIndicatorText.setColor("#f97316");
+      this.roundTimerText.setText("--");
+
+      // Request round state from MatchGameClient in case we missed the broadcast
+      // MatchGameClient will respond with game:roundStarting if the match is ready
+      console.log("[FightScene] Requesting round state from MatchGameClient");
+      EventBus.emit("fight:requestRoundState", { matchId: this.config.matchId });
     }
 
     // Emit scene ready event
@@ -816,7 +828,7 @@ export class FightScene extends Phaser.Scene {
     this.roundTimerText = this.add.text(
       UI_POSITIONS.TIMER.X,
       UI_POSITIONS.TIMER.Y,
-      "15",
+      "20",
       { fontFamily: "monospace", fontSize: "24px", color: "#40e0d0", fontStyle: "bold" }
     ).setOrigin(0.5);
   }
@@ -981,11 +993,8 @@ export class FightScene extends Phaser.Scene {
       playerRole: this.config.playerRole,
     });
 
-    // Stop timer - server will send round_resolved when both players submit
-    if (this.timerEvent) {
-      this.timerEvent.destroy();
-      this.timerEvent = undefined;
-    }
+    // Timer continues running - don't stop it when a move is selected
+    // This ensures the timer keeps counting even when Kasware popup appears
   }
 
   private updateButtonState(move: MoveType, selected: boolean): void {
@@ -1136,7 +1145,7 @@ export class FightScene extends Phaser.Scene {
 
     this.phase = "selecting";
     this.selectedMove = null;
-    this.turnTimer = 15;
+    this.turnTimer = 20;
     this.turnIndicatorText.setText("Select your move!");
 
     // Update button affordability
@@ -1157,7 +1166,7 @@ export class FightScene extends Phaser.Scene {
           this.onTimerExpired();
         }
       },
-      repeat: 14,
+      repeat: 19,
     });
 
     // Sync UI
@@ -1419,6 +1428,21 @@ export class FightScene extends Phaser.Scene {
       if (isOpponentMove) {
         this.isWaitingForOpponent = false;
         this.turnIndicatorText.setText("Opponent locked in!");
+        this.turnIndicatorText.setColor("#22c55e");
+      }
+    });
+
+    // Listen for move confirmation (when player signs transaction)
+    EventBus.on("game:moveConfirmed", (data: unknown) => {
+      const payload = data as { player: string };
+
+      // If we confirmed our move, stop the local timer
+      if (payload.player === this.config.playerRole && this.phase === "selecting") {
+        if (this.timerEvent) {
+          this.timerEvent.destroy();
+          this.timerEvent = undefined;
+        }
+        this.turnIndicatorText.setText("Move locked in!");
         this.turnIndicatorText.setColor("#22c55e");
       }
     });
@@ -1788,9 +1812,12 @@ export class FightScene extends Phaser.Scene {
         this.startSynchronizedSelectionPhase(state.moveDeadlineAt);
       }
     } else {
-      // No active deadline - start a fresh round countdown
-      console.log("[FightScene] Decision: No active deadline, starting fresh round");
-      this.startRound();
+      // No active deadline - wait for server's round_starting event
+      console.log("[FightScene] Decision: No active deadline, waiting for server round_starting event");
+      this.phase = "waiting";
+      this.turnIndicatorText.setText("Waiting for round to start...");
+      this.turnIndicatorText.setColor("#f97316");
+      this.roundTimerText.setText("--");
     }
   }
 
