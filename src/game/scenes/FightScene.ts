@@ -471,9 +471,13 @@ export class FightScene extends Phaser.Scene {
     // Only use the idle spritesheet we loaded
     const p1TextureKey = `char_${p1Char}_idle`;
 
+    // Adjust Y position for specific characters
+    // Move block-bruiser up a bit more (larger negative offset)
+    const p1YOffset = p1Char === "block-bruiser" ? 70 : 50;
+
     this.player1Sprite = this.add.sprite(
       CHARACTER_POSITIONS.PLAYER1.X,
-      CHARACTER_POSITIONS.PLAYER1.Y - 50,  // Raise up a bit from floor
+      CHARACTER_POSITIONS.PLAYER1.Y - p1YOffset,
       p1TextureKey
     );
 
@@ -491,9 +495,12 @@ export class FightScene extends Phaser.Scene {
     // Only use the idle spritesheet we loaded
     const p2TextureKey = `char_${p2Char}_idle`;
 
+    // Adjust Y position for specific characters
+    const p2YOffset = p2Char === "block-bruiser" ? 70 : 50;
+
     this.player2Sprite = this.add.sprite(
       CHARACTER_POSITIONS.PLAYER2.X,
-      CHARACTER_POSITIONS.PLAYER2.Y - 50,  // Raise up a bit from floor
+      CHARACTER_POSITIONS.PLAYER2.Y - p2YOffset,
       p2TextureKey
     );
 
@@ -1776,12 +1783,15 @@ export class FightScene extends Phaser.Scene {
       currentRound: payload.roundNumber,
     };
 
-    // Update UI with server state
-    this.syncUIWithCombatState();
+    // Update UI with server state and start countdown - DELAYED to let animations finish
+    // This allows the previous round's resolution (damage text, etc) to play out fully
+    // and ensures HP bars sync with the damage numbers
+    this.time.delayedCall(2000, () => {
+      this.syncUIWithCombatState();
 
-    // Show countdown then start selection with synchronized timer
-    this.phase = "countdown";
-    this.showCountdownThenSync(payload.countdownSeconds, payload.moveDeadlineAt);
+      this.phase = "countdown";
+      this.showCountdownThenSync(payload.countdownSeconds, payload.moveDeadlineAt);
+    });
   }
 
   /**
