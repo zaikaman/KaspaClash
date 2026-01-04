@@ -217,10 +217,17 @@ export async function resolveRound(
         await supabase.removeChannel(endChannel);
     } else {
         // Broadcast round_starting for next turn with synchronized deadline
-        // 3 second countdown + 15 second move timer = 18 seconds
+        // When a round ends (someone KO'd), add extra time for client death animation sequence:
+        // - Death animation: 1.5s
+        // - Result text display: 1.5s
+        // - 5-second countdown: 5s
+        // - Buffer: 1s
+        // Total: 9 seconds extra when round is over
+        const ROUND_END_ANIMATION_MS = 9000; // Extra time for death animation + text + countdown
         const ROUND_COUNTDOWN_MS = 3000;
         const MOVE_TIMER_MS = 15000;
-        const moveDeadlineAt = Date.now() + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
+        const animationTime = state.isRoundOver ? ROUND_END_ANIMATION_MS : 0;
+        const moveDeadlineAt = Date.now() + animationTime + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
 
         // If round is over (someone KO'd), start new round in engine
         if (state.isRoundOver) {
@@ -428,9 +435,11 @@ export async function handleMoveRejection(
         await supabase.removeChannel(endChannel);
     } else {
         // Start next round
+        // Add extra time for client death animation sequence (9 seconds)
+        const ROUND_END_ANIMATION_MS = 9000;
         const ROUND_COUNTDOWN_MS = 3000;
         const MOVE_TIMER_MS = 15000;
-        const moveDeadlineAt = Date.now() + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
+        const moveDeadlineAt = Date.now() + ROUND_END_ANIMATION_MS + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
 
         const nextChannel = supabase.channel(`game:${matchId}`);
         await nextChannel.send({

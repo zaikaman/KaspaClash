@@ -100,6 +100,24 @@ export class FightScene extends Phaser.Scene {
     currentRound: number;
   } | null = null;
 
+  // Pending round start payload (queued if received during round_end phase)
+  private pendingRoundStart: {
+    roundNumber: number;
+    turnNumber: number;
+    moveDeadlineAt: number;
+    countdownSeconds: number;
+    player1Health: number;
+    player2Health: number;
+    player1MaxHealth?: number;
+    player2MaxHealth?: number;
+    player1Energy: number;
+    player2Energy: number;
+    player1MaxEnergy?: number;
+    player2MaxEnergy?: number;
+    player1GuardMeter: number;
+    player2GuardMeter: number;
+  } | null = null;
+
   constructor() {
     super({ key: "FightScene" });
   }
@@ -272,6 +290,29 @@ export class FightScene extends Phaser.Scene {
           frameHeight: 302,
         });
       }
+
+      // dead: block-bruiser 551x380, cyber-ninja 408x305, dag-warrior 539x325, hash-hunter 513x248
+      if (charId === "block-bruiser") {
+        this.load.spritesheet(`char_${charId}_dead`, `/characters/${charId}/dead.webp`, {
+          frameWidth: 551,
+          frameHeight: 380,
+        });
+      } else if (charId === "cyber-ninja") {
+        this.load.spritesheet(`char_${charId}_dead`, `/characters/${charId}/dead.webp`, {
+          frameWidth: 408,
+          frameHeight: 305,
+        });
+      } else if (charId === "dag-warrior") {
+        this.load.spritesheet(`char_${charId}_dead`, `/characters/${charId}/dead.webp`, {
+          frameWidth: 539,
+          frameHeight: 325,
+        });
+      } else if (charId === "hash-hunter") {
+        this.load.spritesheet(`char_${charId}_dead`, `/characters/${charId}/dead.webp`, {
+          frameWidth: 513,
+          frameHeight: 248,
+        });
+      }
     });
   }
 
@@ -408,6 +449,19 @@ export class FightScene extends Phaser.Scene {
           this.anims.create({
             key: `${charId}_special`,
             frames: this.anims.generateFrameNumbers(specialKey, { start: 0, end: 35 }),
+            frameRate: 24,
+            repeat: 0,
+          });
+        }
+      }
+
+      // Dead animation (24fps, plays once)
+      const deadKey = `char_${charId}_dead`;
+      if (this.textures.exists(deadKey)) {
+        if (!this.anims.exists(`${charId}_dead`)) {
+          this.anims.create({
+            key: `${charId}_dead`,
+            frames: this.anims.generateFrameNumbers(deadKey, { start: 0, end: 35 }),
             frameRate: 24,
             repeat: 0,
           });
@@ -1737,6 +1791,8 @@ export class FightScene extends Phaser.Scene {
 
   /**
    * Start round from server broadcast (production mode - synchronized timing).
+   * @param payload - Server round start data
+   * @param skipCountdown - If true, skip the 3-2-1 FIGHT countdown (used when processing queued events after our own countdown)
    */
   private startRoundFromServer(payload: {
     roundNumber: number;
@@ -1753,7 +1809,17 @@ export class FightScene extends Phaser.Scene {
     player2MaxEnergy?: number;
     player1GuardMeter: number;
     player2GuardMeter: number;
-  }): void {
+  }, skipCountdown: boolean = false): void {
+    // If we're in resolving phase (playing attack animations) or round_end phase 
+    // (playing death animation, showing text, countdown), queue this payload 
+    // and process it after the sequence finishes.
+    // The round_starting event arrives from server while we're still animating.
+    if (this.phase === "resolving" || this.phase === "round_end") {
+      console.log(`[FightScene] Queueing round start - currently in ${this.phase} phase`);
+      this.pendingRoundStart = payload;
+      return;
+    }
+
     // Stop any existing timer
     if (this.timerEvent) {
       this.timerEvent.destroy();
@@ -1783,15 +1849,19 @@ export class FightScene extends Phaser.Scene {
       currentRound: payload.roundNumber,
     };
 
-    // Update UI with server state and start countdown - DELAYED to let animations finish
-    // This allows the previous round's resolution (damage text, etc) to play out fully
-    // and ensures HP bars sync with the damage numbers
-    this.time.delayedCall(2000, () => {
-      this.syncUIWithCombatState();
+    // Sync UI with server state (updates HP bars, round info, etc.)
+    this.syncUIWithCombatState();
 
+    if (skipCountdown) {
+      // Skip the 3-2-1 FIGHT countdown - go directly to selection phase
+      // This is used when we already showed our own 5-second countdown
+      console.log("[FightScene] Skipping countdown - going straight to selection phase");
+      this.startSynchronizedSelectionPhase(payload.moveDeadlineAt);
+    } else {
+      // Show the 3-2-1 FIGHT countdown
       this.phase = "countdown";
       this.showCountdownThenSync(payload.countdownSeconds, payload.moveDeadlineAt);
-    });
+    }
   }
 
   /**
@@ -2146,10 +2216,24 @@ export class FightScene extends Phaser.Scene {
               } else if (payload.isRoundOver) {
                 this.showRoundEndFromServer(payload.roundWinner, payload.player1RoundsWon, payload.player2RoundsWon);
               } else {
-                // Wait for server's round_starting event
+                // Turn ended but round continues - process any pending round start
                 this.selectedMove = null;
-                this.turnIndicatorText.setText("Waiting for next turn...");
-                this.turnIndicatorText.setColor("#888888");
+
+                // Process pending round start if we received one during the resolving phase
+                if (this.pendingRoundStart) {
+                  console.log("[FightScene] Processing queued round start after turn resolution");
+                  const queuedPayload = this.pendingRoundStart;
+                  this.pendingRoundStart = null;
+                  // IMPORTANT: Change phase BEFORE calling startRoundFromServer to prevent re-queueing
+                  this.phase = "countdown";
+                  // For normal turns (not round over), show the 3-2-1 FIGHT countdown
+                  this.startRoundFromServer(queuedPayload, false);
+                } else {
+                  // Wait for server's round_starting event - change phase to allow receiving it
+                  this.phase = "selecting";
+                  this.turnIndicatorText.setText("Waiting for next turn...");
+                  this.turnIndicatorText.setColor("#888888");
+                }
               }
             },
           });
@@ -2160,6 +2244,7 @@ export class FightScene extends Phaser.Scene {
 
   /**
    * Show round end from server data (production mode).
+   * Plays death animation on loser, shows result text, countdown, then resets for next round.
    */
   private showRoundEndFromServer(
     roundWinner: "player1" | "player2" | null,
@@ -2168,26 +2253,119 @@ export class FightScene extends Phaser.Scene {
   ): void {
     this.phase = "round_end";
 
+    const p1Char = this.config.player1Character || "dag-warrior";
+    const p2Char = this.config.player2Character || "dag-warrior";
     const isLocalWinner = roundWinner === this.config.playerRole;
-    const winnerText = isLocalWinner ? "YOU WIN ROUND!" : "YOU LOSE ROUND";
 
-    this.countdownText.setText(winnerText);
-    this.countdownText.setFontSize(36);
-    this.countdownText.setColor(isLocalWinner ? "#22c55e" : "#ef4444");
-    this.countdownText.setAlpha(1);
+    // Dead animation scale constants
+    // cyber-ninja: 408x305, block-bruiser: 551x380, dag-warrior: 539x325, hash-hunter: 513x248
+    const DEAD_SCALE = 0.70;  // cyber-ninja base scale
+    const BB_DEAD_SCALE = 0.65;  // block-bruiser (larger frame)
+    const DW_DEAD_SCALE = 0.62;  // dag-warrior
+    const HH_DEAD_SCALE = 0.85;  // hash-hunter (smaller frame)
 
-    this.time.delayedCall(2000, () => {
-      this.countdownText.setAlpha(0);
-      this.countdownText.setFontSize(72);
+    // Idle scale constants (same as in handleServerRoundResolved)
+    const IDLE_SCALE = 0.45;
+    const BB_IDLE_SCALE = 0.95;
+    const DW_IDLE_SCALE = 0.90;
+    const HH_IDLE_SCALE = 0.90;
 
-      // In production mode, DON'T call local startRound() - wait for server's round_starting event
-      // The server broadcasts round_starting with synchronized deadline after round_resolved
-      // We just need to show "waiting" state until that event arrives
-      this.turnIndicatorText.setText("Starting next round...");
-      this.turnIndicatorText.setColor("#888888");
+    // Play dead animation on the loser
+    const loser = roundWinner === "player1" ? "player2" : "player1";
+    const loserChar = loser === "player1" ? p1Char : p2Char;
+    const loserSprite = loser === "player1" ? this.player1Sprite : this.player2Sprite;
 
-      // Reset selected move for next round
-      this.selectedMove = null;
+    // Get the correct dead scale for the loser's character
+    const getDeadScale = (charId: string) => {
+      if (charId === "block-bruiser") return BB_DEAD_SCALE;
+      if (charId === "dag-warrior") return DW_DEAD_SCALE;
+      if (charId === "hash-hunter") return HH_DEAD_SCALE;
+      return DEAD_SCALE;
+    };
+
+    const getIdleScale = (charId: string) => {
+      if (charId === "block-bruiser") return BB_IDLE_SCALE;
+      if (charId === "dag-warrior") return DW_IDLE_SCALE;
+      if (charId === "hash-hunter") return HH_IDLE_SCALE;
+      return IDLE_SCALE;
+    };
+
+    // Play dead animation on loser if it exists
+    if (this.anims.exists(`${loserChar}_dead`)) {
+      loserSprite.setScale(getDeadScale(loserChar));
+      loserSprite.play(`${loserChar}_dead`);
+    }
+
+    // Wait for death animation to complete (36 frames at 24fps = 1.5s)
+    this.time.delayedCall(1500, () => {
+      // Show round result text for this player
+      const resultText = isLocalWinner ? "YOU WON THIS ROUND!" : "YOU LOST THIS ROUND";
+      this.countdownText.setText(resultText);
+      this.countdownText.setFontSize(42);
+      this.countdownText.setColor(isLocalWinner ? "#22c55e" : "#ef4444");
+      this.countdownText.setAlpha(1);
+
+      // After showing result text for 1.5s, start the countdown
+      this.time.delayedCall(1500, () => {
+        let countdown = 5;
+
+        const updateRoundCountdown = () => {
+          this.countdownText.setText(`Next round starting in ${countdown}`);
+          this.countdownText.setFontSize(32);
+          this.countdownText.setColor("#40e0d0");
+
+          // Pulse effect on the countdown text
+          this.tweens.add({
+            targets: this.countdownText,
+            scale: { from: 1.1, to: 1 },
+            duration: 400,
+            ease: 'Power2',
+          });
+
+          if (countdown > 1) {
+            countdown--;
+            this.time.delayedCall(1000, updateRoundCountdown);
+          } else {
+            // Countdown finished - reset for next round
+            this.time.delayedCall(1000, () => {
+              // Hide countdown text
+              this.countdownText.setAlpha(0);
+              this.countdownText.setFontSize(72);
+
+              // Reset both sprites to idle animations with proper scales
+              if (this.anims.exists(`${p1Char}_idle`)) {
+                this.player1Sprite.setScale(getIdleScale(p1Char));
+                this.player1Sprite.play(`${p1Char}_idle`);
+              }
+              if (this.anims.exists(`${p2Char}_idle`)) {
+                this.player2Sprite.setScale(getIdleScale(p2Char));
+                this.player2Sprite.play(`${p2Char}_idle`);
+              }
+
+              // Reset selected move for next round
+              this.selectedMove = null;
+
+              // Change phase to allow processing queued events
+              this.phase = "selecting";
+
+              // Process pending round start if we received one during the round_end sequence
+              if (this.pendingRoundStart) {
+                console.log("[FightScene] Processing queued round start");
+                const payload = this.pendingRoundStart;
+                this.pendingRoundStart = null;
+                // Skip the 3-2-1 FIGHT countdown since we already showed our 5-second countdown
+                this.startRoundFromServer(payload, true);
+              } else {
+                // No pending event, just wait
+                this.turnIndicatorText.setText("Starting next round...");
+                this.turnIndicatorText.setColor("#888888");
+              }
+            });
+          }
+        };
+
+        updateRoundCountdown();
+      });
     });
   }
 }
