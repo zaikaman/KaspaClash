@@ -82,6 +82,12 @@ export default function LandingHeader() {
                         Play Now
                     </Link>
                     <Link
+                        href="/spectate"
+                        className={`hover:text-cyber-gold transition-colors ${pathname === "/spectate" ? "text-cyber-gold" : "text-white"}`}
+                    >
+                        Watch
+                    </Link>
+                    <Link
                         href="/leaderboard"
                         className={`hover:text-cyber-gold transition-colors ${pathname === "/leaderboard" ? "text-cyber-gold" : "text-white"}`}
                     >

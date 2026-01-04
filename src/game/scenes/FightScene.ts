@@ -20,6 +20,8 @@ export interface FightSceneConfig {
   player1Character: string;
   player2Character: string;
   playerRole: PlayerRole; // Which player is the local user
+  // For spectator mode
+  isSpectator?: boolean;
   // For reconnection
   isReconnect?: boolean;
   reconnectState?: {
@@ -586,6 +588,11 @@ export class FightScene extends Phaser.Scene {
   }
 
   private createPlayerIndicator(): void {
+    // Skip "YOU" indicator for spectators
+    if (this.config.isSpectator) {
+      return;
+    }
+
     const isP1You = this.config.playerRole === "player1";
     const targetSprite = isP1You ? this.player1Sprite : this.player2Sprite;
 
@@ -851,6 +858,18 @@ export class FightScene extends Phaser.Scene {
   // ===========================================================================
 
   private createMoveButtons(): void {
+    // Skip move buttons entirely for spectators
+    if (this.config.isSpectator) {
+      // Show spectator indicator instead of move buttons
+      this.add.text(
+        GAME_DIMENSIONS.CENTER_X,
+        GAME_DIMENSIONS.HEIGHT - 80,
+        "👁 SPECTATOR MODE",
+        { fontFamily: "monospace", fontSize: "18px", color: "#a855f7", fontStyle: "bold" }
+      ).setOrigin(0.5);
+      return;
+    }
+
     const moves: MoveType[] = ["punch", "kick", "block", "special"];
     const buttonWidth = 220;
     const buttonHeight = 120;
@@ -965,6 +984,11 @@ export class FightScene extends Phaser.Scene {
   }
 
   private selectMove(move: MoveType): void {
+    // Spectators cannot select moves
+    if (this.config.isSpectator) {
+      return;
+    }
+
     // Check if affordable
     if (!this.combatEngine.canAffordMove("player1", move)) {
       this.showFloatingText("Not enough energy!", GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.HEIGHT - 150, "#ff4444");

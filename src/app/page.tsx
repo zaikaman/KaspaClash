@@ -91,7 +91,7 @@ export default function Home() {
                 <p className="text-cyber-gray text-sm leading-relaxed mb-6">
                   Spectate real-time battles powered by Kaspa's sub-second block times.
                 </p>
-                <Link href="/matchmaking">
+                <Link href="/spectate">
                   <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                     <Button className="bg-gradient-cyber text-white border-0 hover:opacity-90 font-orbitron text-sm px-6 py-2 h-auto rounded-lg">
                       Watch Live
