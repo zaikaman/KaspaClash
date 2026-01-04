@@ -2031,12 +2031,12 @@ export class FightScene extends Phaser.Scene {
     // Base: idle is 232x450, we use 0.45 scale
     // Each animation has different frame sizes AND the character fills different amounts of each frame
     // These values need visual tuning to match the idle character size
-    const IDLE_SCALE = 0.45;
-    const RUN_SCALE = 0.71;      // run is 213x287
-    const PUNCH_SCALE = 0.78;    // punch is 269x260
-    const KICK_SCALE = 0.75;    // kick is 345x305
-    const BLOCK_SCALE = 0.80;    // block is 391x350 - increased for visual match
-    const SPECIAL_SCALE = 0.80;  // special is 384x309 - increased for visual match
+    const IDLE_SCALE = 0.70;
+    const RUN_SCALE = 0.70;      // run is 213x287
+    const PUNCH_SCALE = 0.70;    // punch is 269x260
+    const KICK_SCALE = 0.70;    // kick is 345x305
+    const BLOCK_SCALE = 0.70;    // block is 391x350 - increased for visual match
+    const SPECIAL_SCALE = 0.70;  // special is 384x309 - increased for visual match
 
     // Block Bruiser specific scales (idle is 260px height at 0.95 scale = 247px displayed)
     // All scales calculated to match: targetHeight / frameHeight = scale

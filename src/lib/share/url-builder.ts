@@ -1,6 +1,6 @@
 /**
  * Share URL Builder
- * Generates shareable URLs for match summaries
+ * Generates shareable URLs for match summaries and replays
  */
 
 // =============================================================================
@@ -25,6 +25,8 @@ export interface MatchShareParams {
 export interface ShareUrls {
   /** Direct match URL */
   matchUrl: string;
+  /** Replay URL */
+  replayUrl: string;
   /** Twitter share URL with pre-filled text */
   twitterUrl: string;
   /** Copy-friendly URL */
@@ -65,6 +67,22 @@ export function buildMatchUrl(matchId: string, source?: string): string {
 }
 
 /**
+ * Build a replay URL for watching the match.
+ */
+export function buildReplayUrl(matchId: string, source?: string): string {
+  const baseUrl = getBaseUrl();
+  const url = new URL(`/replay/${matchId}`, baseUrl);
+  
+  if (source) {
+    url.searchParams.set("utm_source", source);
+    url.searchParams.set("utm_medium", "share");
+    url.searchParams.set("utm_campaign", "replay_share");
+  }
+  
+  return url.toString();
+}
+
+/**
  * Build a Twitter share URL.
  */
 export function buildTwitterShareUrl(params: MatchShareParams): string {
@@ -75,14 +93,17 @@ export function buildTwitterShareUrl(params: MatchShareParams): string {
   // Build the share text
   let text: string;
   if (winnerCharacter) {
-    text = `I just won a match with ${winnerCharacter} in KaspaClash! ⚔️\n\nThe first real-time fighter on BlockDAG. Every move is a transaction. #KaspaClash #BlockDAG`;
+    text = `I just won a match with ${winnerCharacter} in KaspaClash! ⚔️\n\nWatch the full replay! The first real-time fighter on BlockDAG. #KaspaClash #BlockDAG`;
   } else {
-    text = `Check out this match on KaspaClash! ⚔️\n\nThe first real-time fighter on BlockDAG. #KaspaClash #BlockDAG`;
+    text = `Check out this match on KaspaClash! ⚔️\n\nWatch the full replay! The first real-time fighter on BlockDAG. #KaspaClash #BlockDAG`;
   }
+  
+  // Use replay URL for Twitter shares so people can watch the match
+  const replayUrl = buildReplayUrl(matchId, "twitter");
   
   const twitterUrl = new URL("https://twitter.com/intent/tweet");
   twitterUrl.searchParams.set("text", text);
-  twitterUrl.searchParams.set("url", matchUrl);
+  twitterUrl.searchParams.set("url", replayUrl);
   
   return twitterUrl.toString();
 }
@@ -95,8 +116,9 @@ export function generateShareUrls(params: MatchShareParams): ShareUrls {
   
   return {
     matchUrl: buildMatchUrl(matchId),
+    replayUrl: buildReplayUrl(matchId),
     twitterUrl: buildTwitterShareUrl({ matchId, winnerCharacter }),
-    copyUrl: buildMatchUrl(matchId, "copy"),
+    copyUrl: buildReplayUrl(matchId, "copy"), // Use replay URL for copy
   };
 }
 

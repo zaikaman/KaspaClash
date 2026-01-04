@@ -83,11 +83,12 @@ class SSRSafeEventEmitter {
    */
   on(event: string, callback: (data: unknown) => void, context?: unknown): this {
     // Debug log for specific events
-    if (event === "selection_confirmed" || event === "match_starting") {
+    if (event === "selection_confirmed" || event === "match_starting" || event === "scene:ready") {
       // Check if this is from window global
       const isFromWindow = typeof window !== 'undefined' && (window as any).__KASPA_CLASH_EVENT_BUS__ === (this as unknown);
       console.log(`[EventBus] on('${event}') called - isFromWindow: ${isFromWindow}`);
       console.log(`[EventBus] on() - listeners Map id: ${(this.listeners as any)._debugId || 'unset'}`);
+      console.log(`[EventBus] on() - stack:`, new Error().stack);
     }
 
     if (!this.listeners.has(event)) {
@@ -96,7 +97,7 @@ class SSRSafeEventEmitter {
     this.listeners.get(event)!.push({ callback, context, once: false });
 
     // Verify listener was added
-    if (event === "selection_confirmed" || event === "match_starting") {
+    if (event === "selection_confirmed" || event === "match_starting" || event === "scene:ready") {
       const count = this.listeners.get(event)?.length ?? 0;
       console.log(`[EventBus] on('${event}') DONE - total listeners now: ${count}`);
     }
@@ -119,7 +120,7 @@ class SSRSafeEventEmitter {
    */
   off(event: string, callback?: (data: unknown) => void, context?: unknown): this {
     // Debug log for specific events
-    if (event === "selection_confirmed" || event === "match_starting") {
+    if (event === "selection_confirmed" || event === "match_starting" || event === "scene:ready") {
       const currentCount = this.listeners.get(event)?.length ?? 0;
       console.log(`[EventBus] off('${event}') called - current listeners: ${currentCount}`);
       console.log(`[EventBus] off() stack trace:`, new Error().stack);
@@ -143,7 +144,7 @@ class SSRSafeEventEmitter {
         this.listeners.set(event, filtered);
       }
 
-      if (event === "selection_confirmed" || event === "match_starting") {
+      if (event === "selection_confirmed" || event === "match_starting" || event === "scene:ready") {
         console.log(`[EventBus] off('${event}') - after removal: ${this.listeners.get(event)?.length ?? 0} listeners`);
       }
     }
@@ -157,13 +158,13 @@ class SSRSafeEventEmitter {
     const eventListeners = this.listeners.get(event);
 
     // Debug log for selection_confirmed event
-    if (event === "selection_confirmed" || event === "match_starting") {
+    if (event === "selection_confirmed" || event === "match_starting" || event === "scene:ready") {
       const isFromWindow = typeof window !== 'undefined' && (window as any).__KASPA_CLASH_EVENT_BUS__ === this;
       console.log(`[EventBus:${(this as any).instanceId || 'unknown'}] emit('${event}') - listeners: ${eventListeners?.length ?? 0}, isFromWindow: ${isFromWindow}`);
     }
 
     if (!eventListeners || eventListeners.length === 0) {
-      if (event === "selection_confirmed" || event === "match_starting") {
+      if (event === "selection_confirmed" || event === "match_starting" || event === "scene:ready") {
         console.log(`[EventBus] WARNING: No listeners for '${event}' event!`);
       }
       return false;
@@ -171,11 +172,23 @@ class SSRSafeEventEmitter {
 
     const listenersCopy = [...eventListeners];
 
-    listenersCopy.forEach((listener) => {
-      if (listener.context) {
-        listener.callback.call(listener.context, data);
-      } else {
-        listener.callback(data);
+    listenersCopy.forEach((listener, index) => {
+      if (event === "scene:ready") {
+        console.log(`[EventBus] Calling listener ${index + 1}/${listenersCopy.length} for '${event}'`);
+      }
+      
+      try {
+        if (listener.context) {
+          listener.callback.call(listener.context, data);
+        } else {
+          listener.callback(data);
+        }
+        
+        if (event === "scene:ready") {
+          console.log(`[EventBus] Listener ${index + 1} completed successfully`);
+        }
+      } catch (error) {
+        console.error(`[EventBus] Error in listener for '${event}':`, error);
       }
 
       if (listener.once) {

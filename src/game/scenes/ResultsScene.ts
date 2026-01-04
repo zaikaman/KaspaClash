@@ -277,23 +277,99 @@ export class ResultsScene extends Scene {
 
     private createButtons() {
         const y = 620;
+        const buttonSpacing = 280;
 
-        // Return to Menu Button
-        const menuBtn = this.createButton(GAME_DIMENSIONS.CENTER_X, y, "RETURN TO MENU", () => {
-            window.location.href = "/";
+        // Watch Replay Button (left)
+        this.createButton(
+            GAME_DIMENSIONS.CENTER_X - buttonSpacing,
+            y,
+            "⏵ WATCH REPLAY",
+            () => {
+                window.location.href = `/replay/${this.resultsData.matchId}`;
+            },
+            0x6366f1 // Purple for replay
+        );
+
+        // Share Link Button (center)
+        this.createButton(
+            GAME_DIMENSIONS.CENTER_X,
+            y,
+            "📋 COPY REPLAY LINK",
+            () => {
+                const replayUrl = `${window.location.origin}/replay/${this.resultsData.matchId}`;
+                navigator.clipboard.writeText(replayUrl).then(() => {
+                    this.showCopiedNotification();
+                }).catch(() => {
+                    // Fallback for older browsers
+                    const textArea = document.createElement("textarea");
+                    textArea.value = replayUrl;
+                    textArea.style.position = "fixed";
+                    textArea.style.left = "-999999px";
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(textArea);
+                    this.showCopiedNotification();
+                });
+            },
+            0x49eacb // Cyber gold for share
+        );
+
+        // Return to Menu Button (right)
+        this.createButton(
+            GAME_DIMENSIONS.CENTER_X + buttonSpacing,
+            y,
+            "🏠 RETURN TO MENU",
+            () => {
+                window.location.href = "/";
+            },
+            0x6b7280 // Gray for menu
+        );
+    }
+
+    private showCopiedNotification() {
+        const notification = this.add.text(
+            GAME_DIMENSIONS.CENTER_X,
+            680,
+            "✓ Replay link copied to clipboard!",
+            {
+                fontFamily: "Exo 2",
+                fontSize: "18px",
+                color: "#22c55e",
+            }
+        ).setOrigin(0.5).setAlpha(0);
+
+        this.tweens.add({
+            targets: notification,
+            alpha: 1,
+            y: 670,
+            duration: 300,
+            ease: "Back.out",
+            onComplete: () => {
+                this.tweens.add({
+                    targets: notification,
+                    alpha: 0,
+                    delay: 2000,
+                    duration: 300,
+                    onComplete: () => notification.destroy()
+                });
+            }
         });
     }
 
-    private createButton(x: number, y: number, text: string, callback: () => void) {
+    private createButton(x: number, y: number, text: string, callback: () => void, color: number = 0x49eacb) {
         const container = this.add.container(x, y);
 
-        const bg = this.add.rectangle(0, 0, 250, 60, 0x49eacb)
+        const bg = this.add.rectangle(0, 0, 250, 60, color)
             .setInteractive({ useHandCursor: true });
+
+        // Lighter version of the color for hover
+        const hoverColor = this.lightenColor(color, 0.2);
 
         // Gradient effect or styling
         const textObj = this.add.text(0, 0, text, {
             fontFamily: "Orbitron",
-            fontSize: "20px",
+            fontSize: "16px",
             color: "#000000",
             fontStyle: "bold"
         }).setOrigin(0.5);
@@ -301,7 +377,7 @@ export class ResultsScene extends Scene {
         container.add([bg, textObj]);
 
         bg.on("pointerover", () => {
-            bg.setFillStyle(0x6affe0);
+            bg.setFillStyle(hoverColor);
             this.tweens.add({
                 targets: container,
                 scaleX: 1.05,
@@ -312,7 +388,7 @@ export class ResultsScene extends Scene {
         });
 
         bg.on("pointerout", () => {
-            bg.setFillStyle(0x49eacb);
+            bg.setFillStyle(color);
             this.tweens.add({
                 targets: container,
                 scaleX: 1,
@@ -334,5 +410,12 @@ export class ResultsScene extends Scene {
         });
 
         return container;
+    }
+
+    private lightenColor(color: number, amount: number): number {
+        const r = Math.min(255, ((color >> 16) & 0xff) + Math.floor(255 * amount));
+        const g = Math.min(255, ((color >> 8) & 0xff) + Math.floor(255 * amount));
+        const b = Math.min(255, (color & 0xff) + Math.floor(255 * amount));
+        return (r << 16) | (g << 8) | b;
     }
 }

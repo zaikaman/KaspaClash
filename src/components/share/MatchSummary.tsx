@@ -1,6 +1,4 @@
 import React from "react";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
 
 interface MatchSummaryProps {
     matchData: {
@@ -9,7 +7,6 @@ interface MatchSummaryProps {
         loser: { name: string; address: string };
         score?: string;
         status?: string;
-        txId?: string;
     };
 }
 
@@ -81,11 +78,7 @@ export default function MatchSummary({ matchData }: MatchSummaryProps) {
 
             {/* Actions */}
             <div className="flex justify-center gap-4">
-                <Link href={`https://explorer.kaspa.org/tx/${matchData.txId}`} target="_blank">
-                    <Button variant="outline" className="border-cyber-gray text-cyber-gray hover:text-white hover:border-white font-mono text-xs">
-                        VIEW TX
-                    </Button>
-                </Link>
+                {/* Removed VIEW TX button - replaced by TransactionTimeline component */}
             </div>
         </div>
     );
