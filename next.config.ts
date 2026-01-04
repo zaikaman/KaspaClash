@@ -35,6 +35,17 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+
+  // Configure allowed image hostnames
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "res.cloudinary.com",
+        pathname: "/**",
+      },
+    ],
+  },
 };
 
 export default nextConfig;

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { LeaderboardEntry, LeaderboardResponse } from "@/lib/leaderboard/service";
 
@@ -99,13 +100,29 @@ export default function LeaderboardTable() {
                                 {player.rank > 3 && <span className="text-cyber-gray">#{player.rank}</span>}
                             </TableCell>
                             <TableCell>
-                                <Link
-                                    href={`/player/${player.address}`}
-                                    className="font-mono text-white hover:text-cyber-gold transition-colors"
-                                    title={player.address}
-                                >
-                                    {player.displayName || formatAddress(player.address)}
-                                </Link>
+                                <div className="flex items-center gap-3">
+                                    <div className="relative w-10 h-10 rounded-full border border-cyber-gold/30 overflow-hidden bg-black flex-shrink-0">
+                                        {player.avatarUrl ? (
+                                            <Image
+                                                src={player.avatarUrl}
+                                                alt={player.displayName || "Player"}
+                                                fill
+                                                className="object-cover"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-xl">
+                                                🥷
+                                            </div>
+                                        )}
+                                    </div>
+                                    <Link
+                                        href={`/player/${player.address}`}
+                                        className="font-mono text-white hover:text-cyber-gold transition-colors truncate"
+                                        title={player.address}
+                                    >
+                                        {player.displayName || formatAddress(player.address)}
+                                    </Link>
+                                </div>
                             </TableCell>
                             <TableCell className="text-right text-green-400 font-mono">
                                 {player.wins}

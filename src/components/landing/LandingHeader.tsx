@@ -93,6 +93,7 @@ export default function LandingHeader() {
                     {isConnected && truncatedAddress ? (
                         <WalletInfo
                             address={truncatedAddress}
+                            fullAddress={address || undefined}
                             balance={balance || "0"}
                             onDisconnect={handleDisconnect}
                         />

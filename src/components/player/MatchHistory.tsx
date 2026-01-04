@@ -96,48 +96,52 @@ export default async function MatchHistory({ playerAddress }: MatchHistoryProps)
                 const isWinner = match.winner_address === playerAddress;
 
                 return (
-                    <Link key={match.id} href={`/m/${match.id}`}>
-                        <div className="group bg-black/40 border-l-4 border-l-transparent hover:border-l-cyber-gold border-y border-r border-white/10 p-4 mb-2 flex items-center justify-between transition-all hover:bg-cyber-gold/5">
-                            {/* Result Badge */}
-                            <div className="w-16">
-                                <span className={`
-                                    font-bold font-orbitron px-3 py-1 rounded text-sm
-                                    ${isWinner ? "bg-green-500/20 text-green-500" : "bg-red-500/20 text-red-500"}
-                                `}>
-                                    {isWinner ? "WIN" : "LOSS"}
+                    <div key={match.id} className="group bg-black/40 border-l-4 border-l-transparent hover:border-l-cyber-gold border-y border-r border-white/10 p-4 mb-2 flex items-center justify-between transition-all hover:bg-cyber-gold/5">
+                        {/* Result Badge */}
+                        <div className="w-16">
+                            <span className={`
+                                font-bold font-orbitron px-3 py-1 rounded text-sm
+                                ${isWinner ? "bg-green-500/20 text-green-500" : "bg-red-500/20 text-red-500"}
+                            `}>
+                                {isWinner ? "WIN" : "LOSS"}
+                            </span>
+                        </div>
+
+                        {/* Match Details */}
+                        <div className="flex-1 px-4">
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className="text-white font-medium">
+                                    {playerChar ? CHARACTER_NAMES[playerChar] || playerChar : "Unknown"}
+                                </span>
+                                <span className="text-cyber-gray text-xs">VS</span>
+                                <span className="text-cyber-gray">
+                                    {opponentChar ? CHARACTER_NAMES[opponentChar] || opponentChar : "Unknown"}
                                 </span>
                             </div>
-
-                            {/* Match Details */}
-                            <div className="flex-1 px-4">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-white font-medium">
-                                        {playerChar ? CHARACTER_NAMES[playerChar] || playerChar : "Unknown"}
-                                    </span>
-                                    <span className="text-cyber-gray text-xs">VS</span>
-                                    <span className="text-cyber-gray">
-                                        {opponentChar ? CHARACTER_NAMES[opponentChar] || opponentChar : "Unknown"}
-                                    </span>
-                                </div>
-                                <div className="text-xs text-cyber-gray font-mono">
-                                    {formatTimeAgo(match.created_at)}
-                                </div>
-                            </div>
-
-                            {/* Opponent Address */}
-                            <div className="hidden sm:block text-right">
-                                <span className="text-xs text-cyber-gray block">OPPONENT</span>
-                                <span className="text-sm text-white font-mono">
-                                    {opponentAddress ? formatAddress(opponentAddress) : "Unknown"}
-                                </span>
-                            </div>
-
-                            {/* Arrow */}
-                            <div className="ml-4 text-cyber-gray group-hover:text-cyber-gold group-hover:translate-x-1 transition-all">
-                                →
+                            <div className="text-xs text-cyber-gray font-mono">
+                                {formatTimeAgo(match.created_at)}
                             </div>
                         </div>
-                    </Link>
+
+                        {/* Opponent Address */}
+                        <div className="hidden sm:block text-right">
+                            <span className="text-xs text-cyber-gray block">OPPONENT</span>
+                            <span className="text-sm text-white font-mono">
+                                {opponentAddress ? formatAddress(opponentAddress) : "Unknown"}
+                            </span>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="ml-4 flex items-center gap-2">
+                            {/* Match Details Link */}
+                            <Link
+                                href={`/m/${match.id}`}
+                                className="text-cyber-gray hover:text-cyber-gold group-hover:translate-x-1 transition-all"
+                            >
+                                →
+                            </Link>
+                        </div>
+                    </div>
                 );
             })}
         </div>

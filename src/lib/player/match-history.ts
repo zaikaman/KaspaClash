@@ -74,6 +74,7 @@ export async function getPlayerMatchHistory(
   const supabase = await createSupabaseServerClient();
 
   // Query completed matches where player participated
+  // Include rounds with moves to get transaction IDs for verification
   const { data, error, count } = await supabase
     .from("matches")
     .select(
@@ -88,7 +89,10 @@ export async function getPlayerMatchHistory(
       player2_rounds_won,
       completed_at,
       player1:players!matches_player1_address_fkey(address, display_name),
-      player2:players!matches_player2_address_fkey(address, display_name)
+      player2:players!matches_player2_address_fkey(address, display_name),
+      rounds(
+        moves(tx_id)
+      )
     `,
       { count: "exact" }
     )
@@ -105,11 +109,11 @@ export async function getPlayerMatchHistory(
   // Transform matches to summaries
   const matches: MatchSummary[] = (data || []).map((match) => {
     const isPlayer1 = match.player1_address === playerAddress;
-    
+
     // Type the joined player data
     const player1Data = match.player1 as { address: string; display_name: string | null } | null;
     const player2Data = match.player2 as { address: string; display_name: string | null } | null;
-    
+
     const opponentData = isPlayer1 ? player2Data : player1Data;
 
     const opponent: MatchOpponent = {
@@ -136,8 +140,23 @@ export async function getPlayerMatchHistory(
     // Format score as "playerRounds-opponentRounds"
     const score = `${playerRoundsWon}-${opponentRoundsWon}`;
 
-    // TODO: Generate explorer URL from match transaction data
-    const explorerUrl: string | null = null;
+    // Extract the first transaction ID from the match's moves for explorer verification
+    let explorerUrl: string | null = null;
+    const rounds = match.rounds as Array<{ moves: Array<{ tx_id: string | null }> }> | null;
+    if (rounds) {
+      for (const round of rounds) {
+        if (round.moves) {
+          for (const move of round.moves) {
+            if (move.tx_id) {
+              // Use testnet explorer for verification
+              explorerUrl = `https://explorer-tn10.kaspa.org/txs/${move.tx_id}`;
+              break;
+            }
+          }
+        }
+        if (explorerUrl) break;
+      }
+    }
 
     return {
       matchId: match.id,
@@ -183,7 +202,7 @@ export async function getHeadToHeadRecord(
     .eq("status", "completed")
     .or(
       `and(player1_address.eq.${playerAddress},player2_address.eq.${opponentAddress}),` +
-        `and(player1_address.eq.${opponentAddress},player2_address.eq.${playerAddress})`
+      `and(player1_address.eq.${opponentAddress},player2_address.eq.${playerAddress})`
     );
 
   if (error) {

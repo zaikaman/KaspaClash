@@ -20,6 +20,7 @@ export interface LeaderboardEntry {
   losses: number;
   winRate: number;
   rating: number;
+  avatarUrl: string | null;
 }
 
 /**
@@ -87,6 +88,7 @@ export async function getLeaderboard(
     losses: row.losses,
     winRate: calculateWinRate(row.wins, row.losses),
     rating: row.rating,
+    avatarUrl: (row as unknown as Record<string, any>).avatar_url || null,
   }));
 
   // If sorting by win rate, re-sort the entries

@@ -25,6 +25,9 @@ CREATE TABLE public.matches (
   started_at timestamp with time zone,
   completed_at timestamp with time zone,
   selection_deadline_at timestamp with time zone,
+  player1_disconnected_at timestamp with time zone,
+  player2_disconnected_at timestamp with time zone,
+  disconnect_timeout_seconds integer DEFAULT 30,
   CONSTRAINT matches_pkey PRIMARY KEY (id),
   CONSTRAINT matches_player1_address_fkey FOREIGN KEY (player1_address) REFERENCES public.players(address),
   CONSTRAINT matches_player2_address_fkey FOREIGN KEY (player2_address) REFERENCES public.players(address),
@@ -62,6 +65,7 @@ CREATE TABLE public.players (
   rating integer NOT NULL DEFAULT 1000 CHECK (rating >= 100 AND rating <= 3000),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  avatar_url text,
   CONSTRAINT players_pkey PRIMARY KEY (address)
 );
 CREATE TABLE public.rounds (

@@ -2,11 +2,13 @@ import React from "react";
 import LandingLayout from "@/components/landing/LandingLayout";
 import DecorativeLine from "@/components/landing/DecorativeLine";
 import MatchHistory from "@/components/player/MatchHistory";
+import ProfileHeaderClient from "@/components/player/ProfileHeaderClient";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 interface PlayerProfile {
     address: string;
     display_name: string | null;
+    avatar_url: string | null;
     rating: number;
     wins: number;
     losses: number;
@@ -36,8 +38,19 @@ async function getPlayerData(address: string): Promise<{ profile: PlayerProfile 
 
         const rank = (count ?? 0) + 1;
 
+        // Cast to unknown first since Supabase schema might not have avatar_url yet
+        const playerData = player as unknown as Record<string, unknown>;
+
         return {
-            profile: player as PlayerProfile,
+            profile: {
+                address: player.address,
+                display_name: player.display_name,
+                avatar_url: (playerData.avatar_url as string | null) ?? null,
+                rating: player.rating,
+                wins: player.wins,
+                losses: player.losses,
+                created_at: player.created_at,
+            },
             rank
         };
     } catch {
@@ -54,14 +67,9 @@ function formatAddress(address: string): string {
     return address;
 }
 
-function calculateWinRate(wins: number, losses: number): string {
-    const total = wins + losses;
-    if (total === 0) return "0%";
-    return `${Math.round((wins / total) * 100)}%`;
-}
-
 export default async function PlayerProfilePage({ params }: { params: Promise<{ address: string }> }) {
-    const { address } = await params;
+    const { address: encodedAddress } = await params;
+    const address = decodeURIComponent(encodedAddress);
     const { profile, rank } = await getPlayerData(address);
 
     // If player not found, show error state
@@ -84,59 +92,13 @@ export default async function PlayerProfilePage({ params }: { params: Promise<{ 
         );
     }
 
-    const winRate = calculateWinRate(profile.wins, profile.losses);
-    const displayRank = rank ? `#${rank}` : "Unranked";
-
     return (
         <LandingLayout>
             <div className="relative w-full min-h-screen pt-32 pb-20">
                 <div className="container mx-auto px-6 lg:px-12 xl:px-24 relative z-10">
 
-                    {/* Profile Header Card */}
-                    <div className="bg-black/40 border border-cyber-gold/30 rounded-2xl p-8 backdrop-blur-md mb-12">
-                        <div className="flex flex-col md:flex-row gap-8 items-center">
-                            {/* Avatar / Rank */}
-                            <div className="relative">
-                                <div className="w-32 h-32 rounded-full border-4 border-cyber-gold bg-black flex items-center justify-center overflow-hidden">
-                                    <span className="text-6xl">🥷</span>
-                                </div>
-                                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-cyber-gold text-black font-bold font-orbitron px-4 py-1 rounded-full text-sm whitespace-nowrap shadow-lg">
-                                    RANK {displayRank}
-                                </div>
-                            </div>
-
-                            {/* Info */}
-                            <div className="flex-1 text-center md:text-left space-y-2">
-                                <h1 className="text-2xl md:text-4xl font-bold text-white font-orbitron mb-2 break-all">
-                                    {profile.display_name || formatAddress(profile.address)}
-                                </h1>
-                                <p className="text-cyber-gray font-mono text-sm">
-                                    {profile.address}
-                                </p>
-                                <div className="flex flex-wrap gap-4 justify-center md:justify-start mt-4">
-                                    <span className="bg-cyber-gray/10 px-4 py-2 rounded text-cyber-gray font-mono text-sm border border-cyber-gray/20">
-                                        Joined: {new Date(profile.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* Stats Grid */}
-                            <div className="grid grid-cols-3 gap-4 md:gap-8 border-t md:border-t-0 md:border-l border-white/10 pt-6 md:pt-0 md:pl-8 w-full md:w-auto">
-                                <div className="text-center">
-                                    <div className="text-3xl font-bold font-orbitron text-cyber-orange">{profile.rating}</div>
-                                    <div className="text-xs text-cyber-gray uppercase tracking-wider">Rating</div>
-                                </div>
-                                <div className="text-center">
-                                    <div className="text-3xl font-bold font-orbitron text-white">{profile.wins}</div>
-                                    <div className="text-xs text-cyber-gray uppercase tracking-wider">Wins</div>
-                                </div>
-                                <div className="text-center">
-                                    <div className="text-3xl font-bold font-orbitron text-green-500">{winRate}</div>
-                                    <div className="text-xs text-cyber-gray uppercase tracking-wider">Win Rate</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    {/* Profile Header Card - Client Component for interactivity */}
+                    <ProfileHeaderClient profile={profile} rank={rank} />
 
                     <DecorativeLine className="mb-12" variant="left-gold-right-red" />
 
@@ -172,3 +134,4 @@ export default async function PlayerProfilePage({ params }: { params: Promise<{ 
         </LandingLayout>
     );
 }
+

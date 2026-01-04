@@ -119,13 +119,73 @@ export async function updateDisplayName(
 
   const { data, error } = await supabase
     .from("players")
-    .update({ display_name: displayName })
+    .update({ display_name: displayName, updated_at: new Date().toISOString() })
     .eq("address", address)
     .select("*")
     .single();
 
   if (error || !data) {
     console.error("Failed to update display name:", error);
+    return null;
+  }
+
+  return mapDatabasePlayer(data);
+}
+
+/**
+ * Update player avatar URL.
+ */
+export async function updateAvatar(
+  address: string,
+  avatarUrl: string
+): Promise<Player | null> {
+  const supabase = await createSupabaseServerClient();
+
+  const { data, error } = await supabase
+    .from("players")
+    .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
+    .eq("address", address)
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    console.error("Failed to update avatar:", error);
+    return null;
+  }
+
+  return mapDatabasePlayer(data);
+}
+
+/**
+ * Update player profile (display name and/or avatar).
+ */
+export async function updatePlayerProfile(
+  address: string,
+  updates: { displayName?: string; avatarUrl?: string }
+): Promise<Player | null> {
+  const supabase = await createSupabaseServerClient();
+
+  const updateData: Record<string, string> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (updates.displayName !== undefined) {
+    updateData.display_name = updates.displayName;
+  }
+
+  if (updates.avatarUrl !== undefined) {
+    updateData.avatar_url = updates.avatarUrl;
+  }
+
+  const { data, error } = await supabase
+    .from("players")
+    .update(updateData)
+    .eq("address", address)
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    console.error("Failed to update player profile:", error);
     return null;
   }
 
@@ -240,6 +300,7 @@ export async function getPlayerRank(address: string): Promise<number | null> {
 function mapDatabasePlayer(row: {
   address: string;
   display_name: string | null;
+  avatar_url?: string | null;
   wins: number;
   losses: number;
   rating: number;
@@ -249,6 +310,7 @@ function mapDatabasePlayer(row: {
   return {
     address: row.address,
     displayName: row.display_name,
+    avatarUrl: row.avatar_url ?? null,
     wins: row.wins,
     losses: row.losses,
     rating: row.rating,

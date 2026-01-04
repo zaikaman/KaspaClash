@@ -15,6 +15,8 @@ export interface Player {
   address: string;
   /** Optional display name, defaults to truncated address */
   displayName: string | null;
+  /** URL to avatar image on Cloudinary */
+  avatarUrl: string | null;
   /** Total match wins */
   wins: number;
   /** Total match losses */

@@ -1,29 +1,49 @@
 import React from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 interface WalletInfoProps {
     address: string;
+    fullAddress?: string;
     balance: string;
     onDisconnect: () => void;
 }
 
-export default function WalletInfo({ address, balance, onDisconnect }: WalletInfoProps) {
-    // Truncate address for display
-    const shortAddress = `${address.slice(0, 6)}...${address.slice(-4)}`;
+export default function WalletInfo({ address, fullAddress, balance, onDisconnect }: WalletInfoProps) {
+    // Truncate address for display if full address is passed, otherwise trust the passed address
+    // But typically 'address' prop here is already truncated by useWallet
+    const displayAddress = address;
 
-    return (
-        <div className="flex items-center gap-4 p-1 pr-2 rounded-full border border-cyber-gold/30 bg-black/40 backdrop-blur-md">
+    const content = (
+        <>
             {/* Balance Pill */}
-            <div className="px-4 py-1.5 rounded-full bg-cyber-gold/10 border border-cyber-gold/20">
+            <div className="px-4 py-1.5 rounded-full bg-cyber-gold/10 border border-cyber-gold/20 group-hover:bg-cyber-gold/20 transition-colors">
                 <span className="text-cyber-gold font-bold font-orbitron text-sm">
                     {balance} <span className="text-xs font-normal opacity-80">KAS</span>
                 </span>
             </div>
 
             {/* Address */}
-            <span className="text-white text-sm font-mono tracking-wide hidden sm:inline-block">
-                {shortAddress}
+            <span className="text-white text-sm font-mono tracking-wide hidden sm:inline-block group-hover:text-cyber-gold transition-colors">
+                {displayAddress}
             </span>
+        </>
+    );
+
+    return (
+        <div className="flex items-center gap-4 p-1 pr-2 rounded-full border border-cyber-gold/30 bg-black/40 backdrop-blur-md">
+            {fullAddress ? (
+                <Link
+                    href={`/player/${fullAddress}`}
+                    className="flex items-center gap-4 hover:opacity-80 transition-opacity group cursor-pointer"
+                >
+                    {content}
+                </Link>
+            ) : (
+                <div className="flex items-center gap-4">
+                    {content}
+                </div>
+            )}
 
             {/* Disconnect Button (Icon only on mobile, text on desktop) */}
             <Button
