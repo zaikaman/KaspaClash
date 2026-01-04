@@ -204,6 +204,7 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
         player1RoundsWon: payload.finalScore.player1RoundsWon,
         player2RoundsWon: payload.finalScore.player2RoundsWon,
         txIds: [], // Collect from rounds
+        ratingChanges: payload.ratingChanges,
       });
 
       // Emit to Phaser (show results, explorer link)

@@ -1452,6 +1452,10 @@ export class FightScene extends Phaser.Scene {
         winner: "player1" | "player2";
         winnerAddress: string;
         reason: string;
+        ratingChanges?: {
+          winner: { before: number; after: number; change: number };
+          loser: { before: number; after: number; change: number };
+        };
       };
       this.phase = "match_end";
       const isWinner =
@@ -1472,6 +1476,7 @@ export class FightScene extends Phaser.Scene {
           player1RoundsWon: this.serverState?.player1RoundsWon ?? 0,
           player2RoundsWon: this.serverState?.player2RoundsWon ?? 0,
           txIds: [],
+          ratingChanges: payload.ratingChanges,
         };
 
         // Emit for React components (optional)

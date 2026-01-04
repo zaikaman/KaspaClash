@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ApiError, ErrorCodes, createErrorResponse } from "@/lib/api/errors";
+import { updateMatchRatings } from "@/lib/rating/elo";
 import type { ApiSuccessResponse } from "@/types/api";
 
 /**
@@ -227,37 +228,11 @@ export async function POST(
     // Update player stats - winner gets a win, disconnected player gets a loss
     // Note: Using direct updates instead of RPC functions
     const loserAddress = p1TimedOut ? match.player1_address : match.player2_address;
-    
-    // Update winner stats
-    if (winnerAddress) {
-      const { data: winner } = await supabase
-        .from("players")
-        .select("wins")
-        .eq("address", winnerAddress)
-        .single();
-      
-      if (winner) {
-        await supabase
-          .from("players")
-          .update({ wins: winner.wins + 1 })
-          .eq("address", winnerAddress);
-      }
-    }
-    
-    // Update loser stats
-    if (loserAddress) {
-      const { data: loser } = await supabase
-        .from("players")
-        .select("losses")
-        .eq("address", loserAddress)
-        .single();
-      
-      if (loser) {
-        await supabase
-          .from("players")
-          .update({ losses: loser.losses + 1 })
-          .eq("address", loserAddress);
-      }
+
+    // Update ratings using ELO service
+    let ratingResult = null;
+    if (winnerAddress && loserAddress) {
+      ratingResult = await updateMatchRatings(winnerAddress, loserAddress);
     }
 
     // Broadcast match ended
@@ -282,6 +257,18 @@ export async function POST(
           player2MostUsedMove: "N/A",
           matchDurationSeconds: 0,
         },
+        ratingChanges: ratingResult ? {
+          winner: {
+            before: ratingResult.winner.ratingBefore,
+            after: ratingResult.winner.ratingAfter,
+            change: ratingResult.winner.change,
+          },
+          loser: {
+            before: ratingResult.loser.ratingBefore,
+            after: ratingResult.loser.ratingAfter,
+            change: ratingResult.loser.change,
+          },
+        } : undefined,
         shareUrl: `/m/${matchId}`,
         explorerUrl: "",
       },

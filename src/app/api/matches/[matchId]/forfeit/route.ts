@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ApiError, ErrorCodes, createErrorResponse } from "@/lib/api/errors";
 import { verifySignature } from "@/lib/api/middleware";
+import { updateMatchRatings } from "@/lib/rating/elo";
 
 /**
  * Request body schema.
@@ -124,6 +125,13 @@ export async function POST(
     //   await supabase.rpc("increment_wins", { player_address: winnerAddress });
     // }
 
+    // Update player ratings
+    const loserAddress = body.address;
+    let ratingResult = null;
+    if (winnerAddress && loserAddress) {
+      ratingResult = await updateMatchRatings(winnerAddress, loserAddress);
+    }
+
     // Broadcast match_ended event via Supabase Realtime REST API
     // Server-side sends without subscribing explicitly use HTTP/REST
     const gameChannel = supabase.channel(`game:${matchId}`);
@@ -147,6 +155,18 @@ export async function POST(
           player2MostUsedMove: "unknown",
           matchDurationSeconds: 0,
         },
+        ratingChanges: ratingResult ? {
+          winner: {
+            before: ratingResult.winner.ratingBefore,
+            after: ratingResult.winner.ratingAfter,
+            change: ratingResult.winner.change,
+          },
+          loser: {
+            before: ratingResult.loser.ratingBefore,
+            after: ratingResult.loser.ratingAfter,
+            change: ratingResult.loser.change,
+          },
+        } : undefined,
         shareUrl: `${process.env.NEXT_PUBLIC_APP_URL}/match/${matchId}`,
         explorerUrl: "",
       },

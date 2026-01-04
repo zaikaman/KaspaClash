@@ -126,16 +126,16 @@ export class ResultsScene extends Scene {
     private createStatsDisplay(isWinner: boolean) {
         const container = this.add.container(GAME_DIMENSIONS.CENTER_X, 450);
 
-        // Stats Panel Background
-        const panel = this.add.rectangle(0, 0, 600, 200, 0x111111, 0.9)
+        // Stats Panel Background - Increased height for rating animation
+        const panel = this.add.rectangle(0, 0, 600, 260, 0x111111, 0.9)
             .setStrokeStyle(2, 0x333333);
         container.add(panel);
 
         const leftX = -150;
         const rightX = 150;
-        const headerY = -50;
-        const scoreY = 0;
-        const hpY = 50;
+        const headerY = -80;
+        const scoreY = -30;
+        const ratingY = 50;
 
         // Headers
         container.add(this.add.text(leftX, headerY, "YOU", {
@@ -162,7 +162,106 @@ export class ResultsScene extends Scene {
             fontFamily: "Orbitron", fontSize: "40px", color: "#ffffff"
         }).setOrigin(0.5));
 
+        // Rating Changes Display
+        const ratingChanges = this.resultsData.result.ratingChanges;
+        if (ratingChanges) {
+            const myRating = isWinner ? ratingChanges.winner : ratingChanges.loser;
+            const opRating = isWinner ? ratingChanges.loser : ratingChanges.winner;
 
+            // Rating label
+            container.add(this.add.text(0, ratingY - 20, "RATING", {
+                fontFamily: "Exo 2", fontSize: "16px", color: "#666666"
+            }).setOrigin(0.5));
+
+            // My Rating Text (Start at 'before')
+            const myRatingText = this.add.text(leftX, ratingY + 15, `${myRating.before}`, {
+                fontFamily: "Orbitron", fontSize: "56px", color: "#ffffff",
+                stroke: "#000000", strokeThickness: 4
+            }).setOrigin(0.5);
+            container.add(myRatingText);
+
+            // My Change Text (e.g. +25)
+            const myChangeStr = myRating.change >= 0 ? `+${myRating.change}` : `${myRating.change}`;
+            const myChangeColor = myRating.change >= 0 ? "#49eacb" : "#ef4444";
+            const myChangeText = this.add.text(leftX, ratingY + 60, myChangeStr, {
+                fontFamily: "Orbitron", fontSize: "24px", color: myChangeColor,
+                fontStyle: "bold"
+            }).setOrigin(0.5).setAlpha(0).setScale(0.5);
+            container.add(myChangeText);
+
+            // Opponent Rating Text
+            const opRatingText = this.add.text(rightX, ratingY + 15, `${opRating.before}`, {
+                fontFamily: "Orbitron", fontSize: "56px", color: "#ffffff",
+                stroke: "#000000", strokeThickness: 4
+            }).setOrigin(0.5);
+            container.add(opRatingText);
+
+            // Opponent Change Text
+            const opChangeStr = opRating.change >= 0 ? `+${opRating.change}` : `${opRating.change}`;
+            const opChangeColor = opRating.change >= 0 ? "#49eacb" : "#ef4444";
+            const opChangeText = this.add.text(rightX, ratingY + 60, opChangeStr, {
+                fontFamily: "Orbitron", fontSize: "24px", color: opChangeColor,
+                fontStyle: "bold"
+            }).setOrigin(0.5).setAlpha(0).setScale(0.5);
+            container.add(opChangeText);
+
+            // Animate my rating
+            this.tweens.addCounter({
+                from: myRating.before,
+                to: myRating.after,
+                duration: 2000,
+                ease: "Power2",
+                delay: 800,
+                onUpdate: (tween) => {
+                    const val = Math.round(tween.getValue());
+                    myRatingText.setText(`${val}`);
+                    // Pulse effect on update
+                    if (Math.random() > 0.8 && myRating.change !== 0) {
+                        myRatingText.setTint(myRating.change > 0 ? 0x49eacb : 0xef4444);
+                        setTimeout(() => myRatingText.clearTint(), 50);
+                    }
+                },
+                onComplete: () => {
+                    myRatingText.setText(`${myRating.after}`); // Ensure final value
+                    myRatingText.setTint(myRating.change >= 0 ? 0x49eacb : 0xef4444); // Final tint
+
+                    // Show change text with pop effect
+                    this.tweens.add({
+                        targets: myChangeText,
+                        alpha: 1,
+                        scale: 1,
+                        y: ratingY + 55, // slight move up
+                        duration: 500,
+                        ease: "Back.out"
+                    });
+                }
+            });
+
+            // Animate opponent rating
+            this.tweens.addCounter({
+                from: opRating.before,
+                to: opRating.after,
+                duration: 2000,
+                ease: "Power2",
+                delay: 800,
+                onUpdate: (tween) => {
+                    const val = Math.round(tween.getValue());
+                    opRatingText.setText(`${val}`);
+                },
+                onComplete: () => {
+                    opRatingText.setText(`${opRating.after}`);
+
+                    this.tweens.add({
+                        targets: opChangeText,
+                        alpha: 1,
+                        scale: 1,
+                        y: ratingY + 55,
+                        duration: 500,
+                        ease: "Back.out"
+                    });
+                }
+            });
+        }
 
         // Animate container
         container.setScale(0);

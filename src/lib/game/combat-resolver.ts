@@ -8,6 +8,7 @@ import {
     CombatEngine,
     getCharacterCombatStats,
 } from "@/game/combat";
+import { updateMatchRatings, type RatingUpdateResult } from "@/lib/rating/elo";
 import type { MoveType } from "@/types";
 
 /**
@@ -155,6 +156,18 @@ export async function resolveRound(
             .eq("id", matchId);
     }
 
+    // Update player ratings if match is over
+    let ratingResult: RatingUpdateResult | null = null;
+    if (state.isMatchOver) {
+        const winnerAddress = state.matchWinner === "player1"
+            ? match.player1_address
+            : match.player2_address!; // player2_address is guaranteed non-null for in-progress matches
+        const loserAddress = state.matchWinner === "player1"
+            ? match.player2_address!
+            : match.player1_address;
+        ratingResult = await updateMatchRatings(winnerAddress, loserAddress);
+    }
+
     // Broadcast round_resolved event
     const gameChannel = supabase.channel(`game:${matchId}`);
     await gameChannel.send({
@@ -212,6 +225,18 @@ export async function resolveRound(
                     player1RoundsWon: state.player1.roundsWon,
                     player2RoundsWon: state.player2.roundsWon,
                 },
+                ratingChanges: ratingResult ? {
+                    winner: {
+                        before: ratingResult.winner.ratingBefore,
+                        after: ratingResult.winner.ratingAfter,
+                        change: ratingResult.winner.change,
+                    },
+                    loser: {
+                        before: ratingResult.loser.ratingBefore,
+                        after: ratingResult.loser.ratingAfter,
+                        change: ratingResult.loser.change,
+                    },
+                } : undefined,
             },
         });
         await supabase.removeChannel(endChannel);
@@ -387,6 +412,18 @@ export async function handleMoveRejection(
         .update(matchUpdate)
         .eq("id", matchId);
 
+    // Update player ratings if match is over
+    let ratingResult: RatingUpdateResult | null = null;
+    if (isMatchOver && match.player2_address) {
+        const winnerAddr = matchWinner === "player1"
+            ? match.player1_address
+            : match.player2_address;
+        const loserAddr = matchWinner === "player1"
+            ? match.player2_address
+            : match.player1_address;
+        ratingResult = await updateMatchRatings(winnerAddr, loserAddr);
+    }
+
     // Broadcast round_resolved with rejection info
     const gameChannel = supabase.channel(`game:${matchId}`);
     await gameChannel.send({
@@ -430,6 +467,18 @@ export async function handleMoveRejection(
                     player1RoundsWon: newPlayer1RoundsWon,
                     player2RoundsWon: newPlayer2RoundsWon,
                 },
+                ratingChanges: ratingResult ? {
+                    winner: {
+                        before: ratingResult.winner.ratingBefore,
+                        after: ratingResult.winner.ratingAfter,
+                        change: ratingResult.winner.change,
+                    },
+                    loser: {
+                        before: ratingResult.loser.ratingBefore,
+                        after: ratingResult.loser.ratingAfter,
+                        change: ratingResult.loser.change,
+                    },
+                } : undefined,
             },
         });
         await supabase.removeChannel(endChannel);

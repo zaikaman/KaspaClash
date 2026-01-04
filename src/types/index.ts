@@ -220,4 +220,17 @@ export interface MatchResult {
   player1RoundsWon: number;
   player2RoundsWon: number;
   txIds: string[];
+  /** Rating changes for both players after the match */
+  ratingChanges?: {
+    winner: {
+      before: number;
+      after: number;
+      change: number;
+    };
+    loser: {
+      before: number;
+      after: number;
+      change: number;
+    };
+  };
 }

@@ -198,9 +198,22 @@ export interface MatchEndedPayload {
     player2RoundsWon: number;
   };
   reason: MatchEndReason;
-  stats: MatchStats;
-  shareUrl: string;
-  explorerUrl: string;
+  stats?: MatchStats;
+  /** Rating changes for both players after the match */
+  ratingChanges?: {
+    winner: {
+      before: number;
+      after: number;
+      change: number;
+    };
+    loser: {
+      before: number;
+      after: number;
+      change: number;
+    };
+  };
+  shareUrl?: string;
+  explorerUrl?: string;
 }
 
 /**
