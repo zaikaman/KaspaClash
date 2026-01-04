@@ -1,29 +1,73 @@
 "use client";
 
-import React, { useState } from "react";
+/**
+ * Practice Mode Page
+ * Offline AI training mode - no wallet required
+ */
+
+import React, { useState, useCallback } from "react";
+import dynamic from "next/dynamic";
 import LandingLayout from "@/components/landing/LandingLayout";
 import PracticeMenu from "@/components/practice/PracticeMenu";
 import PracticeResults from "@/components/practice/PracticeResults";
-import { Button } from "@/components/ui/button"; // For simulate button
+import type { AIDifficulty } from "@/lib/game/ai-opponent";
+
+// Dynamically import PracticeGameClient to avoid SSR issues
+const PracticeGameClient = dynamic(
+    () => import("@/components/practice/PracticeGameClient").then((mod) => mod.PracticeGameClient),
+    {
+        ssr: false,
+        loading: () => (
+            <div className="w-full h-[600px] bg-black/50 border border-cyber-gray/30 rounded-2xl flex items-center justify-center">
+                <div className="text-center">
+                    <div className="w-12 h-12 border-4 border-cyber-gold border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                    <p className="text-cyber-gold font-orbitron tracking-widest uppercase text-sm">Loading Game Engine...</p>
+                </div>
+            </div>
+        )
+    }
+);
+
+interface PracticeConfig {
+    characterId: string;
+    difficulty: AIDifficulty;
+}
+
+interface MatchResult {
+    playerWon: boolean;
+    playerRoundsWon: number;
+    aiRoundsWon: number;
+}
 
 export default function PracticePage() {
     const [gameState, setGameState] = useState<"menu" | "playing" | "results">("menu");
-    const [result, setResult] = useState<"player" | "ai" | null>(null);
+    const [practiceConfig, setPracticeConfig] = useState<PracticeConfig | null>(null);
+    const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
 
-    const handleStart = (characterId: string, difficulty: string) => {
-        console.log(`Starting practice with ${characterId} on ${difficulty}`);
+    const handleStart = useCallback((characterId: string, difficulty: string) => {
+        setPracticeConfig({
+            characterId,
+            difficulty: difficulty as AIDifficulty,
+        });
         setGameState("playing");
-    };
+    }, []);
 
-    const handleEndGame = (winner: "player" | "ai") => {
-        setResult(winner);
+    const handleMatchEnd = useCallback((result: MatchResult) => {
+        setMatchResult(result);
         setGameState("results");
-    };
+    }, []);
 
-    const handleRetry = () => {
+    const handleRetry = useCallback(() => {
+        // Keep same config, start new match
+        setMatchResult(null);
+        setGameState("playing");
+    }, []);
+
+    const handleExit = useCallback(() => {
+        setPracticeConfig(null);
+        setMatchResult(null);
         setGameState("menu");
-        setResult(null);
-    };
+    }, []);
 
     return (
         <LandingLayout>
@@ -39,26 +83,23 @@ export default function PracticePage() {
                         <PracticeMenu onStart={handleStart} />
                     )}
 
-                    {gameState === "playing" && (
-                        <div className="w-full h-[600px] bg-black/50 border border-cyber-gray/30 rounded-2xl flex flex-col items-center justify-center relative overflow-hidden backdrop-blur-sm">
-                            <h2 className="text-3xl font-orbitron text-white mb-4 animate-pulse">
-                                GAME ENGINE LOADING...
-                            </h2>
-                            <p className="text-cyber-gray mb-8">
-                                (This is where the Phaser canvas will mount)
-                            </p>
-
-                            {/* Dev Controls to simulate game end */}
-                            <div className="flex gap-4 p-4 border border-white/10 rounded-lg bg-black/40">
-                                <span className="text-xs text-cyber-gray uppercase font-bold tracking-widest block w-full text-center mb-2">Dev Controls</span>
-                                <Button onClick={() => handleEndGame("player")} size="sm" className="bg-green-600 hover:bg-green-700">Win Match</Button>
-                                <Button onClick={() => handleEndGame("ai")} size="sm" className="bg-red-600 hover:bg-red-700">Lose Match</Button>
-                            </div>
+                    {gameState === "playing" && practiceConfig && (
+                        <div className="w-full h-[600px] bg-black/50 border border-cyber-gray/30 rounded-2xl overflow-hidden">
+                            <PracticeGameClient
+                                characterId={practiceConfig.characterId}
+                                aiDifficulty={practiceConfig.difficulty}
+                                matchFormat="best_of_3"
+                                onMatchEnd={handleMatchEnd}
+                                onExit={handleExit}
+                            />
                         </div>
                     )}
 
-                    {gameState === "results" && result && (
-                        <PracticeResults winner={result} onRetry={handleRetry} />
+                    {gameState === "results" && matchResult && (
+                        <PracticeResults
+                            winner={matchResult.playerWon ? "player" : "ai"}
+                            onRetry={handleRetry}
+                        />
                     )}
                 </div>
             </div>

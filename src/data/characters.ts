@@ -20,7 +20,7 @@ function createDefaultAnimation(
   hitFrame?: number
 ): SpriteAnimation {
   return {
-    sheet: `/characters/${characterId}/${action}.png`,
+    sheet: `/characters/${characterId}/${action}.webp`,
     frames,
     frameRate,
     hitFrame,
@@ -55,7 +55,7 @@ export const CYBER_NINJA: Character = {
   id: "cyber-ninja",
   name: "Cyber Ninja",
   theme: "Digital shadow warrior representing Kaspa's lightning-fast block times. Masters of precision strikes and tactical defense.",
-  portraitUrl: "/characters/cyber-ninja/portrait.png",
+  portraitUrl: "/characters/cyber-ninja/portrait.webp",
   spriteConfig: createDefaultSpriteConfig("cyber-ninja"),
 };
 
@@ -67,7 +67,7 @@ export const DAG_WARRIOR: Character = {
   id: "dag-warrior",
   name: "DAG Warrior",
   theme: "Parallel processing champion embodying Kaspa's BlockDAG architecture. Versatile fighter who can handle any situation.",
-  portraitUrl: "/characters/dag-warrior/portrait.png",
+  portraitUrl: "/characters/dag-warrior/portrait.webp",
   spriteConfig: createDefaultSpriteConfig("dag-warrior"),
 };
 
@@ -79,7 +79,7 @@ export const BLOCK_BRUISER: Character = {
   id: "block-bruiser",
   name: "Block Bruiser",
   theme: "Immovable force representing Kaspa's rock-solid security. Heavy hitter with devastating power moves.",
-  portraitUrl: "/characters/block-bruiser/portrait.png",
+  portraitUrl: "/characters/block-bruiser/portrait.webp",
   spriteConfig: createDefaultSpriteConfig("block-bruiser"),
 };
 
@@ -91,7 +91,7 @@ export const HASH_HUNTER: Character = {
   id: "hash-hunter",
   name: "Hash Hunter",
   theme: "Relentless proof-of-work champion fueled by computational fire. Aggressive attacker who never stops pressing forward.",
-  portraitUrl: "/characters/hash-hunter/portrait.png",
+  portraitUrl: "/characters/hash-hunter/portrait.webp",
   spriteConfig: createDefaultSpriteConfig("hash-hunter"),
 };
 

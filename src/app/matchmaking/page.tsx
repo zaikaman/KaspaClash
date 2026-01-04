@@ -56,7 +56,7 @@ export default function MatchmakingPage() {
                         </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
                         {/* Quick Match Card */}
                         <div className="group relative rounded-[20px] bg-black/40 border border-cyber-gold/30 p-8 hover:border-cyber-gold transition-all hover:bg-black/60 overflow-hidden">
                             <div className="absolute inset-0 bg-gradient-to-br from-cyber-gold/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -76,6 +76,30 @@ export default function MatchmakingPage() {
                                 <Link href="/queue" className="w-full">
                                     <Button className="w-full bg-gradient-cyber text-white border-0 font-orbitron hover:opacity-90">
                                         FIND MATCH
+                                    </Button>
+                                </Link>
+                            </div>
+                        </div>
+
+                        {/* Practice Mode Card */}
+                        <div className="group relative rounded-[20px] bg-black/40 border border-emerald-500/30 p-8 hover:border-emerald-500 transition-all hover:bg-black/60 overflow-hidden">
+                            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+
+                            <div className="relative z-10 flex flex-col h-full">
+                                <div className="mb-6 w-16 h-16 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 group-hover:scale-110 transition-transform">
+                                    <svg className="w-8 h-8 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                    </svg>
+                                </div>
+
+                                <h3 className="text-2xl font-bold text-white font-orbitron mb-2">PRACTICE</h3>
+                                <p className="text-cyber-gray text-sm mb-8 flex-grow">
+                                    Hone your skills against AI. Master your combos before entering the arena.
+                                </p>
+
+                                <Link href="/practice" className="w-full">
+                                    <Button className="w-full bg-transparent border border-emerald-500 text-emerald-500 font-orbitron hover:bg-emerald-500/10">
+                                        ENTER DOJO
                                     </Button>
                                 </Link>
                             </div>
