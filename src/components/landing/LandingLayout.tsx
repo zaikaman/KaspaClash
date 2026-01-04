@@ -21,9 +21,16 @@ export default function LandingLayout({ children }: LandingLayoutProps) {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
                         {/* Brand */}
                         <div>
-                            <h3 className="text-xl font-bold bg-gradient-cyber bg-clip-text text-transparent mb-4 font-orbitron">
-                                KaspaClash
-                            </h3>
+                            <div className="flex items-center gap-3 mb-4">
+                                <img
+                                    src="/logo.webp"
+                                    alt="KaspaClash Logo"
+                                    className="w-8 h-8 object-contain"
+                                />
+                                <h3 className="text-xl font-bold bg-gradient-cyber bg-clip-text text-transparent font-orbitron">
+                                    KaspaClash
+                                </h3>
+                            </div>
                             <p className="text-cyber-gray text-sm">
                                 The first real-time fighting game on the Kaspa blockchain. Sub-second moves, instant finality.
                             </p>

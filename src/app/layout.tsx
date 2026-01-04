@@ -61,10 +61,12 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
+      { url: "/logo.webp", type: "image/webp" },
       { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
       { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
     ],
     apple: [
+      { url: "/logo.webp" },
       { url: "/icons/icon-152x152.png", sizes: "152x152" },
       { url: "/icons/icon-180x180.png", sizes: "180x180" },
     ],
@@ -94,14 +96,14 @@ export default function RootLayout({
         {/* PWA Apple-specific meta tags */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-capable" content="yes" />
-        <link rel="apple-touch-icon" href="/icons/icon-180x180.png" />
+        <link rel="apple-touch-icon" href="/logo.webp" />
         <link rel="apple-touch-startup-image" href="/icons/splash-screen.png" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${orbitron.variable} ${montserrat.variable} antialiased bg-background text-foreground min-h-screen`}
       >
         <WalletProvider>{children}</WalletProvider>
-        
+
         {/* Service Worker Registration */}
         <Script id="sw-register" strategy="afterInteractive">
           {`

@@ -55,9 +55,15 @@ export default function LandingHeader() {
     return (
         <header className="relative z-50">
             <nav className="container mx-auto px-6 lg:px-12 xl:px-24 py-6 flex items-center justify-between">
-                {/* Logo */}
-                <Link href="/" className="text-2xl font-bold bg-gradient-cyber bg-clip-text text-transparent font-orbitron">
-                    KaspaClash
+                <Link href="/" className="flex items-center gap-3 group">
+                    <img
+                        src="/logo.webp"
+                        alt="KaspaClash Logo"
+                        className="w-10 h-10 object-contain group-hover:scale-110 transition-transform duration-300"
+                    />
+                    <span className="text-2xl font-bold bg-gradient-cyber bg-clip-text text-transparent font-orbitron">
+                        KaspaClash
+                    </span>
                 </Link>
 
                 {/* Desktop Navigation */}
