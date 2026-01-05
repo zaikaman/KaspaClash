@@ -13,3 +13,4 @@ export { RoundScore, type RoundScoreConfig } from "./RoundScore";
 export { CharacterCard, type CharacterCardConfig } from "./CharacterCard";
 export { SelectionTimer, type SelectionTimerConfig } from "./SelectionTimer";
 export { OpponentStatus, type OpponentStatusConfig } from "./OpponentStatus";
+export * from "./StatsOverlay";

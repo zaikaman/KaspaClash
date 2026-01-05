@@ -20,6 +20,7 @@ export interface CharacterCardConfig {
   isLocked?: boolean;
   isDisabled?: boolean;
   onSelect?: (character: Character) => void;
+  onInfo?: (character: Character) => void;
 }
 
 /**
@@ -51,6 +52,7 @@ export class CharacterCard extends Phaser.GameObjects.Container {
   private cardWidth: number;
   private cardHeight: number;
   private onSelect?: (character: Character) => void;
+  private onInfo?: (character: Character) => void;
 
   // State
   private cardState: CardState = "default";
@@ -80,6 +82,7 @@ export class CharacterCard extends Phaser.GameObjects.Container {
     this.cardWidth = config.width ?? 200;
     this.cardHeight = config.height ?? 280;
     this.onSelect = config.onSelect;
+    this.onInfo = config.onInfo;
     this.colors = getCharacterColor(config.character.id);
 
     // Determine initial state
@@ -196,7 +199,55 @@ export class CharacterCard extends Phaser.GameObjects.Container {
       }
     );
     this.themeText.setOrigin(0.5, 0);
+    this.themeText.setOrigin(0.5, 0);
     this.add(this.themeText);
+
+    // Info Icon
+    this.createInfoIcon();
+  }
+
+  private createInfoIcon(): void {
+    if (!this.onInfo) return;
+
+    // Info Icon Container
+    const iconContainer = this.scene.add.container(this.cardWidth - 20, 20);
+    const circle = this.scene.add.graphics();
+    circle.fillStyle(0x000000, 0.6);
+    circle.fillCircle(0, 0, 12);
+    circle.lineStyle(1, 0xffffff);
+    circle.strokeCircle(0, 0, 12);
+
+    const text = this.scene.add.text(0, 0, "i", {
+      fontSize: "14px",
+      fontFamily: "monospace",
+      fontStyle: "bold",
+      color: "#ffffff"
+    }).setOrigin(0.5);
+
+    iconContainer.add([circle, text]);
+
+    // Interactive
+    // Important: Use a larger hit area for ease of clicking
+    const hitArea = new Phaser.Geom.Circle(0, 0, 15);
+    iconContainer.setInteractive(hitArea, Phaser.Geom.Circle.Contains);
+
+    iconContainer.on("pointerover", () => {
+      circle.fillStyle(this.colors.primary, 1);
+      this.scene.game.canvas.style.cursor = 'pointer';
+    });
+
+    iconContainer.on("pointerout", () => {
+      circle.fillStyle(0x000000, 0.6);
+      this.scene.game.canvas.style.cursor = 'default';
+    });
+
+    iconContainer.on("pointerdown", (pointer: Phaser.Input.Pointer, localX: number, localY: number, event: Phaser.Types.Input.EventData) => {
+      // Stop propagation so it doesn't trigger card selection
+      event.stopPropagation();
+      this.onInfo?.(this.character);
+    });
+
+    this.add(iconContainer);
   }
 
   /**

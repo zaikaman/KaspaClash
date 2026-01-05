@@ -148,8 +148,12 @@ export class CombatEngine {
         );
 
         // Apply damage
-        this.state.player1.hp = Math.max(0, p1State.hp - p1Result.damageTaken);
-        this.state.player2.hp = Math.max(0, p2State.hp - p2Result.damageTaken);
+        // Handle normal damage + reflection (self-damage)
+        const p1SelfDamage = (p1Result as any).selfDamage || 0;
+        const p2SelfDamage = (p2Result as any).selfDamage || 0;
+
+        this.state.player1.hp = Math.max(0, p1State.hp - p1Result.damageTaken - p1SelfDamage);
+        this.state.player2.hp = Math.max(0, p2State.hp - p2Result.damageTaken - p2SelfDamage);
 
         // Apply energy costs
         this.state.player1.energy = Math.max(0, p1State.energy - p1Result.energySpent);
@@ -165,6 +169,19 @@ export class CombatEngine {
             p2State.guardMeter + p2Result.guardBuildup
         );
 
+        // Check for Guard Break (Meter >= 100)
+        if (this.state.player1.guardMeter >= COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD) {
+            this.state.player1.guardMeter = 0;
+            this.state.player1.isStunned = true; // Stunned next turn
+            p1Result.effects.push("guard_break"); // Add effect for UI
+        }
+
+        if (this.state.player2.guardMeter >= COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD) {
+            this.state.player2.guardMeter = 0;
+            this.state.player2.isStunned = true; // Stunned next turn
+            p2Result.effects.push("guard_break"); // Add effect for UI
+        }
+
         // Apply effects
         this.applyEffects(p1Result.effects, "player1");
         this.applyEffects(p2Result.effects, "player2");
@@ -172,10 +189,38 @@ export class CombatEngine {
         // Regenerate energy
         this.regenerateEnergy();
 
-        // Clear stun/stagger (they last one turn)
-        this.state.player1.isStunned = p1Result.effects.includes("stun");
+        // Clear stun/stagger (if they were applied LAST turn, they clear now. 
+        // If applied THIS turn via guard break, they should persist for NEXT turn)
+        // Changes: applyEffects sets stun/stagger if they were in the result effects (from move outcome).
+        // Guard break stun is applied above directly to state. 
+        // We need to be careful not to clear the Stun we just set.
+
+        // Logic fix: STUN usually makes you miss THIS turn (handled at start of resolveTurn). 
+        // If you get stunned THIS turn (e.g. by Special), you miss NEXT turn? 
+        // Or does "stunned" result mean you missed THIS turn?
+        // "outcome: stunned" means your move was interrupted THIS turn.
+        // "effect: stun" usually implies a lingering effect.
+        // Let's check applyEffects and resolvePlayerTurn.
+        // resolvePlayerTurn returns "stun" effect if outcome is "stunned".
+
+        // If I am stunned NOW (outcome=stunned), I lost my move this turn. 
+        // Should I also lose next turn? Usually "stunned" in games means "miss next turn".
+        // BUT current logic: `const effectiveP1Move = p1State.isStunned ? null : player1Move;`
+        // checks `isStunned` at START of turn.
+        // So if I set `isStunned = true` now, it affects NEXT turn. Correct.
+
+        // HOWEVER, `this.state.player1.isStunned = p1Result.effects.includes("stun");` below
+        // overwrites my Guard Break stun!
+        // I need to merge them.
+
+        const p1StunnedByMove = p1Result.effects.includes("stun");
+        const p2StunnedByMove = p2Result.effects.includes("stun");
+
+        // Keep stun if it was set by Guard Break OR by move outcome
+        this.state.player1.isStunned = this.state.player1.isStunned || p1StunnedByMove;
         this.state.player1.isStaggered = p1Result.effects.includes("stagger");
-        this.state.player2.isStunned = p2Result.effects.includes("stun");
+
+        this.state.player2.isStunned = this.state.player2.isStunned || p2StunnedByMove;
         this.state.player2.isStaggered = p2Result.effects.includes("stagger");
 
         // Check for round end
@@ -305,12 +350,15 @@ export class CombatEngine {
         return {
             move: myMove,
             outcome,
-            damageDealt: Math.max(0, damageDealt),
+            damageDealt: Math.max(0, damageDealt), // damageDealt should always be positive for narrative
             damageTaken: Math.max(0, damageTaken),
             energySpent,
             guardBuildup,
             effects,
-        };
+            // Internal field to track self-damage (reflection)
+            // @ts-ignore - Adding internal property safely
+            selfDamage: damageDealt < 0 ? Math.abs(damageDealt) : 0
+        } as PlayerTurnResult & { selfDamage: number };
     }
 
     /**

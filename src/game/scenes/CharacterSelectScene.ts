@@ -6,8 +6,9 @@
 import Phaser from "phaser";
 import { EventBus } from "../EventBus";
 import { GAME_DIMENSIONS } from "../config";
-import { CharacterCard, SelectionTimer, OpponentStatus } from "../ui";
+import { CharacterCard, SelectionTimer, OpponentStatus, StatsOverlay } from "../ui";
 import { CHARACTER_ROSTER, getCharacter, getRandomCharacter } from "@/data/characters";
+import { getCharacterCombatStats } from "@/game/combat/CharacterStats";
 import type { Character } from "@/types";
 
 /**
@@ -49,6 +50,9 @@ export class CharacterSelectScene extends Phaser.Scene {
   private titleText!: Phaser.GameObjects.Text;
   private instructionText!: Phaser.GameObjects.Text;
   private confirmButton!: Phaser.GameObjects.Container;
+  private statsPanel!: Phaser.GameObjects.Container;
+  private statsText!: Phaser.GameObjects.Text;
+  private statsOverlay!: StatsOverlay;
 
   // State
   private selectedCharacter: Character | null = null;
@@ -143,8 +147,14 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.createCharacterGrid();
     this.createSelectionTimer();
     this.createOpponentStatus();
+    this.createOpponentStatus();
     this.createConfirmButton();
+    this.createStatsDisplay(); // Add stats display (summary)
     this.createInstructions();
+
+    // Stats Overlay (Detailed)
+    this.statsOverlay = new StatsOverlay(this);
+
     this.setupEventListeners();
 
     // Restore existing selections UI (for reconnection scenarios)
@@ -354,6 +364,7 @@ export class CharacterSelectScene extends Phaser.Scene {
         width: this.CARD_WIDTH,
         height: this.CARD_HEIGHT,
         onSelect: (char) => this.onCharacterSelect(char),
+        onInfo: (char) => this.statsOverlay.show(char),
       });
 
       this.characterCards.push(card);
@@ -473,6 +484,63 @@ export class CharacterSelectScene extends Phaser.Scene {
   }
 
   /**
+   * Create stats display.
+   */
+  private createStatsDisplay(): void {
+    this.statsPanel = this.add.container(GAME_DIMENSIONS.CENTER_X, 230);
+
+    // Initial text
+    this.statsText = this.add.text(0, 0, "", {
+      fontFamily: "Orbitron, sans-serif",
+      fontSize: "16px",
+      color: "#4ade80", // Greenish tint
+      align: "center",
+      stroke: "#000000",
+      strokeThickness: 3,
+    });
+    this.statsText.setOrigin(0.5);
+
+    // Add shadow/glow effect
+    const fx = this.statsText.postFX.addGlow(0x4ade80, 0.5, 0, false, 0.1, 10);
+
+    this.statsPanel.add(this.statsText);
+    this.statsPanel.setVisible(false); // Hidden until selection
+  }
+
+  /**
+   * Update stats display for selected character.
+   */
+  private updateStatsDisplay(character: Character): void {
+    const stats = getCharacterCombatStats(character.id);
+    let archetype = "Balanced";
+    if (character.id === "block-bruiser") archetype = "Tank / Heavy Hitter";
+    if (character.id === "cyber-ninja") archetype = "Glass Cannon / Fast";
+    if (character.id === "hash-hunter") archetype = "Aggressive Specialist";
+
+    // Format text
+    // "CYBER NINJA"
+    // "HP: 96 | Energy: 105"
+    // "Glass Cannon / Fast"
+    const text = `${character.name.toUpperCase()}\nHP: ${stats.maxHp}  |  Energy: ${stats.maxEnergy}\n${archetype}`;
+
+    this.statsText.setText(text);
+
+    // Color coding based on archetype
+    let color = "#4ade80"; // Default green
+    if (character.id === "block-bruiser") color = "#f97316"; // Orange
+    if (character.id === "hash-hunter") color = "#ef4444"; // Red
+    if (character.id === "cyber-ninja") color = "#a855f7"; // Purple
+    if (character.id === "dag-warrior") color = "#3b82f6"; // Blue
+
+    this.statsText.setColor(color);
+    // Update glow color if possible, or clear and re-add
+    // Phaser FX are tricky to update dynamically sometimes, simpler to recreate or just accept static glow color
+    // We'll leave the static green glow for now or use the text color primarily.
+
+    this.statsPanel.setVisible(true);
+  }
+
+  /**
    * Setup event listeners for WebSocket events.
    */
   private setupEventListeners(): void {
@@ -545,6 +613,9 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     // Show confirm button
     this.showConfirmButton();
+
+    // Update stats display
+    this.updateStatsDisplay(character);
 
     // Emit selection event
     EventBus.emit("character_selected", { characterId: character.id });

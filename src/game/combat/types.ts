@@ -46,7 +46,7 @@ export interface MoveStats {
  */
 export const BASE_MOVE_STATS: Record<MoveType, MoveStats> = {
     punch: { damage: 10, energyCost: 0, priority: 3 },
-    kick: { damage: 15, energyCost: 10, priority: 2 },
+    kick: { damage: 15, energyCost: 25, priority: 2 },
     block: { damage: 0, energyCost: 0, priority: 4 },
     special: { damage: 30, energyCost: 45, priority: 1 },
 };

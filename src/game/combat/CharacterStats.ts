@@ -17,7 +17,7 @@ import type { CharacterCombatStats } from "./types";
  * - Cheaper specials
  */
 export const CYBER_NINJA_STATS: CharacterCombatStats = {
-    maxHp: 92,
+    maxHp: 96,
     maxEnergy: 105,
     damageModifiers: {
         punch: 1.15,   // 15% more punch damage
@@ -51,13 +51,13 @@ export const DAG_WARRIOR_STATS: CharacterCombatStats = {
 
 /**
  * Block Bruiser - Heavy tank (Orange theme)
- * - Higher HP (115) but lower energy (85)
+ * - Higher HP (110) but lower energy (85)
  * - Enhanced kick damage
  * - Better blocking
  * - Expensive specials
  */
 export const BLOCK_BRUISER_STATS: CharacterCombatStats = {
-    maxHp: 115,
+    maxHp: 110,
     maxEnergy: 85,
     damageModifiers: {
         punch: 1.0,
