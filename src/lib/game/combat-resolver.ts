@@ -121,8 +121,9 @@ export async function resolveRound(
         .update({
             player1_damage_dealt: result.player1.damageDealt,
             player2_damage_dealt: result.player2.damageDealt,
-            player1_health_after: state.player1.hp,
-            player2_health_after: state.player2.hp,
+            // Clamp health values to 0 to respect DB constraints
+            player1_health_after: Math.max(0, state.player1.hp),
+            player2_health_after: Math.max(0, state.player2.hp),
             winner_address: state.roundWinner === "player1"
                 ? match.player1_address
                 : state.roundWinner === "player2"

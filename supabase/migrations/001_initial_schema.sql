@@ -1,6 +1,40 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 
+CREATE TABLE public.bets (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  pool_id uuid NOT NULL,
+  bettor_address text NOT NULL,
+  bet_on text NOT NULL CHECK (bet_on = ANY (ARRAY['player1'::text, 'player2'::text])),
+  amount bigint NOT NULL CHECK (amount >= 100000000),
+  fee_paid bigint NOT NULL DEFAULT 0,
+  net_amount bigint NOT NULL DEFAULT 0,
+  tx_id text NOT NULL UNIQUE,
+  payout_amount bigint,
+  payout_tx_id text,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'confirmed'::text, 'won'::text, 'lost'::text, 'refunded'::text])),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  confirmed_at timestamp with time zone,
+  paid_at timestamp with time zone,
+  CONSTRAINT bets_pkey PRIMARY KEY (id),
+  CONSTRAINT bets_pool_fkey FOREIGN KEY (pool_id) REFERENCES public.betting_pools(id),
+  CONSTRAINT bets_bettor_fkey FOREIGN KEY (bettor_address) REFERENCES public.players(address)
+);
+CREATE TABLE public.betting_pools (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  match_id uuid NOT NULL UNIQUE,
+  player1_total bigint NOT NULL DEFAULT 0,
+  player2_total bigint NOT NULL DEFAULT 0,
+  total_pool bigint NOT NULL DEFAULT 0,
+  total_fees bigint NOT NULL DEFAULT 0,
+  status text NOT NULL DEFAULT 'open'::text CHECK (status = ANY (ARRAY['open'::text, 'locked'::text, 'resolved'::text, 'refunded'::text])),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  locked_at timestamp with time zone,
+  resolved_at timestamp with time zone,
+  winner text CHECK (winner IS NULL OR (winner = ANY (ARRAY['player1'::text, 'player2'::text]))),
+  CONSTRAINT betting_pools_pkey PRIMARY KEY (id),
+  CONSTRAINT betting_pools_match_fkey FOREIGN KEY (match_id) REFERENCES public.matches(id)
+);
 CREATE TABLE public.characters (
   id text NOT NULL,
   name text NOT NULL,
@@ -17,7 +51,7 @@ CREATE TABLE public.matches (
   player1_character_id text,
   player2_character_id text,
   format text NOT NULL DEFAULT 'best_of_3'::text CHECK (format = ANY (ARRAY['best_of_3'::text, 'best_of_5'::text])),
-  status text NOT NULL DEFAULT 'waiting'::text CHECK (status = ANY (ARRAY['waiting'::text, 'character_select'::text, 'in_progress'::text, 'completed'::text])),
+  status text NOT NULL DEFAULT 'waiting'::text CHECK (status = ANY (ARRAY['waiting'::text, 'character_select'::text, 'in_progress'::text, 'completed'::text, 'cancelled'::text])),
   winner_address text,
   player1_rounds_won integer NOT NULL DEFAULT 0,
   player2_rounds_won integer NOT NULL DEFAULT 0,

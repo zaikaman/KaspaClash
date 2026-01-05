@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Mark kaspa-wasm as external to avoid bundling issues with WASM
+  serverExternalPackages: ["kaspa-wasm"],
+
   // Use empty turbopack config to enable Turbopack by default
   // The webpack config is fallback for WASM support when needed
   turbopack: {},

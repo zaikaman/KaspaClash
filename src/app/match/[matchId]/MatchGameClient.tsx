@@ -348,10 +348,15 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
             // We forfeited by rejecting - opponent wins this round
             // The round_resolved event will be broadcast by the server
             console.log("[MatchGameClient] We forfeited - opponent wins this round");
+          } else if (rejectResult.status === "waiting") {
+            // We rejected, waiting for opponent to also reject or move
+            console.log("[MatchGameClient] Rejection waiting for opponent");
+            EventBus.emit("game:rejectionWaiting", { message: rejectResult.message });
           }
         } else {
           const errorText = await rejectResponse.text();
           console.error("[MatchGameClient] Failed to record rejection:", errorText);
+          EventBus.emit("game:moveError", { error: "Failed to record rejection" });
         }
       } catch (error) {
         console.error("[MatchGameClient] Error recording rejection:", error);

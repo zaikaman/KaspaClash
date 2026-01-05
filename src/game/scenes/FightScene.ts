@@ -120,6 +120,9 @@ export class FightScene extends Phaser.Scene {
     player2GuardMeter: number;
   } | null = null;
 
+  // Visibility change handler reference for cleanup
+  private visibilityChangeHandler: (() => void) | null = null;
+
   constructor() {
     super({ key: "FightScene" });
   }
@@ -379,6 +382,9 @@ export class FightScene extends Phaser.Scene {
       EventBus.emit("fight:requestRoundState", { matchId: this.config.matchId });
     }
 
+    // Set up visibility change handler to resync timer when tab becomes visible
+    this.setupVisibilityHandler();
+
     // Emit scene ready event
     EventBus.emit("scene:ready", this);
   }
@@ -506,6 +512,77 @@ export class FightScene extends Phaser.Scene {
   update(_time: number, _delta: number): void {
     if (this.phase === "selecting" && this.roundTimerText) {
       this.roundTimerText.setText(`${Math.ceil(this.turnTimer)}`);
+    }
+  }
+
+  // ===========================================================================
+  // VISIBILITY HANDLING - Keep game in sync when tab switches
+  // ===========================================================================
+
+  /**
+   * Set up document visibility change handler.
+   * This ensures the game state stays synchronized when the user switches tabs.
+   */
+  private setupVisibilityHandler(): void {
+    // Only set up if we're in a browser environment
+    if (typeof document === "undefined") return;
+
+    this.visibilityChangeHandler = () => {
+      if (document.visibilityState === "visible") {
+        console.log("[FightScene] Tab became visible, resyncing state");
+        this.handleVisibilityResync();
+      }
+    };
+
+    document.addEventListener("visibilitychange", this.visibilityChangeHandler);
+
+    // Also handle the scene shutdown to clean up
+    this.events.once("shutdown", this.cleanupVisibilityHandler, this);
+    this.events.once("destroy", this.cleanupVisibilityHandler, this);
+  }
+
+  /**
+   * Clean up visibility change handler.
+   */
+  private cleanupVisibilityHandler(): void {
+    if (this.visibilityChangeHandler && typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", this.visibilityChangeHandler);
+      this.visibilityChangeHandler = null;
+    }
+  }
+
+  /**
+   * Handle resync when tab becomes visible.
+   * Recalculates timer based on server deadline and updates UI.
+   */
+  private handleVisibilityResync(): void {
+    // If we're in selecting phase and have a deadline, resync the timer
+    if (this.phase === "selecting" && this.moveDeadlineAt > 0) {
+      const nowRemainingMs = this.moveDeadlineAt - Date.now();
+      const newTimer = Math.max(0, Math.floor(nowRemainingMs / 1000));
+
+      console.log(`[FightScene] Resync timer: ${this.turnTimer}s -> ${newTimer}s (deadline: ${this.moveDeadlineAt})`);
+
+      this.turnTimer = newTimer;
+
+      // Update display immediately
+      this.roundTimerText.setText(`${this.turnTimer}s`);
+      if (this.turnTimer <= 5) {
+        this.roundTimerText.setColor("#ff4444");
+      } else {
+        this.roundTimerText.setColor("#40e0d0");
+      }
+
+      // If timer has expired while tab was hidden, trigger expiration
+      if (this.turnTimer <= 0 && !this.selectedMove) {
+        console.log("[FightScene] Timer expired while tab was hidden, triggering expiration");
+        this.onTimerExpired();
+      }
+    }
+
+    // If in resolving or round_end phase, ensure UI reflects current state
+    if (this.serverState) {
+      this.syncUIWithCombatState();
     }
   }
 
@@ -1640,6 +1717,40 @@ export class FightScene extends Phaser.Scene {
       };
       this.handleStateSync(state);
     });
+
+    // Listen for local rejection waiting (we rejected, waiting for opponent)
+    EventBus.on("game:rejectionWaiting", (data: unknown) => {
+      const payload = data as { message: string };
+      this.isWaitingForOpponent = true;
+      this.turnIndicatorText.setText("Waiting for opponent...");
+      this.turnIndicatorText.setColor("#f97316");
+      this.moveButtons.forEach(btn => btn.setAlpha(0.4).disableInteractive());
+    });
+
+    // Listen for move error (e.g. wallet rejected but failed to record rejection)
+    // This allows the user to try again if the rejection recording failed
+    EventBus.on("game:moveError", (data: unknown) => {
+      const payload = data as { error: string };
+      console.log("[FightScene] Move error:", payload.error);
+
+      // If we are "waiting for opponent" due to submitting, but it failed locally
+      // We should reset the UI to allow retry
+      // BUT if we successfully recorded rejection (which emits game:rejectionWaiting), we shouldn't reset.
+      // So only reset if we are NOT in the confirmed waiting state
+      if (this.turnIndicatorText.text === "Submitting move...") {
+        this.isWaitingForOpponent = false;
+        this.turnIndicatorText.setText("Select your move!");
+        this.turnIndicatorText.setColor("#40e0d0");
+        this.moveButtons.forEach(btn => {
+          // Only re-enable affordable buttons
+          this.updateMoveButtonAffordability();
+          // We need to re-enable interactivity that was disabled
+          btn.setInteractive();
+        });
+        this.selectedMove = null;
+        this.updateMoveButtonAffordability(); // Call again to set alphas correct
+      }
+    });
   }
 
   /**
@@ -1817,6 +1928,9 @@ export class FightScene extends Phaser.Scene {
     console.log("[FightScene]   playerRole:", this.config.playerRole);
 
     if (state.moveDeadlineAt && state.moveDeadlineAt > Date.now()) {
+      // Store the deadline for visibility resync
+      this.moveDeadlineAt = state.moveDeadlineAt;
+
       const myRole = this.config.playerRole;
       const hasPendingMove = myRole === "player1" ? state.pendingMoves.player1 : state.pendingMoves.player2;
 

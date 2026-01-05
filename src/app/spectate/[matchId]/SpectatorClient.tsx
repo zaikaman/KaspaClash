@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useSpectatorChannel } from "@/hooks/useSpectatorChannel";
 import { useMatchStore, useMatchActions } from "@/stores/match-store";
 import { EventBus } from "@/game/EventBus";
+import { BettingPanel } from "@/components/betting/BettingPanel";
 import type { Match } from "@/types";
 
 // Dynamically import PhaserGame to avoid SSR issues
@@ -189,49 +190,61 @@ export function SpectatorClient({ match }: SpectatorClientProps) {
                 </div>
             </div>
 
-            {/* Phaser game container */}
-            <div className="w-full h-screen">
-                <PhaserGame
-                    currentScene={initialScene}
-                    sceneConfig={
-                        initialScene === "FightScene" ? {
-                            matchId: match.id,
-                            player1Address: match.player1Address,
-                            player2Address: match.player2Address || "",
-                            player1Character: match.player1CharacterId || "dag-warrior",
-                            player2Character: match.player2CharacterId || "dag-warrior",
-                            playerRole: "player1", // Spectators view from player1's perspective
-                            isSpectator: true, // Key flag for spectator mode
-                            isReconnect: false,
-                            reconnectState: null,
-                        } : initialScene === "ResultsScene" ? {
-                            result: {
-                                winner: match.winnerAddress === match.player1Address ? "player1" :
-                                    match.winnerAddress === match.player2Address ? "player2" : null,
-                                reason: (match as any).endReason || "rounds_won",
-                                player1FinalHealth: 0,
-                                player2FinalHealth: 0,
-                                player1RoundsWon: match.player1RoundsWon,
-                                player2RoundsWon: match.player2RoundsWon,
-                                txIds: [],
-                            },
-                            playerRole: "player1",
-                            matchId: match.id,
-                            player1CharacterId: match.player1CharacterId || "dag-warrior",
-                            player2CharacterId: match.player2CharacterId || "dag-warrior",
-                            isSpectator: true,
-                        } : {
-                            matchId: match.id,
-                            playerAddress: "", // Empty for spectators
-                            opponentAddress: "",
-                            isHost: false,
-                            isSpectator: true,
-                            selectionDeadlineAt: match.selectionDeadlineAt,
-                            existingPlayerCharacter: match.player1CharacterId,
-                            existingOpponentCharacter: match.player2CharacterId,
-                        } as any
-                    }
-                />
+            {/* Main content */}
+            <div className="flex h-screen">
+                {/* Phaser game container */}
+                <div className="flex-1 h-full">
+                    <PhaserGame
+                        currentScene={initialScene}
+                        sceneConfig={
+                            initialScene === "FightScene" ? {
+                                matchId: match.id,
+                                player1Address: match.player1Address,
+                                player2Address: match.player2Address || "",
+                                player1Character: match.player1CharacterId || "dag-warrior",
+                                player2Character: match.player2CharacterId || "dag-warrior",
+                                playerRole: "player1", // Spectators view from player1's perspective
+                                isSpectator: true, // Key flag for spectator mode
+                                isReconnect: false,
+                                reconnectState: null,
+                            } : initialScene === "ResultsScene" ? {
+                                result: {
+                                    winner: match.winnerAddress === match.player1Address ? "player1" :
+                                        match.winnerAddress === match.player2Address ? "player2" : null,
+                                    reason: (match as any).endReason || "rounds_won",
+                                    player1FinalHealth: 0,
+                                    player2FinalHealth: 0,
+                                    player1RoundsWon: match.player1RoundsWon,
+                                    player2RoundsWon: match.player2RoundsWon,
+                                    txIds: [],
+                                },
+                                playerRole: "player1",
+                                matchId: match.id,
+                                player1CharacterId: match.player1CharacterId || "dag-warrior",
+                                player2CharacterId: match.player2CharacterId || "dag-warrior",
+                                isSpectator: true,
+                            } : {
+                                matchId: match.id,
+                                playerAddress: "", // Empty for spectators
+                                opponentAddress: "",
+                                isHost: false,
+                                isSpectator: true,
+                                selectionDeadlineAt: match.selectionDeadlineAt,
+                                existingPlayerCharacter: match.player1CharacterId,
+                                existingOpponentCharacter: match.player2CharacterId,
+                            } as any
+                        }
+                    />
+                </div>
+
+                {/* Betting panel sidebar */}
+                <div className="w-80 h-full pt-20 p-4 bg-black/40 border-l border-cyber-gold/20 overflow-y-auto">
+                    <BettingPanel
+                        matchId={match.id}
+                        player1Name={match.player1?.display_name || match.player1Address.slice(0, 12) + "..."}
+                        player2Name={match.player2?.display_name || (match.player2Address?.slice(0, 12) + "...") || "Player 2"}
+                    />
+                </div>
             </div>
         </div>
     );

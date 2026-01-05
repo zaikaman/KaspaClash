@@ -59,8 +59,8 @@ export async function POST(
         }
 
         // Verify player is part of the match
-        const isPlayer1 = match.player1_address === body.address;
-        const isPlayer2 = match.player2_address === body.address;
+        const isPlayer1 = match.player1_address.toLowerCase() === body.address.toLowerCase();
+        const isPlayer2 = match.player2_address?.toLowerCase() === body.address.toLowerCase();
 
         if (!isPlayer1 && !isPlayer2) {
             return createErrorResponse(
@@ -87,25 +87,27 @@ export async function POST(
             .limit(1)
             .single();
 
-        // If no round exists, create the first round
-        if (roundError || !currentRound) {
+        // If no round exists or last round is complete (has both moves OR has a winner), create new round
+        if (roundError || !currentRound || (currentRound.player1_move && currentRound.player2_move) || currentRound.winner_address) {
+            const nextRoundNumber = currentRound ? currentRound.round_number + 1 : 1;
+
             const { data: newRound, error: createError } = await supabase
                 .from("rounds")
                 .insert({
                     match_id: matchId,
-                    round_number: 1,
+                    round_number: nextRoundNumber,
                 })
                 .select()
                 .single();
 
-            if (createError || !newRound) {
-                // Handle race condition - another request may have created it
-                if (createError?.code === '23505') {
+            if (createError) {
+                // Handle race condition: if duplicate key error, another request already created the round
+                if (createError.code === '23505') {
                     const { data: existingRound } = await supabase
                         .from("rounds")
                         .select("*")
                         .eq("match_id", matchId)
-                        .eq("round_number", 1)
+                        .eq("round_number", nextRoundNumber)
                         .single();
                     currentRound = existingRound;
                 } else {
@@ -171,6 +173,12 @@ export async function POST(
         const roundData = updatedRound as Record<string, unknown> | null;
         const opponentSubmitted = !!roundData?.[opponentMoveColumn];
         const opponentRejected = !!roundData?.[opponentRejectColumn];
+
+        console.log(`[Reject API] Match: ${matchId}, Round: ${currentRound.id}`);
+        console.log(`[Reject API] Player: ${body.address} (${isPlayer1 ? 'P1' : 'P2'})`);
+        console.log(`[Reject API] Rejecting... Updated DB? ok.`);
+        console.log(`[Reject API] State after update: P1_Rej=${roundData?.player1_rejected}, P2_Rej=${roundData?.player2_rejected}`);
+        console.log(`[Reject API] Opponent Rejected? ${opponentRejected} (Column: ${opponentRejectColumn})`);
 
         // Case 1: Opponent already SUBMITTED a move -> opponent wins (we forfeited)
         if (opponentSubmitted) {

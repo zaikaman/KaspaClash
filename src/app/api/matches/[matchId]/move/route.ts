@@ -239,6 +239,17 @@ export async function POST(
       const opponentPlayer = isPlayer1 ? "player2" : "player1";
       const resolution = await handleMoveRejection(matchId, currentRound.id, opponentPlayer);
 
+      if (resolution.isMatchOver) {
+        // Trigger payouts asynchronously (don't block response too long, or do block if critical)
+        // We'll block to ensure it runs, but catch errors
+        try {
+          const { resolveMatchPayouts } = await import("@/lib/betting/payout-service");
+          await resolveMatchPayouts(matchId);
+        } catch (e) {
+          console.error("Failed to trigger payouts:", e);
+        }
+      }
+
       return NextResponse.json({
         moveId: move.id,
         roundId: currentRound.id,
@@ -258,6 +269,15 @@ export async function POST(
     if (!awaitingOpponent) {
       const { resolveRound } = await import("@/lib/game/combat-resolver");
       resolution = await resolveRound(matchId, currentRound.id);
+
+      if (resolution.isMatchOver) {
+        try {
+          const { resolveMatchPayouts } = await import("@/lib/betting/payout-service");
+          await resolveMatchPayouts(matchId);
+        } catch (e) {
+          console.error("Failed to trigger payouts:", e);
+        }
+      }
     }
 
     return NextResponse.json({
