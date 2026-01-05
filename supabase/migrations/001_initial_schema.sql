@@ -116,6 +116,7 @@ CREATE TABLE public.rounds (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   player1_rejected boolean DEFAULT false,
   player2_rejected boolean DEFAULT false,
+  move_deadline_at timestamp with time zone,
   CONSTRAINT rounds_pkey PRIMARY KEY (id),
   CONSTRAINT rounds_match_id_fkey FOREIGN KEY (match_id) REFERENCES public.matches(id),
   CONSTRAINT rounds_winner_address_fkey FOREIGN KEY (winner_address) REFERENCES public.players(address)

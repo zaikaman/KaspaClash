@@ -187,6 +187,15 @@ export async function POST(
         const MOVE_TIMER_MS = 20000;
         const moveDeadlineAt = Date.now() + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
 
+        // Create initial round with server-side deadline
+        await supabase
+          .from("rounds")
+          .upsert({
+            match_id: matchId,
+            round_number: 1,
+            move_deadline_at: new Date(moveDeadlineAt).toISOString(),
+          }, { onConflict: "match_id,round_number" });
+
         console.log("[Select API] Broadcasting match_starting and round_starting events");
         await broadcastMultipleToChannel(supabase, `game:${matchId}`, [
           {
@@ -325,6 +334,15 @@ export async function POST(
           const ROUND_COUNTDOWN_MS = 3000;
           const MOVE_TIMER_MS = 20000;
           const moveDeadlineAt = Date.now() + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
+
+          // Create initial round with server-side deadline
+          await supabase
+            .from("rounds")
+            .upsert({
+              match_id: matchId,
+              round_number: 1,
+              move_deadline_at: new Date(moveDeadlineAt).toISOString(),
+            }, { onConflict: "match_id,round_number" });
 
           console.log("[Select API] Broadcasting match_starting and round_starting events (normal flow)");
           console.log("[Select API] Broadcasting to channel: game:", matchId);

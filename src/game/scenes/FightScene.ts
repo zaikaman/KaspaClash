@@ -716,7 +716,7 @@ export class FightScene extends Phaser.Scene {
   // ===========================================================================
 
   private createHealthBars(): void {
-    const barWidth = 350;
+    const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
     const barHeight = 25;
 
     // Player 1 Health Bar
@@ -792,7 +792,7 @@ export class FightScene extends Phaser.Scene {
   // ===========================================================================
 
   private createEnergyBars(): void {
-    const barWidth = 350;
+    const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
     const barHeight = 12;
     const yOffset = 30; // Below health bar
 
@@ -856,7 +856,7 @@ export class FightScene extends Phaser.Scene {
   // ===========================================================================
 
   private createGuardMeters(): void {
-    const barWidth = 350;
+    const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
     const barHeight = 6;
     const yOffset = 45;
 
@@ -1283,22 +1283,20 @@ export class FightScene extends Phaser.Scene {
       this.timerEvent = undefined;
     }
 
-    // Auto-select punch if no move selected
-    if (!this.selectedMove) {
-      this.selectedMove = "punch";
-    }
-
-    // Submit the auto-selected move to the server
-    this.turnIndicatorText.setText("Time's up! Auto-submitting...");
+    // Update UI to show timeout state
+    this.turnIndicatorText.setText("Time's up! Checking server...");
     this.turnIndicatorText.setColor("#ff8800");
 
     // Disable buttons
     this.moveButtons.forEach(btn => btn.setAlpha(0.4).disableInteractive());
 
-    // Emit the move to the API
-    EventBus.emit("game:submitMove", {
+    // Emit timeout event for server-side enforcement
+    // The MatchGameClient will call the move-timeout API to determine consequences:
+    // - If we haven't submitted and opponent has: we forfeit the round
+    // - If neither has submitted: match is cancelled
+    // - If we've already submitted: no action (already handled)
+    EventBus.emit("game:timerExpired", {
       matchId: this.config.matchId,
-      moveType: this.selectedMove,
       playerRole: this.config.playerRole,
     });
   }
@@ -1419,7 +1417,7 @@ export class FightScene extends Phaser.Scene {
   }
 
   private updateHealthBarDisplay(player: "player1" | "player2", hp: number, maxHp: number): void {
-    const barWidth = 350;
+    const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
     const barHeight = 25;
     const healthPercent = Math.max(0, hp) / maxHp;
     const innerWidth = (barWidth - 4) * healthPercent;
@@ -1443,7 +1441,7 @@ export class FightScene extends Phaser.Scene {
   }
 
   private updateEnergyBarDisplay(player: "player1" | "player2", energy: number, maxEnergy: number): void {
-    const barWidth = 350;
+    const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
     const barHeight = 12;
     const yOffset = 30;
     const energyPercent = Math.max(0, energy) / maxEnergy;
@@ -1464,7 +1462,7 @@ export class FightScene extends Phaser.Scene {
   }
 
   private updateGuardMeterDisplay(player: "player1" | "player2", guardMeter: number): void {
-    const barWidth = 350;
+    const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
     const barHeight = 6;
     const yOffset = 45;
     const guardPercent = guardMeter / 100;

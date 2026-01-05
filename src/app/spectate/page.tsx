@@ -51,21 +51,21 @@ function MatchCard({ match }: { match: LiveMatch }) {
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="group relative rounded-[20px] bg-black/40 border border-cyber-gold/30 p-6 hover:border-cyber-gold transition-all hover:bg-black/60 overflow-hidden"
+            className="group relative rounded-[20px] bg-black/40 border border-cyber-gold/30 p-6 pt-14 hover:border-cyber-gold transition-all hover:bg-black/60 overflow-hidden"
         >
             {/* Live Indicator */}
-            <div className="absolute top-4 right-4 flex items-center gap-2">
+            <div className="absolute top-4 right-4 flex items-center gap-2 z-10 bg-black/40 px-3 py-1 rounded-full border border-red-500/30 backdrop-blur-sm">
                 <span className="relative flex h-3 w-3">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
                 </span>
-                <span className="text-xs text-red-500 font-orbitron uppercase tracking-wider">Live</span>
+                <span className="text-xs text-red-500 font-orbitron uppercase tracking-wider font-bold">Live</span>
             </div>
 
             {/* Match Info */}
-            <div className="flex items-center justify-between gap-6">
+            <div className="flex items-center justify-between gap-4">
                 {/* Player 1 */}
-                <div className="flex-1 text-center">
+                <div className="flex-1 text-center min-w-0">
                     <div className="relative w-20 h-20 mx-auto mb-3">
                         {player1Character ? (
                             <img
@@ -79,24 +79,24 @@ function MatchCard({ match }: { match: LiveMatch }) {
                             </div>
                         )}
                     </div>
-                    <p className="text-white font-orbitron text-sm truncate max-w-[120px] mx-auto">{player1Name}</p>
+                    <p className="text-white font-orbitron text-sm truncate w-full px-2" title={player1Name}>{player1Name}</p>
                     <p className="text-cyber-gray text-xs mt-1">{match.player1?.rating || 1000} ELO</p>
                 </div>
 
                 {/* Score */}
-                <div className="text-center px-4">
-                    <div className="text-4xl font-bold font-orbitron">
+                <div className="text-center px-2 shrink-0">
+                    <div className="text-4xl font-bold font-orbitron whitespace-nowrap">
                         <span className="text-cyber-gold">{match.player1RoundsWon}</span>
                         <span className="text-cyber-gray mx-2">-</span>
                         <span className="text-cyber-orange">{match.player2RoundsWon}</span>
                     </div>
-                    <p className="text-cyber-gray text-xs mt-2 uppercase tracking-wider">
+                    <p className="text-cyber-gray text-[10px] mt-2 uppercase tracking-wider bg-white/5 px-2 py-1 rounded">
                         {match.format === "best_of_3" ? "Best of 3" : "Best of 5"}
                     </p>
                 </div>
 
                 {/* Player 2 */}
-                <div className="flex-1 text-center">
+                <div className="flex-1 text-center min-w-0">
                     <div className="relative w-20 h-20 mx-auto mb-3">
                         {player2Character ? (
                             <img
@@ -110,20 +110,20 @@ function MatchCard({ match }: { match: LiveMatch }) {
                             </div>
                         )}
                     </div>
-                    <p className="text-white font-orbitron text-sm truncate max-w-[120px] mx-auto">{player2Name}</p>
+                    <p className="text-white font-orbitron text-sm truncate w-full px-2" title={player2Name}>{player2Name}</p>
                     <p className="text-cyber-gray text-xs mt-1">{match.player2?.rating || 1000} ELO</p>
                 </div>
             </div>
 
             {/* Watch Button */}
-            <div className="mt-6">
+            <div className="mt-8">
                 <Link href={`/spectate/${match.id}`} className="block">
-                    <Button className="w-full bg-gradient-cyber text-white border-0 font-orbitron hover:opacity-90">
-                        <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <Button className="w-full bg-gradient-cyber text-white border-0 font-orbitron hover:opacity-90 py-6 text-lg tracking-widest">
+                        <svg className="w-5 h-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                         </svg>
-                        SPECTATE
+                        WATCH LIVE
                     </Button>
                 </Link>
             </div>

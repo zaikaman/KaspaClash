@@ -262,6 +262,17 @@ export async function resolveRound(
         const newState = engine.getState();
 
         const nextChannel = supabase.channel(`game:${matchId}`);
+
+        // Create/update next round with server-side deadline
+        const nextRoundNumber = state.isRoundOver ? newState.currentRound : currentRound.round_number + 1;
+        await supabase
+            .from("rounds")
+            .upsert({
+                match_id: matchId,
+                round_number: nextRoundNumber,
+                move_deadline_at: new Date(moveDeadlineAt).toISOString(),
+            }, { onConflict: "match_id,round_number" });
+
         await nextChannel.send({
             type: "broadcast",
             event: "round_starting",
@@ -492,6 +503,17 @@ export async function handleMoveRejection(
         const moveDeadlineAt = Date.now() + ROUND_END_ANIMATION_MS + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
 
         const nextChannel = supabase.channel(`game:${matchId}`);
+
+        // Create next round with server-side deadline
+        const nextRoundNumber = (match.player1_rounds_won || 0) + (match.player2_rounds_won || 0) + 2;
+        await supabase
+            .from("rounds")
+            .upsert({
+                match_id: matchId,
+                round_number: nextRoundNumber,
+                move_deadline_at: new Date(moveDeadlineAt).toISOString(),
+            }, { onConflict: "match_id,round_number" });
+
         await nextChannel.send({
             type: "broadcast",
             event: "round_starting",

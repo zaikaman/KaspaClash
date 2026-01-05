@@ -641,6 +641,23 @@ export async function joinRoom(
     }
 
     console.log(`Player ${guestAddress} joined room ${roomCode}, deadline: ${updatedMatch?.selection_deadline_at}`);
+
+    // Broadcast player_joined event to notify room creator
+    // This is more reliable than Postgres Changes for real-time notification
+    try {
+      const { broadcastToChannel } = await import("@/lib/supabase/broadcast");
+      await broadcastToChannel(supabase, `room:${room.id}`, "player_joined", {
+        matchId: room.id,
+        guestAddress,
+        hostAddress: room.player1_address,
+        selectionDeadlineAt: updatedMatch?.selection_deadline_at ?? selectionDeadlineAt,
+      });
+      console.log(`[JoinRoom] Broadcast player_joined to room:${room.id}`);
+    } catch (broadcastError) {
+      console.error("[JoinRoom] Failed to broadcast player_joined:", broadcastError);
+      // Continue even if broadcast fails - the Postgres change should still work as backup
+    }
+
     return {
       id: room.id,
       hostAddress: room.player1_address,

@@ -32,6 +32,12 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
     const supabase = getSupabaseClient();
     const channel = supabase
       .channel(`room:${matchId}`)
+      // Listen for broadcast events (more reliable, sent explicitly by server)
+      .on("broadcast", { event: "player_joined" }, (payload) => {
+        console.log("[RoomCreate] Received player_joined broadcast:", payload);
+        router.push(`/match/${matchId}`);
+      })
+      // Also listen for postgres_changes as backup
       .on(
         "postgres_changes",
         {

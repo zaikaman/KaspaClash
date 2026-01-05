@@ -505,6 +505,56 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       moveSubmittedRef.current = false;
     };
 
+    // Handle server-side timeout enforcement when local timer expires
+    const handleTimerExpired = async () => {
+      const currentAddress = addressRef.current;
+      const currentMatchId = matchIdRef.current;
+
+      // Skip if move was already submitted
+      if (moveSubmittedRef.current) {
+        console.log("[MatchGameClient] Timer expired but move already submitted, skipping timeout check");
+        return;
+      }
+
+      if (!currentAddress || !currentMatchId) {
+        console.error("[MatchGameClient] Missing address or matchId for timeout check");
+        return;
+      }
+
+      console.log("[MatchGameClient] Timer expired, calling move-timeout API for server-side enforcement");
+
+      try {
+        const response = await fetch(`/api/matches/${currentMatchId}/move-timeout`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address: currentAddress }),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log("[MatchGameClient] Move timeout result:", result);
+
+          if (result.data?.result === "match_cancelled") {
+            // Both players timed out - emit cancellation event
+            EventBus.emit("game:matchCancelled", {
+              matchId: currentMatchId,
+              reason: "both_timeout",
+              message: result.data.reason || "Both players failed to submit moves in time.",
+              redirectTo: result.data.redirectTo || "/matchmaking",
+            });
+          } else if (result.data?.result === "round_forfeited") {
+            // One player timed out - the round_resolved event will be broadcast by the server
+            console.log("[MatchGameClient] Round forfeited due to timeout, winner:", result.data.roundWinner);
+          }
+          // For "no_action" results, do nothing - may have already been resolved
+        } else {
+          console.error("[MatchGameClient] Move timeout API error:", await response.text());
+        }
+      } catch (error) {
+        console.error("[MatchGameClient] Error calling move-timeout API:", error);
+      }
+    };
+
     console.log("[MatchGameClient] Registering EventBus listeners for selection_confirmed, etc.");
     EventBus.on("scene:ready", handleSceneReady);
     EventBus.on("selection_confirmed", handleSelectionConfirmed);
@@ -512,6 +562,7 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
     EventBus.on("game:claimTimeoutVictory", handleClaimTimeoutVictory);
     EventBus.on("fight:requestRoundState", handleRequestRoundState);
     EventBus.on("game:roundStarting", handleRoundStarting);
+    EventBus.on("game:timerExpired", handleTimerExpired);
     console.log("[MatchGameClient] EventBus listeners registered at:", Date.now());
 
     return () => {
@@ -522,6 +573,7 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       EventBus.off("game:claimTimeoutVictory", handleClaimTimeoutVictory);
       EventBus.off("fight:requestRoundState", handleRequestRoundState);
       EventBus.off("game:roundStarting", handleRoundStarting);
+      EventBus.off("game:timerExpired", handleTimerExpired);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - register once, use refs for latest values
