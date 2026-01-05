@@ -514,6 +514,12 @@ export async function handleMoveRejection(
                 move_deadline_at: new Date(moveDeadlineAt).toISOString(),
             }, { onConflict: "match_id,round_number" });
 
+        // Get character stats for proper max values
+        const p1CharId = match.player1_character_id || "dag-warrior";
+        const p2CharId = match.player2_character_id || "dag-warrior";
+        const p1Stats = getCharacterCombatStats(p1CharId);
+        const p2Stats = getCharacterCombatStats(p2CharId);
+
         await nextChannel.send({
             type: "broadcast",
             event: "round_starting",
@@ -522,10 +528,13 @@ export async function handleMoveRejection(
                 turnNumber: 1,
                 moveDeadlineAt,
                 countdownSeconds: Math.floor(ROUND_COUNTDOWN_MS / 1000),
-                player1Health: 100,
-                player2Health: 100,
-                player1Energy: 100,
-                player2Energy: 100,
+                // Use character-specific max values
+                player1Health: p1Stats.maxHp,
+                player2Health: p2Stats.maxHp,
+                player1MaxHealth: p1Stats.maxHp,
+                player2MaxHealth: p2Stats.maxHp,
+                player1Energy: p1Stats.maxEnergy,
+                player2Energy: p2Stats.maxEnergy,
                 player1GuardMeter: 0,
                 player2GuardMeter: 0,
             },

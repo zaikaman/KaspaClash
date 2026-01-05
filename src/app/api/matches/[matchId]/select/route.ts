@@ -9,6 +9,7 @@ import { broadcastMultipleToChannel } from "@/lib/supabase/broadcast";
 import { ApiError, ErrorCodes, createErrorResponse } from "@/lib/api/errors";
 import { isValidCharacterId, getCharacter } from "@/data/characters";
 import type { ApiSuccessResponse } from "@/types/api";
+import { getCharacterCombatStats } from "@/game/combat";
 
 /**
  * Selection request body.
@@ -221,12 +222,13 @@ export async function POST(
               turnNumber: 1,
               moveDeadlineAt,
               countdownSeconds: Math.floor(ROUND_COUNTDOWN_MS / 1000),
-              player1Health: 100,
-              player2Health: 100,
-              player1MaxHealth: 100,
-              player2MaxHealth: 100,
-              player1Energy: 100,
-              player2Energy: 100,
+              // Use character-specific max values
+              player1Health: getCharacterCombatStats(match.player1_character_id || "dag-warrior").maxHp,
+              player2Health: getCharacterCombatStats(match.player2_character_id || "dag-warrior").maxHp,
+              player1MaxHealth: getCharacterCombatStats(match.player1_character_id || "dag-warrior").maxHp,
+              player2MaxHealth: getCharacterCombatStats(match.player2_character_id || "dag-warrior").maxHp,
+              player1Energy: getCharacterCombatStats(match.player1_character_id || "dag-warrior").maxEnergy,
+              player2Energy: getCharacterCombatStats(match.player2_character_id || "dag-warrior").maxEnergy,
               player1GuardMeter: 0,
               player2GuardMeter: 0,
             },
@@ -370,12 +372,13 @@ export async function POST(
                 turnNumber: 1,
                 moveDeadlineAt,
                 countdownSeconds: Math.floor(ROUND_COUNTDOWN_MS / 1000),
-                player1Health: 100,
-                player2Health: 100,
-                player1MaxHealth: 100,
-                player2MaxHealth: 100,
-                player1Energy: 100,
-                player2Energy: 100,
+                // Use character-specific max values
+                player1Health: getCharacterCombatStats(updatedMatch.player1_character_id || "dag-warrior").maxHp,
+                player2Health: getCharacterCombatStats(updatedMatch.player2_character_id || "dag-warrior").maxHp,
+                player1MaxHealth: getCharacterCombatStats(updatedMatch.player1_character_id || "dag-warrior").maxHp,
+                player2MaxHealth: getCharacterCombatStats(updatedMatch.player2_character_id || "dag-warrior").maxHp,
+                player1Energy: getCharacterCombatStats(updatedMatch.player1_character_id || "dag-warrior").maxEnergy,
+                player2Energy: getCharacterCombatStats(updatedMatch.player2_character_id || "dag-warrior").maxEnergy,
                 player1GuardMeter: 0,
                 player2GuardMeter: 0,
               },

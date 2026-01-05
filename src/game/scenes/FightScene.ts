@@ -1419,7 +1419,8 @@ export class FightScene extends Phaser.Scene {
   private updateHealthBarDisplay(player: "player1" | "player2", hp: number, maxHp: number): void {
     const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
     const barHeight = 25;
-    const healthPercent = Math.max(0, hp) / maxHp;
+    // Clamp percentage to [0, 1] to prevent bar overflow
+    const healthPercent = Math.min(1, Math.max(0, hp) / (maxHp || 1));
     const innerWidth = (barWidth - 4) * healthPercent;
 
     const graphics = player === "player1" ? this.player1HealthBar : this.player2HealthBar;
@@ -1444,7 +1445,8 @@ export class FightScene extends Phaser.Scene {
     const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
     const barHeight = 12;
     const yOffset = 30;
-    const energyPercent = Math.max(0, energy) / maxEnergy;
+    // Clamp percentage to [0, 1] to prevent bar overflow
+    const energyPercent = Math.min(1, Math.max(0, energy) / (maxEnergy || 1));
     const innerWidth = (barWidth - 2) * energyPercent;
 
     const graphics = player === "player1" ? this.player1EnergyBar : this.player2EnergyBar;
@@ -1465,7 +1467,8 @@ export class FightScene extends Phaser.Scene {
     const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
     const barHeight = 6;
     const yOffset = 45;
-    const guardPercent = guardMeter / 100;
+    // Clamp percentage to [0, 1] to prevent bar overflow
+    const guardPercent = Math.min(1, Math.max(0, guardMeter) / 100);
     const innerWidth = barWidth * guardPercent;
 
     const graphics = player === "player1" ? this.player1GuardMeter : this.player2GuardMeter;
@@ -2000,16 +2003,30 @@ export class FightScene extends Phaser.Scene {
     // Get max values from local engine initially (server should provide these)
     const localState = this.combatEngine.getState();
 
+    // Determine max values (prefer server, fallback to local)
+    const p1MaxHealth = payload.player1MaxHealth ?? localState.player1.maxHp;
+    const p2MaxHealth = payload.player2MaxHealth ?? localState.player2.maxHp;
+    const p1MaxEnergy = payload.player1MaxEnergy ?? localState.player1.maxEnergy;
+    const p2MaxEnergy = payload.player2MaxEnergy ?? localState.player2.maxEnergy;
+
+    // At turn 1 (start of round), health and energy should always be at max
+    // The server might send incorrect default values (e.g., 100 instead of character-specific max)
+    const isRoundStart = payload.turnNumber === 1;
+    const p1Health = isRoundStart ? p1MaxHealth : payload.player1Health;
+    const p2Health = isRoundStart ? p2MaxHealth : payload.player2Health;
+    const p1Energy = isRoundStart ? p1MaxEnergy : payload.player1Energy;
+    const p2Energy = isRoundStart ? p2MaxEnergy : payload.player2Energy;
+
     // Store server state (authoritative)
     this.serverState = {
-      player1Health: payload.player1Health,
-      player1MaxHealth: payload.player1MaxHealth ?? localState.player1.maxHp,
-      player2Health: payload.player2Health,
-      player2MaxHealth: payload.player2MaxHealth ?? localState.player2.maxHp,
-      player1Energy: payload.player1Energy,
-      player1MaxEnergy: payload.player1MaxEnergy ?? localState.player1.maxEnergy,
-      player2Energy: payload.player2Energy,
-      player2MaxEnergy: payload.player2MaxEnergy ?? localState.player2.maxEnergy,
+      player1Health: p1Health,
+      player1MaxHealth: p1MaxHealth,
+      player2Health: p2Health,
+      player2MaxHealth: p2MaxHealth,
+      player1Energy: p1Energy,
+      player1MaxEnergy: p1MaxEnergy,
+      player2Energy: p2Energy,
+      player2MaxEnergy: p2MaxEnergy,
       player1GuardMeter: payload.player1GuardMeter,
       player2GuardMeter: payload.player2GuardMeter,
       player1RoundsWon: this.serverState?.player1RoundsWon ?? 0,
