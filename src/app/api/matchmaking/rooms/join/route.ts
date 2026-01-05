@@ -22,6 +22,8 @@ interface JoinRoomResponse {
   success: boolean;
   matchId: string;
   hostAddress: string;
+  stakeAmount?: string; // Stake per player in sompi (as string)
+  stakeDeadlineAt?: string; // ISO timestamp deadline for stake deposits
 }
 
 /**
@@ -45,6 +47,7 @@ function isValidRoomCode(code: string): boolean {
 /**
  * POST /api/matchmaking/rooms/join
  * Join an existing private room by code.
+ * Returns stake info if the room has stakes enabled.
  */
 export async function POST(
   request: NextRequest
@@ -81,9 +84,12 @@ export async function POST(
       success: true,
       matchId: result.id,
       hostAddress: result.hostAddress,
+      stakeAmount: result.stakeAmount,
+      stakeDeadlineAt: result.stakeDeadlineAt,
     });
   } catch (error) {
     const apiError = handleError(error);
     return createErrorResponse(apiError);
   }
 }
+

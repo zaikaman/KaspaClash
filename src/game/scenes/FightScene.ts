@@ -67,6 +67,7 @@ export class FightScene extends Phaser.Scene {
 
   // Move buttons
   private moveButtons: Map<MoveType, Phaser.GameObjects.Container> = new Map();
+  // Move selection
   private selectedMove: MoveType | null = null;
 
   // Timer
@@ -154,6 +155,12 @@ export class FightScene extends Phaser.Scene {
   preload(): void {
     // Load arena background
     this.load.image("arena-bg", "/assets/background_2.webp");
+
+    // Load move icons
+    this.load.image("move_punch", "/assets/icons/punch.webp");
+    this.load.image("move_kick", "/assets/icons/kick.webp");
+    this.load.image("move_block", "/assets/icons/block.webp");
+    this.load.image("move_special", "/assets/icons/special.webp");
 
     // Load character assets
     const characters = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
@@ -948,20 +955,12 @@ export class FightScene extends Phaser.Scene {
     }
 
     const moves: MoveType[] = ["punch", "kick", "block", "special"];
-    const buttonWidth = 220;
-    const buttonHeight = 120;
-    const spacing = 15;
+    const buttonWidth = 140; // Narrower, taller card style
+    const buttonHeight = 160;
+    const spacing = 20;
     const totalWidth = moves.length * buttonWidth + (moves.length - 1) * spacing;
-    const startX = (GAME_DIMENSIONS.WIDTH - totalWidth) / 2;
-    const y = GAME_DIMENSIONS.HEIGHT - 125;
-
-    // Label for player buttons
-    this.add.text(
-      GAME_DIMENSIONS.CENTER_X,
-      y - 30,
-      "YOUR MOVE",
-      { fontFamily: "monospace", fontSize: "14px", color: "#40e0d0" }
-    ).setOrigin(0.5);
+    const startX = (GAME_DIMENSIONS.WIDTH - totalWidth) / 2 + buttonWidth / 2;
+    const y = GAME_DIMENSIONS.HEIGHT - 100;
 
     moves.forEach((move, index) => {
       const x = startX + index * (buttonWidth + spacing);
@@ -979,85 +978,113 @@ export class FightScene extends Phaser.Scene {
   ): Phaser.GameObjects.Container {
     const container = this.add.container(x, y);
 
+    // Colors based on move type
+    let color = 0xffffff;
+    if (move === "punch") color = 0xef4444;      // Red
+    if (move === "kick") color = 0x06b6d4;       // Cyan
+    if (move === "block") color = 0x22c55e;      // Green
+    if (move === "special") color = 0xa855f7;    // Purple
+
+    // Background (Card style)
     const bg = this.add.graphics();
-    const baseColor = 0x2d2d44;
-    const highlightColor = 0x40e0d0;
+    bg.fillStyle(0x1a1a2e, 0.9);
+    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 12);
+    bg.lineStyle(2, color, 0.8);
+    bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 12);
+    container.add(bg);
 
-    bg.fillStyle(baseColor, 1);
-    bg.fillRoundedRect(0, 0, width, height, 8);
-    bg.lineStyle(2, highlightColor, 0.5);
-    bg.strokeRoundedRect(0, 0, width, height, 8);
+    // Inner Glow (simulated with alpha rect)
+    const glow = this.add.graphics();
+    glow.fillStyle(color, 0.1);
+    glow.fillRoundedRect(-width / 2 + 5, -height / 2 + 5, width - 10, height - 10, 8);
+    container.add(glow);
 
-    // Move name
-    const label = this.add.text(width / 2, 20, move.toUpperCase(), {
+    // Icon
+    const iconKey = `move_${move}`;
+    const icon = this.add.image(0, -20, iconKey);
+    icon.setDisplaySize(64, 64);
+    container.add(icon);
+
+    // Move Name
+    const nameText = this.add.text(0, 25, move.toUpperCase(), {
       fontFamily: "monospace",
-      fontSize: "14px",
-      color: "#40e0d0",
+      fontSize: "16px",
+      color: "#ffffff",
       fontStyle: "bold",
     }).setOrigin(0.5);
+    container.add(nameText);
 
-    // Damage/info
-    const infoText = this.getMoveInfoText(move);
-    const info = this.add.text(width / 2, 58, infoText, {
-      fontFamily: "monospace",
-      fontSize: "10px",
-      color: "#888888",
-      align: "center",
-      wordWrap: { width: width - 20 }
-    }).setOrigin(0.5);
-
-    // Energy cost
+    // Energy Cost
     const cost = BASE_MOVE_STATS[move].energyCost;
-    const costText = cost > 0 ? `${cost} EN` : "FREE";
-    const costLabel = this.add.text(width / 2, 95, costText, {
+    const costColor = cost === 0 ? "#22c55e" : "#3b82f6";
+    const costText = this.add.text(0, 48, `${cost} Energy`, {
+      fontFamily: "monospace",
+      fontSize: "12px",
+      color: costColor,
+    }).setOrigin(0.5);
+    container.add(costText);
+
+    // Advantage Text
+    let advantage = "";
+    if (move === "punch") advantage = "Beats Special";
+    if (move === "kick") advantage = "Beats Punch";
+    if (move === "block") advantage = "Reflects Kick";
+    if (move === "special") advantage = "Beats Block";
+
+    const advText = this.add.text(0, 65, advantage, {
       fontFamily: "monospace",
       fontSize: "10px",
-      color: cost > 0 ? "#3b82f6" : "#22c55e",
+      color: "#aaaaaa",
+      fontStyle: "italic"
     }).setOrigin(0.5);
+    container.add(advText);
 
-    container.add([bg, label, info, costLabel]);
-
-    const hitArea = new Phaser.Geom.Rectangle(0, 0, width, height);
+    // Interactive
+    const hitArea = new Phaser.Geom.Rectangle(-width / 2, -height / 2, width, height);
     container.setInteractive(hitArea, Phaser.Geom.Rectangle.Contains);
 
+    // Hover effects
     container.on("pointerover", () => {
-      if (this.phase === "selecting") {
+      if (this.phase === "selecting" && this.combatEngine.canAffordMove("player1", move)) {
+        this.tweens.add({
+          targets: container,
+          y: y - 10,
+          scaleX: 1.05,
+          scaleY: 1.05,
+          duration: 200,
+          ease: "Back.easeOut",
+        });
         bg.clear();
-        bg.fillStyle(highlightColor, 0.2);
-        bg.fillRoundedRect(0, 0, width, height, 8);
-        bg.lineStyle(2, highlightColor, 1);
-        bg.strokeRoundedRect(0, 0, width, height, 8);
+        bg.fillStyle(0x1a1a2e, 0.95);
+        bg.fillRoundedRect(-width / 2, -height / 2, width, height, 12);
+        bg.lineStyle(3, color, 1);
+        bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 12);
       }
     });
 
     container.on("pointerout", () => {
-      const selected = this.selectedMove;
-      if (selected !== move) {
+      if (this.selectedMove !== move) {
+        this.tweens.add({
+          targets: container,
+          y: y,
+          scaleX: 1,
+          scaleY: 1,
+          duration: 200,
+          ease: "Power2",
+        });
         bg.clear();
-        bg.fillStyle(baseColor, 1);
-        bg.fillRoundedRect(0, 0, width, height, 8);
-        bg.lineStyle(2, highlightColor, 0.5);
-        bg.strokeRoundedRect(0, 0, width, height, 8);
+        bg.fillStyle(0x1a1a2e, 0.9);
+        bg.fillRoundedRect(-width / 2, -height / 2, width, height, 12);
+        bg.lineStyle(2, color, 0.8);
+        bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 12);
       }
     });
 
     container.on("pointerdown", () => {
-      if (this.phase === "selecting") {
-        this.selectMove(move);
-      }
+      this.selectMove(move);
     });
 
     return container;
-  }
-
-  private getMoveInfoText(move: MoveType): string {
-    const infos: Record<MoveType, string> = {
-      punch: "10 DMG • Fast • Beats Special",
-      kick: "15 DMG • Medium • Beats Punch",
-      block: "Guard • Reflects Kick",
-      special: "30 DMG • Slow • Beats Block",
-    };
-    return infos[move];
   }
 
   private selectMove(move: MoveType): void {
@@ -1072,12 +1099,9 @@ export class FightScene extends Phaser.Scene {
       return;
     }
 
-    // Deselect previous
-    if (this.selectedMove) {
-      this.updateButtonState(this.selectedMove, false);
-    }
-
     this.selectedMove = move;
+
+    // Update button visuals
     this.updateButtonState(move, true);
 
     // Emit event to submit move via API
@@ -1085,66 +1109,90 @@ export class FightScene extends Phaser.Scene {
     this.turnIndicatorText.setText("Submitting move...");
     this.turnIndicatorText.setColor("#f97316");
 
-    // Disable buttons while submitting
-    this.moveButtons.forEach(btn => btn.setAlpha(0.4).disableInteractive());
-
     EventBus.emit("game:submitMove", {
       matchId: this.config.matchId,
       moveType: move,
       playerRole: this.config.playerRole,
     });
-
-    // Timer continues running - don't stop it when a move is selected
-    // This ensures the timer keeps counting even when Kasware popup appears
   }
 
-  private updateButtonState(move: MoveType, selected: boolean): void {
-    const container = this.moveButtons.get(move);
-    if (!container) return;
-
-    const bg = container.getAt(0) as Phaser.GameObjects.Graphics;
-    const width = 220;
-    const height = 120;
-    const baseColor = 0x2d2d44;
-    const highlightColor = 0x40e0d0;
-
-    bg.clear();
-    if (selected) {
-      bg.fillStyle(highlightColor, 0.3);
-      bg.fillRoundedRect(0, 0, width, height, 8);
-      bg.lineStyle(3, highlightColor, 1);
-      bg.strokeRoundedRect(0, 0, width, height, 8);
-    } else {
-      bg.fillStyle(baseColor, 1);
-      bg.fillRoundedRect(0, 0, width, height, 8);
-      bg.lineStyle(2, highlightColor, 0.5);
-      bg.strokeRoundedRect(0, 0, width, height, 8);
-    }
-  }
-
-  private updateMoveButtonAffordability(): void {
+  private updateButtonState(selectedMove: MoveType | null, isSelected: boolean): void {
     const moves: MoveType[] = ["punch", "kick", "block", "special"];
 
     moves.forEach((move) => {
-      let canAfford: boolean;
+      const button = this.moveButtons.get(move);
+      if (!button) return;
 
-      // Use server state for energy check if available
-      if (this.serverState) {
-        // Check affordability based on server-provided energy
-        // Get player's energy based on their role
-        const playerEnergy = this.config.playerRole === "player1"
-          ? this.serverState.player1Energy
-          : this.serverState.player2Energy;
-        const moveCost = BASE_MOVE_STATS[move].energyCost;
-        canAfford = playerEnergy >= moveCost;
+      if (move === selectedMove && isSelected) {
+        // Selected state
+        this.tweens.add({
+          targets: button,
+          alpha: 1,
+          scaleX: 1.1,
+          scaleY: 1.1,
+          y: GAME_DIMENSIONS.HEIGHT - 110, // Move up slightly
+          duration: 200,
+          ease: "Back.easeOut",
+        });
+
+        // Highlight effect
+        const bg = button.list[0] as Phaser.GameObjects.Graphics;
+        bg.clear();
+        bg.fillStyle(0x1a1a2e, 1);
+        bg.fillRoundedRect(-70, -80, 140, 160, 12);
+        bg.lineStyle(4, 0xffffff, 1); // White border for selection
+        bg.strokeRoundedRect(-70, -80, 140, 160, 12);
+
       } else {
-        // Fallback to local engine
-        canAfford = this.combatEngine.canAffordMove("player1", move);
-      }
+        // Unselected state
+        const isAffordable = this.combatEngine.canAffordMove("player1", move);
 
-      const container = this.moveButtons.get(move);
-      if (container) {
-        container.setAlpha(canAfford ? 1 : 0.4);
+        this.tweens.add({
+          targets: button,
+          alpha: isAffordable ? (isSelected ? 0.5 : 1) : 0.3, // Dim others if one is selected
+          scaleX: 1,
+          scaleY: 1,
+          y: GAME_DIMENSIONS.HEIGHT - 100,
+          duration: 200,
+          ease: "Power2",
+        });
+
+        // Reset style
+        // Colors based on move type
+        let color = 0xffffff;
+        if (move === "punch") color = 0xef4444;
+        if (move === "kick") color = 0x06b6d4;
+        if (move === "block") color = 0x22c55e;
+        if (move === "special") color = 0xa855f7;
+
+        const bg = button.list[0] as Phaser.GameObjects.Graphics;
+        bg.clear();
+        bg.fillStyle(0x1a1a2e, 0.9);
+        bg.fillRoundedRect(-70, -80, 140, 160, 12);
+        bg.lineStyle(2, color, 0.8);
+        bg.strokeRoundedRect(-70, -80, 140, 160, 12);
+      }
+    });
+  }
+
+  private updateMoveButtonAffordability(): void {
+    if (this.config.isSpectator) return;
+
+    this.moveButtons.forEach((button, move) => {
+      const isAffordable = this.combatEngine.canAffordMove("player1", move);
+
+      // If a move is already selected, don't mess with alpha too much, 
+      // but if we are in selection phase and nothing selected yet:
+      if (!this.selectedMove) {
+        button.setAlpha(isAffordable ? 1 : 0.3);
+
+        // grayscale effect or just alpha? Alpha is easier.
+        // We can also disable interactivity
+        if (!isAffordable) {
+          button.disableInteractive();
+        } else {
+          button.setInteractive();
+        }
       }
     });
   }
@@ -1249,7 +1297,8 @@ export class FightScene extends Phaser.Scene {
     this.turnTimer = 20;
     this.turnIndicatorText.setText("Select your move!");
 
-    // Update button affordability
+    // Update button affordability and reset visuals
+    this.resetButtonVisuals();
     this.updateMoveButtonAffordability();
 
     // Start timer
@@ -1274,6 +1323,41 @@ export class FightScene extends Phaser.Scene {
     this.syncUIWithCombatState();
   }
 
+  private resetButtonVisuals(): void {
+    const moves: MoveType[] = ["punch", "kick", "block", "special"];
+    const y = GAME_DIMENSIONS.HEIGHT - 100;
+
+    moves.forEach((move) => {
+      const button = this.moveButtons.get(move);
+      if (!button) return;
+
+      // Reset transforms
+      this.tweens.add({
+        targets: button,
+        alpha: 1,
+        scaleX: 1,
+        scaleY: 1,
+        y: y,
+        duration: 200,
+        ease: "Power2",
+      });
+
+      // Reset styling
+      let color = 0xffffff;
+      if (move === "punch") color = 0xef4444;
+      if (move === "kick") color = 0x06b6d4;
+      if (move === "block") color = 0x22c55e;
+      if (move === "special") color = 0xa855f7;
+
+      const bg = button.list[0] as Phaser.GameObjects.Graphics;
+      bg.clear();
+      bg.fillStyle(0x1a1a2e, 0.9);
+      bg.fillRoundedRect(-70, -80, 140, 160, 12);
+      bg.lineStyle(2, color, 0.8);
+      bg.strokeRoundedRect(-70, -80, 140, 160, 12);
+    });
+  }
+
   private onTimerExpired(): void {
     if (this.phase !== "selecting") return;
 
@@ -1288,7 +1372,8 @@ export class FightScene extends Phaser.Scene {
     this.turnIndicatorText.setColor("#ff8800");
 
     // Disable buttons
-    this.moveButtons.forEach(btn => btn.setAlpha(0.4).disableInteractive());
+    // Disable buttons - Handled by UI state
+    // this.moveButtons.forEach(btn => btn.setAlpha(0.4).disableInteractive());
 
     // Emit timeout event for server-side enforcement
     // The MatchGameClient will call the move-timeout API to determine consequences:
@@ -1412,8 +1497,24 @@ export class FightScene extends Phaser.Scene {
     // Update timer color
     this.roundTimerText.setColor("#40e0d0");
 
-    // Update move button affordability
-    this.updateMoveButtonAffordability();
+    // Update move button affordability - Removed
+    // this.updateMoveButtonAffordability();
+
+    // Emit UI update for React Overlay
+    EventBus.emit("ui:update", {
+      energy: (this.config.playerRole === "player1") ?
+        ((this.serverState?.player1Energy ?? this.combatEngine.getState().player1.energy)) :
+        ((this.serverState?.player2Energy ?? this.combatEngine.getState().player2.energy)),
+      maxEnergy: (this.config.playerRole === "player1") ?
+        ((this.serverState?.player1MaxEnergy ?? this.combatEngine.getState().player1.maxEnergy)) :
+        ((this.serverState?.player2MaxEnergy ?? this.combatEngine.getState().player2.maxEnergy)),
+      health: (this.config.playerRole === "player1") ?
+        ((this.serverState?.player1Health ?? this.combatEngine.getState().player1.hp)) :
+        ((this.serverState?.player2Health ?? this.combatEngine.getState().player2.hp)),
+      maxHealth: (this.config.playerRole === "player1") ?
+        ((this.serverState?.player1MaxHealth ?? this.combatEngine.getState().player1.maxHp)) :
+        ((this.serverState?.player2MaxHealth ?? this.combatEngine.getState().player2.maxHp)),
+    });
   }
 
   private updateHealthBarDisplay(player: "player1" | "player2", hp: number, maxHp: number): void {
@@ -1670,7 +1771,8 @@ export class FightScene extends Phaser.Scene {
       this.narrativeText.setAlpha(1);
 
       // Disable all buttons
-      this.moveButtons.forEach(btn => btn.setAlpha(0.3).disableInteractive());
+      // Disable all buttons - Not needed, UI handles this
+      // this.moveButtons.forEach(btn => btn.setAlpha(0.3).disableInteractive());
     });
 
     // Listen for opponent disconnect
@@ -1725,7 +1827,7 @@ export class FightScene extends Phaser.Scene {
       this.isWaitingForOpponent = true;
       this.turnIndicatorText.setText("Waiting for opponent...");
       this.turnIndicatorText.setColor("#f97316");
-      this.moveButtons.forEach(btn => btn.setAlpha(0.4).disableInteractive());
+      // this.moveButtons.forEach(btn => btn.setAlpha(0.4).disableInteractive());
     });
 
     // Listen for move error (e.g. wallet rejected but failed to record rejection)
@@ -1738,18 +1840,21 @@ export class FightScene extends Phaser.Scene {
       // We should reset the UI to allow retry
       // BUT if we successfully recorded rejection (which emits game:rejectionWaiting), we shouldn't reset.
       // So only reset if we are NOT in the confirmed waiting state
+
+      // If we are "waiting for opponent" due to submitting, but it failed locally
+      // We should reset the UI to allow retry
+      // BUT if we successfully recorded rejection (which emits game:rejectionWaiting), we shouldn't reset.
+      // So only reset if we are NOT in the confirmed waiting state
       if (this.turnIndicatorText.text === "Submitting move...") {
         this.isWaitingForOpponent = false;
         this.turnIndicatorText.setText("Select your move!");
         this.turnIndicatorText.setColor("#40e0d0");
-        this.moveButtons.forEach(btn => {
-          // Only re-enable affordable buttons
-          this.updateMoveButtonAffordability();
-          // We need to re-enable interactivity that was disabled
-          btn.setInteractive();
-        });
+
+        // React UI handles enablement based on state reset
         this.selectedMove = null;
-        this.updateMoveButtonAffordability(); // Call again to set alphas correct
+
+        // Update local buttons
+        this.updateMoveButtonAffordability();
       }
     });
   }
@@ -1944,7 +2049,9 @@ export class FightScene extends Phaser.Scene {
         this.isWaitingForOpponent = true;
         this.turnIndicatorText.setText("Waiting for opponent...");
         this.turnIndicatorText.setColor("#f97316");
-        this.moveButtons.forEach(btn => btn.setAlpha(0.4).disableInteractive());
+
+        // Notify UI
+        EventBus.emit("ui:update", { isWaitingForOpponent: true });
       } else {
         // We need to make a move - start synchronized selection with server deadline
         console.log("[FightScene] Decision: Need to make move, starting synchronized selection phase");
@@ -2109,19 +2216,15 @@ export class FightScene extends Phaser.Scene {
     this.turnIndicatorText.setText("Select your move!");
     this.turnIndicatorText.setColor("#40e0d0");
 
-    // Update button affordability
-    this.updateMoveButtonAffordability();
-
-    // Re-enable move buttons and reset their visual state
-    this.moveButtons.forEach((btn, move) => {
-      btn.setAlpha(1).setInteractive();
-      // Reset visual state to unselected/unhovered
-      this.updateButtonState(move, false);
-    });
+    // React UI handles button state and affordability
 
     // Calculate initial remaining time from server deadline
     const remainingMs = moveDeadlineAt - Date.now();
     this.turnTimer = Math.max(1, Math.floor(remainingMs / 1000));
+
+    // Reset button visuals and affordability
+    this.resetButtonVisuals();
+    this.updateMoveButtonAffordability();
 
     // Start synchronized timer that updates every second based on deadline
     this.timerEvent = this.time.addEvent({
@@ -2147,9 +2250,10 @@ export class FightScene extends Phaser.Scene {
       loop: true,
     });
 
-    // Update initial display
     this.roundTimerText.setText(`${this.turnTimer}s`);
     this.roundTimerText.setColor("#40e0d0");
+
+
   }
 
   /**
@@ -2328,7 +2432,24 @@ export class FightScene extends Phaser.Scene {
         }
 
         // Show narrative
-        this.narrativeText.setText(payload.narrative);
+        // Show narrative
+        // Fix: Generate narrative locally based on damage to ensure accuracy
+        let narrative = "";
+        const p1Name = this.config.playerRole === "player1" ? "You" : "Opponent";
+        const p2Name = this.config.playerRole === "player2" ? "You" : "Opponent";
+
+        // Simple narrative generation
+        if (payload.player1.damageDealt > 0 && payload.player2.damageDealt > 0) {
+          narrative = "Both players trade heavy blows!";
+        } else if (payload.player1.damageDealt > 0) {
+          narrative = `Player 1 hits for ${payload.player1.damageDealt} damage!`;
+        } else if (payload.player2.damageDealt > 0) {
+          narrative = `Player 2 hits for ${payload.player2.damageDealt} damage!`;
+        } else {
+          narrative = "Both attacks were blocked or missed!";
+        }
+
+        this.narrativeText.setText(narrative);
         this.narrativeText.setAlpha(1);
 
         // Delay damage effects until attack animation lands
@@ -2447,7 +2568,7 @@ export class FightScene extends Phaser.Scene {
     const DEAD_SCALE = 0.70;  // cyber-ninja base scale
     const BB_DEAD_SCALE = 0.65;  // block-bruiser (larger frame)
     const DW_DEAD_SCALE = 0.62;  // dag-warrior
-    const HH_DEAD_SCALE = 0.85;  // hash-hunter (smaller frame)
+    const HH_DEAD_SCALE = 0.99;  // hash-hunter (smaller frame)
 
     // Idle scale constants (same as in handleServerRoundResolved)
     const IDLE_SCALE = 0.45;

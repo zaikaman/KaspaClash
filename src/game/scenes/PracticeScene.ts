@@ -105,6 +105,12 @@ export class PracticeScene extends Phaser.Scene {
     // Load arena background
     this.load.image("arena-bg", "/assets/background_2.webp");
 
+    // Load move icons
+    this.load.image("move_punch", "/assets/icons/punch.webp");
+    this.load.image("move_kick", "/assets/icons/kick.webp");
+    this.load.image("move_block", "/assets/icons/block.webp");
+    this.load.image("move_special", "/assets/icons/special.webp");
+
     // Load character spritesheets for all characters
     const characters = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
     characters.forEach((charId) => {
@@ -567,17 +573,17 @@ export class PracticeScene extends Phaser.Scene {
 
   private createMoveButtons(): void {
     const moves: MoveType[] = ["punch", "kick", "block", "special"];
-    const buttonWidth = 220;
-    const buttonHeight = 120;
-    const spacing = 15;
+    const buttonWidth = 140; // Narrower, taller card style
+    const buttonHeight = 160;
+    const spacing = 20;
     const totalWidth = moves.length * buttonWidth + (moves.length - 1) * spacing;
-    const startX = (GAME_DIMENSIONS.WIDTH - totalWidth) / 2;
-    const y = GAME_DIMENSIONS.HEIGHT - 125;
+    const startX = (GAME_DIMENSIONS.WIDTH - totalWidth) / 2 + buttonWidth / 2;
+    const y = GAME_DIMENSIONS.HEIGHT - 100;
 
     // Label
     this.add.text(
       GAME_DIMENSIONS.CENTER_X,
-      y - 30,
+      y - 95,
       "YOUR MOVE",
       { fontFamily: "monospace", fontSize: "14px", color: "#40e0d0" }
     ).setOrigin(0.5);
@@ -594,63 +600,105 @@ export class PracticeScene extends Phaser.Scene {
   ): Phaser.GameObjects.Container {
     const container = this.add.container(x, y);
 
-    const baseColor = 0x2d2d44;
-    const highlightColor = 0x40e0d0;
+    // Colors based on move type
+    let color = 0xffffff;
+    if (move === "punch") color = 0xef4444;      // Red
+    if (move === "kick") color = 0x06b6d4;       // Cyan
+    if (move === "block") color = 0x22c55e;      // Green
+    if (move === "special") color = 0xa855f7;    // Purple
 
+    // Background (Card style)
     const bg = this.add.graphics();
-    bg.fillStyle(baseColor, 1);
-    bg.fillRoundedRect(0, 0, width, height, 8);
-    bg.lineStyle(2, highlightColor, 0.5);
-    bg.strokeRoundedRect(0, 0, width, height, 8);
+    bg.fillStyle(0x1a1a2e, 0.9);
+    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 12);
+    bg.lineStyle(2, color, 0.8);
+    bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 12);
+    container.add(bg);
 
-    // Move name
-    const label = this.add.text(width / 2, 25, move.toUpperCase(), {
+    // Inner Glow (simulated with alpha rect)
+    const glow = this.add.graphics();
+    glow.fillStyle(color, 0.1);
+    glow.fillRoundedRect(-width / 2 + 5, -height / 2 + 5, width - 10, height - 10, 8);
+    container.add(glow);
+
+    // Icon
+    const iconKey = `move_${move}`;
+    const icon = this.add.image(0, -20, iconKey);
+    icon.setDisplaySize(64, 64);
+    container.add(icon);
+
+    // Move Name
+    const nameText = this.add.text(0, 25, move.toUpperCase(), {
       fontFamily: "monospace",
-      fontSize: "18px",
+      fontSize: "16px",
       color: "#ffffff",
       fontStyle: "bold",
     }).setOrigin(0.5);
+    container.add(nameText);
 
-    // Move info
-    const info = this.add.text(width / 2, 55, this.getMoveInfoText(move), {
-      fontFamily: "monospace",
-      fontSize: "11px",
-      color: "#888888",
-      align: "center",
-      wordWrap: { width: width - 20 },
-    }).setOrigin(0.5);
-
-    // Energy cost
+    // Energy Cost
     const cost = BASE_MOVE_STATS[move].energyCost;
-    const costText = cost > 0 ? `${cost} EN` : "FREE";
-    const costLabel = this.add.text(width / 2, 95, costText, {
+    const costColor = cost === 0 ? "#22c55e" : "#3b82f6";
+    const costText = this.add.text(0, 48, `${cost} Energy`, {
+      fontFamily: "monospace",
+      fontSize: "12px",
+      color: costColor,
+    }).setOrigin(0.5);
+    container.add(costText);
+
+    // Advantage Text
+    let advantage = "";
+    if (move === "punch") advantage = "Beats Special";
+    if (move === "kick") advantage = "Beats Punch";
+    if (move === "block") advantage = "Reflects Kick";
+    if (move === "special") advantage = "Beats Block";
+
+    const advText = this.add.text(0, 65, advantage, {
       fontFamily: "monospace",
       fontSize: "10px",
-      color: cost > 0 ? "#3b82f6" : "#22c55e",
+      color: "#aaaaaa",
+      fontStyle: "italic"
     }).setOrigin(0.5);
+    container.add(advText);
 
-    container.add([bg, label, info, costLabel]);
-
-    const hitArea = new Phaser.Geom.Rectangle(0, 0, width, height);
+    // Interactive
+    const hitArea = new Phaser.Geom.Rectangle(-width / 2, -height / 2, width, height);
     container.setInteractive(hitArea, Phaser.Geom.Rectangle.Contains);
 
+    // Hover effects
     container.on("pointerover", () => {
-      if (this.phase === "selecting") {
+      if (this.phase === "selecting" && this.combatEngine.canAffordMove("player1", move)) {
+        this.tweens.add({
+          targets: container,
+          y: y - 10,
+          scaleX: 1.05,
+          scaleY: 1.05,
+          duration: 200,
+          ease: "Back.easeOut",
+        });
         bg.clear();
-        bg.fillStyle(highlightColor, 0.2);
-        bg.fillRoundedRect(0, 0, width, height, 8);
-        bg.lineStyle(2, highlightColor, 1);
-        bg.strokeRoundedRect(0, 0, width, height, 8);
+        bg.fillStyle(0x1a1a2e, 0.95);
+        bg.fillRoundedRect(-width / 2, -height / 2, width, height, 12);
+        bg.lineStyle(3, color, 1);
+        bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 12);
       }
     });
 
     container.on("pointerout", () => {
       if (this.selectedMove !== move) {
+        this.tweens.add({
+          targets: container,
+          y: y,
+          scaleX: 1,
+          scaleY: 1,
+          duration: 200,
+          ease: "Power2",
+        });
         bg.clear();
-        bg.fillStyle(baseColor, 1);
-        bg.fillRoundedRect(0, 0, width, height, 8);
-        bg.lineStyle(2, highlightColor, 0.5);
-        bg.strokeRoundedRect(0, 0, width, height, 8);
+        bg.fillStyle(0x1a1a2e, 0.9);
+        bg.fillRoundedRect(-width / 2, -height / 2, width, height, 12);
+        bg.lineStyle(2, color, 0.8);
+        bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 12);
       }
     });
 
@@ -663,15 +711,7 @@ export class PracticeScene extends Phaser.Scene {
     return container;
   }
 
-  private getMoveInfoText(move: MoveType): string {
-    const infos: Record<MoveType, string> = {
-      punch: "10 DMG • Fast • Beats Special",
-      kick: "15 DMG • Medium • Beats Punch",
-      block: "Guard • Reflects Kick",
-      special: "30 DMG • Slow • Beats Block",
-    };
-    return infos[move];
-  }
+  /* getMoveInfoText removed */
 
   private selectMove(move: MoveType): void {
     // Check if affordable
@@ -708,28 +748,97 @@ export class PracticeScene extends Phaser.Scene {
     });
   }
 
-  private updateButtonState(move: MoveType, selected: boolean): void {
-    const container = this.moveButtons.get(move);
-    if (!container) return;
+  private updateButtonState(selectedMove: MoveType | null, isSelected: boolean): void {
+    const moves: MoveType[] = ["punch", "kick", "block", "special"];
 
-    const bg = container.getAt(0) as Phaser.GameObjects.Graphics;
-    const width = 220;
-    const height = 120;
-    const baseColor = 0x2d2d44;
-    const highlightColor = 0x40e0d0;
+    moves.forEach((move) => {
+      const button = this.moveButtons.get(move);
+      if (!button) return;
 
-    bg.clear();
-    if (selected) {
-      bg.fillStyle(highlightColor, 0.3);
-      bg.fillRoundedRect(0, 0, width, height, 8);
-      bg.lineStyle(3, highlightColor, 1);
-      bg.strokeRoundedRect(0, 0, width, height, 8);
-    } else {
-      bg.fillStyle(baseColor, 1);
-      bg.fillRoundedRect(0, 0, width, height, 8);
-      bg.lineStyle(2, highlightColor, 0.5);
-      bg.strokeRoundedRect(0, 0, width, height, 8);
-    }
+      if (move === selectedMove && isSelected) {
+        // Selected state
+        this.tweens.add({
+          targets: button,
+          alpha: 1,
+          scaleX: 1.1,
+          scaleY: 1.1,
+          y: GAME_DIMENSIONS.HEIGHT - 110,
+          duration: 200,
+          ease: "Back.easeOut",
+        });
+
+        // Highlight effect
+        const bg = button.list[0] as Phaser.GameObjects.Graphics;
+        bg.clear();
+        bg.fillStyle(0x1a1a2e, 1);
+        bg.fillRoundedRect(-70, -80, 140, 160, 12);
+        bg.lineStyle(4, 0xffffff, 1);
+        bg.strokeRoundedRect(-70, -80, 140, 160, 12);
+
+      } else {
+        // Unselected state
+        const isAffordable = this.combatEngine.canAffordMove("player1", move);
+
+        this.tweens.add({
+          targets: button,
+          alpha: isAffordable ? (isSelected ? 0.5 : 1) : 0.3,
+          scaleX: 1,
+          scaleY: 1,
+          y: GAME_DIMENSIONS.HEIGHT - 100,
+          duration: 200,
+          ease: "Power2",
+        });
+
+        // Reset style
+        let color = 0xffffff;
+        if (move === "punch") color = 0xef4444;
+        if (move === "kick") color = 0x06b6d4;
+        if (move === "block") color = 0x22c55e;
+        if (move === "special") color = 0xa855f7;
+
+        const bg = button.list[0] as Phaser.GameObjects.Graphics;
+        bg.clear();
+        bg.fillStyle(0x1a1a2e, 0.9);
+        bg.fillRoundedRect(-70, -80, 140, 160, 12);
+        bg.lineStyle(2, color, 0.8);
+        bg.strokeRoundedRect(-70, -80, 140, 160, 12);
+      }
+    });
+  }
+
+  private resetButtonVisuals(): void {
+    const moves: MoveType[] = ["punch", "kick", "block", "special"];
+    const y = GAME_DIMENSIONS.HEIGHT - 100;
+
+    moves.forEach((move) => {
+      const button = this.moveButtons.get(move);
+      if (!button) return;
+
+      // Reset transforms
+      this.tweens.add({
+        targets: button,
+        alpha: 1,
+        scaleX: 1,
+        scaleY: 1,
+        y: y,
+        duration: 200,
+        ease: "Power2",
+      });
+
+      // Reset styling
+      let color = 0xffffff;
+      if (move === "punch") color = 0xef4444;
+      if (move === "kick") color = 0x06b6d4;
+      if (move === "block") color = 0x22c55e;
+      if (move === "special") color = 0xa855f7;
+
+      const bg = button.list[0] as Phaser.GameObjects.Graphics;
+      bg.clear();
+      bg.fillStyle(0x1a1a2e, 0.9);
+      bg.fillRoundedRect(-70, -80, 140, 160, 12);
+      bg.lineStyle(2, color, 0.8);
+      bg.strokeRoundedRect(-70, -80, 140, 160, 12);
+    });
   }
 
   private updateMoveButtonAffordability(): void {
@@ -836,15 +945,9 @@ export class PracticeScene extends Phaser.Scene {
     this.turnIndicatorText.setColor("#888888");
     this.roundTimerText.setColor("#40e0d0");
 
-    // Update button affordability
+    // Reset button visuals and affordability
+    this.resetButtonVisuals();
     this.updateMoveButtonAffordability();
-
-    // Re-enable buttons and reset visual state
-    this.moveButtons.forEach((btn, move) => {
-      this.updateButtonState(move, false);
-      btn.setAlpha(1);
-      btn.setInteractive();
-    });
 
     // Start timer
     this.timerEvent = this.time.addEvent({

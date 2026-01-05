@@ -7,11 +7,14 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { useWalletStore } from "@/stores/wallet-store";
 import { useMatchStore, useMatchActions } from "@/stores/match-store";
 import { useGameChannel } from "@/hooks/useGameChannel";
 import { EventBus } from "@/game/EventBus";
 import { ConnectWalletButton } from "@/components/wallet/ConnectWalletButton";
+import StakeDeposit from "@/components/matchmaking/StakeDeposit";
+
 import type { Match, PlayerRole } from "@/types";
 
 // Dynamically import PhaserGame to avoid SSR issues
@@ -75,6 +78,9 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
   // Start with isReconnecting=true for in_progress matches to prevent rendering game before state is fetched
   const needsReconnect = !!(match.status === "in_progress" && match.player1CharacterId && match.player2CharacterId);
   const [isReconnecting, setIsReconnecting] = useState(needsReconnect);
+  // Stake deposit tracking
+  const [stakesReady, setStakesReady] = useState(match.stakesConfirmed ?? false);
+  const router = useRouter();
   const [reconnectState, setReconnectState] = useState<{
     gameState?: {
       status: string;
@@ -102,6 +108,13 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
     addressRef.current = address;
     matchIdRef.current = match.id;
   }, [address, match.id]);
+
+  // Sync stakesReady with props (handle updates from router.refresh)
+  useEffect(() => {
+    if (match.stakesConfirmed) {
+      setStakesReady(true);
+    }
+  }, [match.stakesConfirmed]);
 
 
   // Determine player role
@@ -237,6 +250,8 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
           player1RoundsWon: match.player1RoundsWon,
           player2RoundsWon: match.player2RoundsWon,
           txIds: [],
+          stakeAmount: match.stakeAmount || undefined, // Pass stake amount for UI
+          winnerAddress: match.winnerAddress || undefined,
         });
       }
     }
@@ -625,6 +640,44 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
     );
   }
 
+  // Check if stakes are pending (staked match where stakes not yet confirmed)
+  const hasStakePending = match.stakeAmount &&
+    BigInt(match.stakeAmount) > 0 &&
+    !stakesReady &&
+    match.status === "character_select";
+
+  // Show stake deposit screen if stakes are pending
+  if (hasStakePending && playerRole) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#0a0a0a] p-4">
+        <StakeDeposit
+          matchId={match.id}
+          stakeAmountSompi={match.stakeAmount!}
+          expiresAt={match.stakeDeadlineAt || undefined}
+          isHost={playerRole === "player1"}
+          onDeposited={() => {
+            // Only refresh - let the useEffect sync state when prop updates
+            // This ensures we have the fresh selectionDeadlineAt before starting Phaser
+            router.refresh();
+          }}
+          onCancel={async () => {
+            try {
+              // Call cancel endpoint to trigger refunds
+              await fetch("/api/matchmaking/rooms/cancel", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ matchId: match.id }),
+              });
+            } catch (err) {
+              console.error("Failed to cancel match:", err);
+            }
+            router.push("/matchmaking");
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="relative min-h-screen bg-[#0a0a0a]">
       {/* Match info header */}
@@ -702,6 +755,8 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
             } as any
           }
         />
+
+
       </div>
 
     </div>

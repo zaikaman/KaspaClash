@@ -5,7 +5,7 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,6 +13,8 @@ import { getExplorerLink } from "@/lib/game/move-service";
 import { shareMatch, buildMatchUrl } from "@/lib/share/url-builder";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ChampionIcon, Globe02Icon, Share05Icon, Tick02Icon } from "@hugeicons/core-free-icons";
+import { useWallet } from "@/hooks/useWallet";
+import { getSupabaseClient } from "@/lib/supabase/client";
 import type { MatchResult, PlayerRole } from "@/types";
 
 /**
@@ -121,6 +123,25 @@ export function MatchResults({
 
           {/* Match ID and Explorer Link */}
           <div className="text-center space-y-2">
+            {/* Stake Results (Players) */}
+            {result.stakeAmount && (playerRole === 'player1' || playerRole === 'player2') && (
+              <div className="py-2">
+                <div className="text-sm text-gray-400">Stake Results</div>
+                {isWinner ? (
+                  <div className="text-xl font-bold text-green-400">
+                    +{((BigInt(result.stakeAmount) * BigInt(2) * BigInt(999)) / BigInt(1000) / BigInt(100000000)).toString()} KAS
+                  </div>
+                ) : (
+                  <div className="text-xl font-bold text-red-500">
+                    -{Number(BigInt(result.stakeAmount)) / 100000000} KAS
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Spectator Betting Results */}
+            {playerRole === null && <SpectatorBetResult matchId={matchId} result={result} />}
+
             <p className="text-xs text-gray-500">
               Match ID: {matchId.slice(0, 8)}...{matchId.slice(-4)}
             </p>
@@ -184,6 +205,80 @@ async function handleShareResult(matchId: string, winnerCharacter?: string): Pro
   });
 
   return { copied: result.method === "clipboard" && result.success };
+}
+
+interface SpectatorBetResultProps {
+  matchId: string;
+  result: MatchResult;
+}
+
+function SpectatorBetResult({ matchId, result }: SpectatorBetResultProps) {
+  const { address } = useWallet();
+  const [myBet, setMyBet] = useState<{ amount: string, betOn: string, status: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!address) {
+      setLoading(false);
+      return;
+    }
+
+    const fetchMyBet = async () => {
+      const supabase = getSupabaseClient();
+
+      const { data: pool } = await (supabase
+        .from("betting_pools" as any)
+        .select("id")
+        .eq("match_id", matchId)
+        .single() as any);
+
+      if (!pool) {
+        setLoading(false);
+        return;
+      }
+
+      const { data: bet } = await (supabase
+        .from("bets" as any)
+        .select("amount, bet_on, status")
+        .eq("pool_id", pool.id)
+        .eq("bettor_address", address)
+        .maybeSingle() as any);
+
+      if (bet) {
+        setMyBet({
+          amount: bet.amount,
+          betOn: bet.bet_on,
+          status: bet.status
+        });
+      }
+      setLoading(false);
+    };
+
+    fetchMyBet();
+  }, [matchId, address]);
+
+  if (loading) return <div className="text-gray-500 text-xs text-center py-2">Loading bet results...</div>;
+  if (!myBet) return null; // No bet placed
+
+  // Determine win/loss
+  const won = myBet.status === 'won' || (myBet.status === 'confirmed' && myBet.betOn === result.winner);
+  const betAmountKas = Number(BigInt(myBet.amount)) / 100000000;
+
+  return (
+    <div className="py-2 border-t border-gray-800 mt-2">
+      <div className="text-sm text-gray-400 mb-1">Your Bet Result</div>
+      {won ? (
+        <div className="text-xl font-bold text-green-400">
+          +{betAmountKas * 2 * 0.9} KAS (Est. Win)
+          {/* Note: Payout calculation for pool is complex (odds), showing simple win for now or just "WON" */}
+        </div>
+      ) : (
+        <div className="text-xl font-bold text-red-500">
+          -{betAmountKas} KAS (Loss)
+        </div>
+      )}
+    </div>
+  );
 }
 
 

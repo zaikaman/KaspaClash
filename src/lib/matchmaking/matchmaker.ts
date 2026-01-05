@@ -548,10 +548,16 @@ export async function createMatch(
 
 /**
  * Create a private room with a room code.
+ * @param hostAddress - The wallet address of the room creator
+ * @param stakeAmountSompi - Optional stake amount per player in sompi (min 1 KAS = 100000000)
  */
-export async function createRoom(hostAddress: string): Promise<{
+export async function createRoom(
+  hostAddress: string,
+  stakeAmountSompi?: bigint
+): Promise<{
   id: string;
   code: string;
+  stakeAmount?: string; // Returned as string for JSON serialization
 } | null> {
   try {
     const supabase = await createSupabaseServerClient();
@@ -559,47 +565,68 @@ export async function createRoom(hostAddress: string): Promise<{
     // Generate a unique 6-character room code
     const code = generateRoomCode();
 
+    // Build insert data - cast to any to support new stake columns not yet in types
+    const insertData = {
+      player1_address: hostAddress,
+      room_code: code,
+      status: "waiting",
+      format: "best_of_3",
+      ...(stakeAmountSompi && stakeAmountSompi > 0 ? { stake_amount: stakeAmountSompi.toString() } : {}),
+    } as any;
+
     const { data, error } = await supabase
       .from("matches")
-      .insert({
-        player1_address: hostAddress,
-        room_code: code,
-        status: "waiting",
-        format: "best_of_3",
-      })
-      .select("id, room_code")
-      .single();
+      .insert(insertData)
+      .select("id, room_code, stake_amount")
+      .single() as { data: { id: string; room_code: string; stake_amount?: string } | null; error: any };
 
     if (error) {
       console.error("Failed to create room:", error);
       return null;
     }
 
-    console.log(`Room created: ${code} by ${hostAddress}`);
-    return { id: data.id, code: data.room_code! };
+    if (!data) {
+      console.error("No data returned from create room");
+      return null;
+    }
+
+    console.log(`Room created: ${code} by ${hostAddress}${stakeAmountSompi ? ` with stake ${stakeAmountSompi}` : ''}`);
+    return {
+      id: data.id,
+      code: data.room_code,
+      stakeAmount: data.stake_amount || undefined,
+    };
   } catch (error) {
     console.error("Error creating room:", error);
     return null;
   }
 }
 
+
 /**
  * Join an existing room by code.
+ * Returns stake amount if the room has stakes enabled.
  */
 export async function joinRoom(
   guestAddress: string,
   roomCode: string
-): Promise<{ id: string; hostAddress: string; selectionDeadlineAt: string } | null> {
+): Promise<{
+  id: string;
+  hostAddress: string;
+  selectionDeadlineAt?: string;
+  stakeAmount?: string; // Stake per player in sompi (as string)
+  stakeDeadlineAt?: string; // Deadline to confirm stake deposits
+} | null> {
   try {
     const supabase = await createSupabaseServerClient();
 
-    // Find the room
+    // Find the room - include stake_amount
     const { data: room, error: findError } = await supabase
       .from("matches")
-      .select("id, player1_address, player2_address, status")
+      .select("id, player1_address, player2_address, status, stake_amount")
       .eq("room_code", roomCode.toUpperCase())
       .eq("status", "waiting")
-      .single();
+      .single() as { data: { id: string; player1_address: string; player2_address: string | null; status: string; stake_amount?: string } | null; error: any };
 
     if (findError || !room) {
       console.error("Room not found:", roomCode);
@@ -618,29 +645,49 @@ export async function joinRoom(
       return null;
     }
 
+    const hasStake = room.stake_amount && BigInt(room.stake_amount) > 0;
+
     // Calculate selection deadline (30 seconds from now)
-    const selectionDeadlineAt = new Date(
-      Date.now() + CHARACTER_SELECT_TIMEOUT_SECONDS * 1000
-    ).toISOString();
+    // For staked matches, don't set this yet - it will be set when stakes are confirmed
+    const selectionDeadlineAt = hasStake
+      ? null
+      : new Date(Date.now() + CHARACTER_SELECT_TIMEOUT_SECONDS * 1000).toISOString();
+
+    // If stakes are enabled, set a stake deposit deadline (60 seconds)
+    const STAKE_DEPOSIT_TIMEOUT_SECONDS = 60;
+    const stakeDeadlineAt = hasStake
+      ? new Date(Date.now() + STAKE_DEPOSIT_TIMEOUT_SECONDS * 1000).toISOString()
+      : undefined;
+
+    // Build update data
+    const updateData: any = {
+      player2_address: guestAddress,
+      status: "character_select",
+    };
+
+    // Only set selection deadline for non-staked matches
+    if (selectionDeadlineAt) {
+      updateData.selection_deadline_at = selectionDeadlineAt;
+    }
+
+    if (stakeDeadlineAt) {
+      updateData.stake_deadline_at = stakeDeadlineAt;
+    }
 
     // Update match with second player and set selection deadline
     const { data: updatedMatch, error: updateError } = await supabase
       .from("matches")
-      .update({
-        player2_address: guestAddress,
-        status: "character_select",
-        selection_deadline_at: selectionDeadlineAt,
-      })
+      .update(updateData)
       .eq("id", room.id)
-      .select("selection_deadline_at")
-      .single();
+      .select("selection_deadline_at, stake_deadline_at")
+      .single() as { data: { selection_deadline_at: string; stake_deadline_at?: string } | null; error: any };
 
     if (updateError) {
       console.error("Failed to join room:", updateError);
       return null;
     }
 
-    console.log(`Player ${guestAddress} joined room ${roomCode}, deadline: ${updatedMatch?.selection_deadline_at}`);
+    console.log(`Player ${guestAddress} joined room ${roomCode}, deadline: ${updatedMatch?.selection_deadline_at}${hasStake ? `, stake: ${room.stake_amount}` : ''}`);
 
     // Broadcast player_joined event to notify room creator
     // This is more reliable than Postgres Changes for real-time notification
@@ -650,7 +697,9 @@ export async function joinRoom(
         matchId: room.id,
         guestAddress,
         hostAddress: room.player1_address,
-        selectionDeadlineAt: updatedMatch?.selection_deadline_at ?? selectionDeadlineAt,
+        selectionDeadlineAt: updatedMatch?.selection_deadline_at || undefined,
+        stakeAmount: room.stake_amount || undefined,
+        stakeDeadlineAt: updatedMatch?.stake_deadline_at || undefined,
       });
       console.log(`[JoinRoom] Broadcast player_joined to room:${room.id}`);
     } catch (broadcastError) {
@@ -661,13 +710,16 @@ export async function joinRoom(
     return {
       id: room.id,
       hostAddress: room.player1_address,
-      selectionDeadlineAt: updatedMatch?.selection_deadline_at ?? selectionDeadlineAt
+      selectionDeadlineAt: updatedMatch?.selection_deadline_at || undefined,
+      stakeAmount: room.stake_amount || undefined,
+      stakeDeadlineAt: updatedMatch?.stake_deadline_at || undefined,
     };
   } catch (error) {
     console.error("Error joining room:", error);
     return null;
   }
 }
+
 
 /**
  * Generate a random 6-character room code.

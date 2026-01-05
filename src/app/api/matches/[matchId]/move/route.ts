@@ -243,8 +243,9 @@ export async function POST(
         // Trigger payouts asynchronously (don't block response too long, or do block if critical)
         // We'll block to ensure it runs, but catch errors
         try {
-          const { resolveMatchPayouts } = await import("@/lib/betting/payout-service");
+          const { resolveMatchPayouts, resolveMatchStakePayout } = await import("@/lib/betting/payout-service");
           await resolveMatchPayouts(matchId);
+          await resolveMatchStakePayout(matchId);
         } catch (e) {
           console.error("Failed to trigger payouts:", e);
         }
@@ -272,8 +273,9 @@ export async function POST(
 
       if (resolution.isMatchOver) {
         try {
-          const { resolveMatchPayouts } = await import("@/lib/betting/payout-service");
+          const { resolveMatchPayouts, resolveMatchStakePayout } = await import("@/lib/betting/payout-service");
           await resolveMatchPayouts(matchId);
+          await resolveMatchStakePayout(matchId);
         } catch (e) {
           console.error("Failed to trigger payouts:", e);
         }

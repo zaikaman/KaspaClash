@@ -125,6 +125,18 @@ export interface Match {
   startedAt: Date | null;
   /** When match ended */
   completedAt: Date | null;
+
+  // Stake fields for private room betting
+  /** Stake amount per player in sompi (as string) */
+  stakeAmount?: string | null;
+  /** P1's stake deposit transaction ID */
+  player1StakeTxId?: string | null;
+  /** P2's stake deposit transaction ID */
+  player2StakeTxId?: string | null;
+  /** True when both players have deposited their stakes */
+  stakesConfirmed?: boolean;
+  /** Deadline for stake deposits */
+  stakeDeadlineAt?: string | null;
 }
 
 // =============================================================================
@@ -235,4 +247,8 @@ export interface MatchResult {
       change: number;
     };
   };
+  // Stake info
+  stakeAmount?: string; // in sompi
+  winnerAddress?: string;
+  totalPayout?: string; // in sompi
 }

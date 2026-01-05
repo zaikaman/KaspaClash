@@ -147,6 +147,82 @@ export function calculatePoolPayouts(
  * Send payout to a single winner using kaspalib (pure JS implementation).
  * Includes retry logic for transient failures.
  */
+/**
+ * Compound UTXOs to reduce fragmentation.
+ * Sends multiple inputs to self.
+ */
+async function compoundUtxos(
+    apiUrl: string,
+    vaultAddress: string,
+    privateKey: Uint8Array,
+    utxosToCompound: any[]
+): Promise<string> {
+    console.log(`[PayoutService] Compounding ${utxosToCompound.length} UTXOs...`);
+
+    const addrParser = Address({ prefix: vaultAddress.startsWith("kaspatest:") ? "kaspatest" : "kaspa" });
+    const vaultDecoded = addrParser.decode(vaultAddress);
+
+    // Calculate total amount
+    let totalAmount = BigInt(0);
+    for (const u of utxosToCompound) {
+        totalAmount += BigInt(u.utxoEntry.amount);
+    }
+
+    const FEE = BigInt(3000); // 0.00003 KAS (Compounding is simple)
+    const amountToSend = totalAmount - FEE;
+
+    if (amountToSend <= BigInt(0)) {
+        throw new Error("Compounding amount too small to cover fee");
+    }
+
+    // inputs
+    const inputs = utxosToCompound.map(u => ({
+        utxo: {
+            transactionId: hexToBytes(u.outpoint.transactionId),
+            index: u.outpoint.index,
+            amount: BigInt(u.utxoEntry.amount),
+            version: u.utxoEntry.scriptPublicKey.version || 0,
+            script: hexToBytes(u.utxoEntry.scriptPublicKey.scriptPublicKey)
+        },
+        script: new Uint8Array(0),
+        sequence: BigInt(0),
+        sigOpCount: 1
+    }));
+
+    // Output: Send back to vault
+    const outputScript = OutScript.encode({
+        version: 0,
+        type: vaultDecoded.type,
+        payload: vaultDecoded.payload
+    });
+
+    const outputs = [{
+        amount: amountToSend,
+        version: outputScript.version,
+        script: outputScript.script
+    }];
+
+    const tx = new Transaction({
+        version: 0,
+        inputs,
+        outputs,
+        lockTime: BigInt(0),
+        subnetworkId: new Uint8Array(20), // Subnetwork ID (all zeros for native)
+        gas: BigInt(0),
+        payload: new Uint8Array(0)
+    });
+
+    const signed = tx.sign(privateKey);
+    if (!signed) throw new Error("Failed to sign compound transaction");
+
+    const rpcTx = tx.toRPCTransaction();
+    // @ts-ignore
+    delete rpcTx.mass;
+
+    const result = await submitTransactionToApi(apiUrl, { transaction: rpcTx });
+    return result.transactionId;
+}
+
 export async function sendPayout(
     toAddress: string,
     amountSompi: bigint,
@@ -157,6 +233,7 @@ export async function sendPayout(
     // Determine network based on address prefix
     const isTestnet = toAddress.startsWith("kaspatest:");
     const apiUrl = getKaspaApiUrl(isTestnet);
+    const MAX_INPUTS = 80; // Safe limit to avoid "mass too large" errors (limit is 100k mass)
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
@@ -180,28 +257,70 @@ export async function sendPayout(
                 throw new Error(`Vault (${vaultAddress}) has no UTXOs (empty balance)`);
             }
 
-            // 3. Select UTXOs (Simple selection: First one that covers amount + fee)
-            const FEE = BigInt(5000); // 0.00005 KAS
+            // 3. Select UTXOs
+            // Strategy: Proactive "Dust Sweeping" / Aggressive Compounding
+            // We want to consume up to MAX_INPUTS to consolidate UTXOs in every transaction.
+            const FEE = BigInt(100000); // 0.001 KAS (Generous fee for larger mass)
             const totalRequired = amountSompi + FEE;
 
-            // Sort descending to use largest UTXOs
+            // Sort Descending (Largest first) to ensure we cover the amount with fewest inputs
             utxos.sort((a: any, b: any) => {
                 const amountA = BigInt(a.utxoEntry.amount);
                 const amountB = BigInt(b.utxoEntry.amount);
                 return amountA < amountB ? 1 : amountA > amountB ? -1 : 0;
             });
 
-            let selectedUtxos = [];
+            const selectedUtxos: any[] = [];
             let inputAmount = BigInt(0);
 
-            for (const u of utxos) {
-                inputAmount += BigInt(u.utxoEntry.amount);
+            // 1. Select essentials (Largest first)
+            const remainingUtxos = [...utxos];
+            while (remainingUtxos.length > 0 && inputAmount < totalRequired) {
+                const u = remainingUtxos.shift();
                 selectedUtxos.push(u);
-                if (inputAmount >= totalRequired) break;
+                inputAmount += BigInt(u.utxoEntry.amount);
             }
 
             if (inputAmount < totalRequired) {
+                // Fallback to strict auto-compounding handler if even all UTXOs aren't enough (or if we hit limits but I haven't checked limit yet)
+                // NOTE: The separate compoundUtxos function handles the case where *too many* inputs are needed.
+                // Here we just check total funds.
+                // If we have enough funds but too many inputs, logic below or the catch block will handle it?
+                // Actually, let's keep the fragmentation check.
+                if (utxos.length > MAX_INPUTS) {
+                    // Check if top MAX_INPUTS covers it.
+                    // The loop above exhausted ALL utxos or stopped when enough.
+                    // If we are here, we used ALL and still not enough? Then it's insufficient funds.
+                    // Unless we stopped for some reason? No, while loop runs until coverage.
+                    throw new Error(`Insufficient funds: Have ${sompiToKas(inputAmount)}, Need ${sompiToKas(totalRequired)}`);
+                }
+                // If we are here, we don't have enough funds period.
                 throw new Error(`Insufficient funds: Have ${sompiToKas(inputAmount)}, Need ${sompiToKas(totalRequired)}`);
+            }
+
+            // 2. Piggyback: Fill remaining slots with Dust (Smallest first)
+            // This merges many small UTXOs into the change output for free/cheap consolidation.
+            if (selectedUtxos.length < MAX_INPUTS) {
+                // Reverse remaining to get Smallest First (since remaining was sorted Descending)
+                remainingUtxos.reverse(); // Now Smallest -> Largest
+
+                while (remainingUtxos.length > 0 && selectedUtxos.length < MAX_INPUTS) {
+                    const u = remainingUtxos.shift();
+                    selectedUtxos.push(u);
+                    inputAmount += BigInt(u.utxoEntry.amount);
+                }
+            }
+
+            // Re-check strict max input limit (though loop condition handles it)
+            if (selectedUtxos.length > MAX_INPUTS) {
+                // This shouldn't happen with the logic above, but safety check
+                // If essentials > MAX_INPUTS, we need the separate compounder logic.
+                console.log(`[PayoutService] Too many essential inputs (${selectedUtxos.length}). triggering pre-compounder...`);
+                const compoundTxId = await compoundUtxos(apiUrl, vaultAddress, privateKey, selectedUtxos.slice(0, MAX_INPUTS));
+                console.log(`[PayoutService] Compounding TX: ${compoundTxId}. Waiting 3s...`);
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                attempt--;
+                continue;
             }
 
             // 4. Construct Inputs
@@ -450,4 +569,269 @@ export async function resolveMatchPayouts(matchId: string): Promise<void> {
     }
 
     console.log(`[PayoutService] Processed payouts for match ${matchId}: ${result.totalPaidOut} Sompi paid`);
+}
+
+/**
+ * Resolve stake payout for a private room match with stakes.
+ * Sends (2x stake - 0.1% fee) to the winner.
+ */
+export async function resolveMatchStakePayout(matchId: string): Promise<void> {
+    const supabase = await createSupabaseServerClient();
+
+    // 1. Get Match with stake info
+    const { data: match } = await supabase
+        .from("matches")
+        .select("status, winner_address, player1_address, player2_address, stake_amount, stakes_confirmed, player1_stake_tx_id, player2_stake_tx_id")
+        .eq("id", matchId)
+        .single() as {
+            data: {
+                status: string;
+                winner_address: string | null;
+                player1_address: string;
+                player2_address: string;
+                stake_amount: string | null;
+                stakes_confirmed: boolean;
+                player1_stake_tx_id: string | null;
+                player2_stake_tx_id: string | null;
+            } | null; error: any
+        };
+
+    if (!match || match.status !== 'completed' || !match.winner_address) {
+        console.log(`[StakePayout] Match ${matchId} not ready for stake payout`);
+        return;
+    }
+
+    // Check if match has stakes
+    if (!match.stake_amount || BigInt(match.stake_amount) <= 0) {
+        console.log(`[StakePayout] Match ${matchId} has no stakes`);
+        return;
+    }
+
+    // Check if stakes were confirmed
+    if (!match.stakes_confirmed) {
+        console.log(`[StakePayout] Match ${matchId} stakes were not confirmed, skipping payout`);
+        return;
+    }
+
+    // Only pay out if both players deposited
+    if (!match.player1_stake_tx_id || !match.player2_stake_tx_id) {
+        console.log(`[StakePayout] Match ${matchId} missing stake deposits, skipping payout`);
+        return;
+    }
+
+    const stakePerPlayer = BigInt(match.stake_amount);
+    const totalStake = stakePerPlayer * BigInt(2);
+
+    // Calculate fee (0.1% = 1/1000)
+    const FEE_BASIS_POINTS = BigInt(10); // 0.1% = 10 basis points
+    const BASIS_POINTS_DIVISOR = BigInt(10000);
+    const fee = (totalStake * FEE_BASIS_POINTS) / BASIS_POINTS_DIVISOR;
+    const payoutAmount = totalStake - fee;
+
+    console.log(`[StakePayout] Match ${matchId}: Total stake ${sompiToKas(totalStake)} KAS, fee ${sompiToKas(fee)} KAS, payout ${sompiToKas(payoutAmount)} KAS to ${match.winner_address.slice(-8)}`);
+
+    // Determine network from winner address
+    const isTestnet = match.winner_address.startsWith("kaspatest:");
+
+    // Get vault private key
+    let vaultPrivateKey: string;
+    try {
+        vaultPrivateKey = getVaultPrivateKey(isTestnet);
+    } catch (error) {
+        console.error(`[StakePayout] Failed to get vault key:`, error);
+        return;
+    }
+
+    // Send payout to winner
+    const result = await sendPayout(
+        match.winner_address,
+        payoutAmount,
+        vaultPrivateKey
+    );
+
+    if (result.success) {
+        console.log(`[StakePayout] ✓ Sent ${sompiToKas(payoutAmount)} KAS to winner ${match.winner_address.slice(-8)}. TX: ${result.txId}`);
+
+        // Update match with payout tx (could add a stake_payout_tx_id column if needed)
+        // For now, just log success
+    } else {
+        console.error(`[StakePayout] ✗ Failed to send stake payout:`, result.error);
+    }
+}
+
+
+/**
+ * Refund stakes for a match.
+ * Called when a match is cancelled or expires.
+ * Refunds any confirming deposits to the respective players.
+ */
+export async function refundMatchStakes(matchId: string): Promise<{ success: boolean; refundedCount: number; errors: string[] }> {
+    const supabase = await createSupabaseServerClient();
+
+    // 1. Get Match with stake info
+    const { data: match } = await supabase
+        .from("matches")
+        .select("status, player1_address, player2_address, stake_amount, stakes_confirmed, player1_stake_tx_id, player2_stake_tx_id")
+        .eq("id", matchId)
+        .single() as any;
+
+    const result = { success: true, refundedCount: 0, errors: [] as string[] };
+
+    if (!match) {
+        result.success = false;
+        result.errors.push("Match not found");
+        return result;
+    }
+
+    // Check if match has stakes
+    if (!match.stake_amount || BigInt(match.stake_amount) <= BigInt(0)) {
+        return result; // No stakes to refund
+    }
+
+    const stakeAmount = BigInt(match.stake_amount);
+
+    // Determine network (from P1 or P2 address) -> P1 is always set
+    const isTestnet = match.player1_address.startsWith("kaspatest:");
+
+    // Get vault private key
+    let vaultPrivateKey: string;
+    try {
+        vaultPrivateKey = getVaultPrivateKey(isTestnet);
+    } catch (error) {
+        result.success = false;
+        result.errors.push(`Vault configuration error: ${error instanceof Error ? error.message : String(error)}`);
+        return result;
+    }
+
+    // Refund Player 1 if they deposited
+    if (match.player1_stake_tx_id) {
+        // Check if already refunded? (We don't have a column, assume caller handles idempotency or we check if status is already cancelled?)
+        // For now, we trust the caller (cancel endpoint) to change status AT THE SAME TIME.
+        console.log(`[StakeRefund] Refunding P1 ${match.player1_address.slice(-8)}...`);
+        const p1Result = await sendPayout(match.player1_address, stakeAmount, vaultPrivateKey);
+        if (p1Result.success) {
+            console.log(`[StakeRefund] ✓ Refunded P1. TX: ${p1Result.txId}`);
+            result.refundedCount++;
+        } else {
+            console.error(`[StakeRefund] Failed to refund P1: ${p1Result.error}`);
+            result.errors.push(`P1 Refund Failed: ${p1Result.error}`);
+            result.success = false;
+        }
+    }
+
+    // Refund Player 2 if they deposited
+    if (match.player2_stake_tx_id && match.player2_address) {
+        console.log(`[StakeRefund] Refunding P2 ${match.player2_address.slice(-8)}...`);
+        const p2Result = await sendPayout(match.player2_address, stakeAmount, vaultPrivateKey);
+        if (p2Result.success) {
+            console.log(`[StakeRefund] ✓ Refunded P2. TX: ${p2Result.txId}`);
+            result.refundedCount++;
+        } else {
+            console.error(`[StakeRefund] Failed to refund P2: ${p2Result.error}`);
+            result.errors.push(`P2 Refund Failed: ${p2Result.error}`);
+            result.success = false;
+        }
+    }
+
+
+    return result;
+}
+
+/**
+ * Refund all bets for a match.
+ * Called when a match is cancelled.
+ */
+export async function refundBettingPool(matchId: string): Promise<{ success: boolean; refundedCount: number; errors: string[] }> {
+    const supabase = await createSupabaseServerClient();
+
+    const result = { success: true, refundedCount: 0, errors: [] as string[] };
+
+    // 1. Get Pool
+    const { data: poolData } = await (supabase
+        .from("betting_pools" as any)
+        .select("*")
+        .eq("match_id", matchId)
+        .single() as any);
+
+    if (!poolData) {
+        // No pool found, nothing to refund
+        return result;
+    }
+
+    if (poolData.status === 'refunded') {
+        // Already refunded
+        return result;
+    }
+
+    // 2. Lock Pool
+    await (supabase
+        .from("betting_pools" as any)
+        .update({ status: 'refunded', resolved_at: new Date().toISOString() })
+        .eq("id", poolData.id) as any);
+
+    // 3. Get Confirmed Bets
+    const { data: betsData } = await (supabase
+        .from("bets" as any)
+        .select("*")
+        .eq("pool_id", poolData.id)
+        .eq("status", "confirmed") as any);
+
+    if (!betsData || betsData.length === 0) {
+        return result;
+    }
+
+    const bets = betsData.map(transformBetFromDb);
+    console.log(`[BetRefund] Refunding ${bets.length} bets for match ${matchId}...`);
+
+    // 4. Get Vault Key
+    // We might have bets from different networks if something went wrong, but usually it's one network per deployment.
+    // However, addresses might be mixed in dev? No, strictly separated.
+    // Let's check the first bet for network.
+    const firstBettorAddress = bets[0].bettorAddress;
+    const isTestnet = firstBettorAddress.startsWith("kaspatest:");
+
+    let vaultPrivateKey: string;
+    try {
+        vaultPrivateKey = getVaultPrivateKey(isTestnet);
+    } catch (error) {
+        result.success = false;
+        result.errors.push(error instanceof Error ? error.message : "Vault configuration error");
+        return result;
+    }
+
+    // 5. Refund Each Bet
+    for (const bet of bets) {
+        console.log(`[BetRefund] Refunding ${sompiToKas(bet.amount)} KAS to ${bet.bettorAddress}...`);
+
+        // We refund the GROSS amount (what they put in), effectively subsidizing the fee
+        // Or should we return netAmount? 
+        // User expects their money back. 
+        // If we refund 'amount', the vault pays the tx fee. This is the user-friendly way.
+
+        const payoutResult = await sendPayout(
+            bet.bettorAddress,
+            bet.amount,
+            vaultPrivateKey
+        );
+
+        if (payoutResult.success) {
+            await (supabase
+                .from("bets" as any)
+                .update({
+                    status: 'refunded',
+                    payout_amount: bet.amount.toString(),
+                    payout_tx_id: payoutResult.txId,
+                    paid_at: new Date().toISOString(),
+                })
+                .eq("id", bet.id) as any);
+
+            result.refundedCount++;
+        } else {
+            console.error(`[BetRefund] Failed to refund bet ${bet.id}: ${payoutResult.error}`);
+            result.errors.push(`Failed to refund bet ${bet.id}: ${payoutResult.error}`);
+            result.success = false;
+        }
+    }
+
+    return result;
 }

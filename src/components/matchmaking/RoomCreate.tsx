@@ -5,13 +5,16 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Copy01Icon, Tick02Icon, Loading03Icon } from "@hugeicons/core-free-icons";
+import { Copy01Icon, Tick02Icon, Loading03Icon, Coins01Icon } from "@hugeicons/core-free-icons";
 import { useWallet } from "@/hooks/useWallet";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
+// Quick stake amounts in KAS
+const QUICK_STAKES = [1, 5, 10, 25, 50, 100];
+
 interface RoomCreateProps {
-  onRoomCreated?: (matchId: string, roomCode: string) => void;
+  onRoomCreated?: (matchId: string, roomCode: string, stakeAmount?: number) => void;
   onCancel?: () => void;
 }
 
@@ -24,6 +27,11 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
+
+  // Stake settings
+  const [enableStake, setEnableStake] = useState(false);
+  const [stakeAmount, setStakeAmount] = useState<string>("10");
+  const [createdStakeAmount, setCreatedStakeAmount] = useState<number | null>(null);
 
   // Subscribe to match updates when room is created
   useEffect(() => {
@@ -78,6 +86,15 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
       return;
     }
 
+    // Validate stake amount if enabled
+    const stakeValue = enableStake ? parseFloat(stakeAmount) : undefined;
+    if (enableStake) {
+      if (isNaN(stakeValue!) || stakeValue! < 1) {
+        setError("Minimum stake is 1 KAS");
+        return;
+      }
+    }
+
     setIsCreating(true);
     setError(null);
 
@@ -85,7 +102,10 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
       const response = await fetch("/api/matchmaking/rooms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address }),
+        body: JSON.stringify({
+          address,
+          stakeAmount: stakeValue,
+        }),
       });
 
       if (!response.ok) {
@@ -96,7 +116,8 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
       const data = await response.json();
       setRoomCode(data.roomCode);
       setMatchId(data.matchId);
-      onRoomCreated?.(data.matchId, data.roomCode);
+      setCreatedStakeAmount(stakeValue || null);
+      onRoomCreated?.(data.matchId, data.roomCode, stakeValue);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create room");
     } finally {
@@ -160,6 +181,20 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
             </Button>
           </div>
 
+          {/* Stake Info */}
+          {createdStakeAmount && (
+            <div className="bg-cyber-gold/10 border border-cyber-gold/30 rounded-lg p-3 text-center">
+              <div className="flex items-center justify-center gap-2 text-cyber-gold font-orbitron">
+                <HugeiconsIcon icon={Coins01Icon} className="h-5 w-5" />
+                <span className="text-lg font-bold">{createdStakeAmount} KAS</span>
+                <span className="text-sm text-cyber-gray">stake per player</span>
+              </div>
+              <p className="text-xs text-cyber-gray mt-1">
+                Winner takes {createdStakeAmount * 2} KAS (0.1% fee)
+              </p>
+            </div>
+          )}
+
           {/* Waiting Status */}
           <div className="text-center space-y-2">
             <div className="flex items-center justify-center gap-2">
@@ -198,6 +233,76 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
           </div>
         )}
 
+        {/* Stake Toggle */}
+        <div className="space-y-4">
+          <button
+            type="button"
+            onClick={() => setEnableStake(!enableStake)}
+            className={`w-full flex items-center justify-between p-4 rounded-lg border-2 transition-all ${enableStake
+                ? "border-cyber-gold bg-cyber-gold/10"
+                : "border-gray-700 bg-gray-800/50 hover:border-gray-600"
+              }`}
+          >
+            <div className="flex items-center gap-3">
+              <HugeiconsIcon icon={Coins01Icon} className={`h-6 w-6 ${enableStake ? "text-cyber-gold" : "text-gray-400"}`} />
+              <div className="text-left">
+                <div className={`font-semibold ${enableStake ? "text-cyber-gold" : "text-gray-300"}`}>
+                  Add Stakes
+                </div>
+                <div className="text-xs text-gray-500">
+                  Both players bet KAS, winner takes all
+                </div>
+              </div>
+            </div>
+            <div className={`w-12 h-6 rounded-full transition-colors ${enableStake ? "bg-cyber-gold" : "bg-gray-600"}`}>
+              <div className={`w-5 h-5 mt-0.5 rounded-full bg-white transition-transform ${enableStake ? "translate-x-6" : "translate-x-0.5"}`} />
+            </div>
+          </button>
+
+          {/* Stake Amount (shown when enabled) */}
+          {enableStake && (
+            <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+              <label className="text-sm text-gray-400">Stake Amount (KAS)</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={stakeAmount}
+                onChange={(e) => setStakeAmount(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white font-orbitron text-lg focus:border-cyber-gold focus:outline-none"
+                placeholder="Enter stake amount"
+              />
+
+              {/* Quick stake buttons */}
+              <div className="flex gap-2 flex-wrap">
+                {QUICK_STAKES.map((amount) => (
+                  <button
+                    key={amount}
+                    type="button"
+                    onClick={() => setStakeAmount(amount.toString())}
+                    className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${stakeAmount === amount.toString()
+                        ? "bg-cyber-gold text-black font-bold"
+                        : "bg-gray-700 hover:bg-gray-600 text-gray-300"
+                      }`}
+                  >
+                    {amount} KAS
+                  </button>
+                ))}
+              </div>
+
+              {/* Prize pool preview */}
+              {parseFloat(stakeAmount) >= 1 && (
+                <div className="text-center p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                  <span className="text-sm text-gray-400">Total Prize Pool: </span>
+                  <span className="text-lg font-bold text-green-400 font-orbitron">
+                    {(parseFloat(stakeAmount) * 2).toFixed(0)} KAS
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="space-y-4">
           <Button
             onClick={handleCreateRoom}
@@ -209,6 +314,8 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
                 <HugeiconsIcon icon={Loading03Icon} className="mr-2 h-4 w-4 animate-spin" />
                 Creating Room...
               </>
+            ) : enableStake ? (
+              `Create Room (${stakeAmount} KAS Stake)`
             ) : (
               "Create Room"
             )}
@@ -232,4 +339,3 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
     </Card>
   );
 }
-

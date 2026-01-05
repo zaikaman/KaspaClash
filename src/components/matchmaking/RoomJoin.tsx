@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Loading03Icon } from "@hugeicons/core-free-icons";
+import { Loading03Icon, Coins01Icon } from "@hugeicons/core-free-icons";
 import { useWallet } from "@/hooks/useWallet";
 
 interface RoomJoinProps {
-  onJoined?: (matchId: string) => void;
+  onJoined?: (matchId: string, stakeAmountSompi?: string) => void;
   onCancel?: () => void;
 }
 
@@ -19,12 +19,14 @@ export default function RoomJoin({ onJoined, onCancel }: RoomJoinProps) {
   const [roomCode, setRoomCode] = useState("");
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stakePreview, setStakePreview] = useState<number | null>(null);
 
   const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Only allow alphanumeric, uppercase, max 6 chars
     const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
     setRoomCode(value);
     setError(null);
+    setStakePreview(null); // Reset stake preview when code changes
   };
 
   const handleJoinRoom = async () => {
@@ -54,9 +56,16 @@ export default function RoomJoin({ onJoined, onCancel }: RoomJoinProps) {
       }
 
       const data = await response.json();
-      onJoined?.(data.matchId);
 
-      // Navigate to match
+      // If this room has stakes, show preview and pass to callback
+      // The parent component will handle showing the StakeDeposit screen
+      if (data.stakeAmount) {
+        setStakePreview(Number(BigInt(data.stakeAmount)) / 100000000);
+      }
+
+      onJoined?.(data.matchId, data.stakeAmount);
+
+      // Navigate to match (the match page will handle stake deposit if needed)
       router.push(`/match/${data.matchId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to join room");
@@ -102,6 +111,20 @@ export default function RoomJoin({ onJoined, onCancel }: RoomJoinProps) {
             {roomCode.length}/6 characters
           </p>
         </div>
+
+        {/* Stake Preview (shown when joining a staked room) */}
+        {stakePreview && (
+          <div className="bg-cyber-gold/10 border border-cyber-gold/30 rounded-lg p-3 text-center">
+            <div className="flex items-center justify-center gap-2 text-cyber-gold font-orbitron">
+              <HugeiconsIcon icon={Coins01Icon} className="h-5 w-5" />
+              <span className="text-lg font-bold">{stakePreview} KAS</span>
+              <span className="text-sm text-cyber-gray">stake required</span>
+            </div>
+            <p className="text-xs text-green-400 mt-1">
+              Winner takes {stakePreview * 2} KAS
+            </p>
+          </div>
+        )}
 
         {/* Error Display */}
         {error && (

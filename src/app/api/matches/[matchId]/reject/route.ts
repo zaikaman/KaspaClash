@@ -195,13 +195,29 @@ export async function POST(
         // Case 2: Opponent ALSO rejected -> cancel the match
         if (opponentRejected) {
             // Update match to cancelled status
+            const completedAt = new Date().toISOString();
             await supabase
                 .from("matches")
                 .update({
                     status: "cancelled",
-                    completed_at: new Date().toISOString(),
+                    completed_at: completedAt,
                 })
                 .eq("id", matchId);
+
+            // Refund stakes and bets
+            const { refundMatchStakes, refundBettingPool } = await import("@/lib/betting/payout-service");
+
+            console.log(`[Reject API] Match ${matchId} cancelled. Initiating refunds...`);
+
+            // Refund players (if stakes existed)
+            refundMatchStakes(matchId).catch(err => {
+                console.error(`[Reject API] Error refunding stakes for ${matchId}:`, err);
+            });
+
+            // Refund bettors (if pool existed)
+            refundBettingPool(matchId).catch(err => {
+                console.error(`[Reject API] Error refunding bets for ${matchId}:`, err);
+            });
 
             // Broadcast match_cancelled event
             const cancelChannel = supabase.channel(`game:${matchId}`);
@@ -211,7 +227,7 @@ export async function POST(
                 payload: {
                     matchId,
                     reason: "both_rejected",
-                    message: "Both players rejected transactions. Match cancelled.",
+                    message: "Both players rejected transactions. Match cancelled and funds refunded.",
                     redirectTo: "/matchmaking",
                 },
             });
@@ -219,7 +235,7 @@ export async function POST(
 
             return NextResponse.json({
                 status: "match_cancelled",
-                message: "Both players rejected. Match cancelled.",
+                message: "Both players rejected. Match cancelled and refunded.",
                 redirectTo: "/matchmaking",
             });
         }

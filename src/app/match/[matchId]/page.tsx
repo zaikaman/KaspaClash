@@ -52,6 +52,11 @@ function transformMatchData(
     created_at: string;
     started_at: string | null;
     completed_at: string | null;
+    stake_amount?: string | null;
+    player1_stake_tx_id?: string | null;
+    player2_stake_tx_id?: string | null;
+    stakes_confirmed?: boolean;
+    stake_deadline_at?: string | null;
     player1?: { address: string; display_name: string | null; rating: number } | null;
     player2?: { address: string; display_name: string | null; rating: number } | null;
   }
@@ -75,6 +80,12 @@ function transformMatchData(
     createdAt: new Date(dbMatch.created_at),
     startedAt: dbMatch.started_at ? new Date(dbMatch.started_at) : null,
     completedAt: dbMatch.completed_at ? new Date(dbMatch.completed_at) : null,
+    // Stake fields
+    stakeAmount: dbMatch.stake_amount,
+    player1StakeTxId: dbMatch.player1_stake_tx_id,
+    player2StakeTxId: dbMatch.player2_stake_tx_id,
+    stakesConfirmed: dbMatch.stakes_confirmed ?? false,
+    stakeDeadlineAt: dbMatch.stake_deadline_at,
     player1: dbMatch.player1 || undefined,
     player2: dbMatch.player2 || undefined,
   };
