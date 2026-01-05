@@ -3,6 +3,18 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { NETWORK_CONFIG, type NetworkType } from "@/types/constants";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+    BoxingGlove01Icon,
+    RunningShoesIcon,
+    Shield02Icon,
+    FlashIcon,
+    GameController01Icon,
+    Blockchain03Icon,
+    Alert02Icon,
+    CheckmarkCircle02Icon,
+    ViewIcon
+} from "@hugeicons/core-free-icons";
 
 export interface TransactionData {
     txId: string;
@@ -41,13 +53,13 @@ function formatAddress(address: string): string {
     return address;
 }
 
-function getMoveIcon(moveType: string): string {
+function GetMoveIcon({ moveType }: { moveType: string }) {
     switch (moveType) {
-        case "punch": return "👊";
-        case "kick": return "🦵";
-        case "block": return "🛡️";
-        case "special": return "⚡";
-        default: return "🎮";
+        case "punch": return <HugeiconsIcon icon={BoxingGlove01Icon} className="w-4 h-4" />;
+        case "kick": return <HugeiconsIcon icon={RunningShoesIcon} className="w-4 h-4" />;
+        case "block": return <HugeiconsIcon icon={Shield02Icon} className="w-4 h-4" />;
+        case "special": return <HugeiconsIcon icon={FlashIcon} className="w-4 h-4" />;
+        default: return <HugeiconsIcon icon={GameController01Icon} className="w-4 h-4" />;
     }
 }
 
@@ -128,9 +140,7 @@ export default function TransactionTimeline({
             <div className="bg-black/40 border border-cyber-gold/20 rounded-xl p-6 backdrop-blur-md max-w-4xl mx-auto">
                 <div className="text-center">
                     <div className="inline-flex items-center gap-2 text-cyber-gray">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
+                        <HugeiconsIcon icon={Alert02Icon} className="w-5 h-5" />
                         <span className="font-mono text-sm">No blockchain transactions recorded for this match</span>
                     </div>
                     <p className="text-cyber-gray/60 text-xs mt-2">
@@ -147,9 +157,7 @@ export default function TransactionTimeline({
             <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-cyber-gold/10 flex items-center justify-center border border-cyber-gold/20">
-                        <svg className="w-5 h-5 text-cyber-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
+                        <HugeiconsIcon icon={Blockchain03Icon} className="w-5 h-5 text-cyber-gold" />
                     </div>
                     <div>
                         <h3 className="text-lg font-bold font-orbitron text-white">
@@ -181,7 +189,8 @@ export default function TransactionTimeline({
             {/* Kaspa Speed Highlight */}
             <div className="bg-gradient-to-r from-cyber-gold/10 to-transparent border-l-2 border-cyber-gold px-4 py-3 rounded-r mb-6">
                 <div className="flex items-center gap-2">
-                    <span className="text-cyber-gold text-sm font-bold">⚡ Powered by Kaspa</span>
+                    <HugeiconsIcon icon={FlashIcon} className="w-4 h-4 text-cyber-gold" />
+                    <span className="text-cyber-gold text-sm font-bold">Powered by Kaspa</span>
                     <span className="text-cyber-gray text-xs">
                         — Sub-second block times, instant confirmations, real-time gaming on PoW
                     </span>
@@ -201,7 +210,7 @@ export default function TransactionTimeline({
                                 <div className="flex flex-col items-center">
                                     <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-sm
                                         ${getMoveColor(tx.moveType)} border-current bg-black/50`}>
-                                        {getMoveIcon(tx.moveType)}
+                                        <GetMoveIcon moveType={tx.moveType} />
                                     </div>
                                     {index < displayedTxs.length - 1 && (
                                         <div className="w-px h-6 bg-gradient-to-b from-cyber-gold/30 to-transparent mt-1" />
@@ -228,9 +237,7 @@ export default function TransactionTimeline({
                             <div className="flex items-center gap-3">
                                 {tx.confirmedAt && (
                                     <div className="hidden sm:flex items-center gap-1 text-green-500 text-xs">
-                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                        </svg>
+                                        <HugeiconsIcon icon={CheckmarkCircle02Icon} className="w-3 h-3" />
                                         <span>Confirmed</span>
                                     </div>
                                 )}
@@ -242,9 +249,7 @@ export default function TransactionTimeline({
                                 >
                                     <span className="hidden sm:inline">{formatTxId(tx.txId)}</span>
                                     <span className="sm:hidden">View</span>
-                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                    </svg>
+                                    <HugeiconsIcon icon={ViewIcon} className="w-3 h-3" />
                                 </a>
                             </div>
                         </div>

@@ -18,6 +18,8 @@ import {
     calculatePotentialWinnings,
     MIN_BET_SOMPI,
 } from "@/lib/betting/betting-service";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Coins01Icon, LockKeyIcon, Tick02Icon } from "@hugeicons/core-free-icons";
 
 // =============================================================================
 // CONSTANTS
@@ -142,8 +144,8 @@ export function BettingPanel({ matchId, player1Name, player2Name }: BettingPanel
         return (
             <div className="bg-black/60 backdrop-blur-sm rounded-xl border border-red-500/30 p-4">
                 <div className="text-center">
-                    <div className="text-red-400 font-orbitron text-sm mb-2">
-                        🔒 BETTING CLOSED
+                    <div className="text-red-400 font-orbitron text-sm mb-2 flex items-center justify-center gap-2">
+                        <HugeiconsIcon icon={LockKeyIcon} className="w-4 h-4" /> BETTING CLOSED
                     </div>
                     {poolState.lockReason && (
                         <div className="text-xs text-gray-400">
@@ -163,8 +165,8 @@ export function BettingPanel({ matchId, player1Name, player2Name }: BettingPanel
         >
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
-                <h3 className="text-cyber-gold font-orbitron text-sm font-bold tracking-wider">
-                    💰 LIVE BETTING
+                <h3 className="text-cyber-gold font-orbitron text-sm font-bold tracking-wider flex items-center gap-2">
+                    <HugeiconsIcon icon={Coins01Icon} className="w-5 h-5" /> LIVE BETTING
                 </h3>
                 <span className="text-xs text-gray-400">
                     Pool: {poolState.pool?.totalPoolKas.toFixed(2)} KAS
@@ -287,9 +289,9 @@ export function BettingPanel({ matchId, player1Name, player2Name }: BettingPanel
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="text-green-400 text-sm mb-3 p-2 bg-green-500/10 rounded"
+                        className="text-green-400 text-sm mb-3 p-2 bg-green-500/10 rounded flex items-center gap-2"
                     >
-                        ✅ {success}
+                        <HugeiconsIcon icon={Tick02Icon} className="w-4 h-4" /> {success}
                     </motion.div>
                 )}
             </AnimatePresence>

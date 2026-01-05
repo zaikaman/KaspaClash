@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getExplorerLink } from "@/lib/game/move-service";
 import { shareMatch, buildMatchUrl } from "@/lib/share/url-builder";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ChampionIcon, Globe02Icon, Share05Icon, Tick02Icon } from "@hugeicons/core-free-icons";
 import type { MatchResult, PlayerRole } from "@/types";
 
 /**
@@ -64,7 +66,9 @@ export function MatchResults({
             {isDraw ? (
               <span className="text-yellow-400">DRAW!</span>
             ) : isWinner ? (
-              <span className="text-[#49eacb]">🏆 VICTORY!</span>
+              <span className="text-[#49eacb] flex items-center justify-center gap-2">
+                <HugeiconsIcon icon={ChampionIcon} className="w-8 h-8" /> VICTORY!
+              </span>
             ) : (
               <span className="text-red-400">DEFEAT</span>
             )}
@@ -128,7 +132,7 @@ export function MatchResults({
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-sm text-[#49eacb] hover:text-[#3dd4b8] transition-colors"
               >
-                <ExplorerIcon />
+                <HugeiconsIcon icon={Globe02Icon} className="w-4 h-4" />
                 View on Kaspa Explorer
               </a>
             )}
@@ -160,7 +164,7 @@ export function MatchResults({
             className={`w-full ${shareStatus !== "idle" ? "text-[#49eacb]" : "text-gray-400"} hover:text-white`}
             disabled={shareStatus !== "idle"}
           >
-            <ShareIcon className="w-4 h-4 mr-2" />
+            <HugeiconsIcon icon={Share05Icon} className="w-4 h-4 mr-2" />
             {shareStatus === "copied" ? "Link Copied!" : shareStatus === "shared" ? "Shared!" : "Share Result"}
           </Button>
         </div>
@@ -182,44 +186,4 @@ async function handleShareResult(matchId: string, winnerCharacter?: string): Pro
   return { copied: result.method === "clipboard" && result.success };
 }
 
-/**
- * Explorer icon component.
- */
-function ExplorerIcon() {
-  return (
-    <svg
-      className="w-4 h-4"
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-      />
-    </svg>
-  );
-}
 
-/**
- * Share icon component.
- */
-function ShareIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
-      />
-    </svg>
-  );
-}

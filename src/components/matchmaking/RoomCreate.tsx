@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Copy, Check, Loader2 } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Copy01Icon, Tick02Icon, Loading03Icon } from "@hugeicons/core-free-icons";
 import { useWallet } from "@/hooks/useWallet";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -146,9 +147,9 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
               className="border-cyber-gold/50 hover:bg-cyber-gold/10"
             >
               {copied ? (
-                <Check className="h-5 w-5 text-green-500" />
+                <HugeiconsIcon icon={Tick02Icon} className="h-5 w-5 text-green-500" />
               ) : (
-                <Copy className="h-5 w-5 text-cyber-gold" />
+                <HugeiconsIcon icon={Copy01Icon} className="h-5 w-5 text-cyber-gold" />
               )}
             </Button>
           </div>
@@ -156,7 +157,7 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
           {/* Waiting Status */}
           <div className="text-center space-y-2">
             <div className="flex items-center justify-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin text-cyber-gold" />
+              <HugeiconsIcon icon={Loading03Icon} className="h-4 w-4 animate-spin text-cyber-gold" />
               <span className="text-cyber-gray">Waiting for opponent to join...</span>
             </div>
           </div>
@@ -199,7 +200,7 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
           >
             {isCreating ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <HugeiconsIcon icon={Loading03Icon} className="mr-2 h-4 w-4 animate-spin" />
                 Creating Room...
               </>
             ) : (

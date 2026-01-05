@@ -4,7 +4,8 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Loading03Icon } from "@hugeicons/core-free-icons";
 import { useWallet } from "@/hooks/useWallet";
 
 interface RoomJoinProps {
@@ -54,7 +55,7 @@ export default function RoomJoin({ onJoined, onCancel }: RoomJoinProps) {
 
       const data = await response.json();
       onJoined?.(data.matchId);
-      
+
       // Navigate to match
       router.push(`/match/${data.matchId}`);
     } catch (err) {
@@ -118,7 +119,7 @@ export default function RoomJoin({ onJoined, onCancel }: RoomJoinProps) {
           >
             {isJoining ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <HugeiconsIcon icon={Loading03Icon} className="mr-2 h-4 w-4 animate-spin" />
                 Joining...
               </>
             ) : (

@@ -1,4 +1,5 @@
-import React from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ChampionIcon, UserIcon, Robot01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
 
 interface MatchSummaryProps {
     matchData: {
@@ -25,7 +26,7 @@ export default function MatchSummary({ matchData }: MatchSummaryProps) {
                 )}
                 <div className="flex justify-center mt-4">
                     <span className="bg-cyber-gold/20 text-cyber-gold border border-cyber-gold px-4 py-1 rounded text-sm font-mono flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                        <HugeiconsIcon icon={Tick02Icon} className="w-4 h-4 text-green-500 animate-pulse" />
                         Verified on Kaspa BlockDAG
                     </span>
                 </div>
@@ -35,7 +36,7 @@ export default function MatchSummary({ matchData }: MatchSummaryProps) {
                 {/* Player 1 (Winner) */}
                 <div className="text-center flex-1">
                     <div className="w-32 h-32 rounded-full border-4 border-cyber-gold mx-auto mb-4 bg-black flex items-center justify-center relative shadow-[0_0_30px_rgba(240,183,31,0.3)]">
-                        <span className="text-5xl">🥷</span>
+                        <HugeiconsIcon icon={UserIcon} className="w-16 h-16 text-white" />
                         <div className="absolute -bottom-3 bg-cyber-gold text-black px-3 py-0.5 text-xs font-bold rounded">WINNER</div>
                     </div>
                     <h3 className="text-xl font-bold text-white font-orbitron">{matchData.winner.name}</h3>
@@ -49,7 +50,7 @@ export default function MatchSummary({ matchData }: MatchSummaryProps) {
                 {/* Player 2 (Loser) */}
                 <div className="text-center flex-1">
                     <div className="w-24 h-24 rounded-full border-2 border-cyber-gray/50 mx-auto mb-4 bg-black flex items-center justify-center grayscale opacity-80">
-                        <span className="text-4xl">🤖</span>
+                        <HugeiconsIcon icon={Robot01Icon} className="w-12 h-12 text-cyber-gray" />
                     </div>
                     <h3 className="text-lg font-bold text-cyber-gray font-orbitron">{matchData.loser.name}</h3>
                     <p className="text-cyber-gray/50 font-mono text-xs">{matchData.loser.address}</p>
