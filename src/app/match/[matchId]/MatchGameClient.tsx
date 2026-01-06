@@ -567,28 +567,32 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       }
     };
     // Reset move submission tracking when a new turn starts
-    const handleRoundStarting = () => {
-      console.log("[MatchGameClient] New round/turn starting, resetting moveSubmittedRef");
+    const handleRoundStarting = (data: unknown) => {
+      const payload = data as { roundNumber: number; turnNumber: number; moveDeadlineAt: number };
+      console.log(`[MatchGameClient] *** game:roundStarting received - Round ${payload.roundNumber}, Turn ${payload.turnNumber}, Timestamp: ${Date.now()}`);
+      console.log(`[MatchGameClient] *** Resetting moveSubmittedRef from ${moveSubmittedRef.current} to false`);
+      console.log(`[MatchGameClient] *** Deadline: ${payload.moveDeadlineAt}, Time until deadline: ${Math.floor((payload.moveDeadlineAt - Date.now()) / 1000)}s`);
       moveSubmittedRef.current = false;
     };
 
     // Handle server-side timeout enforcement when local timer expires
     const handleTimerExpired = async () => {
+      console.log(`[MatchGameClient] *** game:timerExpired received - Timestamp: ${Date.now()}`);
       const currentAddress = addressRef.current;
       const currentMatchId = matchIdRef.current;
 
       // Skip if move was already submitted
       if (moveSubmittedRef.current) {
-        console.log("[MatchGameClient] Timer expired but move already submitted, skipping timeout check");
+        console.log("[MatchGameClient] *** Timer expired but move already submitted (moveSubmittedRef=true), skipping timeout check");
         return;
       }
 
       if (!currentAddress || !currentMatchId) {
-        console.error("[MatchGameClient] Missing address or matchId for timeout check");
+        console.error("[MatchGameClient] *** Missing address or matchId for timeout check");
         return;
       }
 
-      console.log("[MatchGameClient] Timer expired, calling move-timeout API for server-side enforcement");
+      console.log(`[MatchGameClient] *** Timer expired, calling move-timeout API for match ${currentMatchId}`);
 
       try {
         const response = await fetch(`/api/matches/${currentMatchId}/move-timeout`, {

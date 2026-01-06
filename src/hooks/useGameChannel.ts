@@ -107,7 +107,8 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
    */
   const handleRoundStarting = useCallback(
     (payload: RoundStartingPayload) => {
-      console.log("[GameChannel] round_starting:", payload);
+      console.log(`[GameChannel] *** round_starting broadcast received - Round ${payload.roundNumber}, Turn ${payload.turnNumber}, Timestamp: ${Date.now()}`);
+      console.log("[GameChannel] *** Full payload:", payload);
 
       // Update match store
       matchActions.startRound(payload.roundNumber);
@@ -115,6 +116,7 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
       matchActions.setPlayerHealth("player2", payload.player2Health);
 
       // Emit to Phaser
+      console.log(`[GameChannel] *** Emitting game:roundStarting to EventBus`);
       EventBus.emit("game:roundStarting", payload);
 
       // Call user callback
@@ -163,7 +165,8 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
    */
   const handleRoundResolved = useCallback(
     (payload: RoundResolvedPayload) => {
-      console.log("[GameChannel] round_resolved:", payload);
+      console.log(`[GameChannel] *** round_resolved broadcast received - Timestamp: ${Date.now()}`);
+      console.log("[GameChannel] *** isRoundOver:", payload.isRoundOver, "isMatchOver:", payload.isMatchOver);
 
       // Update match store with resolution
       matchActions.resolveRound(
@@ -177,6 +180,7 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
       matchActions.setRoundWinner(payload.roundWinner);
 
       // Emit to Phaser (trigger animations, update scores)
+      console.log(`[GameChannel] *** Emitting game:roundResolved to EventBus`);
       EventBus.emit("game:roundResolved", payload);
 
       // Call user callback

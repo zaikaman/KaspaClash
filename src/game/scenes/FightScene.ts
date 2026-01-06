@@ -1987,10 +1987,15 @@ export class FightScene extends Phaser.Scene {
   }
 
   private onTimerExpired(): void {
-    if (this.phase !== "selecting") return;
+    console.log(`[FightScene] *** onTimerExpired called - phase: ${this.phase}, Timestamp: ${Date.now()}`);
+    if (this.phase !== "selecting") {
+      console.warn(`[FightScene] *** Timer expired but phase is not 'selecting' (phase: ${this.phase}), returning early`);
+      return;
+    }
 
     // IMPORTANT: Stop the timer immediately to prevent multiple calls
     if (this.timerEvent) {
+      console.log(`[FightScene] *** Destroying timer on expiration`);
       this.timerEvent.destroy();
       this.timerEvent = undefined;
     }
@@ -2008,6 +2013,7 @@ export class FightScene extends Phaser.Scene {
     // - If we haven't submitted and opponent has: we forfeit the round
     // - If neither has submitted: match is cancelled
     // - If we've already submitted: no action (already handled)
+    console.log(`[FightScene] *** Emitting game:timerExpired event`);
     EventBus.emit("game:timerExpired", {
       matchId: this.config.matchId,
       playerRole: this.config.playerRole,
@@ -2367,6 +2373,8 @@ export class FightScene extends Phaser.Scene {
         player1GuardMeter: number;
         player2GuardMeter: number;
       };
+      console.log(`[FightScene] *** game:roundStarting received - Round ${payload.roundNumber}, Turn ${payload.turnNumber}, Current Phase: ${this.phase}, Timestamp: ${Date.now()}`);
+      console.log(`[FightScene] *** Deadline in payload: ${payload.moveDeadlineAt}, Time until deadline: ${Math.floor((payload.moveDeadlineAt - Date.now()) / 1000)}s`);
       this.startRoundFromServer(payload);
     });
 
@@ -2733,15 +2741,21 @@ export class FightScene extends Phaser.Scene {
     player1IsStunned?: boolean;
     player2IsStunned?: boolean;
   }, skipCountdown: boolean = false): void {
+    console.log(`[FightScene] *** startRoundFromServer called - Round ${payload.roundNumber}, Turn ${payload.turnNumber}`);
+    console.log(`[FightScene] *** Current phase: ${this.phase}, skipCountdown: ${skipCountdown}, Timestamp: ${Date.now()}`);
+    console.log(`[FightScene] *** Timer exists: ${!!this.timerEvent}, pendingRoundStart exists: ${!!this.pendingRoundStart}`);
+    
     // If we're in resolving phase (playing attack animations) or round_end phase 
     // (playing death animation, showing text, countdown), queue this payload 
     // and process it after the sequence finishes.
     // The round_starting event arrives from server while we're still animating.
     if (this.phase === "resolving" || this.phase === "round_end") {
-      console.log(`[FightScene] Queueing round start - currently in ${this.phase} phase`);
+      console.log(`[FightScene] *** QUEUEING round start - currently in ${this.phase} phase`);
       this.pendingRoundStart = payload;
       return;
     }
+    
+    console.log(`[FightScene] *** PROCESSING round start immediately - phase allows it`);
 
     // Stop any existing timer
     if (this.timerEvent) {
@@ -2858,8 +2872,12 @@ export class FightScene extends Phaser.Scene {
    * Start selection phase with synchronized timer from server deadline.
    */
   private startSynchronizedSelectionPhase(moveDeadlineAt: number): void {
+    console.log(`[FightScene] *** startSynchronizedSelectionPhase called - deadline: ${moveDeadlineAt}, Timestamp: ${Date.now()}`);
+    console.log(`[FightScene] *** Time until deadline: ${Math.floor((moveDeadlineAt - Date.now()) / 1000)}s`);
+    
     // IMPORTANT: Always destroy existing timer before creating a new one
     if (this.timerEvent) {
+      console.log(`[FightScene] *** Destroying existing timer in startSynchronizedSelectionPhase`);
       this.timerEvent.destroy();
       this.timerEvent = undefined;
     }
@@ -2875,6 +2893,8 @@ export class FightScene extends Phaser.Scene {
     // Calculate initial remaining time from server deadline
     const remainingMs = moveDeadlineAt - Date.now();
     this.turnTimer = Math.max(1, Math.floor(remainingMs / 1000));
+    console.log(`[FightScene] *** Initial timer value: ${this.turnTimer}s`);
+    console.log(`[FightScene] *** Initial timer value: ${this.turnTimer}s`);
 
     // Reset button visuals and affordability (default state)
     this.resetButtonVisuals();
@@ -2967,10 +2987,13 @@ export class FightScene extends Phaser.Scene {
     player1RoundsWon: number;
     player2RoundsWon: number;
   }): void {
+    console.log(`[FightScene] *** handleServerRoundResolved - Setting phase to 'resolving', Timestamp: ${Date.now()}`);
+    console.log(`[FightScene] *** pendingRoundStart before setting phase: ${!!this.pendingRoundStart}`);
     this.phase = "resolving";
 
     // Stop timer
     if (this.timerEvent) {
+      console.log(`[FightScene] *** Stopping timer in handleServerRoundResolved`);
       this.timerEvent.destroy();
       this.timerEvent = undefined;
     }
@@ -3298,11 +3321,14 @@ export class FightScene extends Phaser.Scene {
                 // Turn ended, round continues
                 this.selectedMove = null;
                 if (this.pendingRoundStart) {
+                  console.log(`[FightScene] *** Processing queued pendingRoundStart after animations`);
                   const queuedPayload = this.pendingRoundStart;
                   this.pendingRoundStart = null;
                   this.phase = "countdown";
                   this.startRoundFromServer(queuedPayload, false);
                 } else {
+                  console.warn(`[FightScene] *** WARNING: No pendingRoundStart after animations! Setting phase to 'selecting' and waiting for round_starting event`);
+                  console.warn(`[FightScene] *** This may indicate round_starting arrived before round_resolved or was lost`);
                   this.phase = "selecting";
                   this.turnIndicatorText.setText("Waiting for next turn...");
                   this.turnIndicatorText.setColor("#888888");
@@ -3433,12 +3459,14 @@ export class FightScene extends Phaser.Scene {
 
               // Process pending round start if we received one during the round_end sequence
               if (this.pendingRoundStart) {
-                console.log("[FightScene] Processing queued round start");
+                console.log("[FightScene] *** Processing queued round start after round end countdown");
                 const payload = this.pendingRoundStart;
                 this.pendingRoundStart = null;
                 // Skip the 3-2-1 FIGHT countdown since we already showed our 5-second countdown
                 this.startRoundFromServer(payload, true);
               } else {
+                console.warn(`[FightScene] *** WARNING: No pendingRoundStart after round end countdown! Waiting for round_starting event`);
+                console.warn(`[FightScene] *** This may indicate round_starting arrived before round_end phase or was lost`);
                 // No pending event, just wait
                 this.turnIndicatorText.setText("Starting next round...");
                 this.turnIndicatorText.setColor("#888888");

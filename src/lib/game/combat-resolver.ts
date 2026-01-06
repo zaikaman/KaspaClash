@@ -271,6 +271,12 @@ export async function resolveRound(
                 match_id: matchId,
                 round_number: nextRoundNumber,
                 move_deadline_at: new Date(moveDeadlineAt).toISOString(),
+                // Clear moves when starting new game round (after KO) to avoid reusing old data
+                player1_move: null,
+                player2_move: null,
+                winner_address: null,
+                player1_rejected: false,
+                player2_rejected: false,
             }, { onConflict: "match_id,round_number" })
             .select() // Select to get ID
             .single();
@@ -278,6 +284,9 @@ export async function resolveRound(
         if (roundUpsertError) {
             console.error("Failed to upsert round:", roundUpsertError);
         } else if (roundData) {
+            console.log(`[CombatResolver] *** Created/updated round ${nextRoundNumber} for match ${matchId}`);
+            console.log(`[CombatResolver] *** Player states - P1 stunned: ${newState.player1.isStunned}, P2 stunned: ${newState.player2.isStunned}`);
+            
             // Check for stunned players and pre-fill moves
             const movesToInsert: any[] = [];
             const roundUpdates: any = {};
@@ -306,8 +315,11 @@ export async function resolveRound(
             }
 
             if (movesToInsert.length > 0) {
+                console.log(`[CombatResolver] *** Inserting ${movesToInsert.length} stunned moves`);
                 await supabase.from("moves").insert(movesToInsert);
                 await supabase.from("rounds").update(roundUpdates).eq("id", roundData.id);
+            } else {
+                console.log(`[CombatResolver] *** No stunned players, round ${nextRoundNumber} has no pre-filled moves`);
             }
         }
 

@@ -96,16 +96,20 @@ export async function POST(
             });
         }
 
-        // Get current round
+        // Get current ACTIVE round (no winner yet)
         const { data: currentRound, error: roundError } = await supabase
             .from("rounds")
             .select("*")
             .eq("match_id", matchId)
+            .is("winner_address", null)
             .order("round_number", { ascending: false })
             .limit(1)
             .single();
 
+        console.log(`[MoveTimeout] *** Fetched latest ACTIVE round from DB - round_number: ${currentRound?.round_number}, error: ${roundError?.message}`);
+
         if (roundError || !currentRound) {
+            console.log(`[MoveTimeout] *** No active round found`);
             return NextResponse.json({
                 success: true,
                 data: {
@@ -117,8 +121,16 @@ export async function POST(
 
         const round = currentRound as unknown as RoundWithDeadline;
 
+        console.log(`[MoveTimeout] *** Checking round ${round.round_number} for match ${matchId}`);
+        console.log(`[MoveTimeout] *** player1_move: ${round.player1_move}, player2_move: ${round.player2_move}, winner_address: ${round.winner_address}`);
+        console.log(`[MoveTimeout] *** Has both moves: ${!!(round.player1_move && round.player2_move)}, Has winner: ${!!round.winner_address}`);
+
         // If round already has both moves or a winner, no action needed
         if ((round.player1_move && round.player2_move) || round.winner_address) {
+            const reason = round.winner_address 
+                ? `Round already has winner: ${round.winner_address}`
+                : `Round already has both moves (p1: ${round.player1_move}, p2: ${round.player2_move})`;
+            console.log(`[MoveTimeout] *** Round already resolved - ${reason}`);
             return NextResponse.json({
                 success: true,
                 data: {
@@ -151,11 +163,13 @@ export async function POST(
         const p2HasMove = !!round.player2_move;
 
         console.log(`[MoveTimeout] Match ${matchId}, Round ${round.round_number}`);
-        console.log(`[MoveTimeout] Deadline: ${deadline}, Now: ${now}`);
-        console.log(`[MoveTimeout] P1 has move: ${p1HasMove}, P2 has move: ${p2HasMove}`);
+        console.log(`[MoveTimeout] Deadline: ${deadline}, Now: ${now}, Passed by: ${Math.floor((now - deadline) / 1000)}s`);
+        console.log(`[MoveTimeout] P1 has move: ${p1HasMove} (${round.player1_move}), P2 has move: ${p2HasMove} (${round.player2_move})`);
+        console.log(`[MoveTimeout] Request from address: ${body.address}`);
 
         // CASE 1: Neither player submitted - cancel match
         if (!p1HasMove && !p2HasMove) {
+            console.log(`[MoveTimeout] *** CASE 1: Neither player submitted - cancelling match`);
             await supabase
                 .from("matches")
                 .update({
@@ -194,10 +208,11 @@ export async function POST(
         const winnerAddress = p1HasMove ? match.player1_address : match.player2_address;
         const loserAddress = p1HasMove ? match.player2_address : match.player1_address;
 
-        console.log(`[MoveTimeout] ${loserRole} timed out, ${winnerRole} wins round`);
+        console.log(`[MoveTimeout] *** CASE 2: ${loserRole} timed out, ${winnerRole} wins round`);
 
         // Use handleMoveRejection to process the round win (treats timeout like rejection)
         const { handleMoveRejection } = await import("@/lib/game/combat-resolver");
+        console.log(`[MoveTimeout] *** Calling handleMoveRejection for match ${matchId}, round ${round.id}, rejecting player: ${loserRole}`);
         const result = await handleMoveRejection(matchId, round.id, loserRole as "player1" | "player2");
 
         // If match is over, update ratings
