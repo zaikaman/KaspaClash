@@ -294,7 +294,7 @@ export class ReplayScene extends Phaser.Scene {
         });
       } else if (charId === "hash-hunter") {
         this.load.spritesheet(`char_${charId}_special`, `/characters/${charId}/special.webp`, {
-          frameWidth: 550, frameHeight: 300,
+          frameWidth: 621, frameHeight: 302,
         });
       }
 
