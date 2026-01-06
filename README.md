@@ -1,4 +1,8 @@
+<div align="center">
+
 # KaspaClash ⚔️
+
+</div>
 
 [![Built for Kaspathon 2026](https://img.shields.io/badge/Built%20for-Kaspathon%202026-00D9FF?style=for-the-badge)](https://kaspathon.com)
 [![Next.js](https://img.shields.io/badge/Next.js-16.1-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
@@ -129,10 +133,10 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 ┌─────────────────────────────────────────────────────────────┐
 │                      Client (Browser)                       │
 ├─────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐   │
-│  │   Next.js    │  │   Phaser.js  │  │  Kaspa Wallet    │   │
-│  │  React App   │  │  Game Engine │  │  (Kasware)       │   │
-│  └──────┬───────┘  └──────┬───────┘  └─────────┬────────┘   │
+│  ┌──────────────┐  ┌──────────────┐  ┌───────────────────┐  │
+│  │   Next.js    │  │   Phaser.js  │  │   Kaspa Wallet    │  │
+│  │  React App   │  │  Game Engine │  │     (Kasware)     │  │
+│  └──────┬───────┘  └──────┬───────┘  └──────────┬────────┘  │
 │         │                 │                     │           │
 │         └─────────────────┴─────────────────────┘           │
 │                           │                                 │
