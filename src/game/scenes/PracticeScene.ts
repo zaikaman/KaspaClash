@@ -1152,6 +1152,16 @@ export class PracticeScene extends Phaser.Scene {
       // AI makes its decision immediately (player can't act)
       const thinkTime = getAIThinkTime(this.config.aiDifficulty);
       this.time.delayedCall(thinkTime, () => {
+        // Update AI context with stunned state before deciding
+        this.ai.updateContext({
+          aiHealth: state.player2.hp,
+          playerHealth: state.player1.hp,
+          roundNumber: state.currentRound,
+          playerRoundsWon: state.player1.roundsWon,
+          aiRoundsWon: state.player2.roundsWon,
+          playerIsStunned: true,
+          aiEnergy: state.player2.energy,
+        });
         const decision = this.ai.decide();
         const aiMove = decision.move;
         // Player's move doesn't matter when stunned - use punch as placeholder
