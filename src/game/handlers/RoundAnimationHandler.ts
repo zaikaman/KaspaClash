@@ -348,6 +348,8 @@ export class RoundAnimationHandler {
         return 0x3b82f6; // Blue
       case "special":
         return 0xa855f7; // Purple
+      case "stunned":
+        return 0x9ca3af; // Gray
     }
   }
 

@@ -86,6 +86,7 @@ const initialSessionStats: PracticeStats = {
     kick: 0,
     block: 0,
     special: 0,
+    stunned: 0,
   },
   favoriteMove: null,
 };

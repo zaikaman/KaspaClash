@@ -521,10 +521,10 @@ export class ReplayScene extends Phaser.Scene {
 
   private getMoveScale(charId: string, move: MoveType): number {
     const scales: Record<string, Record<MoveType, number>> = {
-      "block-bruiser": { punch: 0.94, kick: 0.90, block: 0.90, special: 0.90 },
-      "dag-warrior": { punch: 0.90, kick: 0.90, block: 0.90, special: 0.90 },
-      "hash-hunter": { punch: 0.90, kick: 0.90, block: 0.90, special: 0.90 },
-      "cyber-ninja": { punch: 0.78, kick: 0.75, block: 0.80, special: 0.80 },
+      "block-bruiser": { punch: 0.94, kick: 0.90, block: 0.90, special: 0.90, stunned: 0.90 },
+      "dag-warrior": { punch: 0.90, kick: 0.90, block: 0.90, special: 0.90, stunned: 0.90 },
+      "hash-hunter": { punch: 0.90, kick: 0.90, block: 0.90, special: 0.90, stunned: 0.90 },
+      "cyber-ninja": { punch: 0.78, kick: 0.75, block: 0.80, special: 0.80, stunned: 0.80 },
     };
     return scales[charId]?.[move] ?? 0.75;
   }
@@ -553,12 +553,12 @@ export class ReplayScene extends Phaser.Scene {
     // Player 1 health bar background
     this.player1HealthBar.fillStyle(0x333333, 1);
     this.player1HealthBar.fillRoundedRect(p1X, p1Y, barWidth, barHeight, 4);
-    
+
     // Player 1 health bar fill
     const p1Percent = Math.max(0, this.player1Health / this.player1MaxHealth);
     this.player1HealthBar.fillStyle(0x22c55e, 1);
     this.player1HealthBar.fillRoundedRect(p1X, p1Y, barWidth * p1Percent, barHeight, 4);
-    
+
     // Player 1 health bar border
     this.player1HealthBar.lineStyle(2, 0x40e0d0, 1);
     this.player1HealthBar.strokeRoundedRect(p1X, p1Y, barWidth, barHeight, 4);
@@ -566,13 +566,13 @@ export class ReplayScene extends Phaser.Scene {
     // Player 2 health bar background
     this.player2HealthBar.fillStyle(0x333333, 1);
     this.player2HealthBar.fillRoundedRect(p2X, p2Y, barWidth, barHeight, 4);
-    
+
     // Player 2 health bar fill (grows from right to left)
     const p2Percent = Math.max(0, this.player2Health / this.player2MaxHealth);
     const p2FillWidth = barWidth * p2Percent;
     this.player2HealthBar.fillStyle(0x22c55e, 1);
     this.player2HealthBar.fillRoundedRect(p2X + barWidth - p2FillWidth, p2Y, p2FillWidth, barHeight, 4);
-    
+
     // Player 2 health bar border
     this.player2HealthBar.lineStyle(2, 0x40e0d0, 1);
     this.player2HealthBar.strokeRoundedRect(p2X, p2Y, barWidth, barHeight, 4);
@@ -647,12 +647,12 @@ export class ReplayScene extends Phaser.Scene {
 
         // Show narrative - create fresh text object with explicit large size
         const narrative = this.generateNarrative(p1Move, p2Move, round);
-        
+
         // Destroy old narrative text if it exists
         if (this.narrativeText) {
           this.narrativeText.destroy();
         }
-        
+
         // Create new text with large font
         this.narrativeText = this.add.text(
           GAME_DIMENSIONS.CENTER_X,
@@ -667,9 +667,9 @@ export class ReplayScene extends Phaser.Scene {
             strokeThickness: 6,
           }
         ).setOrigin(0.5).setAlpha(0);
-        
+
         console.log("[ReplayScene] Created new narrative text with fontSize:", this.narrativeText.style.fontSize);
-        
+
         this.tweens.add({
           targets: this.narrativeText,
           alpha: 1,
@@ -788,12 +788,12 @@ export class ReplayScene extends Phaser.Scene {
 
     // Show round result - create fresh text object
     const roundWinnerText = p1Lost ? "PLAYER 2 WINS ROUND!" : "PLAYER 1 WINS ROUND!";
-    
+
     // Destroy old narrative text if it exists
     if (this.narrativeText) {
       this.narrativeText.destroy();
     }
-    
+
     // Create new text with large font
     this.narrativeText = this.add.text(
       GAME_DIMENSIONS.CENTER_X,
@@ -808,7 +808,7 @@ export class ReplayScene extends Phaser.Scene {
         strokeThickness: 6,
       }
     ).setOrigin(0.5).setAlpha(0);
-    
+
     this.tweens.add({
       targets: this.narrativeText,
       alpha: 1,
@@ -969,6 +969,7 @@ export class ReplayScene extends Phaser.Scene {
       kick: "kicks",
       block: "blocks",
       special: "unleashes special attack",
+      stunned: "is stunned",
     };
 
     const p1Action = moveNames[p1Move];

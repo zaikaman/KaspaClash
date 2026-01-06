@@ -33,6 +33,7 @@ const BUTTON_COLORS = {
   kick: { primary: 0x4ecdc4, secondary: 0x3dbdb5 },
   block: { primary: 0x45b7d1, secondary: 0x35a7c1 },
   special: { primary: 0xf7dc6f, secondary: 0xe7cc5f },
+  stunned: { primary: 0x999999, secondary: 0x666666 },
 } as const;
 
 /**
@@ -167,8 +168,13 @@ export class MoveButton extends Phaser.GameObjects.Container {
 
       case "special":
         // Star icon
-        this.icon.fillStyle(colors.primary, 1);
         this.drawStar(this.icon, iconX, iconY, 5, iconSize / 2, iconSize / 4);
+        break;
+
+      case "stunned":
+        // Spiral or confusion icon (simple circle for now)
+        this.icon.lineStyle(2, colors.primary, 1);
+        this.icon.strokeCircle(iconX, iconY, iconSize / 2);
         break;
     }
 

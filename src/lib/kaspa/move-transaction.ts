@@ -26,6 +26,7 @@ export const MOVE_OPCODES: Record<MoveType, string> = {
   kick: "02",
   block: "03",
   special: "04",
+  stunned: "00", // Special opacity for stunned
 };
 
 /**
@@ -265,7 +266,7 @@ export function verifyMoveMessage(
       return { valid: false, error: "Round number mismatch" };
     }
 
-    const validMoves: MoveType[] = ["punch", "kick", "block", "special"];
+    const validMoves: MoveType[] = ["punch", "kick", "block", "special", "stunned"];
     if (!validMoves.includes(parsed.move)) {
       return { valid: false, error: "Invalid move type" };
     }

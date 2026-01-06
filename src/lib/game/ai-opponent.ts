@@ -19,6 +19,7 @@ export interface MoveWeights {
   kick: number;
   block: number;
   special: number;
+  stunned: number;
 }
 
 /**
@@ -53,6 +54,7 @@ const DEFAULT_WEIGHTS: MoveWeights = {
   kick: 30,
   block: 25,
   special: 15,
+  stunned: 0,
 };
 
 /**
@@ -68,6 +70,7 @@ const COUNTER_MOVES: Record<MoveType, MoveType> = {
   kick: "block",
   block: "kick", // Kicks break blocks
   special: "block",
+  stunned: "punch", // Punching a stunned opponent is effective
 };
 
 /**
@@ -158,6 +161,7 @@ export class AIOpponent {
       kick: 35,
       block: 20,
       special: 10,
+      stunned: 0,
     };
 
     return this.weightedMove(weights, 0.3, "Easy: Slightly aggressive");
@@ -223,6 +227,7 @@ export class AIOpponent {
         kick: 20,
         block: 50,
         special: 10,
+        stunned: 0,
       };
       return this.weightedMove(defensiveWeights, 0.7, "Hard: Low health defense");
     }
@@ -234,6 +239,7 @@ export class AIOpponent {
         kick: 35,
         block: 10,
         special: 20,
+        stunned: 0,
       };
       return this.weightedMove(aggressiveWeights, 0.8, "Hard: Finishing player");
     }

@@ -41,6 +41,7 @@ const BUTTON_COLORS: Record<MoveType, { fill: number; stroke: number }> = {
   kick: { fill: 0x4ecdc4, stroke: 0x3dbdb5 },
   block: { fill: 0x45b7d1, stroke: 0x35a7c1 },
   special: { fill: 0xf7dc6f, stroke: 0xe7cc5f },
+  stunned: { fill: 0x999999, stroke: 0x666666 },
 };
 
 /**
@@ -51,6 +52,7 @@ const MOVE_ICONS: Record<MoveType, string> = {
   kick: "🦶",
   block: "🛡️",
   special: "⚡",
+  stunned: "💫",
 };
 
 /**
@@ -67,7 +69,7 @@ export class MobileControls extends Phaser.GameObjects.Container {
 
     this.config = config;
     this.create();
-    
+
     config.scene.add.existing(this);
   }
 
@@ -76,7 +78,7 @@ export class MobileControls extends Phaser.GameObjects.Container {
    */
   private create(): void {
     const layout = this.calculateLayout();
-    
+
     for (const buttonConfig of layout) {
       this.createButton(buttonConfig);
     }

@@ -175,8 +175,8 @@ export function resolveRound(input: RoundResolutionInput): RoundResolutionResult
 
   if (player1Knockout && player2Knockout) {
     // Double knockout - compare remaining damage dealt
-    winner = player1Damage > player2Damage ? "player1" : 
-             player2Damage > player1Damage ? "player2" : "draw";
+    winner = player1Damage > player2Damage ? "player1" :
+      player2Damage > player1Damage ? "player2" : "draw";
   } else if (player1Knockout) {
     winner = "player2";
   } else if (player2Knockout) {
@@ -327,7 +327,7 @@ export function getRandomMove(): MoveType {
  * Get weighted random move (for smarter AI).
  */
 export function getWeightedRandomMove(
-  weights: Record<MoveType, number> = { punch: 30, kick: 30, block: 25, special: 15 }
+  weights: Record<MoveType, number> = { punch: 30, kick: 30, block: 25, special: 15, stunned: 0 }
 ): MoveType {
   const totalWeight = Object.values(weights).reduce((sum, w) => sum + w, 0);
   let random = Math.random() * totalWeight;

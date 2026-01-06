@@ -52,6 +52,12 @@ export const MOVE_PROPERTIES: Record<MoveType, MoveProperties> = {
     animationDuration: 800,
     effect: "High-risk, high-reward move",
   },
+  stunned: {
+    damage: 0,
+    beats: [], // Stunned beats nothing
+    animationDuration: 1000,
+    effect: "Player is unable to act",
+  },
 } as const;
 
 // =============================================================================
