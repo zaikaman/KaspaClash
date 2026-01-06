@@ -34,7 +34,7 @@ export default function PracticeResults({ winner, onRetry }: PracticeResultsProp
                         >
                             PLAY AGAIN
                         </Button>
-                        <Link href="/practice" className="w-full">
+                        <Link href="/matchmaking" className="w-full">
                             <Button
                                 variant="outline"
                                 className="w-full h-12 border-cyber-gray text-cyber-gray hover:text-white hover:border-white font-orbitron"

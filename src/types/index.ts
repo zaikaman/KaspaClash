@@ -146,7 +146,7 @@ export interface Match {
 /**
  * Available move types.
  */
-export type MoveType = "punch" | "kick" | "block" | "special";
+export type MoveType = "punch" | "kick" | "block" | "special" | "stunned";
 
 /**
  * A single round within a match.

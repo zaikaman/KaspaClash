@@ -265,13 +265,51 @@ export async function resolveRound(
 
         // Create/update next round with server-side deadline
         const nextRoundNumber = state.isRoundOver ? newState.currentRound : currentRound.round_number + 1;
-        await supabase
+        const { data: roundData, error: roundUpsertError } = await supabase
             .from("rounds")
             .upsert({
                 match_id: matchId,
                 round_number: nextRoundNumber,
                 move_deadline_at: new Date(moveDeadlineAt).toISOString(),
-            }, { onConflict: "match_id,round_number" });
+            }, { onConflict: "match_id,round_number" })
+            .select() // Select to get ID
+            .single();
+
+        if (roundUpsertError) {
+            console.error("Failed to upsert round:", roundUpsertError);
+        } else if (roundData) {
+            // Check for stunned players and pre-fill moves
+            const movesToInsert: any[] = [];
+            const roundUpdates: any = {};
+
+            if (newState.player1.isStunned) {
+                console.log(`[CombatResolver] Pre-filling stunned move for Player 1 (Round ${nextRoundNumber})`);
+                movesToInsert.push({
+                    round_id: roundData.id,
+                    player_address: match.player1_address,
+                    move_type: "block", // Use 'block' as dummy move (DB constraint safe)
+                    tx_id: "stunned-skip",
+                });
+                roundUpdates.player1_move = "block";
+            }
+
+            if (newState.player2.isStunned) {
+                console.log(`[CombatResolver] Pre-filling stunned move for Player 2 (Round ${nextRoundNumber})`);
+                movesToInsert.push({
+                    round_id: roundData.id,
+                    // Handle nullable player2 address (shouldn't happen in-progress)
+                    player_address: match.player2_address || "",
+                    move_type: "block", // Use 'block' as dummy move (DB constraint safe)
+                    tx_id: "stunned-skip",
+                });
+                roundUpdates.player2_move = "block";
+            }
+
+            if (movesToInsert.length > 0) {
+                await supabase.from("moves").insert(movesToInsert);
+                await supabase.from("rounds").update(roundUpdates).eq("id", roundData.id);
+            }
+        }
 
         await nextChannel.send({
             type: "broadcast",
@@ -289,6 +327,9 @@ export async function resolveRound(
                 player2Energy: newState.player2.energy,
                 player1GuardMeter: newState.player1.guardMeter,
                 player2GuardMeter: newState.player2.guardMeter,
+                // Stun state - if true, player cannot act this turn
+                player1IsStunned: newState.player1.isStunned,
+                player2IsStunned: newState.player2.isStunned,
             },
         });
         await supabase.removeChannel(nextChannel);
@@ -537,6 +578,9 @@ export async function handleMoveRejection(
                 player2Energy: p2Stats.maxEnergy,
                 player1GuardMeter: 0,
                 player2GuardMeter: 0,
+                // New round - no stun state
+                player1IsStunned: false,
+                player2IsStunned: false,
             },
         });
         await supabase.removeChannel(nextChannel);

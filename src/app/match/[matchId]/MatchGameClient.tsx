@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { useWalletStore } from "@/stores/wallet-store";
 import { useMatchStore, useMatchActions } from "@/stores/match-store";
 import { useGameChannel } from "@/hooks/useGameChannel";
+import { useWallet } from "@/hooks/useWallet";
 import { EventBus } from "@/game/EventBus";
 import { ConnectWalletButton } from "@/components/wallet/ConnectWalletButton";
 import StakeDeposit from "@/components/matchmaking/StakeDeposit";
@@ -71,6 +72,7 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
   console.log("[MatchGameClient] DEADLINE VALUE:", match.selectionDeadlineAt ?? "UNDEFINED/NULL");
 
 
+  const { signMessage } = useWallet();
   const { address, connectionState } = useWalletStore();
   const matchStore = useMatchStore();
   const matchActions = useMatchActions();
@@ -364,7 +366,7 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
             // The round_resolved event will be broadcast by the server
             console.log("[MatchGameClient] We forfeited - opponent wins this round");
           } else if (rejectResult.status === "waiting") {
-            // We rejected, waiting for opponent to also reject or move
+            // Show loading state when waiting for opponent
             console.log("[MatchGameClient] Rejection waiting for opponent");
             EventBus.emit("game:rejectionWaiting", { message: rejectResult.message });
           }
@@ -375,6 +377,56 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
         }
       } catch (error) {
         console.error("[MatchGameClient] Error recording rejection:", error);
+      }
+    };
+
+    // Handle Surrender request from Phaser
+    const handleSurrender = async () => {
+      const currentAddress = addressRef.current;
+      const currentMatchId = matchIdRef.current;
+
+      if (!currentAddress || !currentMatchId) {
+        console.error("[MatchGameClient] Missing info for surrender");
+        return;
+      }
+
+      try {
+        console.log("[MatchGameClient] Processing surrender request...");
+
+        // 1. Sign message
+        const message = `Forfeit match: ${currentMatchId}`;
+        const signature = await signMessage(message);
+
+        // 2. Call forfeit API
+        const response = await fetch(`/api/matches/${currentMatchId}/forfeit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            address: currentAddress,
+            signature
+          }),
+        });
+
+        if (response.ok) {
+          console.log("[MatchGameClient] Surrender successful");
+          // Backend broadcasts 'match_ended' which handles the rest
+        } else {
+          console.error("Surrender failed:", await response.text());
+          EventBus.emit("game:moveError", { error: "Surrender failed" });
+        }
+      } catch (error) {
+        console.error("Surrender error:", error);
+        // User likely rejected signature
+        EventBus.emit("game:moveError", { error: "Surrender cancelled or failed" });
+      }
+    };
+
+    // Handle Cancel Match request from Phaser (Wait/Cancel)
+    const handleCancelRequest = async () => {
+      const currentAddress = addressRef.current;
+      const currentMatchId = matchIdRef.current;
+      if (currentAddress && currentMatchId) {
+        await handleTransactionRejection(currentMatchId, currentAddress);
       }
     };
 
@@ -578,6 +630,8 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
     EventBus.on("fight:requestRoundState", handleRequestRoundState);
     EventBus.on("game:roundStarting", handleRoundStarting);
     EventBus.on("game:timerExpired", handleTimerExpired);
+    EventBus.on("request-surrender", handleSurrender);
+    EventBus.on("request-cancel", handleCancelRequest);
     console.log("[MatchGameClient] EventBus listeners registered at:", Date.now());
 
     return () => {
@@ -589,6 +643,8 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       EventBus.off("fight:requestRoundState", handleRequestRoundState);
       EventBus.off("game:roundStarting", handleRoundStarting);
       EventBus.off("game:timerExpired", handleTimerExpired);
+      EventBus.off("request-surrender", handleSurrender);
+      EventBus.off("request-cancel", handleCancelRequest);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - register once, use refs for latest values

@@ -48,7 +48,8 @@ export const BASE_MOVE_STATS: Record<MoveType, MoveStats> = {
     punch: { damage: 10, energyCost: 0, priority: 3 },
     kick: { damage: 15, energyCost: 25, priority: 2 },
     block: { damage: 0, energyCost: 0, priority: 4 },
-    special: { damage: 30, energyCost: 45, priority: 1 },
+    special: { damage: 25, energyCost: 50, priority: 1 },
+    stunned: { damage: 0, energyCost: 0, priority: 0 },
 };
 
 // =============================================================================
@@ -155,24 +156,35 @@ export const RESOLUTION_MATRIX: ResolutionMatrix = {
         kick: "staggered",   // Kick beats punch
         block: "blocked",    // Block stops punch
         special: "hit",      // Punch stuns special user
+        stunned: "hit",      // Free hit on stunned player
     },
     kick: {
         punch: "hit",        // Kick staggers punch
         kick: "hit",         // Both kick, both hit
         block: "reflected",  // Block reflects kick
         special: "hit",      // Kick lands on special user
+        stunned: "hit",      // Free hit on stunned player
     },
     block: {
         punch: "guarding",   // Block stops punch
         kick: "guarding",    // Block reflects kick
         block: "guarding",   // Both block, nothing happens
         special: "shattered",// Special breaks block
+        stunned: "guarding", // Blocking nothing
     },
     special: {
         punch: "missed",     // Special is stunned by punch
         kick: "hit",         // Special hits kick user
         block: "hit",        // Special shatters block
         special: "hit",      // Both special, both hit
+        stunned: "hit",      // Free hit on stunned player
+    },
+    stunned: {
+        punch: "stunned",    // Stunned player takes hit
+        kick: "stunned",     // Stunned player takes hit
+        block: "stunned",    // Stunned player does nothing
+        special: "stunned",  // Stunned player takes hit
+        stunned: "stunned",  // Both stunned
     },
 };
 

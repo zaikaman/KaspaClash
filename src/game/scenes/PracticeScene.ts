@@ -40,6 +40,8 @@ export class PracticeScene extends Phaser.Scene {
   private player2HealthBar!: Phaser.GameObjects.Graphics;
   private player1EnergyBar!: Phaser.GameObjects.Graphics;
   private player2EnergyBar!: Phaser.GameObjects.Graphics;
+  private player1GuardMeter!: Phaser.GameObjects.Graphics;
+  private player2GuardMeter!: Phaser.GameObjects.Graphics;
   private roundTimerText!: Phaser.GameObjects.Text;
   private roundScoreText!: Phaser.GameObjects.Text;
   private countdownText!: Phaser.GameObjects.Text;
@@ -254,6 +256,7 @@ export class PracticeScene extends Phaser.Scene {
     // UI Elements (mirroring FightScene)
     this.createHealthBars();
     this.createEnergyBars();
+    this.createGuardMeters();
     this.createRoundTimer();
     this.createRoundScore();
     this.createMoveButtons();
@@ -435,7 +438,7 @@ export class PracticeScene extends Phaser.Scene {
   // ===========================================================================
 
   private createHealthBars(): void {
-    const barWidth = 350;
+    const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
     const barHeight = 25;
 
     // Player 1 Health Bar
@@ -496,7 +499,7 @@ export class PracticeScene extends Phaser.Scene {
   // ===========================================================================
 
   private createEnergyBars(): void {
-    const barWidth = 350;
+    const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
     const barHeight = 12;
     const yOffset = 30;
 
@@ -531,6 +534,53 @@ export class PracticeScene extends Phaser.Scene {
       this.player1EnergyBar = energyGraphics;
     } else {
       this.player2EnergyBar = energyGraphics;
+    }
+  }
+
+  // ===========================================================================
+  // GUARD METERS (same as FightScene)
+  // ===========================================================================
+
+  private createGuardMeters(): void {
+    const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
+    const barHeight = 6;
+    const yOffset = 45;
+
+    // Player 1 Guard Meter
+    this.createGuardMeter(
+      UI_POSITIONS.HEALTH_BAR.PLAYER1.X,
+      UI_POSITIONS.HEALTH_BAR.PLAYER1.Y + yOffset,
+      barWidth,
+      barHeight,
+      "player1"
+    );
+
+    // Player 2 Guard Meter
+    this.createGuardMeter(
+      UI_POSITIONS.HEALTH_BAR.PLAYER2.X,
+      UI_POSITIONS.HEALTH_BAR.PLAYER2.Y + yOffset,
+      barWidth,
+      barHeight,
+      "player2"
+    );
+  }
+
+  private createGuardMeter(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    player: "player1" | "player2"
+  ): void {
+    const bg = this.add.graphics();
+    bg.fillStyle(0x111111, 1);
+    bg.fillRect(x, y, width, height);
+
+    const guardGraphics = this.add.graphics();
+    if (player === "player1") {
+      this.player1GuardMeter = guardGraphics;
+    } else {
+      this.player2GuardMeter = guardGraphics;
     }
   }
 
@@ -941,6 +991,44 @@ export class PracticeScene extends Phaser.Scene {
     this.phase = "selecting";
     this.selectedMove = null;
     this.turnTimer = 15;
+
+    // Get current state to check if player is stunned
+    const state = this.combatEngine.getState();
+
+    // Check if player is stunned
+    if (state.player1.isStunned) {
+      // Player is stunned - show message and disable buttons
+      this.turnIndicatorText.setText("YOU ARE STUNNED!");
+      this.turnIndicatorText.setColor("#ff4444");
+      this.roundTimerText.setColor("#ff4444");
+
+      // Disable all buttons visually
+      this.moveButtons.forEach(btn => {
+        btn.setAlpha(0.3);
+        btn.disableInteractive();
+      });
+
+      // Flash the stun message
+      this.tweens.add({
+        targets: this.turnIndicatorText,
+        alpha: { from: 1, to: 0.5 },
+        duration: 300,
+        yoyo: true,
+        repeat: 2,
+      });
+
+      // AI makes its decision immediately (player can't act)
+      const thinkTime = getAIThinkTime(this.config.aiDifficulty);
+      this.time.delayedCall(thinkTime, () => {
+        const decision = this.ai.decide();
+        const aiMove = decision.move;
+        // Player's move doesn't matter when stunned - use punch as placeholder
+        this.resolveRound("punch", aiMove);
+      });
+      return;
+    }
+
+    // Normal selection phase (player not stunned)
     this.turnIndicatorText.setText("Select your move!");
     this.turnIndicatorText.setColor("#888888");
     this.roundTimerText.setColor("#40e0d0");
@@ -967,7 +1055,6 @@ export class PracticeScene extends Phaser.Scene {
     });
 
     // Update AI context
-    const state = this.combatEngine.getState();
     this.ai.updateContext({
       aiHealth: state.player2.hp,
       playerHealth: state.player1.hp,
@@ -1021,6 +1108,7 @@ export class PracticeScene extends Phaser.Scene {
 
     // Get updated state
     const state = this.combatEngine.getState();
+
     const p1Char = this.playerCharacter.id;
     const p2Char = this.aiCharacter.id;
 
@@ -1058,77 +1146,117 @@ export class PracticeScene extends Phaser.Scene {
     const p2OriginalX = CHARACTER_POSITIONS.PLAYER2.X;
     const meetingPointX = GAME_DIMENSIONS.CENTER_X;
 
-    // Phase 1: Both characters run toward center
-    if (this.anims.exists(`${p1Char}_run`)) {
+    // Check if either player was stunned (outcome "stunned" means they missed this turn)
+    const p1WasStunned = turnResult.player1.outcome === "stunned";
+    const p2WasStunned = turnResult.player2.outcome === "stunned";
+
+    // Determine movement targets based on stun state
+    let p1TargetX: number;
+    let p2TargetX: number;
+
+    if (p1WasStunned && !p2WasStunned) {
+      // Player 1 is stunned - AI runs to player 1's position
+      p1TargetX = p1OriginalX; // Player stays in place
+      p2TargetX = p1OriginalX + 100; // AI runs to player's position
+    } else if (p2WasStunned && !p1WasStunned) {
+      // Player 2 (AI) is stunned - Player runs to AI's position
+      p1TargetX = p2OriginalX - 100; // Player runs to AI's position
+      p2TargetX = p2OriginalX; // AI stays in place
+    } else {
+      // Normal case - both meet in the middle
+      p1TargetX = meetingPointX - 50;
+      p2TargetX = meetingPointX + 50;
+    }
+
+    // Phase 1: Run animations (only for non-stunned characters)
+    if (!p1WasStunned && this.anims.exists(`${p1Char}_run`)) {
       const p1RunScale = p1Char === "block-bruiser" ? BB_RUN_SCALE : p1Char === "dag-warrior" ? DW_RUN_SCALE : p1Char === "hash-hunter" ? HH_RUN_SCALE : RUN_SCALE;
       this.player1Sprite.setScale(p1RunScale);
       this.player1Sprite.play(`${p1Char}_run`);
     }
-    if (this.anims.exists(`${p2Char}_run`)) {
+    if (!p2WasStunned && this.anims.exists(`${p2Char}_run`)) {
       const p2RunScale = p2Char === "block-bruiser" ? BB_RUN_SCALE : p2Char === "dag-warrior" ? DW_RUN_SCALE : p2Char === "hash-hunter" ? HH_RUN_SCALE : RUN_SCALE;
       this.player2Sprite.setScale(p2RunScale);
       this.player2Sprite.play(`${p2Char}_run`);
     }
 
-    // Tween to center
+    // Tween to target positions
     this.tweens.add({
       targets: this.player1Sprite,
-      x: meetingPointX - 50,
+      x: p1TargetX,
       duration: 600,
       ease: 'Power2',
     });
 
     this.tweens.add({
       targets: this.player2Sprite,
-      x: meetingPointX + 50,
+      x: p2TargetX,
       duration: 600,
       ease: 'Power2',
       onComplete: () => {
         // Phase 2: Attack animations
-        // Player 1 Attack
-        if (playerMove === "kick" && this.anims.exists(`${p1Char}_kick`)) {
-          const kickScale = p1Char === "block-bruiser" ? BB_KICK_SCALE : p1Char === "dag-warrior" ? DW_KICK_SCALE : p1Char === "hash-hunter" ? HH_KICK_SCALE : KICK_SCALE;
-          this.player1Sprite.setScale(kickScale);
-          this.player1Sprite.play(`${p1Char}_kick`);
-        } else if (playerMove === "punch" && this.anims.exists(`${p1Char}_punch`)) {
-          const punchScale = p1Char === "block-bruiser" ? BB_PUNCH_SCALE : p1Char === "dag-warrior" ? DW_PUNCH_SCALE : p1Char === "hash-hunter" ? HH_PUNCH_SCALE : PUNCH_SCALE;
-          this.player1Sprite.setScale(punchScale);
-          this.player1Sprite.play(`${p1Char}_punch`);
-        } else if (playerMove === "block" && this.anims.exists(`${p1Char}_block`)) {
-          const blockScale = p1Char === "block-bruiser" ? BB_BLOCK_SCALE : p1Char === "dag-warrior" ? DW_BLOCK_SCALE : p1Char === "hash-hunter" ? HH_BLOCK_SCALE : BLOCK_SCALE;
-          this.player1Sprite.setScale(blockScale);
-          this.player1Sprite.play(`${p1Char}_block`);
-        } else if (playerMove === "special" && this.anims.exists(`${p1Char}_special`)) {
-          const specialScale = p1Char === "block-bruiser" ? BB_SPECIAL_SCALE : p1Char === "dag-warrior" ? DW_SPECIAL_SCALE : p1Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
-          this.player1Sprite.setScale(specialScale);
-          this.player1Sprite.play(`${p1Char}_special`);
+        // Player 1 Attack (skip if stunned)
+        if (!p1WasStunned) {
+          if (playerMove === "kick" && this.anims.exists(`${p1Char}_kick`)) {
+            const kickScale = p1Char === "block-bruiser" ? BB_KICK_SCALE : p1Char === "dag-warrior" ? DW_KICK_SCALE : p1Char === "hash-hunter" ? HH_KICK_SCALE : KICK_SCALE;
+            this.player1Sprite.setScale(kickScale);
+            this.player1Sprite.play(`${p1Char}_kick`);
+          } else if (playerMove === "punch" && this.anims.exists(`${p1Char}_punch`)) {
+            const punchScale = p1Char === "block-bruiser" ? BB_PUNCH_SCALE : p1Char === "dag-warrior" ? DW_PUNCH_SCALE : p1Char === "hash-hunter" ? HH_PUNCH_SCALE : PUNCH_SCALE;
+            this.player1Sprite.setScale(punchScale);
+            this.player1Sprite.play(`${p1Char}_punch`);
+          } else if (playerMove === "block" && this.anims.exists(`${p1Char}_block`)) {
+            const blockScale = p1Char === "block-bruiser" ? BB_BLOCK_SCALE : p1Char === "dag-warrior" ? DW_BLOCK_SCALE : p1Char === "hash-hunter" ? HH_BLOCK_SCALE : BLOCK_SCALE;
+            this.player1Sprite.setScale(blockScale);
+            this.player1Sprite.play(`${p1Char}_block`);
+          } else if (playerMove === "special" && this.anims.exists(`${p1Char}_special`)) {
+            const specialScale = p1Char === "block-bruiser" ? BB_SPECIAL_SCALE : p1Char === "dag-warrior" ? DW_SPECIAL_SCALE : p1Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
+            this.player1Sprite.setScale(specialScale);
+            this.player1Sprite.play(`${p1Char}_special`);
+          }
         }
 
-        // AI Attack
-        if (aiMove === "kick" && this.anims.exists(`${p2Char}_kick`)) {
-          const kickScale = p2Char === "block-bruiser" ? BB_KICK_SCALE : p2Char === "dag-warrior" ? DW_KICK_SCALE : p2Char === "hash-hunter" ? HH_KICK_SCALE : KICK_SCALE;
-          this.player2Sprite.setScale(kickScale);
-          this.player2Sprite.play(`${p2Char}_kick`);
-        } else if (aiMove === "punch" && this.anims.exists(`${p2Char}_punch`)) {
-          const punchScale = p2Char === "block-bruiser" ? BB_PUNCH_SCALE : p2Char === "dag-warrior" ? DW_PUNCH_SCALE : p2Char === "hash-hunter" ? HH_PUNCH_SCALE : PUNCH_SCALE;
-          this.player2Sprite.setScale(punchScale);
-          this.player2Sprite.play(`${p2Char}_punch`);
-        } else if (aiMove === "block" && this.anims.exists(`${p2Char}_block`)) {
-          const blockScale = p2Char === "block-bruiser" ? BB_BLOCK_SCALE : p2Char === "dag-warrior" ? DW_BLOCK_SCALE : p2Char === "hash-hunter" ? HH_BLOCK_SCALE : BLOCK_SCALE;
-          this.player2Sprite.setScale(blockScale);
-          this.player2Sprite.play(`${p2Char}_block`);
-        } else if (aiMove === "special" && this.anims.exists(`${p2Char}_special`)) {
-          const specialScale = p2Char === "block-bruiser" ? BB_SPECIAL_SCALE : p2Char === "dag-warrior" ? DW_SPECIAL_SCALE : p2Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
-          this.player2Sprite.setScale(specialScale);
-          this.player2Sprite.play(`${p2Char}_special`);
+        // AI Attack (skip if stunned)
+        if (!p2WasStunned) {
+          if (aiMove === "kick" && this.anims.exists(`${p2Char}_kick`)) {
+            const kickScale = p2Char === "block-bruiser" ? BB_KICK_SCALE : p2Char === "dag-warrior" ? DW_KICK_SCALE : p2Char === "hash-hunter" ? HH_KICK_SCALE : KICK_SCALE;
+            this.player2Sprite.setScale(kickScale);
+            this.player2Sprite.play(`${p2Char}_kick`);
+          } else if (aiMove === "punch" && this.anims.exists(`${p2Char}_punch`)) {
+            const punchScale = p2Char === "block-bruiser" ? BB_PUNCH_SCALE : p2Char === "dag-warrior" ? DW_PUNCH_SCALE : p2Char === "hash-hunter" ? HH_PUNCH_SCALE : PUNCH_SCALE;
+            this.player2Sprite.setScale(punchScale);
+            this.player2Sprite.play(`${p2Char}_punch`);
+          } else if (aiMove === "block" && this.anims.exists(`${p2Char}_block`)) {
+            const blockScale = p2Char === "block-bruiser" ? BB_BLOCK_SCALE : p2Char === "dag-warrior" ? DW_BLOCK_SCALE : p2Char === "hash-hunter" ? HH_BLOCK_SCALE : BLOCK_SCALE;
+            this.player2Sprite.setScale(blockScale);
+            this.player2Sprite.play(`${p2Char}_block`);
+          } else if (aiMove === "special" && this.anims.exists(`${p2Char}_special`)) {
+            const specialScale = p2Char === "block-bruiser" ? BB_SPECIAL_SCALE : p2Char === "dag-warrior" ? DW_SPECIAL_SCALE : p2Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
+            this.player2Sprite.setScale(specialScale);
+            this.player2Sprite.play(`${p2Char}_special`);
+          }
         }
 
         // Show narrative
-        this.turnIndicatorText.setText(`${playerMove.toUpperCase()} vs ${aiMove.toUpperCase()}`);
+        if (p1WasStunned) {
+          this.turnIndicatorText.setText(`STUNNED! AI uses ${aiMove.toUpperCase()}`);
+          this.turnIndicatorText.setColor("#ff4444");
+        } else if (p2WasStunned) {
+          this.turnIndicatorText.setText(`AI STUNNED! You use ${playerMove.toUpperCase()}`);
+          this.turnIndicatorText.setColor("#22c55e");
+        } else {
+          this.turnIndicatorText.setText(`${playerMove.toUpperCase()} vs ${aiMove.toUpperCase()}`);
+          this.turnIndicatorText.setColor("#888888");
+        }
+
+        // Determine where damage numbers should appear
+        const damageDisplayX = p1WasStunned ? p1OriginalX + 50 :
+          p2WasStunned ? p2OriginalX - 50 :
+            meetingPointX;
 
         // Phase 3: Show damage / update UI (delayed)
         this.time.delayedCall(1000, () => {
-          this.showDamageNumbers(turnResult, meetingPointX);
+          this.showDamageNumbers(turnResult, damageDisplayX);
           this.syncUIWithCombatState();
         });
 
@@ -1404,14 +1532,25 @@ export class PracticeScene extends Phaser.Scene {
 
   private syncUIWithCombatState(): void {
     const state = this.combatEngine.getState();
-    const barWidth = 350;
+    const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
     const barHeight = 25;
     const energyHeight = 12;
+    const yOffset = 30;
 
-    // Player 1 health bar
+    // DEBUG: Log UI sync
+    console.log("[PracticeScene] syncUIWithCombatState:", {
+      p1HP: state.player1.hp,
+      p2HP: state.player2.hp,
+      p1MaxHP: state.player1.maxHp,
+      p2MaxHP: state.player2.maxHp,
+      p1HealthPercent: state.player1.hp / state.player1.maxHp,
+      p2HealthPercent: state.player2.hp / state.player2.maxHp,
+    });
+
+    // Player 1 health bar (fills left to right)
     this.player1HealthBar.clear();
-    const p1HealthPercent = state.player1.hp / state.player1.maxHp;
-    const p1HealthWidth = Math.max(0, barWidth * p1HealthPercent - 4);
+    const p1HealthPercent = Math.min(1, Math.max(0, state.player1.hp) / (state.player1.maxHp || 1));
+    const p1HealthWidth = (barWidth - 4) * p1HealthPercent;
     this.player1HealthBar.fillStyle(this.getHealthColor(p1HealthPercent), 1);
     this.player1HealthBar.fillRoundedRect(
       UI_POSITIONS.HEALTH_BAR.PLAYER1.X + 2,
@@ -1421,50 +1560,80 @@ export class PracticeScene extends Phaser.Scene {
       3
     );
 
-    // Player 2 health bar
+    // Player 2 health bar (fills right to left - mirroring FightScene)
     this.player2HealthBar.clear();
-    const p2HealthPercent = state.player2.hp / state.player2.maxHp;
-    const p2HealthWidth = Math.max(0, barWidth * p2HealthPercent - 4);
+    const p2HealthPercent = Math.min(1, Math.max(0, state.player2.hp) / (state.player2.maxHp || 1));
+    const p2HealthWidth = (barWidth - 4) * p2HealthPercent;
     this.player2HealthBar.fillStyle(this.getHealthColor(p2HealthPercent), 1);
     this.player2HealthBar.fillRoundedRect(
-      UI_POSITIONS.HEALTH_BAR.PLAYER2.X + 2,
+      UI_POSITIONS.HEALTH_BAR.PLAYER2.X + 2 + (barWidth - 4 - p2HealthWidth),
       UI_POSITIONS.HEALTH_BAR.PLAYER2.Y + 2,
       p2HealthWidth,
       barHeight - 4,
       3
     );
 
-    // Player 1 energy bar
+    // Player 1 energy bar (fills left to right)
     this.player1EnergyBar.clear();
-    const p1EnergyPercent = state.player1.energy / state.player1.maxEnergy;
-    const p1EnergyWidth = Math.max(0, barWidth * p1EnergyPercent - 2);
+    const p1EnergyPercent = Math.min(1, Math.max(0, state.player1.energy) / (state.player1.maxEnergy || 1));
+    const p1EnergyWidth = (barWidth - 2) * p1EnergyPercent;
     this.player1EnergyBar.fillStyle(0x3b82f6, 1);
     this.player1EnergyBar.fillRoundedRect(
       UI_POSITIONS.HEALTH_BAR.PLAYER1.X + 1,
-      UI_POSITIONS.HEALTH_BAR.PLAYER1.Y + 31,
+      UI_POSITIONS.HEALTH_BAR.PLAYER1.Y + yOffset,
       p1EnergyWidth,
       energyHeight - 2,
       2
     );
 
-    // Player 2 energy bar
+    // Player 2 energy bar (fills right to left - mirroring FightScene)
     this.player2EnergyBar.clear();
-    const p2EnergyPercent = state.player2.energy / state.player2.maxEnergy;
-    const p2EnergyWidth = Math.max(0, barWidth * p2EnergyPercent - 2);
+    const p2EnergyPercent = Math.min(1, Math.max(0, state.player2.energy) / (state.player2.maxEnergy || 1));
+    const p2EnergyWidth = (barWidth - 2) * p2EnergyPercent;
     this.player2EnergyBar.fillStyle(0x3b82f6, 1);
     this.player2EnergyBar.fillRoundedRect(
-      UI_POSITIONS.HEALTH_BAR.PLAYER2.X + 1,
-      UI_POSITIONS.HEALTH_BAR.PLAYER2.Y + 31,
+      UI_POSITIONS.HEALTH_BAR.PLAYER2.X + 1 + (barWidth - 2 - p2EnergyWidth),
+      UI_POSITIONS.HEALTH_BAR.PLAYER2.Y + yOffset,
       p2EnergyWidth,
       energyHeight - 2,
       2
     );
+
+    // Guard meters
+    this.updateGuardMeterDisplay("player1", state.player1.guardMeter);
+    this.updateGuardMeterDisplay("player2", state.player2.guardMeter);
 
     // Round score
     const roundsToWin = this.config.matchFormat === "best_of_5" ? 3 : 2;
     this.roundScoreText.setText(
       `Round ${state.currentRound}  •  ${state.player1.roundsWon} - ${state.player2.roundsWon}  (First to ${roundsToWin})`
     );
+  }
+
+  private updateGuardMeterDisplay(player: "player1" | "player2", guardMeter: number): void {
+    const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
+    const barHeight = 6;
+    const yOffset = 45;
+    // Clamp percentage to [0, 1] to prevent bar overflow
+    const guardPercent = Math.min(1, Math.max(0, guardMeter) / 100);
+    const innerWidth = barWidth * guardPercent;
+
+    const graphics = player === "player1" ? this.player1GuardMeter : this.player2GuardMeter;
+    const x = player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.X : UI_POSITIONS.HEALTH_BAR.PLAYER2.X;
+    const y = (player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.Y : UI_POSITIONS.HEALTH_BAR.PLAYER2.Y) + yOffset;
+
+    graphics.clear();
+
+    // Color based on guard level (orange = danger of breaking)
+    let color = 0xf97316;
+    if (guardPercent >= 0.75) color = 0xef4444;
+
+    graphics.fillStyle(color, 1);
+    if (player === "player2") {
+      graphics.fillRect(x + (barWidth - innerWidth), y, innerWidth, barHeight);
+    } else {
+      graphics.fillRect(x, y, innerWidth, barHeight);
+    }
   }
 
   private getHealthColor(percent: number): number {

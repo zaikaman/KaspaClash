@@ -127,9 +127,14 @@ export class CombatEngine {
         const p1State = this.state.player1;
         const p2State = this.state.player2;
 
+        // Track if players were stunned at the START of this turn
+        // If they were, they'll miss this turn and the stun should be cleared after
+        const p1WasStunned = p1State.isStunned;
+        const p2WasStunned = p2State.isStunned;
+
         // Handle stunned players (auto-miss)
-        const effectiveP1Move = p1State.isStunned ? null : player1Move;
-        const effectiveP2Move = p2State.isStunned ? null : player2Move;
+        const effectiveP1Move = p1WasStunned ? null : player1Move;
+        const effectiveP2Move = p2WasStunned ? null : player2Move;
 
         // Calculate outcomes
         const p1Result = this.resolvePlayerTurn(
@@ -169,16 +174,18 @@ export class CombatEngine {
             p2State.guardMeter + p2Result.guardBuildup
         );
 
+        // Track if guard break happens THIS turn (before we modify isStunned)
+        const p1GuardBreak = this.state.player1.guardMeter >= COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD;
+        const p2GuardBreak = this.state.player2.guardMeter >= COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD;
+
         // Check for Guard Break (Meter >= 100)
-        if (this.state.player1.guardMeter >= COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD) {
+        if (p1GuardBreak) {
             this.state.player1.guardMeter = 0;
-            this.state.player1.isStunned = true; // Stunned next turn
             p1Result.effects.push("guard_break"); // Add effect for UI
         }
 
-        if (this.state.player2.guardMeter >= COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD) {
+        if (p2GuardBreak) {
             this.state.player2.guardMeter = 0;
-            this.state.player2.isStunned = true; // Stunned next turn
             p2Result.effects.push("guard_break"); // Add effect for UI
         }
 
@@ -189,38 +196,17 @@ export class CombatEngine {
         // Regenerate energy
         this.regenerateEnergy();
 
-        // Clear stun/stagger (if they were applied LAST turn, they clear now. 
-        // If applied THIS turn via guard break, they should persist for NEXT turn)
-        // Changes: applyEffects sets stun/stagger if they were in the result effects (from move outcome).
-        // Guard break stun is applied above directly to state. 
-        // We need to be careful not to clear the Stun we just set.
-
-        // Logic fix: STUN usually makes you miss THIS turn (handled at start of resolveTurn). 
-        // If you get stunned THIS turn (e.g. by Special), you miss NEXT turn? 
-        // Or does "stunned" result mean you missed THIS turn?
-        // "outcome: stunned" means your move was interrupted THIS turn.
-        // "effect: stun" usually implies a lingering effect.
-        // Let's check applyEffects and resolvePlayerTurn.
-        // resolvePlayerTurn returns "stun" effect if outcome is "stunned".
-
-        // If I am stunned NOW (outcome=stunned), I lost my move this turn. 
-        // Should I also lose next turn? Usually "stunned" in games means "miss next turn".
-        // BUT current logic: `const effectiveP1Move = p1State.isStunned ? null : player1Move;`
-        // checks `isStunned` at START of turn.
-        // So if I set `isStunned = true` now, it affects NEXT turn. Correct.
-
-        // HOWEVER, `this.state.player1.isStunned = p1Result.effects.includes("stun");` below
-        // overwrites my Guard Break stun!
-        // I need to merge them.
-
+        // Handle stun state:
+        // 1. If player WAS stunned at turn start, they missed this turn - CLEAR the stun
+        // 2. If player got stunned THIS turn (by move outcome or guard break), SET the stun for next turn
         const p1StunnedByMove = p1Result.effects.includes("stun");
         const p2StunnedByMove = p2Result.effects.includes("stun");
 
-        // Keep stun if it was set by Guard Break OR by move outcome
-        this.state.player1.isStunned = this.state.player1.isStunned || p1StunnedByMove;
+        // Clear old stun (player paid the penalty), then apply new stun if applicable
+        this.state.player1.isStunned = p1StunnedByMove || p1GuardBreak;
         this.state.player1.isStaggered = p1Result.effects.includes("stagger");
 
-        this.state.player2.isStunned = this.state.player2.isStunned || p2StunnedByMove;
+        this.state.player2.isStunned = p2StunnedByMove || p2GuardBreak;
         this.state.player2.isStaggered = p2Result.effects.includes("stagger");
 
         // Check for round end
@@ -254,13 +240,22 @@ export class CombatEngine {
         opponentState: PlayerCombatState,
         player: "player1" | "player2"
     ): PlayerTurnResult {
-        // Default result for stunned player
+        // Handle stunned player - they can't act but still take damage
         if (myMove === null) {
+            // Calculate damage taken from opponent's attack (we're defenseless)
+            let damageTaken = 0;
+            if (opponentMove) {
+                const opponentStats = getCharacterCombatStats(opponentState.characterId);
+                const baseDamage = BASE_MOVE_STATS[opponentMove].damage;
+                const modifier = opponentStats.damageModifiers[opponentMove];
+                damageTaken = Math.floor(baseDamage * modifier);
+            }
+
             return {
                 move: "punch", // placeholder
                 outcome: "stunned",
                 damageDealt: 0,
-                damageTaken: 0,
+                damageTaken,  // Now properly calculates damage from opponent
                 energySpent: 0,
                 guardBuildup: 0,
                 effects: [],

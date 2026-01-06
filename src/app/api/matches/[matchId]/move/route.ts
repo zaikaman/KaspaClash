@@ -23,7 +23,7 @@ interface MoveSubmitRequest {
 function isValidMoveType(move: unknown): move is MoveType {
   return (
     typeof move === "string" &&
-    ["punch", "kick", "block", "special"].includes(move)
+    ["punch", "kick", "block", "special", "stunned"].includes(move)
   );
 }
 

@@ -101,6 +101,9 @@ export class FightScene extends Phaser.Scene {
     player1RoundsWon: number;
     player2RoundsWon: number;
     currentRound: number;
+    // Stun state - if true, player cannot act this turn
+    player1IsStunned?: boolean;
+    player2IsStunned?: boolean;
   } | null = null;
 
   // Pending round start payload (queued if received during round_end phase)
@@ -119,6 +122,8 @@ export class FightScene extends Phaser.Scene {
     player2MaxEnergy?: number;
     player1GuardMeter: number;
     player2GuardMeter: number;
+    player1IsStunned?: boolean;
+    player2IsStunned?: boolean;
   } | null = null;
 
   // Visibility change handler reference for cleanup
@@ -358,6 +363,11 @@ export class FightScene extends Phaser.Scene {
     this.createNarrativeDisplay();
     this.createTurnIndicator();
     this.createCountdownOverlay();
+
+    // UI - Settings and Dialogs
+    this.settingsContainer = this.add.container(0, 0);
+    this.createSettingsButton();
+    this.createSettingsMenu(); // Create hidden menu
 
     // Setup event listeners
     this.setupEventListeners();
@@ -938,6 +948,349 @@ export class FightScene extends Phaser.Scene {
   }
 
   // ===========================================================================
+  // SETTINGS MENU & GAME CONTROLS
+  // ===========================================================================
+
+  private settingsContainer!: Phaser.GameObjects.Container;
+  private isSettingsOpen: boolean = false;
+  private hasRequestedCancel: boolean = false;
+  private activeDialog?: Phaser.GameObjects.Container;
+  private activeDialogBlocker?: Phaser.GameObjects.Rectangle;
+
+  private createSettingsButton(): void {
+    const radius = 24;
+    // Bottom Left position
+    const x = 50;
+    const y = GAME_DIMENSIONS.HEIGHT - 50;
+
+    const container = this.add.container(x, y);
+    container.setDepth(2000); // Ensure it's above everything else
+
+    const circle = this.add.graphics();
+    circle.fillStyle(0x1a1a2e, 0.8);
+    circle.fillCircle(0, 0, radius);
+    circle.lineStyle(2, 0x4b5563, 1);
+    circle.strokeCircle(0, 0, radius);
+
+    // Gear Icon (Simplified geometry)
+    const gear = this.add.graphics();
+    gear.fillStyle(0x9ca3af, 1);
+    gear.fillCircle(0, 0, 8);
+    for (let i = 0; i < 8; i++) {
+      const angle = Phaser.Math.DegToRad(i * 45);
+      const bx = Math.cos(angle) * 12;
+      const by = Math.sin(angle) * 12;
+      gear.fillCircle(bx, by, 4);
+    }
+    gear.fillCircle(0, 0, 4); // Center hole (filled with bg color in next step)
+
+    const centerHole = this.add.graphics();
+    centerHole.fillStyle(0x1a1a2e, 1);
+    centerHole.fillCircle(0, 0, 5);
+
+    container.add([circle, gear, centerHole]);
+    container.setSize(radius * 2, radius * 2);
+
+    // Interactive
+    // Interactive
+    // User reported hitbox is too up-left. Shifting it MORE down-right.
+    const hitArea = new Phaser.Geom.Circle(25, 25, radius);
+    container.setInteractive(hitArea, Phaser.Geom.Circle.Contains);
+    // Add hand cursor manually since we used a custom hit area
+    container.input!.cursor = 'pointer';
+
+    container.on("pointerover", () => {
+      circle.lineStyle(2, 0x3b82f6, 1);
+      circle.strokeCircle(0, 0, radius);
+      this.tweens.add({ targets: gear, angle: 90, duration: 500, ease: "Back.easeOut" });
+    });
+
+    container.on("pointerout", () => {
+      circle.lineStyle(2, 0x4b5563, 1);
+      circle.strokeCircle(0, 0, radius);
+      this.tweens.add({ targets: gear, angle: 0, duration: 500, ease: "Back.easeOut" });
+    });
+
+    container.on("pointerdown", () => {
+      this.toggleSettingsMenu();
+    });
+  }
+
+  private createSettingsMenu(): void {
+    const width = 240;
+    const height = 180;
+
+    // Position menu above the button (bottom-left area)
+    const x = 50 + width / 2;
+    const y = GAME_DIMENSIONS.HEIGHT - 50 - height / 2 - 20;
+
+    this.settingsContainer = this.add.container(x, y);
+    this.settingsContainer.setVisible(false);
+    this.settingsContainer.setDepth(2001); // Higher than button
+
+    // Menu Background
+    const bg = this.add.graphics();
+    bg.fillStyle(0x0f172a, 0.95);
+    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 12);
+    bg.lineStyle(1, 0x334155, 1);
+    bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 12);
+    this.settingsContainer.add(bg);
+
+    // Header
+    const title = this.add.text(0, -60, "SETTINGS", {
+      fontFamily: "monospace",
+      fontSize: "16px",
+      color: "#9ca3af",
+      fontStyle: "bold"
+    }).setOrigin(0.5);
+    this.settingsContainer.add(title);
+
+    // Cancel Match Button
+    const cancelBtn = this.createMenuButton(0, -10, "CANCEL MATCH", 0x6b7280, () => {
+      this.toggleSettingsMenu();
+      this.showConfirmationDialog(
+        "REQUEST CANCEL?",
+        "Ask opponent to cancel match. If they agree, funds are refunded.",
+        "SEND REQUEST",
+        0x3b82f6,
+        () => {
+          this.hasRequestedCancel = true;
+          EventBus.emit("request-cancel");
+        }
+      );
+    });
+
+    // Surrender Button
+    const surrenderBtn = this.createMenuButton(0, 45, "SURRENDER", 0xef4444, () => {
+      this.toggleSettingsMenu();
+      this.showConfirmationDialog(
+        "SURRENDER MATCH?",
+        "You will forfeit this match and lose rating.",
+        "SURRENDER",
+        0xef4444,
+        () => EventBus.emit("request-surrender")
+      );
+    });
+
+    this.settingsContainer.add([cancelBtn, surrenderBtn]);
+  }
+
+  private createMenuButton(x: number, y: number, text: string, color: number, callback: () => void): Phaser.GameObjects.Container {
+    const width = 200;
+    const height = 40;
+    const container = this.add.container(x, y);
+
+    const bg = this.add.graphics();
+    bg.fillStyle(color, 0.2);
+    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 6);
+    bg.lineStyle(1, color, 0.5);
+    bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 6);
+
+    const label = this.add.text(0, 0, text, {
+      fontFamily: "monospace",
+      fontSize: "14px",
+      color: "#ffffff",
+      fontStyle: "bold"
+    }).setOrigin(0.5);
+
+    container.add([bg, label]);
+    container.setSize(width, height);
+    container.setInteractive({ useHandCursor: true });
+
+    container.on("pointerover", () => {
+      bg.clear();
+      bg.fillStyle(color, 0.4);
+      bg.fillRoundedRect(-width / 2, -height / 2, width, height, 6);
+    });
+    container.on("pointerout", () => {
+      bg.clear();
+      bg.fillStyle(color, 0.2);
+      bg.fillRoundedRect(-width / 2, -height / 2, width, height, 6);
+    });
+    container.on("pointerdown", callback);
+
+    return container;
+  }
+
+  private toggleSettingsMenu(): void {
+    this.isSettingsOpen = !this.isSettingsOpen;
+    this.settingsContainer.setVisible(this.isSettingsOpen);
+
+    if (this.isSettingsOpen) {
+      this.settingsContainer.setScale(0.9);
+      this.settingsContainer.setAlpha(0);
+      this.tweens.add({
+        targets: this.settingsContainer,
+        scale: 1,
+        alpha: 1,
+        duration: 200,
+        ease: "Back.easeOut"
+      });
+    }
+  }
+
+  private showCancelRequestDialog(): void {
+    this.showConfirmationDialog(
+      "OPPONENT WANTS TO CANCEL",
+      "Your opponent requested to cancel the match. Funds will be refunded.",
+      "AGREE & CANCEL",
+      0x22c55e, // Green for agree
+      () => {
+        this.hasRequestedCancel = true;
+        EventBus.emit("request-cancel");
+      }
+    );
+  }
+
+  // ===========================================================================
+  // GAME CONTROL BUTTONS (REPLACED BY SETTINGS MENU)
+  // ===========================================================================
+  private createGameControlButtons(): void {
+    // Deprecated - Logic moved to Settings Menu
+  }
+
+  private showConfirmationDialog(
+    title: string,
+    message: string,
+    confirmText: string,
+    confirmColor: number,
+    onConfirm: () => void
+  ): void {
+    // Semi-transparent background blocker
+    const blocker = this.add.rectangle(
+      GAME_DIMENSIONS.CENTER_X,
+      GAME_DIMENSIONS.CENTER_Y,
+      GAME_DIMENSIONS.WIDTH,
+      GAME_DIMENSIONS.HEIGHT,
+      0x000000,
+      0.7
+    ).setInteractive(); // Block clicks
+
+    const dialogWidth = 500;
+    const dialogHeight = 300;
+    const x = GAME_DIMENSIONS.CENTER_X;
+    const y = GAME_DIMENSIONS.CENTER_Y;
+
+    // Close existing dialog if any
+    if (this.activeDialog) {
+      this.activeDialog.destroy();
+      this.activeDialog = undefined;
+    }
+    if (this.activeDialogBlocker) {
+      this.activeDialogBlocker.destroy();
+      this.activeDialogBlocker = undefined;
+    }
+
+    const container = this.add.container(x, y);
+    this.activeDialog = container;
+    this.activeDialogBlocker = blocker;
+
+    // Dialog Background
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 1);
+    bg.fillRoundedRect(-dialogWidth / 2, -dialogHeight / 2, dialogWidth, dialogHeight, 16);
+    bg.lineStyle(2, 0x3b82f6, 1);
+    bg.strokeRoundedRect(-dialogWidth / 2, -dialogHeight / 2, dialogWidth, dialogHeight, 16);
+
+    // Title
+    const titleText = this.add.text(0, -80, title, {
+      fontFamily: "monospace",
+      fontSize: "28px",
+      color: "#ffffff",
+      fontStyle: "bold"
+    }).setOrigin(0.5);
+
+    // Message
+    const msgText = this.add.text(0, -20, message, {
+      fontFamily: "monospace",
+      fontSize: "18px",
+      color: "#cccccc",
+      align: "center",
+      wordWrap: { width: 400 }
+    }).setOrigin(0.5);
+
+    // Confirm Button
+    const confirmBtn = this.createDialogButton(
+      100,
+      80,
+      180,
+      50,
+      confirmText,
+      confirmColor,
+      () => {
+        container.destroy();
+        this.activeDialog = undefined;
+        blocker.destroy();
+        this.activeDialogBlocker = undefined;
+        onConfirm();
+      }
+    );
+
+    // Cancel Button
+    const cancelBtn = this.createDialogButton(
+      -100,
+      80,
+      180,
+      50,
+      "BACK",
+      0x6b7280,
+      () => {
+        container.destroy();
+        this.activeDialog = undefined;
+        blocker.destroy();
+        this.activeDialogBlocker = undefined;
+      }
+    );
+
+    container.add([bg, titleText, msgText, confirmBtn, cancelBtn]);
+
+    // Pop-in animation
+    container.setScale(0);
+    this.tweens.add({
+      targets: container,
+      scale: 1,
+      duration: 300,
+      ease: "Back.easeOut"
+    });
+  }
+
+  private createDialogButton(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    text: string,
+    color: number,
+    callback: () => void
+  ): Phaser.GameObjects.Container {
+    const container = this.add.container(x, y);
+    const bg = this.add.graphics();
+    bg.fillStyle(color, 1);
+    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 8);
+
+    const label = this.add.text(0, 0, text, {
+      fontFamily: "monospace",
+      fontSize: "18px",
+      color: "#ffffff",
+      fontStyle: "bold"
+    }).setOrigin(0.5);
+
+    container.add([bg, label]);
+    container.setSize(width, height);
+    container.setInteractive({ useHandCursor: true });
+
+    container.on("pointerover", () => {
+      container.setScale(1.05);
+    });
+    container.on("pointerout", () => {
+      container.setScale(1);
+    });
+    container.on("pointerdown", callback);
+
+    return container;
+  }
+
+  // ===========================================================================
   // MOVE BUTTONS
   // ===========================================================================
 
@@ -1176,9 +1529,31 @@ export class FightScene extends Phaser.Scene {
   }
 
   private updateMoveButtonAffordability(): void {
-    if (this.config.isSpectator) return;
+    if (this.config.isSpectator || !this.config.playerRole || !this.serverState) return;
+
+    // Strict disable if stunned
+    const role = this.config.playerRole;
+    const isStunned = (role === "player1" && this.serverState.player1IsStunned) ||
+      (role === "player2" && this.serverState.player2IsStunned);
+
+    if (isStunned) {
+      this.moveButtons.forEach((button) => {
+        button.setAlpha(0.3);
+        button.disableInteractive();
+        // Tint children (Image, Text)
+        button.list.forEach((child: any) => {
+          if (child.setTint) child.setTint(0x555555);
+        });
+      });
+      return;
+    }
 
     this.moveButtons.forEach((button, move) => {
+      // Clear tint
+      button.list.forEach((child: any) => {
+        if (child.clearTint) child.clearTint();
+      });
+
       const isAffordable = this.combatEngine.canAffordMove("player1", move);
 
       // If a move is already selected, don't mess with alpha too much, 
@@ -1296,6 +1671,8 @@ export class FightScene extends Phaser.Scene {
     this.selectedMove = null;
     this.turnTimer = 20;
     this.turnIndicatorText.setText("Select your move!");
+
+    this.hasRequestedCancel = false;
 
     // Update button affordability and reset visuals
     this.resetButtonVisuals();
@@ -1617,6 +1994,16 @@ export class FightScene extends Phaser.Scene {
       this.startRound();
     });
 
+    // Listen for cancel events
+    EventBus.onEvent("game:rejectionWaiting", ({ message }) => {
+      this.showFloatingText(message, GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.CENTER_Y - 100, "#f97316");
+      this.turnIndicatorText.setText(message);
+    });
+
+    EventBus.onEvent("game:opponentRejected", () => {
+      // Deprecated - handled by game:moveRejected now
+    });
+
     // ========================================
     // PRODUCTION MODE EVENTS (from realtime channel)
     // ========================================
@@ -1742,10 +2129,10 @@ export class FightScene extends Phaser.Scene {
       const payload = data as { player: "player1" | "player2"; rejectedAt: number };
 
       // Only show message if opponent rejected (not us)
-      if (payload.player !== this.config.playerRole) {
-        this.turnIndicatorText.setText("Opponent rejected transaction!");
-        this.turnIndicatorText.setColor("#f97316");
-        this.showFloatingText("OPPONENT REJECTED!", GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.CENTER_Y - 50, "#f97316");
+      // AND we haven't already requested cancel (avoids circular dialog when opponent agrees)
+      if (payload.player !== this.config.playerRole && !this.hasRequestedCancel) {
+        // Show the Cancel Request Dialog instead of just a message
+        this.showCancelRequestDialog();
       }
     });
 
@@ -1754,6 +2141,16 @@ export class FightScene extends Phaser.Scene {
       const payload = data as { matchId: string; reason: string; message: string; redirectTo: string };
 
       this.phase = "match_end";
+
+      // Close any active dialogs (e.g., "Opponent Wants to Cancel")
+      if (this.activeDialog) {
+        this.activeDialog.destroy();
+        this.activeDialog = undefined;
+      }
+      if (this.activeDialogBlocker) {
+        this.activeDialogBlocker.destroy();
+        this.activeDialogBlocker = undefined;
+      }
 
       // Stop any running timer
       if (this.timerEvent) {
@@ -2087,6 +2484,8 @@ export class FightScene extends Phaser.Scene {
     player2MaxEnergy?: number;
     player1GuardMeter: number;
     player2GuardMeter: number;
+    player1IsStunned?: boolean;
+    player2IsStunned?: boolean;
   }, skipCountdown: boolean = false): void {
     // If we're in resolving phase (playing attack animations) or round_end phase 
     // (playing death animation, showing text, countdown), queue this payload 
@@ -2139,6 +2538,9 @@ export class FightScene extends Phaser.Scene {
       player1RoundsWon: this.serverState?.player1RoundsWon ?? 0,
       player2RoundsWon: this.serverState?.player2RoundsWon ?? 0,
       currentRound: payload.roundNumber,
+      // Stun state from server
+      player1IsStunned: payload.player1IsStunned ?? false,
+      player2IsStunned: payload.player2IsStunned ?? false,
     };
 
     // Sync UI with server state (updates HP bars, round info, etc.)
@@ -2222,9 +2624,41 @@ export class FightScene extends Phaser.Scene {
     const remainingMs = moveDeadlineAt - Date.now();
     this.turnTimer = Math.max(1, Math.floor(remainingMs / 1000));
 
-    // Reset button visuals and affordability
+    // Reset button visuals and affordability (default state)
     this.resetButtonVisuals();
     this.updateMoveButtonAffordability();
+
+    // Check if we are stunned
+    const isPlayer1 = this.config.playerRole === "player1";
+    const amIStunned = isPlayer1
+      ? this.serverState?.player1IsStunned
+      : this.serverState?.player2IsStunned;
+
+    if (amIStunned) {
+      // Player is stunned - show message and disable buttons
+      this.turnIndicatorText.setText("YOU ARE STUNNED!");
+      this.turnIndicatorText.setColor("#ff4444");
+      this.roundTimerText.setColor("#ff4444");
+
+      // Flash the stun message
+      this.tweens.add({
+        targets: this.turnIndicatorText,
+        alpha: { from: 1, to: 0.5 },
+        duration: 300,
+        yoyo: true,
+        repeat: 2,
+      });
+
+      // Disable all buttons visually and interactively
+      this.moveButtons.forEach(btn => {
+        btn.setAlpha(0.3);
+        btn.disableInteractive();
+      });
+    } else {
+      // Normal state
+      this.turnIndicatorText.setText("Select your move!");
+      this.turnIndicatorText.setColor("#40e0d0");
+    }
 
     // Start synchronized timer that updates every second based on deadline
     this.timerEvent = this.time.addEvent({
@@ -2237,13 +2671,14 @@ export class FightScene extends Phaser.Scene {
         this.turnTimer = Math.max(0, Math.floor(nowRemainingMs / 1000));
 
         this.roundTimerText.setText(`${this.turnTimer}s`);
-        if (this.turnTimer <= 5) {
+        if (this.turnTimer <= 5 || amIStunned) {
           this.roundTimerText.setColor("#ff4444");
         } else {
           this.roundTimerText.setColor("#40e0d0");
         }
 
-        if (this.turnTimer <= 0 && !this.selectedMove) {
+        // Only trigger expiry logic if NOT stunned
+        if (this.turnTimer <= 0 && !this.selectedMove && !amIStunned) {
           this.onTimerExpired();
         }
       },
@@ -2260,8 +2695,8 @@ export class FightScene extends Phaser.Scene {
    * Handle server-resolved round (production mode).
    */
   private handleServerRoundResolved(payload: {
-    player1: { move: MoveType; damageDealt: number; damageTaken: number };
-    player2: { move: MoveType; damageDealt: number; damageTaken: number };
+    player1: { move: MoveType; damageDealt: number; damageTaken: number; outcome?: string };
+    player2: { move: MoveType; damageDealt: number; damageTaken: number; outcome?: string };
     player1Health: number;
     player2Health: number;
     player1MaxHealth?: number;
@@ -2352,94 +2787,111 @@ export class FightScene extends Phaser.Scene {
     const p2OriginalX = CHARACTER_POSITIONS.PLAYER2.X;
     const meetingPointX = GAME_DIMENSIONS.CENTER_X;
 
-    // Phase 1: Both characters run toward center with run scale
-    if (this.anims.exists(`${p1Char}_run`)) {
+    // Check stun state from outcomes
+    const p1IsStunned = payload.player1.outcome === "stunned";
+    const p2IsStunned = payload.player2.outcome === "stunned";
+
+    // Prepare targets
+    let p1TargetX = meetingPointX - 50;
+    let p2TargetX = meetingPointX + 50;
+
+    if (p1IsStunned) {
+      p1TargetX = p1OriginalX;
+      p2TargetX = p1OriginalX + 150; // Run to P1
+    } else if (p2IsStunned) {
+      p2TargetX = p2OriginalX;
+      p1TargetX = p2OriginalX - 150; // Run to P2
+    }
+
+    // Phase 1: Both characters run toward target with run scale (only if not stunned)
+    if (!p1IsStunned && this.anims.exists(`${p1Char}_run`)) {
       const p1RunScale = p1Char === "block-bruiser" ? BB_RUN_SCALE : p1Char === "dag-warrior" ? DW_RUN_SCALE : p1Char === "hash-hunter" ? HH_RUN_SCALE : RUN_SCALE;
       this.player1Sprite.setScale(p1RunScale);
       this.player1Sprite.play(`${p1Char}_run`);
     }
-    if (this.anims.exists(`${p2Char}_run`)) {
+    if (!p2IsStunned && this.anims.exists(`${p2Char}_run`)) {
       const p2RunScale = p2Char === "block-bruiser" ? BB_RUN_SCALE : p2Char === "dag-warrior" ? DW_RUN_SCALE : p2Char === "hash-hunter" ? HH_RUN_SCALE : RUN_SCALE;
       this.player2Sprite.setScale(p2RunScale);
       this.player2Sprite.play(`${p2Char}_run`);
     }
 
-    // Tween both characters toward center
+    // Tween both characters toward targets
     this.tweens.add({
       targets: this.player1Sprite,
-      x: meetingPointX - 50,
-      duration: 600,
+      x: p1TargetX,
+      duration: p1IsStunned ? 0 : 600,
       ease: 'Power2',
     });
 
     this.tweens.add({
       targets: this.player2Sprite,
-      x: meetingPointX + 50,
-      duration: 600,
+      x: p2TargetX,
+      duration: p2IsStunned ? 0 : 600,
       ease: 'Power2',
       onComplete: () => {
         // Phase 2: Both characters attack with their selected move
         const p1Move = payload.player1.move;
         const p2Move = payload.player2.move;
 
-        // Player 1 attack animation
-        console.log("[DEBUG P1] move:", p1Move, "char:", p1Char,
-          "block exists:", this.anims.exists(`${p1Char}_block`),
-          "special exists:", this.anims.exists(`${p1Char}_special`));
+        // Player 1 attack animation (if not stunned)
+        if (!p1IsStunned) {
+          console.log("[DEBUG P1] move:", p1Move, "char:", p1Char);
 
-        if (p1Move === "kick" && this.anims.exists(`${p1Char}_kick`)) {
-          const kickScale = p1Char === "block-bruiser" ? BB_KICK_SCALE : p1Char === "dag-warrior" ? DW_KICK_SCALE : p1Char === "hash-hunter" ? HH_KICK_SCALE : KICK_SCALE;
-          this.player1Sprite.setScale(kickScale);
-          this.player1Sprite.play(`${p1Char}_kick`);
-        } else if (p1Move === "punch" && this.anims.exists(`${p1Char}_punch`)) {
-          const punchScale = p1Char === "block-bruiser" ? BB_PUNCH_SCALE : p1Char === "dag-warrior" ? DW_PUNCH_SCALE : p1Char === "hash-hunter" ? HH_PUNCH_SCALE : PUNCH_SCALE;
-          this.player1Sprite.setScale(punchScale);
-          this.player1Sprite.play(`${p1Char}_punch`);
-        } else if (p1Move === "block" && this.anims.exists(`${p1Char}_block`)) {
-          const blockScale = p1Char === "block-bruiser" ? BB_BLOCK_SCALE : p1Char === "dag-warrior" ? DW_BLOCK_SCALE : p1Char === "hash-hunter" ? HH_BLOCK_SCALE : BLOCK_SCALE;
-          console.log("[DEBUG P1] Playing BLOCK with scale:", blockScale);
-          this.player1Sprite.setScale(blockScale);
-          this.player1Sprite.play(`${p1Char}_block`);
-        } else if (p1Move === "special" && this.anims.exists(`${p1Char}_special`)) {
-          const specialScale = p1Char === "block-bruiser" ? BB_SPECIAL_SCALE : p1Char === "dag-warrior" ? DW_SPECIAL_SCALE : p1Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
-          console.log("[DEBUG P1] Playing SPECIAL with scale:", specialScale);
-          this.player1Sprite.setScale(specialScale);
-          this.player1Sprite.play(`${p1Char}_special`);
-        } else if (this.anims.exists(`${p1Char}_${p1Move}`)) {
-          console.log("[DEBUG P1] Playing FALLBACK:", `${p1Char}_${p1Move}`);
-          this.player1Sprite.play(`${p1Char}_${p1Move}`);
+          if (p1Move === "kick" && this.anims.exists(`${p1Char}_kick`)) {
+            const kickScale = p1Char === "block-bruiser" ? BB_KICK_SCALE : p1Char === "dag-warrior" ? DW_KICK_SCALE : p1Char === "hash-hunter" ? HH_KICK_SCALE : KICK_SCALE;
+            this.player1Sprite.setScale(kickScale);
+            this.player1Sprite.play(`${p1Char}_kick`);
+          } else if (p1Move === "punch" && this.anims.exists(`${p1Char}_punch`)) {
+            const punchScale = p1Char === "block-bruiser" ? BB_PUNCH_SCALE : p1Char === "dag-warrior" ? DW_PUNCH_SCALE : p1Char === "hash-hunter" ? HH_PUNCH_SCALE : PUNCH_SCALE;
+            this.player1Sprite.setScale(punchScale);
+            this.player1Sprite.play(`${p1Char}_punch`);
+          } else if (p1Move === "block" && this.anims.exists(`${p1Char}_block`)) {
+            const blockScale = p1Char === "block-bruiser" ? BB_BLOCK_SCALE : p1Char === "dag-warrior" ? DW_BLOCK_SCALE : p1Char === "hash-hunter" ? HH_BLOCK_SCALE : BLOCK_SCALE;
+            this.player1Sprite.setScale(blockScale);
+            this.player1Sprite.play(`${p1Char}_block`);
+          } else if (p1Move === "special" && this.anims.exists(`${p1Char}_special`)) {
+            const specialScale = p1Char === "block-bruiser" ? BB_SPECIAL_SCALE : p1Char === "dag-warrior" ? DW_SPECIAL_SCALE : p1Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
+            this.player1Sprite.setScale(specialScale);
+            this.player1Sprite.play(`${p1Char}_special`);
+          } else if (this.anims.exists(`${p1Char}_${p1Move}`)) {
+            this.player1Sprite.play(`${p1Char}_${p1Move}`);
+          }
         }
 
-        // Player 2 attack animation
-        if (p2Move === "kick" && this.anims.exists(`${p2Char}_kick`)) {
-          const kickScale = p2Char === "block-bruiser" ? BB_KICK_SCALE : p2Char === "dag-warrior" ? DW_KICK_SCALE : p2Char === "hash-hunter" ? HH_KICK_SCALE : KICK_SCALE;
-          this.player2Sprite.setScale(kickScale);
-          this.player2Sprite.play(`${p2Char}_kick`);
-        } else if (p2Move === "punch" && this.anims.exists(`${p2Char}_punch`)) {
-          const punchScale = p2Char === "block-bruiser" ? BB_PUNCH_SCALE : p2Char === "dag-warrior" ? DW_PUNCH_SCALE : p2Char === "hash-hunter" ? HH_PUNCH_SCALE : PUNCH_SCALE;
-          this.player2Sprite.setScale(punchScale);
-          this.player2Sprite.play(`${p2Char}_punch`);
-        } else if (p2Move === "block" && this.anims.exists(`${p2Char}_block`)) {
-          const blockScale = p2Char === "block-bruiser" ? BB_BLOCK_SCALE : p2Char === "dag-warrior" ? DW_BLOCK_SCALE : p2Char === "hash-hunter" ? HH_BLOCK_SCALE : BLOCK_SCALE;
-          this.player2Sprite.setScale(blockScale);
-          this.player2Sprite.play(`${p2Char}_block`);
-        } else if (p2Move === "special" && this.anims.exists(`${p2Char}_special`)) {
-          const specialScale = p2Char === "block-bruiser" ? BB_SPECIAL_SCALE : p2Char === "dag-warrior" ? DW_SPECIAL_SCALE : p2Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
-          this.player2Sprite.setScale(specialScale);
-          this.player2Sprite.play(`${p2Char}_special`);
-        } else if (this.anims.exists(`${p2Char}_${p2Move}`)) {
-          this.player2Sprite.play(`${p2Char}_${p2Move}`);
+        // Player 2 attack animation (if not stunned)
+        if (!p2IsStunned) {
+          if (p2Move === "kick" && this.anims.exists(`${p2Char}_kick`)) {
+            const kickScale = p2Char === "block-bruiser" ? BB_KICK_SCALE : p2Char === "dag-warrior" ? DW_KICK_SCALE : p2Char === "hash-hunter" ? HH_KICK_SCALE : KICK_SCALE;
+            this.player2Sprite.setScale(kickScale);
+            this.player2Sprite.play(`${p2Char}_kick`);
+          } else if (p2Move === "punch" && this.anims.exists(`${p2Char}_punch`)) {
+            const punchScale = p2Char === "block-bruiser" ? BB_PUNCH_SCALE : p2Char === "dag-warrior" ? DW_PUNCH_SCALE : p2Char === "hash-hunter" ? HH_PUNCH_SCALE : PUNCH_SCALE;
+            this.player2Sprite.setScale(punchScale);
+            this.player2Sprite.play(`${p2Char}_punch`);
+          } else if (p2Move === "block" && this.anims.exists(`${p2Char}_block`)) {
+            const blockScale = p2Char === "block-bruiser" ? BB_BLOCK_SCALE : p2Char === "dag-warrior" ? DW_BLOCK_SCALE : p2Char === "hash-hunter" ? HH_BLOCK_SCALE : BLOCK_SCALE;
+            this.player2Sprite.setScale(blockScale);
+            this.player2Sprite.play(`${p2Char}_block`);
+          } else if (p2Move === "special" && this.anims.exists(`${p2Char}_special`)) {
+            const specialScale = p2Char === "block-bruiser" ? BB_SPECIAL_SCALE : p2Char === "dag-warrior" ? DW_SPECIAL_SCALE : p2Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
+            this.player2Sprite.setScale(specialScale);
+            this.player2Sprite.play(`${p2Char}_special`);
+          } else if (this.anims.exists(`${p2Char}_${p2Move}`)) {
+            this.player2Sprite.play(`${p2Char}_${p2Move}`);
+          }
         }
 
         // Show narrative
-        // Show narrative
-        // Fix: Generate narrative locally based on damage to ensure accuracy
         let narrative = "";
-        const p1Name = this.config.playerRole === "player1" ? "You" : "Opponent";
-        const p2Name = this.config.playerRole === "player2" ? "You" : "Opponent";
 
-        // Simple narrative generation
-        if (payload.player1.damageDealt > 0 && payload.player2.damageDealt > 0) {
+        // Narrative logic for stun
+        if (p1IsStunned && p2IsStunned) {
+          narrative = "Both players are stunned!";
+        } else if (p1IsStunned) {
+          narrative = `Player 1 is STUNNED! Player 2 uses ${p2Move}!`;
+        } else if (p2IsStunned) {
+          narrative = `Player 2 is STUNNED! Player 1 uses ${p1Move}!`;
+        } else if (payload.player1.damageDealt > 0 && payload.player2.damageDealt > 0) {
           narrative = "Both players trade heavy blows!";
         } else if (payload.player1.damageDealt > 0) {
           narrative = `Player 1 hits for ${payload.player1.damageDealt} damage!`;
@@ -2453,14 +2905,13 @@ export class FightScene extends Phaser.Scene {
         this.narrativeText.setAlpha(1);
 
         // Delay damage effects until attack animation lands
-        // 36 frames at 24fps = 1.5s, show damage around 1s into the animation
         this.time.delayedCall(1000, () => {
-          // Show damage numbers
+          // Show damage numbers at correct positions (target position of victim)
           if (payload.player2.damageTaken > 0) {
-            this.showFloatingText(`-${payload.player2.damageTaken}`, meetingPointX + 50, CHARACTER_POSITIONS.PLAYER2.Y - 130, "#ff4444");
+            this.showFloatingText(`-${payload.player2.damageTaken}`, p2TargetX, CHARACTER_POSITIONS.PLAYER2.Y - 130, "#ff4444");
           }
           if (payload.player1.damageTaken > 0) {
-            this.showFloatingText(`-${payload.player1.damageTaken}`, meetingPointX - 50, CHARACTER_POSITIONS.PLAYER1.Y - 130, "#ff4444");
+            this.showFloatingText(`-${payload.player1.damageTaken}`, p1TargetX, CHARACTER_POSITIONS.PLAYER1.Y - 130, "#ff4444");
           }
 
           // Update health bars when the attack lands
@@ -2470,14 +2921,14 @@ export class FightScene extends Phaser.Scene {
           );
         });
 
-        // Phase 3: After attack animation completes (1.5s), run back to original positions
+        // Phase 3: After attack animation completes, run back to original positions
         this.time.delayedCall(1600, () => {
-          if (this.anims.exists(`${p1Char}_run`)) {
+          if (!p1IsStunned && this.anims.exists(`${p1Char}_run`)) {
             const p1RunScale = p1Char === "block-bruiser" ? BB_RUN_SCALE : p1Char === "dag-warrior" ? DW_RUN_SCALE : p1Char === "hash-hunter" ? HH_RUN_SCALE : RUN_SCALE;
             this.player1Sprite.setScale(p1RunScale);
             this.player1Sprite.play(`${p1Char}_run`);
           }
-          if (this.anims.exists(`${p2Char}_run`)) {
+          if (!p2IsStunned && this.anims.exists(`${p2Char}_run`)) {
             const p2RunScale = p2Char === "block-bruiser" ? BB_RUN_SCALE : p2Char === "dag-warrior" ? DW_RUN_SCALE : p2Char === "hash-hunter" ? HH_RUN_SCALE : RUN_SCALE;
             this.player2Sprite.setScale(p2RunScale);
             this.player2Sprite.play(`${p2Char}_run`);
@@ -2487,17 +2938,17 @@ export class FightScene extends Phaser.Scene {
           this.tweens.add({
             targets: this.player1Sprite,
             x: p1OriginalX,
-            duration: 600,
+            duration: p1IsStunned ? 0 : 600,
             ease: 'Power2',
           });
 
           this.tweens.add({
             targets: this.player2Sprite,
             x: p2OriginalX,
-            duration: 600,
+            duration: p2IsStunned ? 0 : 600,
             ease: 'Power2',
             onComplete: () => {
-              // Phase 4: Return to idle animations with idle scale
+              // Phase 4: Return to idle animations
               if (this.anims.exists(`${p1Char}_idle`)) {
                 const p1IdleScale = p1Char === "block-bruiser" ? BB_IDLE_SCALE : p1Char === "dag-warrior" ? DW_IDLE_SCALE : p1Char === "hash-hunter" ? HH_IDLE_SCALE : IDLE_SCALE;
                 this.player1Sprite.setScale(p1IdleScale);

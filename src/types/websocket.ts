@@ -107,10 +107,14 @@ export interface MatchStartingPayload {
  */
 export interface RoundStartingPayload {
   roundNumber: number;
+  turnNumber?: number;
   player1Health: number;
   player2Health: number;
   player1RoundsWon: number;
   player2RoundsWon: number;
+  /** Player stun state - if true, player cannot act this turn */
+  player1IsStunned?: boolean;
+  player2IsStunned?: boolean;
   /** Unix timestamp for move deadline */
   moveDeadline: number;
 }
@@ -154,11 +158,18 @@ export interface RoundEffect {
 /**
  * Player result in a round.
  */
+/**
+ * Player result in a round.
+ */
 export interface PlayerRoundResult {
   move: MoveType;
   damageDealt: number;
-  healthAfter: number;
-  txId: string;
+  damageTaken: number;
+  outcome?: string;
+  effects?: RoundEffect[];
+  // Legacy/Optional
+  healthAfter?: number;
+  txId?: string;
 }
 
 /**
@@ -167,10 +178,26 @@ export interface PlayerRoundResult {
  */
 export interface RoundResolvedPayload {
   roundNumber: number;
+  turnNumber?: number;
   player1: PlayerRoundResult;
   player2: PlayerRoundResult;
+  player1Health: number;
+  player2Health: number;
+  player1MaxHealth?: number;
+  player2MaxHealth?: number;
+  player1Energy: number;
+  player2Energy: number;
+  player1MaxEnergy?: number;
+  player2MaxEnergy?: number;
+  player1GuardMeter: number;
+  player2GuardMeter: number;
   roundWinner: RoundWinner;
-  effects: RoundEffect[];
+  isRoundOver: boolean;
+  isMatchOver: boolean;
+  matchWinner: "player1" | "player2" | null;
+  narrative: string;
+  player1RoundsWon: number;
+  player2RoundsWon: number;
 }
 
 /**

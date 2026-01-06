@@ -24,6 +24,7 @@ export const CYBER_NINJA_STATS: CharacterCombatStats = {
         kick: 1.0,
         block: 1.0,
         special: 1.0,
+        stunned: 1.0,
     },
     blockEffectiveness: 0.6,      // Takes only 40% damage when blocking (vs 50%)
     specialCostModifier: 0.85,    // Specials cost 15% less energy
@@ -43,6 +44,7 @@ export const DAG_WARRIOR_STATS: CharacterCombatStats = {
         kick: 1.0,
         block: 1.0,
         special: 1.0,
+        stunned: 1.0,
     },
     blockEffectiveness: 0.5,      // Standard 50% damage reduction
     specialCostModifier: 1.0,     // Standard special cost
@@ -64,6 +66,7 @@ export const BLOCK_BRUISER_STATS: CharacterCombatStats = {
         kick: 1.2,     // 20% more kick damage
         block: 1.0,
         special: 1.0,
+        stunned: 1.0,
     },
     blockEffectiveness: 0.4,      // Takes only 40% damage when blocking
     specialCostModifier: 1.25,    // Specials cost 25% more energy
@@ -84,6 +87,7 @@ export const HASH_HUNTER_STATS: CharacterCombatStats = {
         kick: 1.1,     // 10% more kick damage
         block: 1.0,
         special: 1.15, // 15% more special damage
+        stunned: 1.0,
     },
     blockEffectiveness: 0.65,     // Takes 65% damage when blocking (weaker)
     specialCostModifier: 1.0,     // Standard special cost

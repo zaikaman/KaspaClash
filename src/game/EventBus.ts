@@ -60,6 +60,12 @@ export interface GameEvents {
   "game:matchEnded": any;
   "game:characterSelected": any;
   "game:matchStarting": any;
+  "game:rejectionWaiting": { message: string };
+  "game:opponentRejected": { rejectedAt: number };
+
+  // Game Control Events
+  "request-surrender": void;
+  "request-cancel": void;
 }
 
 /**

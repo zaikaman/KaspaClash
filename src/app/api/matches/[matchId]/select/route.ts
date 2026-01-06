@@ -231,6 +231,9 @@ export async function POST(
               player2Energy: getCharacterCombatStats(match.player2_character_id || "dag-warrior").maxEnergy,
               player1GuardMeter: 0,
               player2GuardMeter: 0,
+              // Initial round - no stun
+              player1IsStunned: false,
+              player2IsStunned: false,
             },
           },
         ]);
@@ -381,6 +384,9 @@ export async function POST(
                 player2Energy: getCharacterCombatStats(updatedMatch.player2_character_id || "dag-warrior").maxEnergy,
                 player1GuardMeter: 0,
                 player2GuardMeter: 0,
+                // Initial round - no stun
+                player1IsStunned: false,
+                player2IsStunned: false,
               },
             },
           ]);
