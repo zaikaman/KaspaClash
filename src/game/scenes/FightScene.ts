@@ -86,6 +86,12 @@ export class FightScene extends Phaser.Scene {
   private disconnectTimerEvent?: Phaser.Time.TimerEvent;
   private opponentDisconnected: boolean = false;
 
+  // Audio settings
+  private bgmVolume: number = 0.3;
+  private sfxVolume: number = 0.5;
+  private bgmSlider?: Phaser.GameObjects.Container;
+  private sfxSlider?: Phaser.GameObjects.Container;
+
   // Server-synchronized state (production mode) - all game state comes from server
   private serverState: {
     player1Health: number;
@@ -138,7 +144,7 @@ export class FightScene extends Phaser.Scene {
     if (this.game.sound.locked) return;
 
     try {
-      this.sound.play(key, { volume: 0.5 });
+      this.sound.play(key, { volume: this.sfxVolume });
       // Stop after 5 seconds max
       this.time.delayedCall(5000, () => {
         const sound = this.sound.get(key);
@@ -148,6 +154,42 @@ export class FightScene extends Phaser.Scene {
       });
     } catch (e) {
       console.warn(`Failed to play SFX: ${key}`, e);
+    }
+  }
+
+  /**
+   * Load audio settings from localStorage.
+   */
+  private loadAudioSettings(): void {
+    try {
+      const savedBgm = localStorage.getItem("kaspaclash_bgm_volume");
+      const savedSfx = localStorage.getItem("kaspaclash_sfx_volume");
+      if (savedBgm !== null) this.bgmVolume = parseFloat(savedBgm);
+      if (savedSfx !== null) this.sfxVolume = parseFloat(savedSfx);
+    } catch (e) {
+      console.warn("Failed to load audio settings", e);
+    }
+  }
+
+  /**
+   * Save audio settings to localStorage.
+   */
+  private saveAudioSettings(): void {
+    try {
+      localStorage.setItem("kaspaclash_bgm_volume", this.bgmVolume.toString());
+      localStorage.setItem("kaspaclash_sfx_volume", this.sfxVolume.toString());
+    } catch (e) {
+      console.warn("Failed to save audio settings", e);
+    }
+  }
+
+  /**
+   * Apply BGM volume to currently playing background music.
+   */
+  private applyBgmVolume(): void {
+    const bgm = this.sound.get("bgm_fight");
+    if (bgm && "setVolume" in bgm) {
+      (bgm as Phaser.Sound.WebAudioSound).setVolume(this.bgmVolume);
     }
   }
 
@@ -385,14 +427,17 @@ export class FightScene extends Phaser.Scene {
     // Create animations
     this.createAnimations();
 
+    // Load audio settings from localStorage
+    this.loadAudioSettings();
+
     // Play BGM - keep playing even when tab loses focus
     this.sound.pauseOnBlur = false;
     if (this.sound.get("bgm_fight")) {
       if (!this.sound.get("bgm_fight").isPlaying) {
-        this.sound.play("bgm_fight", { loop: true, volume: 0.3 });
+        this.sound.play("bgm_fight", { loop: true, volume: this.bgmVolume });
       }
     } else {
-      this.sound.play("bgm_fight", { loop: true, volume: 0.3 });
+      this.sound.play("bgm_fight", { loop: true, volume: this.bgmVolume });
     }
 
     // Background
@@ -1065,8 +1110,8 @@ export class FightScene extends Phaser.Scene {
   }
 
   private createSettingsMenu(): void {
-    const width = 240;
-    const height = 180;
+    const width = 280;
+    const height = 320;
 
     // Position menu above the button (bottom-left area)
     const x = 50 + width / 2;
@@ -1085,7 +1130,7 @@ export class FightScene extends Phaser.Scene {
     this.settingsContainer.add(bg);
 
     // Header
-    const title = this.add.text(0, -60, "SETTINGS", {
+    const title = this.add.text(0, -140, "SETTINGS", {
       fontFamily: "monospace",
       fontSize: "16px",
       color: "#9ca3af",
@@ -1093,8 +1138,39 @@ export class FightScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.settingsContainer.add(title);
 
+    // --- Audio Section ---
+    const audioLabel = this.add.text(0, -110, "AUDIO", {
+      fontFamily: "monospace",
+      fontSize: "12px",
+      color: "#6b7280"
+    }).setOrigin(0.5);
+    this.settingsContainer.add(audioLabel);
+
+    // BGM Volume Slider
+    this.bgmSlider = this.createVolumeSlider(0, -75, "Music", this.bgmVolume, (value) => {
+      this.bgmVolume = value;
+      this.applyBgmVolume();
+      this.saveAudioSettings();
+    });
+    this.settingsContainer.add(this.bgmSlider);
+
+    // SFX Volume Slider
+    this.sfxSlider = this.createVolumeSlider(0, -30, "SFX", this.sfxVolume, (value) => {
+      this.sfxVolume = value;
+      this.saveAudioSettings();
+      // Play a test sound when adjusting
+      this.playSFX("sfx_click");
+    });
+    this.settingsContainer.add(this.sfxSlider);
+
+    // Separator line
+    const separator = this.add.graphics();
+    separator.lineStyle(1, 0x334155, 0.5);
+    separator.lineBetween(-100, 10, 100, 10);
+    this.settingsContainer.add(separator);
+
     // Cancel Match Button
-    const cancelBtn = this.createMenuButton(0, -10, "CANCEL MATCH", 0x6b7280, () => {
+    const cancelBtn = this.createMenuButton(0, 55, "CANCEL MATCH", 0x6b7280, () => {
       this.toggleSettingsMenu();
       this.showConfirmationDialog(
         "REQUEST CANCEL?",
@@ -1109,7 +1185,7 @@ export class FightScene extends Phaser.Scene {
     });
 
     // Surrender Button
-    const surrenderBtn = this.createMenuButton(0, 45, "SURRENDER", 0xef4444, () => {
+    const surrenderBtn = this.createMenuButton(0, 110, "SURRENDER", 0xef4444, () => {
       this.toggleSettingsMenu();
       this.showConfirmationDialog(
         "SURRENDER MATCH?",
@@ -1121,6 +1197,122 @@ export class FightScene extends Phaser.Scene {
     });
 
     this.settingsContainer.add([cancelBtn, surrenderBtn]);
+  }
+
+  /**
+   * Create a volume slider control.
+   */
+  private createVolumeSlider(
+    x: number,
+    y: number,
+    label: string,
+    initialValue: number,
+    onChange: (value: number) => void
+  ): Phaser.GameObjects.Container {
+    const container = this.add.container(x, y);
+    const sliderWidth = 140;
+    const sliderHeight = 8;
+    const knobRadius = 10;
+
+    // Track offset logic to center everything better
+    // Previous: Label(-100), TrackOffset(+40), TextOffset(+50) was shifted right
+    // New: Label(-120), TrackOffset(+10), TextOffset(+25)
+
+    // Label
+    const labelText = this.add.text(-120, 0, label, {
+      fontFamily: "monospace",
+      fontSize: "12px",
+      color: "#9ca3af"
+    }).setOrigin(0, 0.5);
+    container.add(labelText);
+
+    // Track start X
+    // sliderWidth is 140. Half is 70.
+    // -70 + 10 = -60. Track spans -60 to +80. Center is +10.
+    const trackOffsetX = 10;
+    const trackStartX = -sliderWidth / 2 + trackOffsetX;
+
+    // Track background
+    const trackBg = this.add.graphics();
+    trackBg.fillStyle(0x1e293b, 1);
+    trackBg.fillRoundedRect(trackStartX, -sliderHeight / 2, sliderWidth, sliderHeight, 4);
+    container.add(trackBg);
+
+    // Track fill (progress)
+    const trackFill = this.add.graphics();
+    container.add(trackFill);
+
+    // Knob
+    const knob = this.add.graphics();
+    container.add(knob);
+
+    // Percentage text
+    // 70 + 25 = 95. Right of track end (80) by 15px.
+    const percentText = this.add.text(sliderWidth / 2 + 25, 0, `${Math.round(initialValue * 100)}%`, {
+      fontFamily: "monospace",
+      fontSize: "11px",
+      color: "#6b7280"
+    }).setOrigin(0, 0.5);
+    container.add(percentText);
+
+    // Update visual based on value
+    const updateSliderVisual = (value: number) => {
+      const fillWidth = sliderWidth * value;
+      const knobX = trackStartX + fillWidth;
+
+      trackFill.clear();
+      trackFill.fillStyle(0x3b82f6, 1);
+      trackFill.fillRoundedRect(trackStartX, -sliderHeight / 2, fillWidth, sliderHeight, 4);
+
+      knob.clear();
+      knob.fillStyle(0x3b82f6, 1);
+      knob.fillCircle(knobX, 0, knobRadius);
+      knob.fillStyle(0x1e40af, 1);
+      knob.fillCircle(knobX, 0, knobRadius - 3);
+
+      percentText.setText(`${Math.round(value * 100)}%`);
+    };
+
+    updateSliderVisual(initialValue);
+
+    // Make the entire track area interactive
+    // Area covering label to text roughly: -120 to +120
+    const hitArea = this.add.rectangle(0, 0, 240, 30, 0x000000, 0);
+    hitArea.setInteractive({ useHandCursor: true });
+    container.add(hitArea);
+
+    // Drag handling
+    let isDragging = false;
+
+    const calculateValue = (pointerX: number): number => {
+      // Need to account for the container's world position and the track's local position
+      // Local X inside container
+      const localX = pointerX - container.x - this.settingsContainer.x;
+      const trackEndX = trackStartX + sliderWidth;
+      const clampedX = Phaser.Math.Clamp(localX, trackStartX, trackEndX);
+      return (clampedX - trackStartX) / sliderWidth;
+    };
+
+    hitArea.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      isDragging = true;
+      const newValue = calculateValue(pointer.x);
+      updateSliderVisual(newValue);
+      onChange(newValue);
+    });
+
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+      if (isDragging) {
+        const newValue = calculateValue(pointer.x);
+        updateSliderVisual(newValue);
+        onChange(newValue);
+      }
+    });
+
+    this.input.on("pointerup", () => {
+      isDragging = false;
+    });
+
+    return container;
   }
 
   private createMenuButton(x: number, y: number, text: string, color: number, callback: () => void): Phaser.GameObjects.Container {
