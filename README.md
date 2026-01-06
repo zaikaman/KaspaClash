@@ -8,7 +8,7 @@
 
 > **A real-time blockchain-powered fighting game showcasing Kaspa's lightning-fast block times through competitive PvP combat, live betting, and on-chain matchmaking.**
 
-![KaspaClash Banner](https://via.placeholder.com/1200x400/0a0a0a/49D9D9?text=KaspaClash+-+Blockchain+Fighting+Game)
+![KaspaClash Banner](https://kaspaclash.vercel.app/logo.webp)
 
 ---
 
