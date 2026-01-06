@@ -133,6 +133,24 @@ export class FightScene extends Phaser.Scene {
     super({ key: "FightScene" });
   }
 
+  // Audio helper
+  private playSFX(key: string): void {
+    if (this.game.sound.locked) return;
+
+    try {
+      this.sound.play(key, { volume: 0.5 });
+      // Stop after 5 seconds max
+      this.time.delayedCall(5000, () => {
+        const sound = this.sound.get(key);
+        if (sound && sound.isPlaying) {
+          sound.stop();
+        }
+      });
+    } catch (e) {
+      console.warn(`Failed to play SFX: ${key}`, e);
+    }
+  }
+
   /**
    * Initialize scene with match data.
    */
@@ -331,6 +349,30 @@ export class FightScene extends Phaser.Scene {
         });
       }
     });
+
+    // Audio Loading
+    // Background Music
+    this.load.audio("bgm_dojo", "/assets/audio/dojo.mp3"); // Using dojo as default fight music for now
+    this.load.audio("sfx_victory", "/assets/audio/victory.mp3");
+    this.load.audio("sfx_defeat", "/assets/audio/defeat.mp3");
+
+    // UI SFX
+    this.load.audio("sfx_hover", "/assets/audio/hover.mp3");
+    this.load.audio("sfx_click", "/assets/audio/click.mp3");
+    this.load.audio("sfx_cd_fight", "/assets/audio/3-2-1-fight.mp3");
+
+    // Character SFX
+    characters.forEach(charId => {
+      this.load.audio(`sfx_${charId}_punch`, `/assets/audio/${charId}-punch.mp3`);
+      this.load.audio(`sfx_${charId}_kick`, `/assets/audio/${charId}-kick.mp3`);
+      this.load.audio(`sfx_${charId}_block`, `/assets/audio/${charId}-block.mp3`);
+      // Use block-bruiser special as placeholder for hash-hunter if missing scheme
+      if (charId === "hash-hunter") {
+        this.load.audio(`sfx_${charId}_special`, `/assets/audio/block-bruiser-special.mp3`);
+      } else {
+        this.load.audio(`sfx_${charId}_special`, `/assets/audio/${charId}-special.mp3`);
+      }
+    });
   }
 
   /**
@@ -346,6 +388,15 @@ export class FightScene extends Phaser.Scene {
 
     // Create animations
     this.createAnimations();
+
+    // Play BGM
+    if (this.sound.get("bgm_dojo")) {
+      if (!this.sound.get("bgm_dojo").isPlaying) {
+        this.sound.play("bgm_dojo", { loop: true, volume: 0.3 });
+      }
+    } else {
+      this.sound.play("bgm_dojo", { loop: true, volume: 0.3 });
+    }
 
     // Background
     this.createBackground();
@@ -1399,6 +1450,7 @@ export class FightScene extends Phaser.Scene {
     // Hover effects
     container.on("pointerover", () => {
       if (this.phase === "selecting" && this.combatEngine.canAffordMove("player1", move)) {
+        this.playSFX("sfx_hover");
         this.tweens.add({
           targets: container,
           y: y - 10,
@@ -1434,7 +1486,10 @@ export class FightScene extends Phaser.Scene {
     });
 
     container.on("pointerdown", () => {
-      this.selectMove(move);
+      if (this.phase === "selecting") {
+        this.playSFX("sfx_click");
+        this.selectMove(move);
+      }
     });
 
     return container;
@@ -1619,7 +1674,14 @@ export class FightScene extends Phaser.Scene {
 
   private startRound(): void {
     this.phase = "countdown";
-    this.showCountdown(3);
+
+    // Play SFX first (full "3-2-1 Fight" sequence)
+    this.playSFX("sfx_cd_fight");
+
+    // Delay visual countdown slightly to match audio timing (approx 0.3s before "3" appears)
+    this.time.delayedCall(300, () => {
+      this.showCountdown(3);
+    });
   }
 
   private showCountdown(seconds: number): void {
@@ -1790,31 +1852,31 @@ export class FightScene extends Phaser.Scene {
     });
   }
 
-  private showMatchEnd(state: CombatState): void {
+  private showMatchEnd(winner: "player1" | "player2"): void {
     this.phase = "match_end";
 
-    const winnerText = state.matchWinner === "player1" ? "PLAYER 1 WINS THE MATCH!" : "PLAYER 2 WINS THE MATCH!";
+    const isLocalWinner = winner === this.config.playerRole;
+    const winnerText = isLocalWinner ? "VICTORY!" : "DEFEAT";
+
     this.countdownText.setText(winnerText);
-    this.countdownText.setFontSize(32);
-    this.countdownText.setColor("#22c55e");
+    this.countdownText.setFontSize(48);
+    this.countdownText.setColor(isLocalWinner ? "#22c55e" : "#ef4444");
     this.countdownText.setAlpha(1);
+
+    // Play SFX
+    this.playSFX(isLocalWinner ? "sfx_victory" : "sfx_defeat");
 
     // Play victory/defeat animations
     const p1Char = this.config.player1Character || "dag-warrior";
     const p2Char = this.config.player2Character || "dag-warrior";
 
-    if (state.matchWinner === "player1") {
+    if (winner === "player1") {
       if (this.anims.exists(`${p1Char}_victory`)) this.player1Sprite.play(`${p1Char}_victory`);
       if (this.anims.exists(`${p2Char}_defeat`)) this.player2Sprite.play(`${p2Char}_defeat`);
     } else {
       if (this.anims.exists(`${p1Char}_defeat`)) this.player1Sprite.play(`${p1Char}_defeat`);
       if (this.anims.exists(`${p2Char}_victory`)) this.player2Sprite.play(`${p2Char}_victory`);
     }
-
-    // Show rematch button after delay
-    this.time.delayedCall(3000, () => {
-      this.showRematchButton();
-    });
   }
 
   private showRematchButton(): void {
@@ -2071,14 +2133,9 @@ export class FightScene extends Phaser.Scene {
           loser: { before: number; after: number; change: number };
         };
       };
-      this.phase = "match_end";
-      const isWinner =
-        (this.config.playerRole === payload.winner);
 
-      this.countdownText.setText(isWinner ? "YOU WIN!" : "YOU LOSE");
-      this.countdownText.setFontSize(48);
-      this.countdownText.setColor(isWinner ? "#22c55e" : "#ef4444");
-      this.countdownText.setAlpha(1);
+      // Use helper for SFX and Animations
+      this.showMatchEnd(payload.winner);
 
       this.time.delayedCall(3000, () => {
         // Construct detailed result from server state + payload
@@ -2590,6 +2647,7 @@ export class FightScene extends Phaser.Scene {
                   this.startSynchronizedSelectionPhase(moveDeadlineAt);
                 },
               });
+              this.playSFX("sfx_cd_fight");
             }
           },
         });
@@ -2829,100 +2887,160 @@ export class FightScene extends Phaser.Scene {
       duration: p2IsStunned ? 0 : 600,
       ease: 'Power2',
       onComplete: () => {
-        // Phase 2: Both characters attack with their selected move
+        // Sequential Animation Logic using Promises
         const p1Move = payload.player1.move;
         const p2Move = payload.player2.move;
 
-        // Player 1 attack animation (if not stunned)
-        if (!p1IsStunned) {
-          console.log("[DEBUG P1] move:", p1Move, "char:", p1Char);
+        // Helper: P1 Attack
+        const runP1Attack = () => {
+          return new Promise<void>((resolve) => {
+            if (p1IsStunned) {
+              resolve(); // Skip if stunned
+              return;
+            }
 
-          if (p1Move === "kick" && this.anims.exists(`${p1Char}_kick`)) {
-            const kickScale = p1Char === "block-bruiser" ? BB_KICK_SCALE : p1Char === "dag-warrior" ? DW_KICK_SCALE : p1Char === "hash-hunter" ? HH_KICK_SCALE : KICK_SCALE;
-            this.player1Sprite.setScale(kickScale);
-            this.player1Sprite.play(`${p1Char}_kick`);
-          } else if (p1Move === "punch" && this.anims.exists(`${p1Char}_punch`)) {
-            const punchScale = p1Char === "block-bruiser" ? BB_PUNCH_SCALE : p1Char === "dag-warrior" ? DW_PUNCH_SCALE : p1Char === "hash-hunter" ? HH_PUNCH_SCALE : PUNCH_SCALE;
-            this.player1Sprite.setScale(punchScale);
-            this.player1Sprite.play(`${p1Char}_punch`);
-          } else if (p1Move === "block" && this.anims.exists(`${p1Char}_block`)) {
-            const blockScale = p1Char === "block-bruiser" ? BB_BLOCK_SCALE : p1Char === "dag-warrior" ? DW_BLOCK_SCALE : p1Char === "hash-hunter" ? HH_BLOCK_SCALE : BLOCK_SCALE;
-            this.player1Sprite.setScale(blockScale);
-            this.player1Sprite.play(`${p1Char}_block`);
-          } else if (p1Move === "special" && this.anims.exists(`${p1Char}_special`)) {
-            const specialScale = p1Char === "block-bruiser" ? BB_SPECIAL_SCALE : p1Char === "dag-warrior" ? DW_SPECIAL_SCALE : p1Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
-            this.player1Sprite.setScale(specialScale);
-            this.player1Sprite.play(`${p1Char}_special`);
-          } else if (this.anims.exists(`${p1Char}_${p1Move}`)) {
-            this.player1Sprite.play(`${p1Char}_${p1Move}`);
+            // Play P1 animation
+            const animKey = `${p1Char}_${p1Move}`;
+            if (this.anims.exists(animKey) || p1Move === "block") { // Allow Block even if anim missing? Ideally exists.
+              let scale = 0.45;
+              if (p1Move === "kick") scale = p1Char === "block-bruiser" ? BB_KICK_SCALE : p1Char === "dag-warrior" ? DW_KICK_SCALE : p1Char === "hash-hunter" ? HH_KICK_SCALE : KICK_SCALE;
+              else if (p1Move === "punch") scale = p1Char === "block-bruiser" ? BB_PUNCH_SCALE : p1Char === "dag-warrior" ? DW_PUNCH_SCALE : p1Char === "hash-hunter" ? HH_PUNCH_SCALE : PUNCH_SCALE;
+              else if (p1Move === "block") scale = p1Char === "block-bruiser" ? BB_BLOCK_SCALE : p1Char === "dag-warrior" ? DW_BLOCK_SCALE : p1Char === "hash-hunter" ? HH_BLOCK_SCALE : BLOCK_SCALE;
+              else if (p1Move === "special") scale = p1Char === "block-bruiser" ? BB_SPECIAL_SCALE : p1Char === "dag-warrior" ? DW_SPECIAL_SCALE : p1Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
+
+              this.player1Sprite.setScale(scale);
+              if (this.anims.exists(animKey)) this.player1Sprite.play(animKey);
+
+              // Play SFX
+              const sfxKey = `sfx_${p1Char}_${p1Move}`;
+              if (p1Char === "cyber-ninja" && p1Move === "special") {
+                this.time.delayedCall(500, () => this.playSFX(sfxKey));
+              } else {
+                this.playSFX(sfxKey);
+              }
+            }
+
+            // Show narrative for P1
+            // this.turnIndicatorText.setText(p1Move.toUpperCase()); // Optional: show move name? 
+            // Better to rely on the main narrative text at the end or floating text?
+            // Existing logic shows summary at end. Let's keep summary but show floating text/damage per hit.
+
+            // Show P2 damage delayed
+            if (payload.player2.damageTaken > 0) {
+              this.time.delayedCall(300, () => { // Hit impact timing
+                this.showFloatingText(`-${payload.player2.damageTaken}`, p2TargetX, CHARACTER_POSITIONS.PLAYER2.Y - 130, "#ff4444");
+
+                // Flash P2
+                this.tweens.add({
+                  targets: this.player2Sprite,
+                  alpha: 0.5,
+                  yoyo: true,
+                  duration: 50,
+                  repeat: 3
+                });
+              });
+            }
+
+            // Wait for anim to finish (approx 1s)
+            this.time.delayedCall(1200, () => {
+              resolve();
+            });
+          });
+        };
+
+        // Helper: P2 Attack
+        const runP2Attack = () => {
+          return new Promise<void>((resolve) => {
+            if (p2IsStunned) {
+              resolve();
+              return;
+            }
+
+            // Play P2 animation
+            const animKey = `${p2Char}_${p2Move}`;
+            if (this.anims.exists(animKey) || p2Move === "block") {
+              let scale = 0.45;
+              if (p2Move === "kick") scale = p2Char === "block-bruiser" ? BB_KICK_SCALE : p2Char === "dag-warrior" ? DW_KICK_SCALE : p2Char === "hash-hunter" ? HH_KICK_SCALE : KICK_SCALE;
+              else if (p2Move === "punch") scale = p2Char === "block-bruiser" ? BB_PUNCH_SCALE : p2Char === "dag-warrior" ? DW_PUNCH_SCALE : p2Char === "hash-hunter" ? HH_PUNCH_SCALE : PUNCH_SCALE;
+              else if (p2Move === "block") scale = p2Char === "block-bruiser" ? BB_BLOCK_SCALE : p2Char === "dag-warrior" ? DW_BLOCK_SCALE : p2Char === "hash-hunter" ? HH_BLOCK_SCALE : BLOCK_SCALE;
+              else if (p2Move === "special") scale = p2Char === "block-bruiser" ? BB_SPECIAL_SCALE : p2Char === "dag-warrior" ? DW_SPECIAL_SCALE : p2Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
+
+              this.player2Sprite.setScale(scale);
+              if (this.anims.exists(animKey)) this.player2Sprite.play(animKey);
+
+              // Play SFX
+              const sfxKey = `sfx_${p2Char}_${p2Move}`;
+              if (p2Char === "cyber-ninja" && p2Move === "special") {
+                this.time.delayedCall(500, () => this.playSFX(sfxKey));
+              } else {
+                this.playSFX(sfxKey);
+              }
+            }
+
+            // Show P1 damage
+            if (payload.player1.damageTaken > 0) {
+              this.time.delayedCall(300, () => {
+                this.showFloatingText(`-${payload.player1.damageTaken}`, p1TargetX, CHARACTER_POSITIONS.PLAYER1.Y - 130, "#ff4444");
+                this.tweens.add({
+                  targets: this.player1Sprite,
+                  alpha: 0.5,
+                  yoyo: true,
+                  duration: 50,
+                  repeat: 3
+                });
+              });
+            }
+
+            this.time.delayedCall(1200, () => {
+              resolve();
+            });
+          });
+        };
+
+        // Execute Sequence
+        (async () => {
+          // Check for block interaction (Scenario 1 & 2: Attack vs Block, Block vs Block)
+          // Assumption: "Block" moves are identified by explicit "block" move type.
+          const isConcurrent = p1Move === "block" || p2Move === "block";
+
+          if (isConcurrent) {
+            // Run both simultaneously
+            await Promise.all([runP1Attack(), runP2Attack()]);
+          } else {
+            // Sequential (Attack vs Attack)
+            // P1 goes first
+            await runP1Attack();
+            // Then P2
+            await runP2Attack();
           }
-        }
 
-        // Player 2 attack animation (if not stunned)
-        if (!p2IsStunned) {
-          if (p2Move === "kick" && this.anims.exists(`${p2Char}_kick`)) {
-            const kickScale = p2Char === "block-bruiser" ? BB_KICK_SCALE : p2Char === "dag-warrior" ? DW_KICK_SCALE : p2Char === "hash-hunter" ? HH_KICK_SCALE : KICK_SCALE;
-            this.player2Sprite.setScale(kickScale);
-            this.player2Sprite.play(`${p2Char}_kick`);
-          } else if (p2Move === "punch" && this.anims.exists(`${p2Char}_punch`)) {
-            const punchScale = p2Char === "block-bruiser" ? BB_PUNCH_SCALE : p2Char === "dag-warrior" ? DW_PUNCH_SCALE : p2Char === "hash-hunter" ? HH_PUNCH_SCALE : PUNCH_SCALE;
-            this.player2Sprite.setScale(punchScale);
-            this.player2Sprite.play(`${p2Char}_punch`);
-          } else if (p2Move === "block" && this.anims.exists(`${p2Char}_block`)) {
-            const blockScale = p2Char === "block-bruiser" ? BB_BLOCK_SCALE : p2Char === "dag-warrior" ? DW_BLOCK_SCALE : p2Char === "hash-hunter" ? HH_BLOCK_SCALE : BLOCK_SCALE;
-            this.player2Sprite.setScale(blockScale);
-            this.player2Sprite.play(`${p2Char}_block`);
-          } else if (p2Move === "special" && this.anims.exists(`${p2Char}_special`)) {
-            const specialScale = p2Char === "block-bruiser" ? BB_SPECIAL_SCALE : p2Char === "dag-warrior" ? DW_SPECIAL_SCALE : p2Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
-            this.player2Sprite.setScale(specialScale);
-            this.player2Sprite.play(`${p2Char}_special`);
-          } else if (this.anims.exists(`${p2Char}_${p2Move}`)) {
-            this.player2Sprite.play(`${p2Char}_${p2Move}`);
+          // Show overall narrative
+          let narrative = "";
+          if (p1IsStunned && p2IsStunned) {
+            narrative = "Both players are stunned!";
+          } else if (p1IsStunned) {
+            narrative = `Player 1 is STUNNED! Player 2 uses ${p2Move}!`;
+          } else if (p2IsStunned) {
+            narrative = `Player 2 is STUNNED! Player 1 uses ${p1Move}!`;
+          } else if (payload.player1.damageDealt > 0 && payload.player2.damageDealt > 0) {
+            narrative = "Both players trade heavy blows!";
+          } else if (payload.player1.damageDealt > 0) {
+            narrative = `Player 1 hits for ${payload.player1.damageDealt} damage!`;
+          } else if (payload.player2.damageDealt > 0) {
+            narrative = `Player 2 hits for ${payload.player2.damageDealt} damage!`;
+          } else {
+            narrative = "Both attacks were blocked or missed!";
           }
-        }
+          this.narrativeText.setText(narrative);
+          this.narrativeText.setAlpha(1);
 
-        // Show narrative
-        let narrative = "";
-
-        // Narrative logic for stun
-        if (p1IsStunned && p2IsStunned) {
-          narrative = "Both players are stunned!";
-        } else if (p1IsStunned) {
-          narrative = `Player 1 is STUNNED! Player 2 uses ${p2Move}!`;
-        } else if (p2IsStunned) {
-          narrative = `Player 2 is STUNNED! Player 1 uses ${p1Move}!`;
-        } else if (payload.player1.damageDealt > 0 && payload.player2.damageDealt > 0) {
-          narrative = "Both players trade heavy blows!";
-        } else if (payload.player1.damageDealt > 0) {
-          narrative = `Player 1 hits for ${payload.player1.damageDealt} damage!`;
-        } else if (payload.player2.damageDealt > 0) {
-          narrative = `Player 2 hits for ${payload.player2.damageDealt} damage!`;
-        } else {
-          narrative = "Both attacks were blocked or missed!";
-        }
-
-        this.narrativeText.setText(narrative);
-        this.narrativeText.setAlpha(1);
-
-        // Delay damage effects until attack animation lands
-        this.time.delayedCall(1000, () => {
-          // Show damage numbers at correct positions (target position of victim)
-          if (payload.player2.damageTaken > 0) {
-            this.showFloatingText(`-${payload.player2.damageTaken}`, p2TargetX, CHARACTER_POSITIONS.PLAYER2.Y - 130, "#ff4444");
-          }
-          if (payload.player1.damageTaken > 0) {
-            this.showFloatingText(`-${payload.player1.damageTaken}`, p1TargetX, CHARACTER_POSITIONS.PLAYER1.Y - 130, "#ff4444");
-          }
-
-          // Update health bars when the attack lands
+          // Update UI/Health Bars
           this.syncUIWithCombatState();
           this.roundScoreText.setText(
             `Round ${this.serverState?.currentRound ?? 1}  •  ${payload.player1RoundsWon} - ${payload.player2RoundsWon}  (First to 3)`
           );
-        });
 
-        // Phase 3: After attack animation completes, run back to original positions
-        this.time.delayedCall(1600, () => {
+          // Run back animations
           if (!p1IsStunned && this.anims.exists(`${p1Char}_run`)) {
             const p1RunScale = p1Char === "block-bruiser" ? BB_RUN_SCALE : p1Char === "dag-warrior" ? DW_RUN_SCALE : p1Char === "hash-hunter" ? HH_RUN_SCALE : RUN_SCALE;
             this.player1Sprite.setScale(p1RunScale);
@@ -2932,9 +3050,10 @@ export class FightScene extends Phaser.Scene {
             const p2RunScale = p2Char === "block-bruiser" ? BB_RUN_SCALE : p2Char === "dag-warrior" ? DW_RUN_SCALE : p2Char === "hash-hunter" ? HH_RUN_SCALE : RUN_SCALE;
             this.player2Sprite.setScale(p2RunScale);
             this.player2Sprite.play(`${p2Char}_run`);
+            this.player2Sprite.setFlipX(true); // Ensure facing correct way
           }
 
-          // Tween back to original positions
+          // Tween back
           this.tweens.add({
             targets: this.player1Sprite,
             x: p1OriginalX,
@@ -2948,7 +3067,7 @@ export class FightScene extends Phaser.Scene {
             duration: p2IsStunned ? 0 : 600,
             ease: 'Power2',
             onComplete: () => {
-              // Phase 4: Return to idle animations
+              // Phase 5: Return to idle
               if (this.anims.exists(`${p1Char}_idle`)) {
                 const p1IdleScale = p1Char === "block-bruiser" ? BB_IDLE_SCALE : p1Char === "dag-warrior" ? DW_IDLE_SCALE : p1Char === "hash-hunter" ? HH_IDLE_SCALE : IDLE_SCALE;
                 this.player1Sprite.setScale(p1IdleScale);
@@ -2969,32 +3088,26 @@ export class FightScene extends Phaser.Scene {
 
               // Handle round/match end
               if (payload.isMatchOver) {
-                // Match end will be handled by game:matchEnded event
+                // Match end handled by event
               } else if (payload.isRoundOver) {
                 this.showRoundEndFromServer(payload.roundWinner, payload.player1RoundsWon, payload.player2RoundsWon);
               } else {
-                // Turn ended but round continues - process any pending round start
+                // Turn ended, round continues
                 this.selectedMove = null;
-
-                // Process pending round start if we received one during the resolving phase
                 if (this.pendingRoundStart) {
-                  console.log("[FightScene] Processing queued round start after turn resolution");
                   const queuedPayload = this.pendingRoundStart;
                   this.pendingRoundStart = null;
-                  // IMPORTANT: Change phase BEFORE calling startRoundFromServer to prevent re-queueing
                   this.phase = "countdown";
-                  // For normal turns (not round over), show the 3-2-1 FIGHT countdown
                   this.startRoundFromServer(queuedPayload, false);
                 } else {
-                  // Wait for server's round_starting event - change phase to allow receiving it
                   this.phase = "selecting";
                   this.turnIndicatorText.setText("Waiting for next turn...");
                   this.turnIndicatorText.setColor("#888888");
                 }
               }
-            },
+            }
           });
-        });
+        })();
       },
     });
   }
@@ -3058,6 +3171,16 @@ export class FightScene extends Phaser.Scene {
       // Show round result text for this player
       const resultText = isLocalWinner ? "YOU WON THIS ROUND!" : "YOU LOST THIS ROUND";
       this.countdownText.setText(resultText);
+      this.countdownText.setFontSize(42);
+      this.countdownText.setColor(isLocalWinner ? "#22c55e" : "#ef4444");
+      this.countdownText.setAlpha(1);
+
+      // Play SFX
+      if (isLocalWinner) {
+        this.playSFX("sfx_victory");
+      } else {
+        this.playSFX("sfx_defeat");
+      }
       this.countdownText.setFontSize(42);
       this.countdownText.setColor(isLocalWinner ? "#22c55e" : "#ef4444");
       this.countdownText.setAlpha(1);

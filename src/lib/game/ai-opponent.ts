@@ -35,6 +35,8 @@ export interface AIContext {
   lastAiMove?: MoveType;
   consecutivePlayerBlocks: number;
   consecutivePlayerAttacks: number;
+  playerIsStunned: boolean;
+  aiEnergy: number;
 }
 
 /**
@@ -98,6 +100,8 @@ export class AIOpponent {
       aiRoundsWon: 0,
       consecutivePlayerBlocks: 0,
       consecutivePlayerAttacks: 0,
+      playerIsStunned: false,
+      aiEnergy: 3,
     };
   }
 
@@ -136,6 +140,23 @@ export class AIOpponent {
    * Get the AI's next move decision.
    */
   decide(): AIDecision {
+    // CRITICAL: Always punish stunned opponent with maximum damage
+    if (this.context.playerIsStunned) {
+      if (this.context.aiEnergy >= 3) {
+        return {
+          move: "special",
+          confidence: 1.0,
+          reasoning: "OPPONENT STUNNED: FINISH THEM!",
+        };
+      } else {
+        return {
+          move: "kick",
+          confidence: 0.9,
+          reasoning: "OPPONENT STUNNED: Heavy hit (no energy for special)",
+        };
+      }
+    }
+
     switch (this.difficulty) {
       case "easy":
         return this.decideEasy();

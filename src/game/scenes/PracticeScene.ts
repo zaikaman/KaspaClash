@@ -105,13 +105,40 @@ export class PracticeScene extends Phaser.Scene {
    */
   preload(): void {
     // Load arena background
-    this.load.image("arena-bg", "/assets/background_2.webp");
+    this.load.image("arena-bg", "/assets/dojo.webp");
 
     // Load move icons
     this.load.image("move_punch", "/assets/icons/punch.webp");
     this.load.image("move_kick", "/assets/icons/kick.webp");
     this.load.image("move_block", "/assets/icons/block.webp");
     this.load.image("move_special", "/assets/icons/special.webp");
+
+    // Load Audio
+    this.load.audio("bgm_dojo", "/assets/audio/dojo.mp3");
+    this.load.audio("sfx_victory", "/assets/audio/victory.mp3");
+    this.load.audio("sfx_defeat", "/assets/audio/defeat.mp3");
+
+    // UI SFX
+    this.load.audio("sfx_hover", "/assets/audio/hover.mp3");
+    this.load.audio("sfx_click", "/assets/audio/click.mp3");
+    this.load.audio("sfx_cd_fight", "/assets/audio/3-2-1-fight.mp3");
+
+    // Character SFX
+    const audioChars = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
+    audioChars.forEach(charId => {
+      this.load.audio(`sfx_${charId}_punch`, `/assets/audio/${charId}-punch.mp3`);
+      this.load.audio(`sfx_${charId}_kick`, `/assets/audio/${charId}-kick.mp3`);
+      this.load.audio(`sfx_${charId}_block`, `/assets/audio/${charId}-block.mp3`);
+      // Use block-bruiser special as placeholder for hash-hunter if missing, but load normally otherwise
+      if (charId === "hash-hunter") {
+        // Fallback logic handled in playback if file missing, or we alias it here?
+        // Simplest is to try loading the real one or a fallback if we know it's missing.
+        // Given implementation plan said hash-hunter-special is missing:
+        this.load.audio(`sfx_${charId}_special`, `/assets/audio/block-bruiser-special.mp3`);
+      } else {
+        this.load.audio(`sfx_${charId}_special`, `/assets/audio/${charId}-special.mp3`);
+      }
+    });
 
     // Load character spritesheets for all characters
     const characters = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
@@ -273,6 +300,38 @@ export class PracticeScene extends Phaser.Scene {
     this.startRound();
 
     EventBus.emit("practice_scene_ready");
+
+    // Play BGM
+    if (this.sound.get("bgm_dojo")) {
+      if (!this.sound.get("bgm_dojo").isPlaying) {
+        this.sound.play("bgm_dojo", { loop: true, volume: 0.3 });
+      }
+    } else {
+      this.sound.play("bgm_dojo", { loop: true, volume: 0.3 });
+    }
+  }
+
+  /**
+   * Helper to play SFX with duration cap (5s max) and 50% volume
+   */
+  private playSFX(key: string): void {
+    if (this.game.sound.locked) {
+      // Audio might be locked by browser policies, can't force it
+      return;
+    }
+
+    try {
+      this.sound.play(key, { volume: 0.5 });
+      // Stop after 5 seconds max (enough for countdown)
+      this.time.delayedCall(5000, () => {
+        const sound = this.sound.get(key);
+        if (sound && sound.isPlaying) {
+          sound.stop();
+        }
+      });
+    } catch (e) {
+      console.warn(`Failed to play SFX: ${key}`, e);
+    }
   }
 
   /**
@@ -308,6 +367,8 @@ export class PracticeScene extends Phaser.Scene {
       this.roundTimerText.setText(`${Math.ceil(this.turnTimer)}`);
     }
   }
+
+
 
   // ===========================================================================
   // BACKGROUND
@@ -718,6 +779,7 @@ export class PracticeScene extends Phaser.Scene {
     // Hover effects
     container.on("pointerover", () => {
       if (this.phase === "selecting" && this.combatEngine.canAffordMove("player1", move)) {
+        this.sound.play("sfx_hover", { volume: 0.5 });
         this.tweens.add({
           targets: container,
           y: y - 10,
@@ -754,6 +816,7 @@ export class PracticeScene extends Phaser.Scene {
 
     container.on("pointerdown", () => {
       if (this.phase === "selecting") {
+        this.sound.play("sfx_click", { volume: 0.5 });
         this.selectMove(move);
       }
     });
@@ -940,7 +1003,14 @@ export class PracticeScene extends Phaser.Scene {
 
   private startRound(): void {
     this.phase = "countdown";
-    this.showCountdown(3);
+
+    // Play SFX first (full "3-2-1 Fight" sequence)
+    this.playSFX("sfx_cd_fight");
+
+    // Delay visual countdown slightly to match audio timing (approx 0.3s before "3" appears)
+    this.time.delayedCall(300, () => {
+      this.showCountdown(3);
+    });
   }
 
   private showCountdown(seconds: number): void {
@@ -961,6 +1031,7 @@ export class PracticeScene extends Phaser.Scene {
             if (count > 0) {
               updateCountdown();
             } else {
+              // SFX already played at start
               this.countdownText.setText("FIGHT!");
               this.countdownText.setAlpha(1);
               this.tweens.add({
@@ -1090,6 +1161,18 @@ export class PracticeScene extends Phaser.Scene {
   }
 
   private aiMakeDecision(): void {
+    // Update AI context with current state
+    const state = this.combatEngine.getState();
+    this.ai.updateContext({
+      aiHealth: state.player2.hp,
+      playerHealth: state.player1.hp,
+      roundNumber: state.currentRound,
+      playerRoundsWon: state.player1.roundsWon,
+      aiRoundsWon: state.player2.roundsWon,
+      playerIsStunned: state.player1.isStunned || false,
+      aiEnergy: state.player2.energy,
+    });
+
     const decision = this.ai.decide();
     const aiMove = decision.move;
 
@@ -1194,75 +1277,136 @@ export class PracticeScene extends Phaser.Scene {
       duration: 600,
       ease: 'Power2',
       onComplete: () => {
-        // Phase 2: Attack animations
-        // Player 1 Attack (skip if stunned)
-        if (!p1WasStunned) {
-          if (playerMove === "kick" && this.anims.exists(`${p1Char}_kick`)) {
-            const kickScale = p1Char === "block-bruiser" ? BB_KICK_SCALE : p1Char === "dag-warrior" ? DW_KICK_SCALE : p1Char === "hash-hunter" ? HH_KICK_SCALE : KICK_SCALE;
-            this.player1Sprite.setScale(kickScale);
-            this.player1Sprite.play(`${p1Char}_kick`);
-          } else if (playerMove === "punch" && this.anims.exists(`${p1Char}_punch`)) {
-            const punchScale = p1Char === "block-bruiser" ? BB_PUNCH_SCALE : p1Char === "dag-warrior" ? DW_PUNCH_SCALE : p1Char === "hash-hunter" ? HH_PUNCH_SCALE : PUNCH_SCALE;
-            this.player1Sprite.setScale(punchScale);
-            this.player1Sprite.play(`${p1Char}_punch`);
-          } else if (playerMove === "block" && this.anims.exists(`${p1Char}_block`)) {
-            const blockScale = p1Char === "block-bruiser" ? BB_BLOCK_SCALE : p1Char === "dag-warrior" ? DW_BLOCK_SCALE : p1Char === "hash-hunter" ? HH_BLOCK_SCALE : BLOCK_SCALE;
-            this.player1Sprite.setScale(blockScale);
-            this.player1Sprite.play(`${p1Char}_block`);
-          } else if (playerMove === "special" && this.anims.exists(`${p1Char}_special`)) {
-            const specialScale = p1Char === "block-bruiser" ? BB_SPECIAL_SCALE : p1Char === "dag-warrior" ? DW_SPECIAL_SCALE : p1Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
-            this.player1Sprite.setScale(specialScale);
-            this.player1Sprite.play(`${p1Char}_special`);
+        // Phase 2: Player 1 Attack (Sequential)
+        const runP1Attack = () => {
+          return new Promise<void>((resolve) => {
+            if (p1WasStunned) {
+              resolve(); // Skip if stunned
+              return;
+            }
+
+            // Play P1 animation
+            const animKey = `${p1Char}_${playerMove}`;
+            if (this.anims.exists(animKey)) {
+              // Scale Logic (simplified from original for brevity, relies on helper vars)
+              // We'll reuse the scale logic blocks or simplify access
+              let scale = 0.45; // Default fallback
+              if (playerMove === "kick") scale = p1Char === "block-bruiser" ? BB_KICK_SCALE : p1Char === "dag-warrior" ? DW_KICK_SCALE : p1Char === "hash-hunter" ? HH_KICK_SCALE : KICK_SCALE;
+              else if (playerMove === "punch") scale = p1Char === "block-bruiser" ? BB_PUNCH_SCALE : p1Char === "dag-warrior" ? DW_PUNCH_SCALE : p1Char === "hash-hunter" ? HH_PUNCH_SCALE : PUNCH_SCALE;
+              else if (playerMove === "block") scale = p1Char === "block-bruiser" ? BB_BLOCK_SCALE : p1Char === "dag-warrior" ? DW_BLOCK_SCALE : p1Char === "hash-hunter" ? HH_BLOCK_SCALE : BLOCK_SCALE;
+              else if (playerMove === "special") scale = p1Char === "block-bruiser" ? BB_SPECIAL_SCALE : p1Char === "dag-warrior" ? DW_SPECIAL_SCALE : p1Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
+
+              this.player1Sprite.setScale(scale);
+              this.player1Sprite.play(animKey);
+
+              // Play SFX
+              const sfxKey = `sfx_${p1Char}_${playerMove}`;
+              if (p1Char === "cyber-ninja" && playerMove === "special") {
+                this.time.delayedCall(500, () => this.playSFX(sfxKey));
+              } else {
+                this.playSFX(sfxKey);
+              }
+            }
+
+            // Show narrative for P1
+            this.turnIndicatorText.setText(playerMove.toUpperCase());
+            this.turnIndicatorText.setColor("#22c55e"); // Player color
+
+            // Show P2 damage delayed
+            if (turnResult.player2.damageTaken > 0) {
+              this.time.delayedCall(300, () => { // Hit impact timing
+                this.showFloatingText(`-${turnResult.player2.damageTaken}`, p2OriginalX - 50, CHARACTER_POSITIONS.PLAYER2.Y - 130, "#ff4444");
+
+                // Play P2 Hurt anim if not blocking/special-ing? 
+                // For now just keep it simple as sound only or flash
+                this.tweens.add({
+                  targets: this.player2Sprite,
+                  alpha: 0.5,
+                  yoyo: true,
+                  duration: 50,
+                  repeat: 3
+                });
+              });
+            }
+
+            // Wait for anim to finish (approx 1s)
+            this.time.delayedCall(1200, () => {
+              resolve();
+            });
+          });
+        };
+
+        // Phase 3: Player 2 Attack (Sequential)
+        const runP2Attack = () => {
+          return new Promise<void>((resolve) => {
+            if (p2WasStunned) {
+              resolve();
+              return;
+            }
+
+            // Play AI animation
+            const animKey = `${p2Char}_${aiMove}`;
+            if (this.anims.exists(animKey)) {
+              let scale = 0.45;
+              if (aiMove === "kick") scale = p2Char === "block-bruiser" ? BB_KICK_SCALE : p2Char === "dag-warrior" ? DW_KICK_SCALE : p2Char === "hash-hunter" ? HH_KICK_SCALE : KICK_SCALE;
+              else if (aiMove === "punch") scale = p2Char === "block-bruiser" ? BB_PUNCH_SCALE : p2Char === "dag-warrior" ? DW_PUNCH_SCALE : p2Char === "hash-hunter" ? HH_PUNCH_SCALE : PUNCH_SCALE;
+              else if (aiMove === "block") scale = p2Char === "block-bruiser" ? BB_BLOCK_SCALE : p2Char === "dag-warrior" ? DW_BLOCK_SCALE : p2Char === "hash-hunter" ? HH_BLOCK_SCALE : BLOCK_SCALE;
+              else if (aiMove === "special") scale = p2Char === "block-bruiser" ? BB_SPECIAL_SCALE : p2Char === "dag-warrior" ? DW_SPECIAL_SCALE : p2Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
+
+              this.player2Sprite.setScale(scale);
+              this.player2Sprite.play(animKey);
+
+              // Play SFX
+              const sfxKey = `sfx_${p2Char}_${aiMove}`;
+              if (p2Char === "cyber-ninja" && aiMove === "special") {
+                this.time.delayedCall(500, () => this.playSFX(sfxKey));
+              } else {
+                this.playSFX(sfxKey);
+              }
+            }
+
+            // Narrative
+            this.turnIndicatorText.setText(aiMove.toUpperCase());
+            this.turnIndicatorText.setColor("#ef4444"); // AI color
+
+            // Show P1 damage
+            if (turnResult.player1.damageTaken > 0) {
+              this.time.delayedCall(300, () => {
+                this.showFloatingText(`-${turnResult.player1.damageTaken}`, p1OriginalX + 50, CHARACTER_POSITIONS.PLAYER1.Y - 130, "#ff4444");
+                this.tweens.add({
+                  targets: this.player1Sprite,
+                  alpha: 0.5,
+                  yoyo: true,
+                  duration: 50,
+                  repeat: 3
+                });
+              });
+            }
+
+            this.time.delayedCall(1200, () => {
+              resolve();
+            });
+          });
+        };
+
+        // Execute Sequence
+        (async () => {
+          // Check for block interaction
+          const isConcurrent = playerMove === "block" || aiMove === "block";
+
+          if (isConcurrent) {
+            await Promise.all([runP1Attack(), runP2Attack()]);
+          } else {
+            // P1 goes first
+            await runP1Attack();
+            // Then P2
+            await runP2Attack();
           }
-        }
 
-        // AI Attack (skip if stunned)
-        if (!p2WasStunned) {
-          if (aiMove === "kick" && this.anims.exists(`${p2Char}_kick`)) {
-            const kickScale = p2Char === "block-bruiser" ? BB_KICK_SCALE : p2Char === "dag-warrior" ? DW_KICK_SCALE : p2Char === "hash-hunter" ? HH_KICK_SCALE : KICK_SCALE;
-            this.player2Sprite.setScale(kickScale);
-            this.player2Sprite.play(`${p2Char}_kick`);
-          } else if (aiMove === "punch" && this.anims.exists(`${p2Char}_punch`)) {
-            const punchScale = p2Char === "block-bruiser" ? BB_PUNCH_SCALE : p2Char === "dag-warrior" ? DW_PUNCH_SCALE : p2Char === "hash-hunter" ? HH_PUNCH_SCALE : PUNCH_SCALE;
-            this.player2Sprite.setScale(punchScale);
-            this.player2Sprite.play(`${p2Char}_punch`);
-          } else if (aiMove === "block" && this.anims.exists(`${p2Char}_block`)) {
-            const blockScale = p2Char === "block-bruiser" ? BB_BLOCK_SCALE : p2Char === "dag-warrior" ? DW_BLOCK_SCALE : p2Char === "hash-hunter" ? HH_BLOCK_SCALE : BLOCK_SCALE;
-            this.player2Sprite.setScale(blockScale);
-            this.player2Sprite.play(`${p2Char}_block`);
-          } else if (aiMove === "special" && this.anims.exists(`${p2Char}_special`)) {
-            const specialScale = p2Char === "block-bruiser" ? BB_SPECIAL_SCALE : p2Char === "dag-warrior" ? DW_SPECIAL_SCALE : p2Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
-            this.player2Sprite.setScale(specialScale);
-            this.player2Sprite.play(`${p2Char}_special`);
-          }
-        }
-
-        // Show narrative
-        if (p1WasStunned) {
-          this.turnIndicatorText.setText(`STUNNED! AI uses ${aiMove.toUpperCase()}`);
-          this.turnIndicatorText.setColor("#ff4444");
-        } else if (p2WasStunned) {
-          this.turnIndicatorText.setText(`AI STUNNED! You use ${playerMove.toUpperCase()}`);
-          this.turnIndicatorText.setColor("#22c55e");
-        } else {
-          this.turnIndicatorText.setText(`${playerMove.toUpperCase()} vs ${aiMove.toUpperCase()}`);
-          this.turnIndicatorText.setColor("#888888");
-        }
-
-        // Determine where damage numbers should appear
-        const damageDisplayX = p1WasStunned ? p1OriginalX + 50 :
-          p2WasStunned ? p2OriginalX - 50 :
-            meetingPointX;
-
-        // Phase 3: Show damage / update UI (delayed)
-        this.time.delayedCall(1000, () => {
-          this.showDamageNumbers(turnResult, damageDisplayX);
+          // Phase 4: Sync UI & Return
           this.syncUIWithCombatState();
-        });
 
-        // Phase 4: Run back (after attack completes)
-        this.time.delayedCall(1600, () => {
-          // Run animations
+          // Run back animations
           if (this.anims.exists(`${p1Char}_run`)) {
             const p1RunScale = p1Char === "block-bruiser" ? BB_RUN_SCALE : p1Char === "dag-warrior" ? DW_RUN_SCALE : p1Char === "hash-hunter" ? HH_RUN_SCALE : RUN_SCALE;
             this.player1Sprite.setScale(p1RunScale);
@@ -1272,6 +1416,7 @@ export class PracticeScene extends Phaser.Scene {
             const p2RunScale = p2Char === "block-bruiser" ? BB_RUN_SCALE : p2Char === "dag-warrior" ? DW_RUN_SCALE : p2Char === "hash-hunter" ? HH_RUN_SCALE : RUN_SCALE;
             this.player2Sprite.setScale(p2RunScale);
             this.player2Sprite.play(`${p2Char}_run`);
+            this.player2Sprite.setFlipX(true); // Ensure facing correct way
           }
 
           // Tween back
@@ -1310,7 +1455,7 @@ export class PracticeScene extends Phaser.Scene {
               }
             }
           });
-        });
+        })();
       }
     });
   }
@@ -1384,6 +1529,10 @@ export class PracticeScene extends Phaser.Scene {
       loserSprite.setScale(deadScale);
       loserSprite.play(`${loserChar}_dead`);
     }
+
+    // Play Round End SFX
+    const isWin = state.roundWinner === "player1";
+    this.playSFX(isWin ? "sfx_victory" : "sfx_defeat");
 
     // Show result text
     const winnerText = state.roundWinner === "player1" ? "YOU WIN ROUND!" : "AI WINS ROUND!";
@@ -1461,6 +1610,8 @@ export class PracticeScene extends Phaser.Scene {
     });
 
     // Show result overlay
+    const isWin = playerWon;
+    this.playSFX(isWin ? "sfx_victory" : "sfx_defeat"); // victory.mp3 covers both for now, or use defeat if added
     this.createMatchResultOverlay(playerWon);
   }
 

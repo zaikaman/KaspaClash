@@ -128,6 +128,11 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     // Load UI assets
     this.load.image("lock-icon", "/assets/lock.png");
+
+    // Load Audio
+    this.load.audio("bgm_select", "/assets/audio/character-selection.mp3");
+    this.load.audio("sfx_hover", "/assets/audio/hover.mp3");
+    this.load.audio("sfx_click", "/assets/audio/click.mp3");
   }
 
   /**
@@ -168,6 +173,15 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.selectionTimer.start();
 
     // Notify that scene is ready
+    // Start background music
+    if (this.sound.get("bgm_select")) {
+      if (!this.sound.get("bgm_select").isPlaying) {
+        this.sound.play("bgm_select", { loop: true, volume: 0.3 });
+      }
+    } else {
+      this.sound.play("bgm_select", { loop: true, volume: 0.3 });
+    }
+
     EventBus.emit("character_select_ready", { matchId: this.config.matchId });
     console.log("[CharacterSelectScene] create() complete, scene ready");
   }
@@ -450,6 +464,7 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.confirmButton.on("pointerover", () => {
       if (!this.isConfirmed && this.selectedCharacter) {
         this.confirmButton.setScale(1.05);
+        this.sound.play("sfx_hover", { volume: 0.5 });
       }
     });
 
@@ -458,6 +473,7 @@ export class CharacterSelectScene extends Phaser.Scene {
     });
 
     this.confirmButton.on("pointerdown", () => {
+      this.sound.play("sfx_click", { volume: 0.5 });
       this.confirmSelection();
     });
 
@@ -603,6 +619,9 @@ export class CharacterSelectScene extends Phaser.Scene {
       );
       prevCard?.deselect();
     }
+
+    // Play click sound
+    this.sound.play("sfx_click", { volume: 0.5 });
 
     // Select new
     this.selectedCharacter = character;
