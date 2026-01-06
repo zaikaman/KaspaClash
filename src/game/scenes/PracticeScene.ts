@@ -129,15 +129,7 @@ export class PracticeScene extends Phaser.Scene {
       this.load.audio(`sfx_${charId}_punch`, `/assets/audio/${charId}-punch.mp3`);
       this.load.audio(`sfx_${charId}_kick`, `/assets/audio/${charId}-kick.mp3`);
       this.load.audio(`sfx_${charId}_block`, `/assets/audio/${charId}-block.mp3`);
-      // Use block-bruiser special as placeholder for hash-hunter if missing, but load normally otherwise
-      if (charId === "hash-hunter") {
-        // Fallback logic handled in playback if file missing, or we alias it here?
-        // Simplest is to try loading the real one or a fallback if we know it's missing.
-        // Given implementation plan said hash-hunter-special is missing:
-        this.load.audio(`sfx_${charId}_special`, `/assets/audio/block-bruiser-special.mp3`);
-      } else {
-        this.load.audio(`sfx_${charId}_special`, `/assets/audio/${charId}-special.mp3`);
-      }
+      this.load.audio(`sfx_${charId}_special`, `/assets/audio/${charId}-special.mp3`);
     });
 
     // Load character spritesheets for all characters
@@ -301,7 +293,8 @@ export class PracticeScene extends Phaser.Scene {
 
     EventBus.emit("practice_scene_ready");
 
-    // Play BGM
+    // Play BGM - keep playing even when tab loses focus
+    this.sound.pauseOnBlur = false;
     if (this.sound.get("bgm_dojo")) {
       if (!this.sound.get("bgm_dojo").isPlaying) {
         this.sound.play("bgm_dojo", { loop: true, volume: 0.3 });
@@ -1297,11 +1290,18 @@ export class PracticeScene extends Phaser.Scene {
               else if (playerMove === "special") scale = p1Char === "block-bruiser" ? BB_SPECIAL_SCALE : p1Char === "dag-warrior" ? DW_SPECIAL_SCALE : p1Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
 
               this.player1Sprite.setScale(scale);
+
+              // Play Animation & SFX Logic
+              // Animation plays immediately, but audio timing varies:
+              // - Block Bruiser Special: Audio delayed 1s (to sync with impact)
+              // - Cyber Ninja Special: Audio delayed 0.5s (to sync with impact)
               this.player1Sprite.play(animKey);
 
-              // Play SFX
+              // SFX Logic with character-specific delays
               const sfxKey = `sfx_${p1Char}_${playerMove}`;
-              if (p1Char === "cyber-ninja" && playerMove === "special") {
+              if (p1Char === "block-bruiser" && playerMove === "special") {
+                this.time.delayedCall(1000, () => this.playSFX(sfxKey));
+              } else if ((p1Char === "cyber-ninja" || p1Char === "hash-hunter") && playerMove === "special") {
                 this.time.delayedCall(500, () => this.playSFX(sfxKey));
               } else {
                 this.playSFX(sfxKey);
@@ -1354,11 +1354,16 @@ export class PracticeScene extends Phaser.Scene {
               else if (aiMove === "special") scale = p2Char === "block-bruiser" ? BB_SPECIAL_SCALE : p2Char === "dag-warrior" ? DW_SPECIAL_SCALE : p2Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
 
               this.player2Sprite.setScale(scale);
+
+              // Play Animation & SFX Logic
+              // Animation plays immediately, audio timing varies by character
               this.player2Sprite.play(animKey);
 
-              // Play SFX
+              // SFX Logic with character-specific delays
               const sfxKey = `sfx_${p2Char}_${aiMove}`;
-              if (p2Char === "cyber-ninja" && aiMove === "special") {
+              if (p2Char === "block-bruiser" && aiMove === "special") {
+                this.time.delayedCall(1000, () => this.playSFX(sfxKey));
+              } else if ((p2Char === "cyber-ninja" || p2Char === "hash-hunter") && aiMove === "special") {
                 this.time.delayedCall(500, () => this.playSFX(sfxKey));
               } else {
                 this.playSFX(sfxKey);
@@ -1383,6 +1388,7 @@ export class PracticeScene extends Phaser.Scene {
               });
             }
 
+            // Wait for anim to finish (approx 1s)
             this.time.delayedCall(1200, () => {
               resolve();
             });

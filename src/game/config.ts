@@ -13,11 +13,11 @@ export const BASE_GAME_CONFIG: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO, // WebGL with Canvas fallback
   parent: undefined, // Will be set dynamically by PhaserGame component
   backgroundColor: "#0a0a0a", // Dark background matching Kaspa theme
-  
+
   // Game dimensions - optimized for web fighting game
   width: 1280,
   height: 720,
-  
+
   // Scale manager for responsive design
   scale: {
     mode: Phaser.Scale.FIT, // Fit to container while maintaining aspect ratio
@@ -33,7 +33,7 @@ export const BASE_GAME_CONFIG: Phaser.Types.Core.GameConfig = {
       height: 1080,
     },
   },
-  
+
   // Physics configuration - not needed for turn-based game
   // but included for potential animation effects
   physics: {
@@ -43,7 +43,7 @@ export const BASE_GAME_CONFIG: Phaser.Types.Core.GameConfig = {
       debug: process.env.NODE_ENV === "development",
     },
   },
-  
+
   // Rendering options
   render: {
     antialias: true,
@@ -51,21 +51,21 @@ export const BASE_GAME_CONFIG: Phaser.Types.Core.GameConfig = {
     roundPixels: true,
     transparent: false,
   },
-  
+
   // Audio configuration
   audio: {
     disableWebAudio: false,
   },
-  
+
   // Performance options
   fps: {
     target: 60,
     forceSetTimeOut: false,
   },
-  
+
   // Disable banner in production
   banner: process.env.NODE_ENV === "development",
-  
+
   // Scene will be added dynamically
   scene: [],
 };

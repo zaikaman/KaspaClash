@@ -352,7 +352,7 @@ export class FightScene extends Phaser.Scene {
 
     // Audio Loading
     // Background Music
-    this.load.audio("bgm_dojo", "/assets/audio/dojo.mp3"); // Using dojo as default fight music for now
+    this.load.audio("bgm_fight", "/assets/audio/fight.mp3");
     this.load.audio("sfx_victory", "/assets/audio/victory.mp3");
     this.load.audio("sfx_defeat", "/assets/audio/defeat.mp3");
 
@@ -367,11 +367,7 @@ export class FightScene extends Phaser.Scene {
       this.load.audio(`sfx_${charId}_kick`, `/assets/audio/${charId}-kick.mp3`);
       this.load.audio(`sfx_${charId}_block`, `/assets/audio/${charId}-block.mp3`);
       // Use block-bruiser special as placeholder for hash-hunter if missing scheme
-      if (charId === "hash-hunter") {
-        this.load.audio(`sfx_${charId}_special`, `/assets/audio/block-bruiser-special.mp3`);
-      } else {
-        this.load.audio(`sfx_${charId}_special`, `/assets/audio/${charId}-special.mp3`);
-      }
+      this.load.audio(`sfx_${charId}_special`, `/assets/audio/${charId}-special.mp3`);
     });
   }
 
@@ -389,13 +385,14 @@ export class FightScene extends Phaser.Scene {
     // Create animations
     this.createAnimations();
 
-    // Play BGM
-    if (this.sound.get("bgm_dojo")) {
-      if (!this.sound.get("bgm_dojo").isPlaying) {
-        this.sound.play("bgm_dojo", { loop: true, volume: 0.3 });
+    // Play BGM - keep playing even when tab loses focus
+    this.sound.pauseOnBlur = false;
+    if (this.sound.get("bgm_fight")) {
+      if (!this.sound.get("bgm_fight").isPlaying) {
+        this.sound.play("bgm_fight", { loop: true, volume: 0.3 });
       }
     } else {
-      this.sound.play("bgm_dojo", { loop: true, volume: 0.3 });
+      this.sound.play("bgm_fight", { loop: true, volume: 0.3 });
     }
 
     // Background
@@ -2621,6 +2618,9 @@ export class FightScene extends Phaser.Scene {
   private showCountdownThenSync(countdownSeconds: number, moveDeadlineAt: number): void {
     let count = countdownSeconds;
 
+    // Play SFX first (0.3s before "3" appears)
+    this.playSFX("sfx_cd_fight");
+
     const updateCountdown = () => {
       if (count > 0) {
         this.countdownText.setText(count.toString());
@@ -2647,7 +2647,6 @@ export class FightScene extends Phaser.Scene {
                   this.startSynchronizedSelectionPhase(moveDeadlineAt);
                 },
               });
-              this.playSFX("sfx_cd_fight");
             }
           },
         });
@@ -2657,7 +2656,10 @@ export class FightScene extends Phaser.Scene {
       }
     };
 
-    updateCountdown();
+    // Delay visual countdown by 0.3s so audio plays first
+    this.time.delayedCall(300, () => {
+      updateCountdown();
+    });
   }
 
   /**
@@ -2909,11 +2911,15 @@ export class FightScene extends Phaser.Scene {
               else if (p1Move === "special") scale = p1Char === "block-bruiser" ? BB_SPECIAL_SCALE : p1Char === "dag-warrior" ? DW_SPECIAL_SCALE : p1Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
 
               this.player1Sprite.setScale(scale);
+
+              // Play Animation immediately
               if (this.anims.exists(animKey)) this.player1Sprite.play(animKey);
 
-              // Play SFX
+              // SFX Logic with character-specific delays
               const sfxKey = `sfx_${p1Char}_${p1Move}`;
-              if (p1Char === "cyber-ninja" && p1Move === "special") {
+              if (p1Char === "block-bruiser" && p1Move === "special") {
+                this.time.delayedCall(1000, () => this.playSFX(sfxKey));
+              } else if ((p1Char === "cyber-ninja" || p1Char === "hash-hunter") && p1Move === "special") {
                 this.time.delayedCall(500, () => this.playSFX(sfxKey));
               } else {
                 this.playSFX(sfxKey);
@@ -2966,11 +2972,15 @@ export class FightScene extends Phaser.Scene {
               else if (p2Move === "special") scale = p2Char === "block-bruiser" ? BB_SPECIAL_SCALE : p2Char === "dag-warrior" ? DW_SPECIAL_SCALE : p2Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
 
               this.player2Sprite.setScale(scale);
+
+              // Play Animation immediately
               if (this.anims.exists(animKey)) this.player2Sprite.play(animKey);
 
-              // Play SFX
+              // SFX Logic with character-specific delays
               const sfxKey = `sfx_${p2Char}_${p2Move}`;
-              if (p2Char === "cyber-ninja" && p2Move === "special") {
+              if (p2Char === "block-bruiser" && p2Move === "special") {
+                this.time.delayedCall(1000, () => this.playSFX(sfxKey));
+              } else if ((p2Char === "cyber-ninja" || p2Char === "hash-hunter") && p2Move === "special") {
                 this.time.delayedCall(500, () => this.playSFX(sfxKey));
               } else {
                 this.playSFX(sfxKey);
@@ -2990,6 +3000,7 @@ export class FightScene extends Phaser.Scene {
                 });
               });
             }
+
 
             this.time.delayedCall(1200, () => {
               resolve();

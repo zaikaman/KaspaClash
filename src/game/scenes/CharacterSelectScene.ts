@@ -173,7 +173,8 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.selectionTimer.start();
 
     // Notify that scene is ready
-    // Start background music
+    // Start background music - keep playing even when tab loses focus
+    this.sound.pauseOnBlur = false;
     if (this.sound.get("bgm_select")) {
       if (!this.sound.get("bgm_select").isPlaying) {
         this.sound.play("bgm_select", { loop: true, volume: 0.3 });
@@ -804,6 +805,11 @@ export class CharacterSelectScene extends Phaser.Scene {
     EventBus.off("opponent_character_confirmed");
     EventBus.off("match_starting");
     EventBus.off("opponent_disconnected");
+
+    // Stop music
+    if (this.sound.get("bgm_select")) {
+      this.sound.stopByKey("bgm_select");
+    }
 
     // Start fight scene
     this.scene.start("FightScene", {
