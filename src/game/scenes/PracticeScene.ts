@@ -65,6 +65,16 @@ export class PracticeScene extends Phaser.Scene {
   // Match result overlay
   private matchResultOverlay!: Phaser.GameObjects.Container;
 
+  // Audio settings
+  private bgmVolume: number = 0.3;
+  private sfxVolume: number = 0.5;
+  private bgmSlider?: Phaser.GameObjects.Container;
+  private sfxSlider?: Phaser.GameObjects.Container;
+
+  // Settings menu
+  private settingsContainer!: Phaser.GameObjects.Container;
+  private isSettingsOpen: boolean = false;
+
   constructor() {
     super({ key: "PracticeScene" });
   }
@@ -255,6 +265,9 @@ export class PracticeScene extends Phaser.Scene {
    * Create scene elements.
    */
   create(): void {
+    // Load audio settings from localStorage
+    this.loadAudioSettings();
+
     // Initialize combat engine (same as FightScene)
     const matchFormat = this.config.matchFormat === "best_of_5" ? "best_of_5" : "best_of_3";
     this.combatEngine = new CombatEngine(
@@ -282,6 +295,11 @@ export class PracticeScene extends Phaser.Scene {
     this.createTurnIndicator();
     this.createCountdownOverlay();
 
+    // UI - Settings
+    this.settingsContainer = this.add.container(0, 0);
+    this.createSettingsButton();
+    this.createSettingsMenu();
+
     // Setup event listeners
     this.setupEventListeners();
 
@@ -297,15 +315,19 @@ export class PracticeScene extends Phaser.Scene {
     this.sound.pauseOnBlur = false;
     if (this.sound.get("bgm_dojo")) {
       if (!this.sound.get("bgm_dojo").isPlaying) {
-        this.sound.play("bgm_dojo", { loop: true, volume: 0.3 });
+        this.sound.play("bgm_dojo", { loop: true, volume: this.bgmVolume });
       }
     } else {
-      this.sound.play("bgm_dojo", { loop: true, volume: 0.3 });
+      this.sound.play("bgm_dojo", { loop: true, volume: this.bgmVolume });
     }
+
+    // Handle scene shutdown - stop BGM
+    this.events.once("shutdown", this.handleShutdown, this);
+    this.events.once("destroy", this.handleShutdown, this);
   }
 
   /**
-   * Helper to play SFX with duration cap (5s max) and 50% volume
+   * Helper to play SFX with duration cap (5s max) and configurable volume
    */
   private playSFX(key: string): void {
     if (this.game.sound.locked) {
@@ -314,7 +336,7 @@ export class PracticeScene extends Phaser.Scene {
     }
 
     try {
-      this.sound.play(key, { volume: 0.5 });
+      this.sound.play(key, { volume: this.sfxVolume });
       // Stop after 5 seconds max (enough for countdown)
       this.time.delayedCall(5000, () => {
         const sound = this.sound.get(key);
@@ -324,6 +346,52 @@ export class PracticeScene extends Phaser.Scene {
       });
     } catch (e) {
       console.warn(`Failed to play SFX: ${key}`, e);
+    }
+  }
+
+  /**
+   * Load audio settings from localStorage.
+   */
+  private loadAudioSettings(): void {
+    try {
+      const savedBgm = localStorage.getItem("kaspaclash_bgm_volume");
+      const savedSfx = localStorage.getItem("kaspaclash_sfx_volume");
+      if (savedBgm !== null) this.bgmVolume = parseFloat(savedBgm);
+      if (savedSfx !== null) this.sfxVolume = parseFloat(savedSfx);
+    } catch (e) {
+      console.warn("Failed to load audio settings", e);
+    }
+  }
+
+  /**
+   * Save audio settings to localStorage.
+   */
+  private saveAudioSettings(): void {
+    try {
+      localStorage.setItem("kaspaclash_bgm_volume", this.bgmVolume.toString());
+      localStorage.setItem("kaspaclash_sfx_volume", this.sfxVolume.toString());
+    } catch (e) {
+      console.warn("Failed to save audio settings", e);
+    }
+  }
+
+  /**
+   * Apply BGM volume to currently playing background music.
+   */
+  private applyBgmVolume(): void {
+    const bgm = this.sound.get("bgm_dojo");
+    if (bgm && "setVolume" in bgm) {
+      (bgm as Phaser.Sound.WebAudioSound).setVolume(this.bgmVolume);
+    }
+  }
+
+  /**
+   * Handle scene shutdown - stop BGM.
+   */
+  private handleShutdown(): void {
+    const bgm = this.sound.get("bgm_dojo");
+    if (bgm && bgm.isPlaying) {
+      bgm.stop();
     }
   }
 
@@ -1517,7 +1585,7 @@ export class PracticeScene extends Phaser.Scene {
     // Scales for dead animation
     const DEAD_SCALE = 0.70;
     const BB_DEAD_SCALE = 0.65;
-    const DW_DEAD_SCALE = 0.62;
+    const DW_DEAD_SCALE = 0.85;
     const HH_DEAD_SCALE = 0.85;
 
     const loser = state.roundWinner === "player1" ? "player2" : "player1";
@@ -1820,5 +1888,247 @@ export class PracticeScene extends Phaser.Scene {
     EventBus.off("practice_restart");
     EventBus.off("practice_exit");
     EventBus.emit("practice_exit_complete");
+  }
+
+  // ===========================================================================
+  // SETTINGS MENU
+  // ===========================================================================
+
+  private createSettingsButton(): void {
+    const radius = 24;
+    // Bottom Left position
+    const x = 50;
+    const y = GAME_DIMENSIONS.HEIGHT - 50;
+
+    const container = this.add.container(x, y);
+    container.setDepth(2000); // Ensure it's above everything else
+
+    const circle = this.add.graphics();
+    circle.fillStyle(0x1a1a2e, 0.8);
+    circle.fillCircle(0, 0, radius);
+    circle.lineStyle(2, 0x4b5563, 1);
+    circle.strokeCircle(0, 0, radius);
+
+    // Gear Icon (Simplified geometry)
+    const gear = this.add.graphics();
+    gear.fillStyle(0x9ca3af, 1);
+    gear.fillCircle(0, 0, 8);
+    for (let i = 0; i < 8; i++) {
+      const angle = Phaser.Math.DegToRad(i * 45);
+      const bx = Math.cos(angle) * 12;
+      const by = Math.sin(angle) * 12;
+      gear.fillCircle(bx, by, 4);
+    }
+    gear.fillCircle(0, 0, 4); // Center hole (filled with bg color in next step)
+
+    const centerHole = this.add.graphics();
+    centerHole.fillStyle(0x1a1a2e, 1);
+    centerHole.fillCircle(0, 0, 5);
+
+    container.add([circle, gear, centerHole]);
+    container.setSize(radius * 2, radius * 2);
+
+    // Interactive
+    const hitArea = new Phaser.Geom.Circle(25, 25, radius);
+    container.setInteractive(hitArea, Phaser.Geom.Circle.Contains);
+    container.input!.cursor = 'pointer';
+
+    container.on("pointerover", () => {
+      circle.lineStyle(2, 0x3b82f6, 1);
+      circle.strokeCircle(0, 0, radius);
+      this.tweens.add({ targets: gear, angle: 90, duration: 500, ease: "Back.easeOut" });
+    });
+
+    container.on("pointerout", () => {
+      circle.lineStyle(2, 0x4b5563, 1);
+      circle.strokeCircle(0, 0, radius);
+      this.tweens.add({ targets: gear, angle: 0, duration: 500, ease: "Back.easeOut" });
+    });
+
+    container.on("pointerdown", () => {
+      this.toggleSettingsMenu();
+    });
+  }
+
+  private createSettingsMenu(): void {
+    const width = 280;
+    const height = 180;
+
+    // Position menu above the button (bottom-left area)
+    const x = 50 + width / 2;
+    const y = GAME_DIMENSIONS.HEIGHT - 50 - height / 2 - 20;
+
+    this.settingsContainer = this.add.container(x, y);
+    this.settingsContainer.setVisible(false);
+    this.settingsContainer.setDepth(2001); // Higher than button
+
+    // Menu Background
+    const bg = this.add.graphics();
+    bg.fillStyle(0x0f172a, 0.95);
+    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 12);
+    bg.lineStyle(1, 0x334155, 1);
+    bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 12);
+    this.settingsContainer.add(bg);
+
+    // Header
+    const title = this.add.text(0, -70, "AUDIO SETTINGS", {
+      fontFamily: "monospace",
+      fontSize: "16px",
+      color: "#9ca3af",
+      fontStyle: "bold"
+    }).setOrigin(0.5);
+    this.settingsContainer.add(title);
+
+    // BGM Volume Slider
+    this.bgmSlider = this.createVolumeSlider(0, -30, "Music", this.bgmVolume, (value) => {
+      this.bgmVolume = value;
+      this.applyBgmVolume();
+      this.saveAudioSettings();
+    });
+    this.settingsContainer.add(this.bgmSlider);
+
+    // SFX Volume Slider
+    this.sfxSlider = this.createVolumeSlider(0, 15, "SFX", this.sfxVolume, (value) => {
+      this.sfxVolume = value;
+      this.saveAudioSettings();
+      // Play a test sound when adjusting
+      this.playSFX("sfx_click");
+    });
+    this.settingsContainer.add(this.sfxSlider);
+
+    // Close button
+    const closeBtn = this.add.text(0, 60, "CLOSE", {
+      fontFamily: "monospace",
+      fontSize: "14px",
+      color: "#6b7280"
+    }).setOrigin(0.5);
+    closeBtn.setInteractive({ useHandCursor: true });
+    closeBtn.on("pointerover", () => closeBtn.setColor("#ffffff"));
+    closeBtn.on("pointerout", () => closeBtn.setColor("#6b7280"));
+    closeBtn.on("pointerdown", () => this.toggleSettingsMenu());
+    this.settingsContainer.add(closeBtn);
+  }
+
+  /**
+   * Create a volume slider control.
+   */
+  private createVolumeSlider(
+    x: number,
+    y: number,
+    label: string,
+    initialValue: number,
+    onChange: (value: number) => void
+  ): Phaser.GameObjects.Container {
+    const container = this.add.container(x, y);
+    const sliderWidth = 140;
+    const sliderHeight = 8;
+    const knobRadius = 10;
+
+    // Label
+    const labelText = this.add.text(-120, 0, label, {
+      fontFamily: "monospace",
+      fontSize: "12px",
+      color: "#9ca3af"
+    }).setOrigin(0, 0.5);
+    container.add(labelText);
+
+    // Track start X
+    const trackOffsetX = 10;
+    const trackStartX = -sliderWidth / 2 + trackOffsetX;
+
+    // Track background
+    const trackBg = this.add.graphics();
+    trackBg.fillStyle(0x1e293b, 1);
+    trackBg.fillRoundedRect(trackStartX, -sliderHeight / 2, sliderWidth, sliderHeight, 4);
+    container.add(trackBg);
+
+    // Track fill (progress)
+    const trackFill = this.add.graphics();
+    container.add(trackFill);
+
+    // Knob
+    const knob = this.add.graphics();
+    container.add(knob);
+
+    // Percentage text
+    const percentText = this.add.text(sliderWidth / 2 + 25, 0, `${Math.round(initialValue * 100)}%`, {
+      fontFamily: "monospace",
+      fontSize: "11px",
+      color: "#6b7280"
+    }).setOrigin(0, 0.5);
+    container.add(percentText);
+
+    // Update visual based on value
+    const updateSliderVisual = (value: number) => {
+      const fillWidth = sliderWidth * value;
+      const knobX = trackStartX + fillWidth;
+
+      trackFill.clear();
+      trackFill.fillStyle(0x3b82f6, 1);
+      trackFill.fillRoundedRect(trackStartX, -sliderHeight / 2, fillWidth, sliderHeight, 4);
+
+      knob.clear();
+      knob.fillStyle(0x3b82f6, 1);
+      knob.fillCircle(knobX, 0, knobRadius);
+      knob.fillStyle(0x1e40af, 1);
+      knob.fillCircle(knobX, 0, knobRadius - 3);
+
+      percentText.setText(`${Math.round(value * 100)}%`);
+    };
+
+    updateSliderVisual(initialValue);
+
+    // Make the entire track area interactive
+    const hitArea = this.add.rectangle(0, 0, 240, 30, 0x000000, 0);
+    hitArea.setInteractive({ useHandCursor: true });
+    container.add(hitArea);
+
+    // Drag handling
+    let isDragging = false;
+
+    const calculateValue = (pointerX: number): number => {
+      const localX = pointerX - container.x - this.settingsContainer.x;
+      const trackEndX = trackStartX + sliderWidth;
+      const clampedX = Phaser.Math.Clamp(localX, trackStartX, trackEndX);
+      return (clampedX - trackStartX) / sliderWidth;
+    };
+
+    hitArea.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      isDragging = true;
+      const newValue = calculateValue(pointer.x);
+      updateSliderVisual(newValue);
+      onChange(newValue);
+    });
+
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+      if (isDragging) {
+        const newValue = calculateValue(pointer.x);
+        updateSliderVisual(newValue);
+        onChange(newValue);
+      }
+    });
+
+    this.input.on("pointerup", () => {
+      isDragging = false;
+    });
+
+    return container;
+  }
+
+  private toggleSettingsMenu(): void {
+    this.isSettingsOpen = !this.isSettingsOpen;
+    this.settingsContainer.setVisible(this.isSettingsOpen);
+
+    if (this.isSettingsOpen) {
+      this.settingsContainer.setScale(0.9);
+      this.settingsContainer.setAlpha(0);
+      this.tweens.add({
+        targets: this.settingsContainer,
+        scale: 1,
+        alpha: 1,
+        duration: 200,
+        ease: "Back.easeOut"
+      });
+    }
   }
 }

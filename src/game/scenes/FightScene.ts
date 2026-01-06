@@ -3360,7 +3360,7 @@ export class FightScene extends Phaser.Scene {
     // cyber-ninja: 408x305, block-bruiser: 551x380, dag-warrior: 539x325, hash-hunter: 513x248
     const DEAD_SCALE = 0.70;  // cyber-ninja base scale
     const BB_DEAD_SCALE = 0.65;  // block-bruiser (larger frame)
-    const DW_DEAD_SCALE = 0.62;  // dag-warrior
+    const DW_DEAD_SCALE = 0.85;  // dag-warrior
     const HH_DEAD_SCALE = 0.99;  // hash-hunter (smaller frame)
 
     // Idle scale constants (same as in handleServerRoundResolved)
