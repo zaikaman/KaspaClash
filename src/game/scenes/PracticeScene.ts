@@ -46,6 +46,7 @@ export class PracticeScene extends Phaser.Scene {
   private roundScoreText!: Phaser.GameObjects.Text;
   private countdownText!: Phaser.GameObjects.Text;
   private turnIndicatorText!: Phaser.GameObjects.Text;
+  private narrativeText!: Phaser.GameObjects.Text;
 
   // Character sprites
   private player1Sprite!: Phaser.GameObjects.Sprite;
@@ -292,6 +293,7 @@ export class PracticeScene extends Phaser.Scene {
     this.createRoundTimer();
     this.createRoundScore();
     this.createMoveButtons();
+    this.createNarrativeDisplay();
     this.createTurnIndicator();
     this.createCountdownOverlay();
 
@@ -1036,6 +1038,21 @@ export class PracticeScene extends Phaser.Scene {
   // TURN INDICATOR
   // ===========================================================================
 
+  private createNarrativeDisplay(): void {
+    this.narrativeText = this.add.text(
+      GAME_DIMENSIONS.CENTER_X,
+      GAME_DIMENSIONS.CENTER_Y - 80,
+      "",
+      {
+        fontFamily: "monospace",
+        fontSize: "18px",
+        color: "#ffffff",
+        align: "center",
+        wordWrap: { width: 600 },
+      }
+    ).setOrigin(0.5).setAlpha(0);
+  }
+
   private createTurnIndicator(): void {
     this.turnIndicatorText = this.add.text(
       GAME_DIMENSIONS.CENTER_X,
@@ -1486,6 +1503,26 @@ export class PracticeScene extends Phaser.Scene {
             // Then P2
             await runP2Attack();
           }
+
+          // Show overall narrative
+          let narrative = "";
+          if (p1WasStunned && p2WasStunned) {
+            narrative = "Both players are stunned!";
+          } else if (p1WasStunned) {
+            narrative = `You are STUNNED! AI uses ${aiMove}!`;
+          } else if (p2WasStunned) {
+            narrative = `AI is STUNNED! You use ${playerMove}!`;
+          } else if (turnResult.player1.damageTaken > 0 && turnResult.player2.damageTaken > 0) {
+            narrative = "Both players trade heavy blows!";
+          } else if (turnResult.player2.damageTaken > 0) {
+            narrative = `You hit for ${turnResult.player2.damageTaken} damage!`;
+          } else if (turnResult.player1.damageTaken > 0) {
+            narrative = `AI hits for ${turnResult.player1.damageTaken} damage!`;
+          } else {
+            narrative = "Both attacks were blocked or missed!";
+          }
+          this.narrativeText.setText(narrative);
+          this.narrativeText.setAlpha(1);
 
           // Phase 4: Sync UI & Return
           this.syncUIWithCombatState();

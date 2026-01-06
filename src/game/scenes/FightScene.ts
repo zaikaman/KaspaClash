@@ -3248,12 +3248,12 @@ export class FightScene extends Phaser.Scene {
             narrative = `Player 1 is STUNNED! Player 2 uses ${p2Move}!`;
           } else if (p2IsStunned) {
             narrative = `Player 2 is STUNNED! Player 1 uses ${p1Move}!`;
-          } else if (payload.player1.damageDealt > 0 && payload.player2.damageDealt > 0) {
+          } else if (payload.player1.damageTaken > 0 && payload.player2.damageTaken > 0) {
             narrative = "Both players trade heavy blows!";
-          } else if (payload.player1.damageDealt > 0) {
-            narrative = `Player 1 hits for ${payload.player1.damageDealt} damage!`;
-          } else if (payload.player2.damageDealt > 0) {
-            narrative = `Player 2 hits for ${payload.player2.damageDealt} damage!`;
+          } else if (payload.player2.damageTaken > 0) {
+            narrative = `Player 1 hits for ${payload.player2.damageTaken} damage!`;
+          } else if (payload.player1.damageTaken > 0) {
+            narrative = `Player 2 hits for ${payload.player1.damageTaken} damage!`;
           } else {
             narrative = "Both attacks were blocked or missed!";
           }
