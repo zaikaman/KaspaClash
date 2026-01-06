@@ -87,10 +87,16 @@ export function useMatchmakingQueue(): UseMatchmakingQueueReturn {
   // Guards against race conditions
   const matchHandledRef = useRef<string | null>(null); // Prevents duplicate handleMatchFound calls
   const navigationPendingRef = useRef(false); // Tracks if we're navigating
+  const isInQueueRef = useRef(false); // Tracks if we're currently in queue for polling
 
   // Derived state
   const isInQueue = useMatchmakingStore(selectIsInQueue);
   const playerCount = useMatchmakingStore(selectPlayerCount);
+
+  // Keep ref in sync with queue state
+  useEffect(() => {
+    isInQueueRef.current = isInQueue;
+  }, [isInQueue]);
 
   // Timer for wait time
   useEffect(() => {
@@ -188,6 +194,12 @@ export function useMatchmakingQueue(): UseMatchmakingQueueReturn {
 
     // Skip if no address
     if (!address) return;
+
+    // Skip if not in queue (prevents polling spam after leaving queue)
+    if (!isInQueueRef.current) {
+      console.log("Skipping poll - not in queue");
+      return;
+    }
 
     try {
       const response = await fetch(`/api/matchmaking/queue?address=${encodeURIComponent(address)}`);
@@ -313,23 +325,26 @@ export function useMatchmakingQueue(): UseMatchmakingQueueReturn {
    * Leave the matchmaking queue.
    */
   const leaveQueue = useCallback(async (): Promise<void> => {
-    try {
-      // Stop polling
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
+    // Clear local state FIRST to stop polling immediately
+    store.leaveQueue();
+    
+    // Stop polling immediately (synchronous)
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
 
+    // Reset match handling refs
+    matchHandledRef.current = null;
+    navigationPendingRef.current = false;
+
+    try {
       // Unsubscribe from channel
       const channel = channelRef.current;
       if (channel) {
         await channel.unsubscribe();
         channelRef.current = null;
       }
-
-      // Reset match handling refs
-      matchHandledRef.current = null;
-      navigationPendingRef.current = false;
 
       // Call API to leave queue
       if (address) {
@@ -339,14 +354,9 @@ export function useMatchmakingQueue(): UseMatchmakingQueueReturn {
           body: JSON.stringify({ address }),
         });
       }
-
-      store.leaveQueue();
     } catch (error) {
       console.error("Error leaving queue:", error);
-      // Still clear local state
-      matchHandledRef.current = null;
-      navigationPendingRef.current = false;
-      store.leaveQueue();
+      // Local state already cleared above
     }
   }, [address, store]);
 

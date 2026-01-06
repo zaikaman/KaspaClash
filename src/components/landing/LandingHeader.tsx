@@ -12,6 +12,7 @@ import { useWallet } from "@/hooks/useWallet";
 export default function LandingHeader() {
     const pathname = usePathname();
     const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     // Use real wallet hook
     const {
@@ -123,12 +124,88 @@ export default function LandingHeader() {
                 </div>
 
                 {/* Mobile Menu Button */}
-                <button className="md:hidden text-white p-2">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                    </svg>
+                <button 
+                    onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                    className="md:hidden text-white p-2 z-50 relative hover:text-cyber-gold transition-colors"
+                    aria-label="Toggle menu"
+                >
+                    {isMobileMenuOpen ? (
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    ) : (
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    )}
                 </button>
             </nav>
+
+            {/* Mobile Menu */}
+            {isMobileMenuOpen && (
+                <div className="md:hidden fixed inset-0 top-[72px] bg-cyber-black/95 backdrop-blur-lg z-40 animate-in fade-in slide-in-from-top-4">
+                    <nav className="container mx-auto px-6 py-8 flex flex-col gap-6">
+                        <Link
+                            href="/"
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className={`text-xl font-medium hover:text-cyber-gold transition-colors ${pathname === "/" ? "text-cyber-gold" : "text-white"}`}
+                        >
+                            Home
+                        </Link>
+                        <Link
+                            href="/matchmaking"
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className={`text-xl font-medium hover:text-cyber-gold transition-colors ${pathname === "/matchmaking" ? "text-cyber-gold" : "text-white"}`}
+                        >
+                            Play Now
+                        </Link>
+                        <Link
+                            href="/spectate"
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className={`text-xl font-medium hover:text-cyber-gold transition-colors ${pathname === "/spectate" ? "text-cyber-gold" : "text-white"}`}
+                        >
+                            Watch
+                        </Link>
+                        <Link
+                            href="/leaderboard"
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className={`text-xl font-medium hover:text-cyber-gold transition-colors ${pathname === "/leaderboard" ? "text-cyber-gold" : "text-white"}`}
+                        >
+                            Leaderboard
+                        </Link>
+                        <Link
+                            href="/docs"
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className={`text-xl font-medium hover:text-cyber-gold transition-colors ${pathname === "/docs" ? "text-cyber-gold" : "text-white"}`}
+                        >
+                            Docs
+                        </Link>
+                        <div className="border-t border-cyber-gold/20 pt-6 mt-2 flex flex-col gap-4">
+                            <NetworkModeIndicator />
+                            {isConnected && truncatedAddress ? (
+                                <WalletInfo
+                                    address={truncatedAddress}
+                                    fullAddress={address || undefined}
+                                    balance={balance || "0"}
+                                    onDisconnect={handleDisconnect}
+                                />
+                            ) : (
+                                <Button
+                                    onClick={() => {
+                                        setIsMobileMenuOpen(false);
+                                        setIsWalletModalOpen(true);
+                                    }}
+                                    disabled={isConnecting}
+                                    className="w-full bg-gradient-cyber text-white border-0 font-semibold text-[17px] hover:opacity-90 transition-opacity font-orbitron h-auto py-3 px-6"
+                                >
+                                    {isConnecting ? "Connecting..." : "Connect Wallet"}
+                                </Button>
+                            )}
+                        </div>
+                    </nav>
+                </div>
+            )}
+
 
             {/* Wallet Modal */}
             <WalletConnectModal

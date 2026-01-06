@@ -71,20 +71,20 @@ export default function PracticePage() {
 
     return (
         <LandingLayout>
-            <div className="min-h-screen pt-32 pb-20 relative">
+            <div className="min-h-screen pt-24 sm:pt-32 pb-20 relative">
                 {/* Background Elements */}
                 <div className="absolute inset-0 overflow-hidden pointer-events-none">
                     <div className="absolute top-[20%] left-[-10%] w-[500px] h-[500px] bg-cyber-orange/10 rounded-full blur-[100px]"></div>
                     <div className="absolute bottom-[10%] right-[-10%] w-[600px] h-[600px] bg-cyber-gold/5 rounded-full blur-[120px]"></div>
                 </div>
 
-                <div className="container mx-auto px-6 lg:px-12 xl:px-24 relative z-10">
+                <div className="container mx-auto px-4 sm:px-6 lg:px-12 xl:px-24 relative z-10">
                     {gameState === "menu" && (
                         <PracticeMenu onStart={handleStart} />
                     )}
 
                     {gameState === "playing" && practiceConfig && (
-                        <div className="w-full h-[600px] bg-black/50 border border-cyber-gray/30 rounded-2xl overflow-hidden">
+                        <div className="w-full h-[400px] sm:h-[500px] md:h-[600px] bg-black/50 border border-cyber-gray/30 rounded-2xl overflow-hidden">
                             <PracticeGameClient
                                 characterId={practiceConfig.characterId}
                                 aiDifficulty={practiceConfig.difficulty}

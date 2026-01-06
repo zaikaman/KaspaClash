@@ -39,12 +39,12 @@ export default function Home() {
             {/* Main Layout Grid */}
             <div className="relative mb-24">
               {/* Title BEHIND the character */}
-              <div className="absolute top-[7%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full text-center z-0 pointer-events-none">
+              <div className="absolute top-[7%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full text-center z-0 pointer-events-none px-4">
                 <motion.h1
                   initial={{ opacity: 0, y: 50, scale: 0.9 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   transition={{ duration: 1, ease: "easeOut" }}
-                  className="text-[60px] sm:text-[80px] lg:text-[130px] xl:text-[160px] font-bold leading-none font-orbitron text-white opacity-90 tracking-wider whitespace-nowrap"
+                  className="text-[48px] xs:text-[56px] sm:text-[80px] md:text-[100px] lg:text-[130px] xl:text-[160px] font-bold leading-tight md:leading-none font-orbitron text-white opacity-90 tracking-wider break-words"
                 >
                   KASPA CLASH
                 </motion.h1>
@@ -58,7 +58,7 @@ export default function Home() {
                   transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
                   src="/assets/hero.webp"
                   alt="Cyberpunk Fighter"
-                  className="w-auto h-[400px] md:h-[600px] lg:h-[700px] object-contain drop-shadow-[0_0_30px_rgba(240,183,31,0.3)]"
+                  className="w-auto h-[300px] sm:h-[400px] md:h-[600px] lg:h-[700px] object-contain drop-shadow-[0_0_30px_rgba(240,183,31,0.3)]"
                 />
               </div>
 
@@ -107,20 +107,20 @@ export default function Home() {
               initial="hidden"
               whileInView="visible"
               viewport={{ once: true, amount: 0.3 }}
-              className="grid grid-cols-1 md:grid-cols-12 gap-8 items-end relative z-20"
+              className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-6 md:gap-8 items-end relative z-20"
             >
 
               {/* Left Card - 1 BPS (Experience the Future style) */}
-              <motion.div variants={fadeInUp} className="md:col-span-4 lg:col-span-5 relative rounded-[20px] border border-cyber-gold/30 bg-black/40 backdrop-blur-md p-6 group hover:border-cyber-gold transition-colors">
-                <div className="flex gap-4 items-center">
+              <motion.div variants={fadeInUp} className="sm:col-span-2 md:col-span-4 lg:col-span-5 relative rounded-[20px] border border-cyber-gold/30 bg-black/40 backdrop-blur-md p-4 sm:p-6 group hover:border-cyber-gold transition-colors">
+                <div className="flex gap-3 sm:gap-4 items-center">
                   <img
                     src="/assets/second-hero.webp"
                     alt="Kaspa Speed"
-                    className="w-24 h-24 rounded-[12px] object-cover border border-cyber-orange/30"
+                    className="w-20 h-20 sm:w-24 sm:h-24 rounded-[12px] object-cover border border-cyber-orange/30 flex-shrink-0"
                   />
-                  <div>
-                    <h2 className="text-2xl md:text-3xl font-bold text-cyber-gold font-orbitron mb-1">1 BPS</h2>
-                    <h3 className="text-white font-medium mb-1">Instant Finality</h3>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-cyber-gold font-orbitron mb-1">1 BPS</h2>
+                    <h3 className="text-white font-medium mb-1 text-sm sm:text-base">Instant Finality</h3>
                     <p className="text-cyber-gray text-xs leading-5 line-clamp-2">
                       Moves confirm in milliseconds. True real-time gaming.
                     </p>
@@ -129,8 +129,8 @@ export default function Home() {
               </motion.div>
 
               {/* Center Text - Micro Fees (Art & Design style) */}
-              <motion.div variants={fadeInUp} className="md:col-span-4 lg:col-span-4 text-center pb-4">
-                <h3 className="text-2xl md:text-3xl font-semibold uppercase mb-2 font-orbitron text-white tracking-widest">
+              <motion.div variants={fadeInUp} className="sm:col-span-2 md:col-span-4 lg:col-span-4 text-center pb-4">
+                <h3 className="text-xl sm:text-2xl md:text-3xl font-semibold uppercase mb-2 font-orbitron text-white tracking-widest">
                   MICRO <br /> <span className="text-cyber-orange font-bold">FEES</span>
                 </h3>
                 <p className="text-cyber-gray text-sm max-w-[200px] mx-auto">
@@ -139,12 +139,12 @@ export default function Home() {
               </motion.div>
 
               {/* Right Card - 100% Fair Play (17+ Years style) */}
-              <motion.div variants={fadeInUp} className="md:col-span-4 lg:col-span-3">
-                <div className="rounded-[20px] border border-cyber-gold/30 bg-black/40 backdrop-blur-md p-8 text-center h-full flex flex-col justify-center items-center hover:border-cyber-orange transition-colors">
-                  <h2 className="text-5xl md:text-6xl font-bold bg-gradient-cyber bg-clip-text text-transparent mb-2 font-orbitron">
+              <motion.div variants={fadeInUp} className="sm:col-span-2 md:col-span-4 lg:col-span-3">
+                <div className="rounded-[20px] border border-cyber-gold/30 bg-black/40 backdrop-blur-md p-6 sm:p-8 text-center h-full flex flex-col justify-center items-center hover:border-cyber-orange transition-colors">
+                  <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold bg-gradient-cyber bg-clip-text text-transparent mb-2 font-orbitron">
                     100%
                   </h2>
-                  <p className="text-lg font-medium text-white font-orbitron">
+                  <p className="text-base sm:text-lg font-medium text-white font-orbitron">
                     Fair Play
                   </p>
                   <p className="text-cyber-gray text-xs mt-2">
@@ -298,17 +298,17 @@ export default function Home() {
                     <p className="text-cyber-gray text-lg leading-8 mb-8">
                       The arena is open. The blockchain is ready. Join the first wave of fighters and prove your worth on the BlockDAG.
                     </p>
-                    <div className="flex gap-4">
+                    <div className="flex flex-col sm:flex-row gap-4">
                       <Link href="/matchmaking">
                         <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                          <Button size="lg" className="bg-gradient-cyber text-white border-0 hover:opacity-90 font-orbitron text-lg px-8 py-6 h-auto">
+                          <Button size="lg" className="w-full sm:w-auto bg-gradient-cyber text-white border-0 hover:opacity-90 font-orbitron text-base sm:text-lg px-6 sm:px-8 py-4 sm:py-6 h-auto">
                             Play Now
                           </Button>
                         </motion.div>
                       </Link>
                       <Link href="/docs">
                         <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                          <Button variant="outline" size="lg" className="border-cyber-gold text-cyber-gold hover:bg-cyber-gold/10 font-orbitron text-lg px-8 py-6 h-auto">
+                          <Button variant="outline" size="lg" className="w-full sm:w-auto border-cyber-gold text-cyber-gold hover:bg-cyber-gold/10 font-orbitron text-base sm:text-lg px-6 sm:px-8 py-4 sm:py-6 h-auto">
                             Learn More
                           </Button>
                         </motion.div>
@@ -470,17 +470,17 @@ export default function Home() {
                   The leaderboard awaits. Every punch, every block, every victory is recorded eternally on the BlockDAG. Will you be remembered?
                 </p>
 
-                <div className="flex gap-4">
+                <div className="flex flex-col sm:flex-row gap-4">
                   <Link href="/leaderboard">
                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                      <Button size="lg" className="bg-gradient-cyber text-white border-0 hover:opacity-90 font-orbitron text-lg px-6 py-3 h-auto">
+                      <Button size="lg" className="w-full sm:w-auto bg-gradient-cyber text-white border-0 hover:opacity-90 font-orbitron text-base sm:text-lg px-6 py-3 h-auto">
                         View Leaderboard
                       </Button>
                     </motion.div>
                   </Link>
                   <Link href="/docs">
                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                      <Button variant="outline" size="lg" className="border-cyber-gold text-cyber-gold hover:bg-cyber-gold/10 font-orbitron text-lg px-6 py-3 h-auto">
+                      <Button variant="outline" size="lg" className="w-full sm:w-auto border-cyber-gold text-cyber-gold hover:bg-cyber-gold/10 font-orbitron text-base sm:text-lg px-6 py-3 h-auto">
                         Game Manual
                       </Button>
                     </motion.div>

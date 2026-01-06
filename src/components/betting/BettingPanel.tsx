@@ -161,12 +161,12 @@ export function BettingPanel({ matchId, player1Name, player2Name }: BettingPanel
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-black/60 backdrop-blur-sm rounded-xl border border-cyber-gold/30 p-4"
+            className="bg-black/60 backdrop-blur-sm rounded-xl border border-cyber-gold/30 p-3 sm:p-4"
         >
             {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-cyber-gold font-orbitron text-sm font-bold tracking-wider flex items-center gap-2">
-                    <HugeiconsIcon icon={Coins01Icon} className="w-5 h-5" /> LIVE BETTING
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
+                <h3 className="text-cyber-gold font-orbitron text-xs sm:text-sm font-bold tracking-wider flex items-center gap-2">
+                    <HugeiconsIcon icon={Coins01Icon} className="w-4 h-4 sm:w-5 sm:h-5" /> LIVE BETTING
                 </h3>
                 <span className="text-xs text-gray-400">
                     Pool: {poolState.pool?.totalPoolKas.toFixed(2)} KAS
@@ -174,20 +174,20 @@ export function BettingPanel({ matchId, player1Name, player2Name }: BettingPanel
             </div>
 
             {/* Odds Display */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-4">
                 {/* Player 1 Odds */}
                 <button
                     onClick={() => setSelectedPlayer('player1')}
-                    className={`relative p-3 rounded-lg border-2 transition-all ${selectedPlayer === 'player1'
+                    className={`relative p-2 sm:p-3 rounded-lg border-2 transition-all ${selectedPlayer === 'player1'
                         ? 'border-cyber-gold bg-cyber-gold/20'
                         : 'border-gray-700 bg-gray-800/50 hover:border-cyber-gold/50'
                         }`}
                 >
                     <div className="text-xs text-gray-400 mb-1 truncate">{player1Name}</div>
-                    <div className="text-xl font-bold text-cyber-gold font-orbitron">
+                    <div className="text-lg sm:text-xl font-bold text-cyber-gold font-orbitron">
                         {formatOdds(poolState.odds.player1)}
                     </div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-gray-500 truncate">
                         {poolState.odds.player1Percentage}% of pool
                     </div>
                     {selectedPlayer === 'player1' && (
@@ -201,16 +201,16 @@ export function BettingPanel({ matchId, player1Name, player2Name }: BettingPanel
                 {/* Player 2 Odds */}
                 <button
                     onClick={() => setSelectedPlayer('player2')}
-                    className={`relative p-3 rounded-lg border-2 transition-all ${selectedPlayer === 'player2'
+                    className={`relative p-2 sm:p-3 rounded-lg border-2 transition-all ${selectedPlayer === 'player2'
                         ? 'border-cyber-orange bg-cyber-orange/20'
                         : 'border-gray-700 bg-gray-800/50 hover:border-cyber-orange/50'
                         }`}
                 >
                     <div className="text-xs text-gray-400 mb-1 truncate">{player2Name}</div>
-                    <div className="text-xl font-bold text-cyber-orange font-orbitron">
+                    <div className="text-lg sm:text-xl font-bold text-cyber-orange font-orbitron">
                         {formatOdds(poolState.odds.player2)}
                     </div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-gray-500 truncate">
                         {poolState.odds.player2Percentage}% of pool
                     </div>
                     {selectedPlayer === 'player2' && (

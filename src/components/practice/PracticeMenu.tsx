@@ -20,12 +20,12 @@ export default function PracticeMenu({ onStart }: PracticeMenuProps) {
     const selectedCharacter = CHARACTER_ROSTER.find(c => c.id === selectedChar);
 
     return (
-        <div className="flex flex-col md:flex-row gap-12 w-full max-w-5xl mx-auto items-start">
+        <div className="flex flex-col md:flex-row gap-8 md:gap-12 w-full max-w-5xl mx-auto items-start">
             {/* Left: Character Selection */}
             <div className="flex-1 w-full">
-                <h2 className="text-2xl font-bold font-orbitron text-white mb-6">SELECT FIGHTER</h2>
+                <h2 className="text-xl sm:text-2xl font-bold font-orbitron text-white mb-4 sm:mb-6">SELECT FIGHTER</h2>
 
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                     {CHARACTER_ROSTER.map((char: Character) => (
                         <div
                             key={char.id}
@@ -39,7 +39,7 @@ export default function PracticeMenu({ onStart }: PracticeMenuProps) {
                             `}
                         >
                             {/* Character Portrait */}
-                            <div className="h-40 bg-black/50 flex items-center justify-center relative overflow-hidden">
+                            <div className="h-32 sm:h-40 bg-black/50 flex items-center justify-center relative overflow-hidden">
                                 <img
                                     src={char.portraitUrl}
                                     alt={char.name}
@@ -75,9 +75,9 @@ export default function PracticeMenu({ onStart }: PracticeMenuProps) {
             </div>
 
             {/* Right: Difficulty & Start */}
-            <div className="w-full md:w-80 flex flex-col gap-8 bg-black/40 border border-cyber-gold/20 p-8 rounded-2xl backdrop-blur-md h-fit">
+            <div className="w-full md:w-80 flex flex-col gap-6 sm:gap-8 bg-black/40 border border-cyber-gold/20 p-6 sm:p-8 rounded-2xl backdrop-blur-md h-fit">
                 <div>
-                    <h2 className="text-2xl font-bold font-orbitron text-white mb-6">DIFFICULTY</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold font-orbitron text-white mb-4 sm:mb-6">DIFFICULTY</h2>
                     <div className="flex flex-col gap-3">
                         {DIFFICULTIES.map((diff) => (
                             <Button

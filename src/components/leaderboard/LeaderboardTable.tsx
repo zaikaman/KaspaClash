@@ -77,66 +77,69 @@ export default function LeaderboardTable() {
 
     return (
         <div className="w-full bg-black/40 border border-cyber-gold/20 rounded-2xl overflow-hidden backdrop-blur-md">
-            <Table>
-                <TableHeader className="bg-cyber-gold/10 border-b border-cyber-gold/20">
-                    <TableRow className="hover:bg-transparent">
-                        <TableHead className="w-[100px] text-cyber-gold font-orbitron font-bold">RANK</TableHead>
-                        <TableHead className="text-white font-orbitron">PLAYER</TableHead>
-                        <TableHead className="text-right text-white font-orbitron">WINS</TableHead>
-                        <TableHead className="text-right text-white font-orbitron">LOSSES</TableHead>
-                        <TableHead className="text-right text-cyber-orange font-orbitron font-bold">RATING</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {entries.map((player) => (
-                        <TableRow
-                            key={player.address}
-                            className="border-b border-white/5 hover:bg-cyber-gold/5 transition-colors group"
-                        >
-                            <TableCell className="font-bold font-orbitron text-lg">
-                                {player.rank === 1 && <span className="text-[#FFD700] drop-shadow-[0_0_10px_rgba(255,215,0,0.5)]">#1</span>}
-                                {player.rank === 2 && <span className="text-[#C0C0C0] drop-shadow-[0_0_10px_rgba(192,192,192,0.5)]">#2</span>}
-                                {player.rank === 3 && <span className="text-[#CD7F32] drop-shadow-[0_0_10px_rgba(205,127,50,0.5)]">#3</span>}
-                                {player.rank > 3 && <span className="text-cyber-gray">#{player.rank}</span>}
-                            </TableCell>
-                            <TableCell>
-                                <div className="flex items-center gap-3">
-                                    <div className="relative w-10 h-10 rounded-full border border-cyber-gold/30 overflow-hidden bg-black flex-shrink-0">
-                                        {player.avatarUrl ? (
-                                            <Image
-                                                src={player.avatarUrl}
-                                                alt={player.displayName || "Player"}
-                                                fill
-                                                className="object-cover"
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-xl">
-                                                🥷
-                                            </div>
-                                        )}
-                                    </div>
+            <div className="overflow-x-auto">
+                <Table>
+                    <TableHeader className="bg-cyber-gold/10 border-b border-cyber-gold/20">
+                        <TableRow className="hover:bg-transparent">
+                            <TableHead className="w-[80px] sm:w-[100px] text-cyber-gold font-orbitron font-bold text-xs sm:text-sm">RANK</TableHead>
+                            <TableHead className="text-white font-orbitron text-xs sm:text-sm min-w-[150px]">PLAYER</TableHead>
+                            <TableHead className="text-right text-white font-orbitron text-xs sm:text-sm">WINS</TableHead>
+                            <TableHead className="text-right text-white font-orbitron text-xs sm:text-sm">LOSSES</TableHead>
+                            <TableHead className="text-right text-cyber-orange font-orbitron font-bold text-xs sm:text-sm">RATING</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {entries.map((player) => (
+                            <TableRow
+                                key={player.address}
+                                className="border-b border-white/5 hover:bg-cyber-gold/5 transition-colors group"
+                            >
+                                <TableCell className="font-bold font-orbitron text-base sm:text-lg">
+                                    {player.rank === 1 && <span className="text-[#FFD700] drop-shadow-[0_0_10px_rgba(255,215,0,0.5)]">#1</span>}
+                                    {player.rank === 2 && <span className="text-[#C0C0C0] drop-shadow-[0_0_10px_rgba(192,192,192,0.5)]">#2</span>}
+                                    {player.rank === 3 && <span className="text-[#CD7F32] drop-shadow-[0_0_10px_rgba(205,127,50,0.5)]">#3</span>}
+                                    {player.rank > 3 && <span className="text-cyber-gray">#{player.rank}</span>}
+                                </TableCell>
+                                <TableCell>
                                     <Link
                                         href={`/player/${player.address}`}
-                                        className="font-mono text-white hover:text-cyber-gold transition-colors truncate"
-                                        title={player.address}
+                                        className="flex items-center gap-2 sm:gap-3 group/player hover:text-cyber-gold transition-colors"
                                     >
-                                        {player.displayName || formatAddress(player.address)}
+                                        {player.avatarUrl && (
+                                            <Image
+                                                src={player.avatarUrl}
+                                                alt={`${player.displayName || 'Player'} avatar`}
+                                                width={36}
+                                                height={36}
+                                                className="rounded-full border-2 border-cyber-gold/30 group-hover/player:border-cyber-gold w-8 h-8 sm:w-9 sm:h-9"
+                                            />
+                                        )}
+                                        <div className="min-w-0">
+                                            <p className="text-white font-orbitron font-medium group-hover/player:text-cyber-gold transition-colors text-sm sm:text-base truncate">
+                                                {player.displayName || formatAddress(player.address)}
+                                            </p>
+                                            {player.displayName && (
+                                                <p className="text-cyber-gray text-xs group-hover/player:text-cyber-gold/70 font-mono truncate">
+                                                    {formatAddress(player.address)}
+                                                </p>
+                                            )}
+                                        </div>
                                     </Link>
-                                </div>
-                            </TableCell>
-                            <TableCell className="text-right text-green-400 font-mono">
-                                {player.wins}
-                            </TableCell>
-                            <TableCell className="text-right text-red-400 font-mono">
-                                {player.losses}
-                            </TableCell>
-                            <TableCell className="text-right font-bold text-cyber-orange font-mono">
-                                {player.rating}
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
+                                </TableCell>
+                                <TableCell className="text-right font-orbitron text-emerald-400 font-medium text-sm sm:text-base">
+                                    {player.wins}
+                                </TableCell>
+                                <TableCell className="text-right font-orbitron text-red-400 font-medium text-sm sm:text-base">
+                                    {player.losses}
+                                </TableCell>
+                                <TableCell className="text-right font-orbitron font-bold text-cyber-orange text-base sm:text-lg">
+                                    {Math.round(player.rating)}
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
         </div>
     );
 }

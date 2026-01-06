@@ -41,22 +41,22 @@ export default function MatchmakingPage() {
 
     return (
         <LandingLayout>
-            <div className="relative w-full min-h-screen pt-32 pb-20">
+            <div className="relative w-full min-h-screen pt-24 sm:pt-32 pb-20">
                 {/* Background Grid Lines */}
                 <div className="absolute top-0 bottom-0 left-[70.5px] w-px bg-cyber-orange/10 hidden md:block pointer-events-none"></div>
                 <div className="absolute top-0 bottom-0 right-[70.5px] w-px bg-cyber-gold/10 hidden md:block pointer-events-none"></div>
 
-                <div className="container mx-auto px-6 lg:px-12 xl:px-24 relative z-10">
-                    <div className="text-center max-w-4xl mx-auto mb-16">
-                        <h1 className="text-4xl lg:text-[60px] font-bold leading-tight mb-4 font-orbitron text-white">
+                <div className="container mx-auto px-4 sm:px-6 lg:px-12 xl:px-24 relative z-10">
+                    <div className="text-center max-w-4xl mx-auto mb-12 sm:mb-16">
+                        <h1 className="text-3xl sm:text-4xl lg:text-[60px] font-bold leading-tight mb-4 font-orbitron text-white">
                             ENTER THE <span className="text-cyber-orange">ARENA</span>
                         </h1>
-                        <p className="text-cyber-gray text-lg font-montserrat">
+                        <p className="text-cyber-gray text-base sm:text-lg font-montserrat">
                             Choose your battlefield. Fight for glory, earn KAS.
                         </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-6 sm:gap-8">
                         {/* Quick Match Card */}
                         <div className="group relative rounded-[20px] bg-black/40 border border-cyber-gold/30 p-8 hover:border-cyber-gold transition-all hover:bg-black/60 overflow-hidden">
                             <div className="absolute inset-0 bg-gradient-to-br from-cyber-gold/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>

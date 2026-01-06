@@ -152,18 +152,18 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
     return (
       <Card className="w-full max-w-md bg-black/60 border-cyber-gold/30 backdrop-blur-sm">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-orbitron text-cyber-gold">
+          <CardTitle className="text-xl sm:text-2xl font-orbitron text-cyber-gold">
             ROOM CREATED
           </CardTitle>
-          <CardDescription className="text-cyber-gray">
+          <CardDescription className="text-cyber-gray text-sm sm:text-base">
             Share this code with your opponent
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-4 sm:space-y-6">
           {/* Room Code Display */}
-          <div className="flex items-center justify-center gap-4">
-            <div className="bg-black/80 border-2 border-cyber-gold rounded-lg px-8 py-4">
-              <span className="text-4xl font-bold font-orbitron text-white tracking-widest">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+            <div className="bg-black/80 border-2 border-cyber-gold rounded-lg px-6 sm:px-8 py-3 sm:py-4 w-full sm:w-auto text-center">
+              <span className="text-2xl sm:text-4xl font-bold font-orbitron text-white tracking-widest">
                 {roomCode}
               </span>
             </div>
@@ -171,7 +171,7 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
               variant="outline"
               size="icon"
               onClick={handleCopyCode}
-              className="border-cyber-gold/50 hover:bg-cyber-gold/10"
+              className="border-cyber-gold/50 hover:bg-cyber-gold/10 h-10 w-10 sm:h-auto sm:w-auto"
             >
               {copied ? (
                 <HugeiconsIcon icon={Tick02Icon} className="h-5 w-5 text-green-500" />
@@ -219,14 +219,14 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
   return (
     <Card className="w-full max-w-md bg-black/60 border-cyber-gold/30 backdrop-blur-sm">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl font-orbitron text-cyber-gold">
+        <CardTitle className="text-xl sm:text-2xl font-orbitron text-cyber-gold">
           CREATE PRIVATE ROOM
         </CardTitle>
-        <CardDescription className="text-cyber-gray">
+        <CardDescription className="text-cyber-gray text-sm sm:text-base">
           Challenge a specific opponent with a room code
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-4 sm:space-y-6">
         {error && (
           <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-3 text-center">
             <p className="text-red-500 text-sm">{error}</p>
@@ -234,19 +234,19 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
         )}
 
         {/* Stake Toggle */}
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           <button
             type="button"
             onClick={() => setEnableStake(!enableStake)}
-            className={`w-full flex items-center justify-between p-4 rounded-lg border-2 transition-all ${enableStake
+            className={`w-full flex items-center justify-between p-3 sm:p-4 rounded-lg border-2 transition-all ${enableStake
                 ? "border-cyber-gold bg-cyber-gold/10"
                 : "border-gray-700 bg-gray-800/50 hover:border-gray-600"
               }`}
           >
-            <div className="flex items-center gap-3">
-              <HugeiconsIcon icon={Coins01Icon} className={`h-6 w-6 ${enableStake ? "text-cyber-gold" : "text-gray-400"}`} />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <HugeiconsIcon icon={Coins01Icon} className={`h-5 w-5 sm:h-6 sm:w-6 ${enableStake ? "text-cyber-gold" : "text-gray-400"}`} />
               <div className="text-left">
-                <div className={`font-semibold ${enableStake ? "text-cyber-gold" : "text-gray-300"}`}>
+                <div className={`text-sm sm:text-base font-semibold ${enableStake ? "text-cyber-gold" : "text-gray-300"}`}>
                   Add Stakes
                 </div>
                 <div className="text-xs text-gray-500">
@@ -254,7 +254,7 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
                 </div>
               </div>
             </div>
-            <div className={`w-12 h-6 rounded-full transition-colors ${enableStake ? "bg-cyber-gold" : "bg-gray-600"}`}>
+            <div className={`w-12 h-6 rounded-full transition-colors flex-shrink-0 ${enableStake ? "bg-cyber-gold" : "bg-gray-600"}`}>
               <div className={`w-5 h-5 mt-0.5 rounded-full bg-white transition-transform ${enableStake ? "translate-x-6" : "translate-x-0.5"}`} />
             </div>
           </button>
