@@ -44,7 +44,7 @@ export default function Home() {
                   initial={{ opacity: 0, y: 50, scale: 0.9 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   transition={{ duration: 1, ease: "easeOut" }}
-                  className="text-[48px] xs:text-[56px] sm:text-[80px] md:text-[100px] lg:text-[130px] xl:text-[160px] font-bold leading-tight md:leading-none font-orbitron text-white opacity-90 tracking-wider break-words"
+                  className="text-[48px] xs:text-[56px] sm:text-[80px] md:text-[100px] lg:text-[130px] xl:text-[160px] font-bold leading-tight md:leading-none font-orbitron text-white opacity-90 tracking-wider break-words md:whitespace-nowrap"
                 >
                   KASPA CLASH
                 </motion.h1>
