@@ -3001,6 +3001,10 @@ export class FightScene extends Phaser.Scene {
     // Get max values from local engine for fallback (server should provide these)
     const localState = this.combatEngine.getState();
 
+    // Store previous health for damage calculation
+    const prevP1Health = this.serverState?.player1Health ?? payload.player1Health;
+    const prevP2Health = this.serverState?.player2Health ?? payload.player2Health;
+
     // Store server state (authoritative)
     this.serverState = {
       player1Health: payload.player1Health,
@@ -3108,6 +3112,10 @@ export class FightScene extends Phaser.Scene {
         const p1Move = payload.player1.move;
         const p2Move = payload.player2.move;
 
+        // Calculate actual damage from HP difference (before animations)
+        const p1ActualDamage = Math.max(0, prevP1Health - payload.player1Health);
+        const p2ActualDamage = Math.max(0, prevP2Health - payload.player2Health);
+
         // Helper: P1 Attack
         const runP1Attack = () => {
           return new Promise<void>((resolve) => {
@@ -3146,10 +3154,10 @@ export class FightScene extends Phaser.Scene {
             // Better to rely on the main narrative text at the end or floating text?
             // Existing logic shows summary at end. Let's keep summary but show floating text/damage per hit.
 
-            // Show P2 damage delayed
-            if (payload.player2.damageTaken > 0) {
+            // Show P2 damage delayed - use pre-calculated actual HP lost
+            if (p2ActualDamage > 0) {
               this.time.delayedCall(300, () => { // Hit impact timing
-                this.showFloatingText(`-${payload.player2.damageTaken}`, p2TargetX, CHARACTER_POSITIONS.PLAYER2.Y - 130, "#ff4444");
+                this.showFloatingText(`-${p2ActualDamage}`, p2TargetX, CHARACTER_POSITIONS.PLAYER2.Y - 130, "#ff4444");
 
                 // Flash P2
                 this.tweens.add({
@@ -3202,10 +3210,10 @@ export class FightScene extends Phaser.Scene {
               }
             }
 
-            // Show P1 damage
-            if (payload.player1.damageTaken > 0) {
+            // Show P1 damage - use pre-calculated actual HP lost
+            if (p1ActualDamage > 0) {
               this.time.delayedCall(300, () => {
-                this.showFloatingText(`-${payload.player1.damageTaken}`, p1TargetX, CHARACTER_POSITIONS.PLAYER1.Y - 130, "#ff4444");
+                this.showFloatingText(`-${p1ActualDamage}`, p1TargetX, CHARACTER_POSITIONS.PLAYER1.Y - 130, "#ff4444");
                 this.tweens.add({
                   targets: this.player1Sprite,
                   alpha: 0.5,
@@ -3248,12 +3256,19 @@ export class FightScene extends Phaser.Scene {
             narrative = `Player 1 is STUNNED! Player 2 uses ${p2Move}!`;
           } else if (p2IsStunned) {
             narrative = `Player 2 is STUNNED! Player 1 uses ${p1Move}!`;
-          } else if (payload.player1.damageTaken > 0 && payload.player2.damageTaken > 0) {
-            narrative = "Both players trade heavy blows!";
-          } else if (payload.player2.damageTaken > 0) {
-            narrative = `Player 1 hits for ${payload.player2.damageTaken} damage!`;
-          } else if (payload.player1.damageTaken > 0) {
-            narrative = `Player 2 hits for ${payload.player1.damageTaken} damage!`;
+          } else if (p1ActualDamage > 0 && p2ActualDamage > 0) {
+            // Both players took damage - show who did more
+            if (p2ActualDamage > p1ActualDamage) {
+              narrative = `Brutal exchange! P1 ${p1Move} for ${p2ActualDamage} dmg, but takes ${p1ActualDamage}!`;
+            } else if (p1ActualDamage > p2ActualDamage) {
+              narrative = `Fierce clash! P2 ${p2Move} for ${p1ActualDamage} dmg, but takes ${p2ActualDamage}!`;
+            } else {
+              narrative = `Devastating trade! Both deal ${p1ActualDamage} damage!`;
+            }
+          } else if (p2ActualDamage > 0) {
+            narrative = `Player 1 hits for ${p2ActualDamage} damage!`;
+          } else if (p1ActualDamage > 0) {
+            narrative = `Player 2 hits for ${p1ActualDamage} damage!`;
           } else {
             narrative = "Both attacks were blocked or missed!";
           }

@@ -1274,6 +1274,11 @@ export class PracticeScene extends Phaser.Scene {
   private resolveRound(playerMove: MoveType, aiMove: MoveType): void {
     this.phase = "resolving";
 
+    // Store previous health for damage calculation
+    const prevState = this.combatEngine.getState();
+    const prevP1Health = prevState.player1.hp;
+    const prevP2Health = prevState.player2.hp;
+
     // Execute moves in combat engine - returns TurnResult
     const turnResult = this.combatEngine.resolveTurn(playerMove, aiMove);
 
@@ -1365,6 +1370,10 @@ export class PracticeScene extends Phaser.Scene {
       duration: 600,
       ease: 'Power2',
       onComplete: () => {
+        // Calculate actual damage from HP difference (before animations)
+        const p1ActualDamage = Math.max(0, prevP1Health - this.combatEngine.getState().player1.hp);
+        const p2ActualDamage = Math.max(0, prevP2Health - this.combatEngine.getState().player2.hp);
+
         // Phase 2: Player 1 Attack (Sequential)
         const runP1Attack = () => {
           return new Promise<void>((resolve) => {
@@ -1407,10 +1416,10 @@ export class PracticeScene extends Phaser.Scene {
             this.turnIndicatorText.setText(playerMove.toUpperCase());
             this.turnIndicatorText.setColor("#22c55e"); // Player color
 
-            // Show P2 damage delayed
-            if (turnResult.player2.damageTaken > 0) {
+            // Show P2 damage delayed - use pre-calculated actual HP lost
+            if (p2ActualDamage > 0) {
               this.time.delayedCall(300, () => { // Hit impact timing
-                this.showFloatingText(`-${turnResult.player2.damageTaken}`, p2OriginalX - 50, CHARACTER_POSITIONS.PLAYER2.Y - 130, "#ff4444");
+                this.showFloatingText(`-${p2ActualDamage}`, p2OriginalX - 50, CHARACTER_POSITIONS.PLAYER2.Y - 130, "#ff4444");
 
                 // Play P2 Hurt anim if not blocking/special-ing? 
                 // For now just keep it simple as sound only or flash
@@ -1469,10 +1478,10 @@ export class PracticeScene extends Phaser.Scene {
             this.turnIndicatorText.setText(aiMove.toUpperCase());
             this.turnIndicatorText.setColor("#ef4444"); // AI color
 
-            // Show P1 damage
-            if (turnResult.player1.damageTaken > 0) {
+            // Show P1 damage - use pre-calculated actual HP lost
+            if (p1ActualDamage > 0) {
               this.time.delayedCall(300, () => {
-                this.showFloatingText(`-${turnResult.player1.damageTaken}`, p1OriginalX + 50, CHARACTER_POSITIONS.PLAYER1.Y - 130, "#ff4444");
+                this.showFloatingText(`-${p1ActualDamage}`, p1OriginalX + 50, CHARACTER_POSITIONS.PLAYER1.Y - 130, "#ff4444");
                 this.tweens.add({
                   targets: this.player1Sprite,
                   alpha: 0.5,
@@ -1512,12 +1521,19 @@ export class PracticeScene extends Phaser.Scene {
             narrative = `You are STUNNED! AI uses ${aiMove}!`;
           } else if (p2WasStunned) {
             narrative = `AI is STUNNED! You use ${playerMove}!`;
-          } else if (turnResult.player1.damageTaken > 0 && turnResult.player2.damageTaken > 0) {
-            narrative = "Both players trade heavy blows!";
-          } else if (turnResult.player2.damageTaken > 0) {
-            narrative = `You hit for ${turnResult.player2.damageTaken} damage!`;
-          } else if (turnResult.player1.damageTaken > 0) {
-            narrative = `AI hits for ${turnResult.player1.damageTaken} damage!`;
+          } else if (p1ActualDamage > 0 && p2ActualDamage > 0) {
+            // Both players took damage - show who did more
+            if (p2ActualDamage > p1ActualDamage) {
+              narrative = `Brutal exchange! You ${playerMove} for ${p2ActualDamage} dmg, but take ${p1ActualDamage}!`;
+            } else if (p1ActualDamage > p2ActualDamage) {
+              narrative = `Fierce clash! AI ${aiMove} for ${p1ActualDamage} dmg, but takes ${p2ActualDamage}!`;
+            } else {
+              narrative = `Devastating trade! Both deal ${p1ActualDamage} damage!`;
+            }
+          } else if (p2ActualDamage > 0) {
+            narrative = `You hit for ${p2ActualDamage} damage!`;
+          } else if (p1ActualDamage > 0) {
+            narrative = `AI hits for ${p1ActualDamage} damage!`;
           } else {
             narrative = "Both attacks were blocked or missed!";
           }

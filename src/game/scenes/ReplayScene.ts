@@ -935,6 +935,12 @@ export class ReplayScene extends Phaser.Scene {
         const p1Move = round.player1Move;
         const p2Move = round.player2Move;
 
+        // Calculate actual damage values from health difference BEFORE animations
+        // p1ActualDamage = damage P2 dealt to P1 (P1's health loss)
+        // p2ActualDamage = damage P1 dealt to P2 (P2's health loss)
+        const p1ActualDamage = Math.max(0, this.player1Health - round.player1HealthAfter);
+        const p2ActualDamage = Math.max(0, this.player2Health - round.player2HealthAfter);
+
         // Sequential Animation Logic using Promises (matching FightScene)
         const runP1Attack = () => {
           return new Promise<void>((resolve) => {
@@ -955,11 +961,11 @@ export class ReplayScene extends Phaser.Scene {
               }
             }
 
-            // Show P2 damage delayed
-            if (round.player1DamageDealt > 0) {
+            // Show P2 damage delayed - use pre-calculated value
+            if (p2ActualDamage > 0) {
               this.time.delayedCall(300, () => {
                 this.showFloatingText(
-                  `-${round.player1DamageDealt}`,
+                  `-${p2ActualDamage}`,
                   meetingPointX + 50,
                   CHARACTER_POSITIONS.PLAYER2.Y - 130,
                   "#ff4444"
@@ -1002,11 +1008,11 @@ export class ReplayScene extends Phaser.Scene {
               }
             }
 
-            // Show P1 damage
-            if (round.player2DamageDealt > 0) {
+            // Show P1 damage - use pre-calculated value
+            if (p1ActualDamage > 0) {
               this.time.delayedCall(300, () => {
                 this.showFloatingText(
-                  `-${round.player2DamageDealt}`,
+                  `-${p1ActualDamage}`,
                   meetingPointX - 50,
                   CHARACTER_POSITIONS.PLAYER1.Y - 130,
                   "#ff4444"
@@ -1043,8 +1049,8 @@ export class ReplayScene extends Phaser.Scene {
             await runP2Attack();
           }
 
-          // Show narrative
-          const narrative = this.generateNarrative(p1Move, p2Move, round);
+          // Show narrative with actual damage values
+          const narrative = this.generateNarrative(p1Move, p2Move, round, p1ActualDamage, p2ActualDamage);
 
           // Destroy old narrative text if it exists
           if (this.narrativeText) {
@@ -1357,7 +1363,13 @@ export class ReplayScene extends Phaser.Scene {
     });
   }
 
-  private generateNarrative(p1Move: MoveType, p2Move: MoveType, round: ReplayRoundData): string {
+  private generateNarrative(
+    p1Move: MoveType,
+    p2Move: MoveType,
+    round: ReplayRoundData,
+    p1ActualDamage: number,
+    p2ActualDamage: number
+  ): string {
     const moveNames: Record<MoveType, string> = {
       punch: "punches",
       kick: "kicks",
@@ -1369,12 +1381,21 @@ export class ReplayScene extends Phaser.Scene {
     const p1Action = moveNames[p1Move];
     const p2Action = moveNames[p2Move];
 
-    if (round.player1DamageDealt > 0 && round.player2DamageDealt > 0) {
-      return `Both fighters connect! Player 1 ${p1Action}, Player 2 ${p2Action}!`;
-    } else if (round.player1DamageDealt > 0) {
-      return `Player 1 ${p1Action} and lands a hit for ${round.player1DamageDealt} damage!`;
-    } else if (round.player2DamageDealt > 0) {
-      return `Player 2 ${p2Action} and lands a hit for ${round.player2DamageDealt} damage!`;
+    // p2ActualDamage = damage P1 dealt to P2
+    // p1ActualDamage = damage P2 dealt to P1
+    if (p2ActualDamage > 0 && p1ActualDamage > 0) {
+      // Both players took damage - show who did more
+      if (p2ActualDamage > p1ActualDamage) {
+        return `Brutal exchange! Player 1 ${p1Action} for ${p2ActualDamage} damage, but takes ${p1ActualDamage}!`;
+      } else if (p1ActualDamage > p2ActualDamage) {
+        return `Fierce clash! Player 2 ${p2Action} for ${p1ActualDamage} damage, but takes ${p2ActualDamage}!`;
+      } else {
+        return `Devastating trade! Both fighters deal ${p1ActualDamage} damage!`;
+      }
+    } else if (p2ActualDamage > 0) {
+      return `Player 1 ${p1Action} and lands a hit for ${p2ActualDamage} damage!`;
+    } else if (p1ActualDamage > 0) {
+      return `Player 2 ${p2Action} and lands a hit for ${p1ActualDamage} damage!`;
     } else {
       return `Player 1 ${p1Action}, Player 2 ${p2Action}. No damage dealt!`;
     }
