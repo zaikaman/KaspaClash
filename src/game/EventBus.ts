@@ -66,6 +66,10 @@ export interface GameEvents {
   // Game Control Events
   "request-surrender": void;
   "request-cancel": void;
+
+  // Chat Events
+  "game:chatMessage": { sender: string; senderAddress: string; message: string; timestamp: number };
+  "game:sendChat": { message: string };
 }
 
 /**

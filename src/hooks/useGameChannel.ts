@@ -21,6 +21,7 @@ import type {
   GamePlayerPresence,
   MatchStartingPayload,
   CharacterSelectedPayload,
+  ChatMessagePayload,
 } from "@/types/websocket";
 import type { PlayerRole } from "@/types";
 
@@ -52,6 +53,7 @@ export interface UseGameChannelOptions {
   onMatchEnded?: (payload: MatchEndedPayload) => void;
   onCharacterSelected?: (payload: CharacterSelectedPayload) => void;
   onMatchStarting?: (payload: MatchStartingPayload) => void;
+  onChatMessage?: (payload: ChatMessagePayload) => void;
   onPlayerJoin?: (presence: GamePlayerPresence) => void;
   onPlayerLeave?: (address: string) => void;
   onError?: (error: string) => void;
@@ -65,6 +67,7 @@ export interface UseGameChannelReturn {
   subscribe: () => Promise<void>;
   unsubscribe: () => void;
   trackPresence: (isReady: boolean) => Promise<void>;
+  sendChatMessage: (message: string) => Promise<void>;
 }
 
 // =============================================================================
@@ -83,6 +86,7 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
     onMatchEnded,
     onCharacterSelected,
     onMatchStarting,
+    onChatMessage,
     onPlayerJoin,
     onPlayerLeave,
     onError,
@@ -346,6 +350,23 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
   );
 
   /**
+   * Handle chat_message event.
+   * Display chat message from opponent.
+   */
+  const handleChatMessage = useCallback(
+    (payload: ChatMessagePayload) => {
+      console.log("[GameChannel] chat_message:", payload);
+
+      // Emit to Phaser to display chat message
+      EventBus.emit("game:chatMessage", payload);
+
+      // Call user callback
+      onChatMessage?.(payload);
+    },
+    [onChatMessage]
+  );
+
+  /**
    * Handle presence sync.
    */
   const handlePresenceSync = useCallback(() => {
@@ -486,6 +507,9 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
         })
         .on("broadcast", { event: "player_reconnected" }, ({ payload }) => {
           handlePlayerReconnected(payload as { player: "player1" | "player2"; address: string; reconnectedAt: number });
+        })
+        .on("broadcast", { event: "chat_message" }, ({ payload }) => {
+          handleChatMessage(payload as ChatMessagePayload);
         });
 
       // Set up presence listeners
@@ -560,6 +584,7 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
     handleMatchCancelled,
     handlePlayerDisconnected,
     handlePlayerReconnected,
+    handleChatMessage,
     handlePresenceSync,
     handlePresenceJoin,
     handlePresenceLeave,
@@ -600,6 +625,38 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
     [playerAddress, playerRole]
   );
 
+  /**
+   * Send a chat message to the opponent via broadcast.
+   */
+  const sendChatMessage = useCallback(
+    async (message: string) => {
+      if (!channelRef.current) {
+        console.warn("[GameChannel] Cannot send chat - not connected");
+        return;
+      }
+
+      const payload: ChatMessagePayload = {
+        sender: playerRole,
+        senderAddress: playerAddress,
+        message,
+        timestamp: Date.now(),
+      };
+
+      try {
+        await channelRef.current.send({
+          type: "broadcast",
+          event: "chat_message",
+          payload,
+        });
+        console.log("[GameChannel] Chat message sent:", message);
+        // Note: Sender will receive their own message via the broadcast callback
+      } catch (error) {
+        console.error("[GameChannel] Failed to send chat message:", error);
+      }
+    },
+    [playerRole, playerAddress]
+  );
+
   // ===========================================================================
   // LIFECYCLE
   // ===========================================================================
@@ -628,6 +685,7 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
     subscribe,
     unsubscribe,
     trackPresence,
+    sendChatMessage,
   };
 }
 

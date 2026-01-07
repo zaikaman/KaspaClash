@@ -131,7 +131,7 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
   const initialScene = getInitialScene(match);
 
   // Set up game channel subscription
-  const { state: channelState } = useGameChannel({
+  const { state: channelState, sendChatMessage } = useGameChannel({
     matchId: match.id,
     playerAddress: address || "",
     playerRole: playerRole || "player1",
@@ -145,6 +145,22 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       EventBus.emit("channel_ready", { matchId: match.id });
     }
   }, [channelState.isSubscribed, match.id]);
+
+  // Listen for chat messages from Phaser and forward to channel
+  useEffect(() => {
+    const handleSendChat = (data: unknown) => {
+      const payload = data as { message: string };
+      if (payload.message) {
+        sendChatMessage(payload.message);
+      }
+    };
+
+    EventBus.on("game:sendChat", handleSendChat);
+
+    return () => {
+      EventBus.off("game:sendChat", handleSendChat);
+    };
+  }, [sendChatMessage]);
 
   // Handle reconnection on mount
   useEffect(() => {

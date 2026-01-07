@@ -283,6 +283,21 @@ export interface StateSyncPayload {
   };
 }
 
+/**
+ * Event: chat_message
+ * Sent when a player sends a chat message during the match.
+ */
+export interface ChatMessagePayload {
+  /** The player who sent the message */
+  sender: PlayerRole;
+  /** The sender's wallet address */
+  senderAddress: string;
+  /** The chat message content (quick-chat preset or custom) */
+  message: string;
+  /** Unix timestamp when message was sent */
+  timestamp: number;
+}
+
 // =============================================================================
 // TYPED EVENT MAP
 // =============================================================================
@@ -301,6 +316,7 @@ export interface WebSocketEventMap {
   player_reconnected: PlayerReconnectedPayload;
   player_disconnected: PlayerDisconnectedPayload;
   state_sync: StateSyncPayload;
+  chat_message: ChatMessagePayload;
 }
 
 /**

@@ -87,6 +87,12 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 - **Match History:** All game results stored permanently on-chain
 - **Transaction Verification:** Real-time bet confirmation and payout tracking
 
+### 📹 Replay & Sharing
+- **High-Quality MP4 Export:** Convert any match replay into a sharable video file directly in the browser
+- **Silent Audio Capture:** Advanced audio routing captures full BGM and SFX without playing sound through speakers
+- **Client-Side Processing:** No server costs or queues - renders locally using a hidden accelerated game instance
+- **Smart Muxing:** Combines perfectly timed video frames with AAC-encoded audio for professional-quality results
+
 ### 🎨 User Experience
 - **Responsive Design:** Optimized for desktop, tablet, and mobile
 - **Real-Time Updates:** Supabase Realtime for instant game state synchronization

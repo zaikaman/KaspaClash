@@ -7,6 +7,7 @@ import Phaser from "phaser";
 import { EventBus } from "../EventBus";
 import { GAME_DIMENSIONS, CHARACTER_POSITIONS, UI_POSITIONS } from "../config";
 import { CombatEngine, BASE_MOVE_STATS, getCharacterCombatStats } from "../combat";
+import { ChatPanel } from "../ui/ChatPanel";
 import type { MoveType, PlayerRole } from "@/types";
 import type { CombatState } from "../combat";
 
@@ -134,6 +135,11 @@ export class FightScene extends Phaser.Scene {
 
   // Visibility change handler reference for cleanup
   private visibilityChangeHandler: (() => void) | null = null;
+
+  // Chat panel for in-game messaging
+  private chatPanel?: ChatPanel;
+  // Track processed chat messages to prevent duplicates
+  private processedChatMessages: Set<string> = new Set();
 
   constructor() {
     super({ key: "FightScene" });
@@ -461,6 +467,23 @@ export class FightScene extends Phaser.Scene {
     this.settingsContainer = this.add.container(0, 0);
     this.createSettingsButton();
     this.createSettingsMenu(); // Create hidden menu
+
+    // Create chat panel on the bottom right (only for non-spectators)
+    if (!this.config.isSpectator) {
+      this.chatPanel = new ChatPanel(this, {
+        x: GAME_DIMENSIONS.WIDTH - 230,
+        y: GAME_DIMENSIONS.HEIGHT - 340,
+        width: 220,
+        height: 320,
+        playerRole: this.config.playerRole,
+        onSendMessage: (message: string) => {
+          // Display message locally for sender immediately
+          this.chatPanel?.addMessage(this.config.playerRole, message, Date.now());
+          // Emit event for React layer to send via channel
+          EventBus.emit("game:sendChat", { message });
+        },
+      });
+    }
 
     // Setup event listeners
     this.setupEventListeners();
@@ -2508,6 +2531,42 @@ export class FightScene extends Phaser.Scene {
         this.updateMoveButtonAffordability();
       }
     });
+
+    // Listen for incoming chat messages from opponent only
+    // (we display our own messages locally in onSendMessage)
+    EventBus.on("game:chatMessage", (data: unknown) => {
+      const payload = data as { sender: string; senderAddress: string; message: string; timestamp: number };
+
+      // Skip messages from ourselves - we already displayed them locally
+      if (payload.sender === this.config.playerRole) {
+        return;
+      }
+
+      // Create unique key for deduplication
+      const messageKey = `${payload.sender}-${payload.timestamp}-${payload.message}`;
+
+      // Skip if we've already processed this message
+      if (this.processedChatMessages.has(messageKey)) {
+        console.log("[FightScene] Skipping duplicate chat message:", messageKey);
+        return;
+      }
+
+      // Mark as processed
+      this.processedChatMessages.add(messageKey);
+
+      // Clean up old messages after 30 seconds to prevent memory leak
+      setTimeout(() => {
+        this.processedChatMessages.delete(messageKey);
+      }, 30000);
+
+      if (this.chatPanel) {
+        this.chatPanel.addMessage(
+          payload.sender as "player1" | "player2",
+          payload.message,
+          payload.timestamp
+        );
+      }
+    });
   }
 
   /**
@@ -2744,7 +2803,7 @@ export class FightScene extends Phaser.Scene {
     console.log(`[FightScene] *** startRoundFromServer called - Round ${payload.roundNumber}, Turn ${payload.turnNumber}`);
     console.log(`[FightScene] *** Current phase: ${this.phase}, skipCountdown: ${skipCountdown}, Timestamp: ${Date.now()}`);
     console.log(`[FightScene] *** Timer exists: ${!!this.timerEvent}, pendingRoundStart exists: ${!!this.pendingRoundStart}`);
-    
+
     // If we're in resolving phase (playing attack animations) or round_end phase 
     // (playing death animation, showing text, countdown), queue this payload 
     // and process it after the sequence finishes.
@@ -2754,7 +2813,7 @@ export class FightScene extends Phaser.Scene {
       this.pendingRoundStart = payload;
       return;
     }
-    
+
     console.log(`[FightScene] *** PROCESSING round start immediately - phase allows it`);
 
     // Stop any existing timer
@@ -2874,7 +2933,7 @@ export class FightScene extends Phaser.Scene {
   private startSynchronizedSelectionPhase(moveDeadlineAt: number): void {
     console.log(`[FightScene] *** startSynchronizedSelectionPhase called - deadline: ${moveDeadlineAt}, Timestamp: ${Date.now()}`);
     console.log(`[FightScene] *** Time until deadline: ${Math.floor((moveDeadlineAt - Date.now()) / 1000)}s`);
-    
+
     // IMPORTANT: Always destroy existing timer before creating a new one
     if (this.timerEvent) {
       console.log(`[FightScene] *** Destroying existing timer in startSynchronizedSelectionPhase`);
