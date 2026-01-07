@@ -25,8 +25,6 @@ export function ReplayGameClient({ config }: ReplayGameClientProps) {
   const [isComplete, setIsComplete] = useState(false);
 
   useEffect(() => {
-    // Only register replay:complete listener here
-    // scene:ready is handled via PhaserGame's onSceneReady prop to avoid conflicts
     const handleReplayComplete = () => {
       setIsComplete(true);
     };
@@ -44,7 +42,6 @@ export function ReplayGameClient({ config }: ReplayGameClientProps) {
 
   const handleWatchAgain = () => {
     setIsComplete(false);
-    // The PhaserGame will restart the scene with same config
     window.location.reload();
   };
 

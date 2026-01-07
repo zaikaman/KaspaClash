@@ -36,6 +36,10 @@ export interface ReplaySceneConfig {
   player1RoundsWon: number;
   player2RoundsWon: number;
   rounds: ReplayRoundData[];
+  /** Speed multiplier for export mode (e.g., 10 = 10x faster) */
+  speedMultiplier?: number;
+  /** Mute audio for export mode */
+  muteAudio?: boolean;
 }
 
 /**
@@ -90,22 +94,46 @@ export class ReplayScene extends Phaser.Scene {
   private settingsContainer!: Phaser.GameObjects.Container;
   private isSettingsOpen: boolean = false;
 
+  // Export mode settings
+  private speedMultiplier: number = 1;
+  private muteAudio: boolean = false;
+
   constructor() {
     super({ key: "ReplayScene" });
   }
 
   init(data: ReplaySceneConfig): void {
-    this.config = data;
+    console.log("ReplayScene.init() called with data:", data);
+
+    // Defensive initialization with defaults
+    this.config = {
+      matchId: data?.matchId || "",
+      player1Address: data?.player1Address || "",
+      player2Address: data?.player2Address || "",
+      player1Character: data?.player1Character || "dag-warrior",
+      player2Character: data?.player2Character || "dag-warrior",
+      winnerAddress: data?.winnerAddress || null,
+      player1RoundsWon: data?.player1RoundsWon || 0,
+      player2RoundsWon: data?.player2RoundsWon || 0,
+      rounds: data?.rounds || [],
+      speedMultiplier: data?.speedMultiplier,
+      muteAudio: data?.muteAudio,
+    };
+
     this.currentRoundIndex = 0;
     this.isPlaying = false;
     this.player1RoundsWon = 0;
     this.player2RoundsWon = 0;
     this.currentGameRound = 1;
 
+    // Export mode settings
+    this.speedMultiplier = this.config.speedMultiplier ?? 1;
+    this.muteAudio = this.config.muteAudio ?? false;
+
     // Initialize combat engine with character stats
     this.combatEngine = new CombatEngine(
-      data.player1Character || "dag-warrior",
-      data.player2Character || "dag-warrior",
+      this.config.player1Character || "dag-warrior",
+      this.config.player2Character || "dag-warrior",
       "best_of_5"
     );
 
@@ -125,6 +153,8 @@ export class ReplayScene extends Phaser.Scene {
 
   // Audio helper
   private playSFX(key: string): void {
+    // Skip audio in export mode
+    if (this.muteAudio) return;
     if (this.game.sound.locked) return;
 
     try {
@@ -338,17 +368,26 @@ export class ReplayScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Apply speed multiplier for export mode
+    if (this.speedMultiplier > 1) {
+      this.time.timeScale = this.speedMultiplier;
+      this.tweens.timeScale = this.speedMultiplier;
+      this.anims.globalTimeScale = this.speedMultiplier;
+    }
+
     // Load audio settings from localStorage
     this.loadAudioSettings();
 
-    // Play BGM - keep playing even when tab loses focus
+    // Play BGM - keep playing even when tab loses focus (unless muted)
     this.sound.pauseOnBlur = false;
-    if (this.sound.get("bgm_fight")) {
-      if (!this.sound.get("bgm_fight").isPlaying) {
+    if (!this.muteAudio) {
+      if (this.sound.get("bgm_fight")) {
+        if (!this.sound.get("bgm_fight").isPlaying) {
+          this.sound.play("bgm_fight", { loop: true, volume: this.bgmVolume });
+        }
+      } else {
         this.sound.play("bgm_fight", { loop: true, volume: this.bgmVolume });
       }
-    } else {
-      this.sound.play("bgm_fight", { loop: true, volume: this.bgmVolume });
     }
 
     this.createBackground();
@@ -357,16 +396,18 @@ export class ReplayScene extends Phaser.Scene {
     this.createCharacters();
     this.createReplayBadge();
 
-    // UI - Settings
+    // UI - Settings (hide in export mode)
     this.settingsContainer = this.add.container(0, 0);
-    this.createSettingsButton();
-    this.createSettingsMenu();
+    if (this.speedMultiplier <= 1) {
+      this.createSettingsButton();
+      this.createSettingsMenu();
+    }
 
     // Handle scene shutdown - stop BGM
     this.events.once("shutdown", this.handleShutdown, this);
     this.events.once("destroy", this.handleShutdown, this);
 
-    // Start playback after a short delay
+    // Start playback after a short delay (scaled by speed)
     this.time.delayedCall(1500, () => {
       this.startReplay();
     });
@@ -543,8 +584,8 @@ export class ReplayScene extends Phaser.Scene {
     // Player labels with character names and addresses
     const p1Char = this.config.player1Character || "dag-warrior";
     const p2Char = this.config.player2Character || "dag-warrior";
-    const p1Address = this.config.player1Address.slice(0, 10) + "...";
-    const p2Address = this.config.player2Address.slice(0, 10) + "...";
+    const p1Address = this.config.player1Address ? this.config.player1Address.slice(0, 10) + "..." : "Unknown";
+    const p2Address = this.config.player2Address ? this.config.player2Address.slice(0, 10) + "..." : "Unknown";
 
     // Player 1 label (left side)
     this.add.text(

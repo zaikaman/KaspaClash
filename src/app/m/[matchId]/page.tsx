@@ -2,6 +2,7 @@ import React from "react";
 import LandingLayout from "@/components/landing/LandingLayout";
 import MatchSummary from "@/components/share/MatchSummary";
 import ShareMatchButton from "@/components/share/ShareMatchButton";
+import { ExportMP4Wrapper } from "@/components/share/ExportMP4Wrapper";
 import TransactionTimeline, { type TransactionData } from "@/components/share/TransactionTimeline";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -182,7 +183,7 @@ export default async function MatchPublicPage({ params }: { params: Promise<{ ma
 
                     {/* Watch Replay Button - Only for completed matches */}
                     {isCompleted && (
-                        <div className="max-w-md mx-auto mt-6">
+                        <div className="max-w-md mx-auto mt-6 space-y-3">
                             <a
                                 href={`/replay/${matchData.id}`}
                                 className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-orbitron rounded-lg hover:from-purple-500 hover:to-indigo-500 transition-all shadow-lg shadow-purple-500/20"
@@ -192,6 +193,7 @@ export default async function MatchPublicPage({ params }: { params: Promise<{ ma
                                 </svg>
                                 WATCH FULL REPLAY
                             </a>
+                            <ExportMP4Wrapper matchId={matchData.id} />
                         </div>
                     )}
 
@@ -201,7 +203,7 @@ export default async function MatchPublicPage({ params }: { params: Promise<{ ma
 
                     {/* Transaction Timeline - Shows Kaspa's speed */}
                     <div className="mt-8">
-                        <TransactionTimeline 
+                        <TransactionTimeline
                             transactions={transactions}
                             matchCreatedAt={match.created_at}
                             matchCompletedAt={match.completed_at}
