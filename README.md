@@ -93,6 +93,12 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 - **Client-Side Processing:** No server costs or queues - renders locally using a hidden accelerated game instance
 - **Smart Muxing:** Combines perfectly timed video frames with AAC-encoded audio for professional-quality results
 
+### 💬 Social Features
+- **Real-Time Chat:** Instant in-game messaging system for active matches
+- **Quick Chat Presets:** One-tap communication tokens (GG, Nice!, GL HF, etc.)
+- **Collapsible UI:** Unobtrusive chat panel with Floating Action Button (FAB) design
+- **Spectator Isolation:** Secure channel separation ensures private player strategy
+
 ### 🎨 User Experience
 - **Responsive Design:** Optimized for desktop, tablet, and mobile
 - **Real-Time Updates:** Supabase Realtime for instant game state synchronization
@@ -197,6 +203,12 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 2. **Place Bet:** Spectator sends KAS to vault → API records bet with tx_id → Pool updated
 3. **Lock Pool:** Match reaches final round → Pool locked → No more bets accepted
 4. **Resolve:** Match ends → Payouts calculated using odds → Winners receive funds
+
+#### Chat Flow
+1. **Send Message:** Player enters message or clicks quick chat
+2. **Local Echo:** Message displays immediately for sender (optimistic UI)
+3. **Broadcast:** Event sent to Supabase Realtime channel
+4. **Receive:** Opponent receives broadcast → Deduplicates → Displays message
 
 ---
 

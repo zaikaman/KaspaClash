@@ -133,25 +133,7 @@ Dedicated players want the option to reset their battle pass progress in exchang
 
 ---
 
-### User Story 8 - Match Replay System (Priority: P3)
-
-Players want to review their completed matches to analyze gameplay, share victories, and learn from defeats with full replay functionality.
-
-**Why this priority**: Enhances social features and learning. Can be implemented independently using existing match data. Note: Basic replay functionality already exists in the codebase.
-
-**Independent Test**: Can be tested by playing a match, accessing replay from match history, watching the replay with controls, and sharing it. Delivers value for improvement and sharing.
-
-**Acceptance Scenarios**:
-
-1. **Given** a player completes a match, **When** they view their match history, **Then** each match has a "Watch Replay" button
-2. **Given** a player starts a replay, **When** it loads, **Then** the match plays back with full combat animations and UI showing both players' perspectives
-3. **Given** a replay is playing, **When** the player uses controls, **Then** they can pause, play, speed up (2x, 4x), and scrub through the replay timeline
-4. **Given** a player watches a replay, **When** they finish, **Then** they see match statistics and have options to share or re-watch
-5. **Given** a player wants to share a replay, **When** they use the share feature, **Then** they get a shareable link or can export the match as a video file
-
----
-
-### User Story 9 - Achievement System (Priority: P3)
+### User Story 8 - Achievement System (Priority: P3)
 
 Players want to unlock achievements for accomplishing specific feats and milestones that provide goals beyond standard progression.
 
@@ -291,18 +273,6 @@ Players want optional on-chain verification of their achievements and leaderboar
 - **FR-062**: System MUST track total prestige count and display it on leaderboards
 - **FR-063**: System MUST limit prestige to once per season to prevent excessive resets
 
-#### Match Replay System
-
-- **FR-064**: System MUST record all completed matches with full round data for replay functionality
-- **FR-065**: System MUST allow players to access replays from their match history for recent matches (suggested: last 20 matches)
-- **FR-066**: System MUST play back replays with accurate recreation of combat animations, moves, and outcomes
-- **FR-067**: System MUST provide playback controls: play, pause, speed adjustment (1x, 2x, 4x, 8x), timeline scrubbing
-- **FR-068**: System MUST display match metadata during replay (player names, characters, round scores, timestamp)
-- **FR-069**: System MUST allow replay sharing via generated shareable links
-- **FR-070**: System MUST support replay export as video files for external sharing
-- **FR-071**: System MUST store replay data efficiently to minimize storage requirements
-- **FR-072**: System MUST handle replay data for matches played with different game versions gracefully
-
 #### Achievement System
 
 - **FR-073**: System MUST provide an achievement system with diverse accomplishment goals
@@ -335,7 +305,6 @@ Players want optional on-chain verification of their achievements and leaderboar
 - **Daily Quest**: Time-limited objective with quest ID, description, objective type and target value, XP/currency rewards, completion status, reset timestamp
 - **Cosmetic Item**: Customization content with unique ID, type (skin/emote/pose/badge/frame), rarity tier, price in Clash Shards, preview assets, unlock requirement (tier/prestige/achievement), ownership tracking per player
 - **Clash Shards**: Primary currency with transaction history, earned sources (match/quest/achievement/tier), spent destinations (shop purchases), current balance
-- **Match Record**: Historical match data with match ID, players involved, characters used, outcome, round-by-round data, timestamp, replay data
 - **Survival Run**: Survival mode session with run ID, player, waves reached, final score, duration, rewards earned, leaderboard eligibility
 - **Combo Challenge**: Training scenario with challenge ID, difficulty tier, required move sequence, timing windows, star thresholds, completion records per player
 - **Achievement**: Accomplishment goal with unique ID, category, title/description, objective criteria, tier level, progress tracking per player, XP/currency rewards, associated cosmetics (if any)
