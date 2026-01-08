@@ -30,7 +30,7 @@ export default function Home() {
         <div className="absolute top-[-90px] bottom-0 right-[70.5px] w-px bg-cyber-gold/30 hidden md:block z-0 pointer-events-none"></div>
 
         {/* Hero Section */}
-        <section className="relative pt-32 pb-32 min-h-screen flex flex-col justify-center">
+        <section className="relative mt-16.5 pt-32 pb-32 min-h-screen flex flex-col justify-center">
           {/* Corner Accents */}
           <DecorativeLine className="absolute top-[-90px] left-0 right-0 z-20" variant="left-red-right-gold" />
 
@@ -355,6 +355,7 @@ export default function Home() {
 
         {/* Services Section (Game Modes) */}
         <motion.section
+          id="features"
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.3 }}

@@ -1,5 +1,5 @@
 import React from "react";
-import LandingLayout from "@/components/landing/LandingLayout";
+import GameLayout from "@/components/layout/GameLayout";
 import DecorativeLine from "@/components/landing/DecorativeLine";
 import MatchHistory from "@/components/player/MatchHistory";
 import ProfileHeaderClient from "@/components/player/ProfileHeaderClient";
@@ -75,8 +75,8 @@ export default async function PlayerProfilePage({ params }: { params: Promise<{ 
     // If player not found, show error state
     if (!profile) {
         return (
-            <LandingLayout>
-                <div className="relative w-full min-h-screen pt-32 pb-20">
+            <GameLayout>
+                <div className="relative w-full min-h-screen pt-6 sm:pt-10 pb-20">
                     <div className="container mx-auto px-6 lg:px-12 xl:px-24 relative z-10">
                         <div className="text-center py-20">
                             <h1 className="text-4xl font-bold font-orbitron text-white mb-4">
@@ -88,13 +88,13 @@ export default async function PlayerProfilePage({ params }: { params: Promise<{ 
                         </div>
                     </div>
                 </div>
-            </LandingLayout>
+            </GameLayout>
         );
     }
 
     return (
-        <LandingLayout>
-            <div className="relative w-full min-h-screen pt-32 pb-20">
+        <GameLayout>
+            <div className="relative w-full min-h-screen pt-6 sm:pt-10 pb-20">
                 <div className="container mx-auto px-6 lg:px-12 xl:px-24 relative z-10">
 
                     {/* Profile Header Card - Client Component for interactivity */}
@@ -131,7 +131,7 @@ export default async function PlayerProfilePage({ params }: { params: Promise<{ 
                     </div>
                 </div>
             </div>
-        </LandingLayout>
+        </GameLayout>
     );
 }
 

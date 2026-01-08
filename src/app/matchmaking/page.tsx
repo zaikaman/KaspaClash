@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import LandingLayout from "@/components/landing/LandingLayout";
+import GameLayout from "@/components/layout/GameLayout";
 import DecorativeLine from "@/components/landing/DecorativeLine";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -16,8 +16,8 @@ export default function MatchmakingPage() {
     // If showing create or join view, render in centered container
     if (view !== "main") {
         return (
-            <LandingLayout>
-                <div className="relative w-full min-h-screen pt-32 pb-20">
+            <GameLayout>
+                <div className="relative w-full min-h-screen pt-10 pb-20">
                     {/* Background Grid Lines */}
                     <div className="absolute top-0 bottom-0 left-[70.5px] w-px bg-cyber-orange/10 hidden md:block pointer-events-none"></div>
                     <div className="absolute top-0 bottom-0 right-[70.5px] w-px bg-cyber-gold/10 hidden md:block pointer-events-none"></div>
@@ -35,16 +35,16 @@ export default function MatchmakingPage() {
                         )}
                     </div>
                 </div>
-            </LandingLayout>
+            </GameLayout>
         );
     }
 
     return (
-        <LandingLayout>
-            <div className="relative w-full min-h-screen pt-24 sm:pt-32 pb-20">
+        <GameLayout>
+            <div className="relative w-full min-h-screen pt-6 sm:pt-10 pb-20">
                 {/* Background Grid Lines */}
                 <div className="absolute top-0 bottom-0 left-[70.5px] w-px bg-cyber-orange/10 hidden md:block pointer-events-none"></div>
-                <div className="absolute top-0 bottom-0 right-[70.5px] w-px bg-cyber-gold/10 hidden md:block pointer-events-none"></div>
+                {/* <div className="absolute top-0 bottom-0 right-[70.5px] w-px bg-cyber-gold/10 hidden md:block pointer-events-none"></div> */}
 
                 <div className="container mx-auto px-4 sm:px-6 lg:px-12 xl:px-24 relative z-10">
                     <div className="text-center max-w-4xl mx-auto mb-12 sm:mb-16">
@@ -159,6 +159,6 @@ export default function MatchmakingPage() {
                     <DecorativeLine className="mt-20" variant="left-gold-right-red" />
                 </div>
             </div>
-        </LandingLayout>
+        </GameLayout>
     );
 }

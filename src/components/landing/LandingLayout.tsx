@@ -8,7 +8,7 @@ interface LandingLayoutProps {
 
 export default function LandingLayout({ children }: LandingLayoutProps) {
     return (
-        <div className="min-h-screen bg-cyber-black text-white font-montserrat">
+        <div className="h-screen overflow-y-auto bg-cyber-black text-white font-montserrat">
             {/* Header */}
             <LandingHeader />
 

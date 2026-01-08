@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import LandingLayout from "@/components/landing/LandingLayout";
+import GameLayout from "@/components/layout/GameLayout";
 import DecorativeLine from "@/components/landing/DecorativeLine";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -178,8 +178,8 @@ export default function SpectatePage() {
     };
 
     return (
-        <LandingLayout>
-            <div className="relative w-full min-h-screen pt-32 pb-20">
+        <GameLayout>
+            <div className="relative w-full min-h-screen pt-6 sm:pt-10 pb-20">
                 {/* Background Grid Lines */}
                 <div className="absolute top-0 bottom-0 left-[70.5px] w-px bg-cyber-orange/10 hidden md:block pointer-events-none"></div>
                 <div className="absolute top-0 bottom-0 right-[70.5px] w-px bg-cyber-gold/10 hidden md:block pointer-events-none"></div>
@@ -258,6 +258,6 @@ export default function SpectatePage() {
                     <DecorativeLine className="mt-20" variant="left-gold-right-red" />
                 </div>
             </div>
-        </LandingLayout>
+        </GameLayout>
     );
 }

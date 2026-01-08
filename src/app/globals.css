@@ -162,7 +162,31 @@
     @apply border-border outline-ring/50;
   }
 
+  html,
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground overflow-hidden;
+    height: 100%;
+  }
+
+  /* Custom Scrollbar for Cyberpunk Theme */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-cyber-gold/50 rounded-full transition-colors;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-cyber-gold;
+  }
+
+  ::-webkit-scrollbar-thumb:active {
+    @apply bg-cyber-orange;
   }
 }

@@ -1,12 +1,12 @@
 import React from "react";
-import LandingLayout from "@/components/landing/LandingLayout";
+import GameLayout from "@/components/layout/GameLayout";
 import DecorativeLine from "@/components/landing/DecorativeLine";
 import LeaderboardTable from "@/components/leaderboard/LeaderboardTable";
 
 export default function LeaderboardPage() {
     return (
-        <LandingLayout>
-            <div className="relative w-full min-h-screen pt-24 sm:pt-32 pb-20">
+        <GameLayout>
+            <div className="relative w-full min-h-screen pt-6 sm:pt-10 pb-20">
                 {/* Background Elements */}
                 <div className="absolute top-[-10%] left-1/2 transform -translate-x-1/2 w-[800px] h-[500px] bg-cyber-gold/5 rounded-full blur-[150px] pointer-events-none"></div>
 
@@ -38,6 +38,6 @@ export default function LeaderboardPage() {
                     </div>
                 </div>
             </div>
-        </LandingLayout>
+        </GameLayout>
     );
 }

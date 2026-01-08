@@ -156,7 +156,7 @@ CREATE TABLE public.currency_transactions (
 CREATE TABLE public.daily_quests (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   player_id text NOT NULL,
-  template_id uuid NOT NULL,
+  template_id text NOT NULL,
   assigned_date date NOT NULL,
   expires_at timestamp with time zone NOT NULL,
   current_progress integer NOT NULL DEFAULT 0 CHECK (current_progress >= 0),
@@ -167,8 +167,7 @@ CREATE TABLE public.daily_quests (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT daily_quests_pkey PRIMARY KEY (id),
-  CONSTRAINT daily_quests_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address),
-  CONSTRAINT daily_quests_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.quest_templates(id)
+  CONSTRAINT daily_quests_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address)
 );
 CREATE TABLE public.matches (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),

@@ -7,7 +7,7 @@
 
 import React, { useState, useCallback } from "react";
 import dynamic from "next/dynamic";
-import LandingLayout from "@/components/landing/LandingLayout";
+import GameLayout from "@/components/layout/GameLayout";
 import PracticeMenu from "@/components/practice/PracticeMenu";
 import PracticeResults from "@/components/practice/PracticeResults";
 import type { AIDifficulty } from "@/lib/game/ai-opponent";
@@ -70,8 +70,8 @@ export default function PracticePage() {
     }, []);
 
     return (
-        <LandingLayout>
-            <div className="min-h-screen pt-24 sm:pt-32 pb-20 relative">
+        <GameLayout>
+            <div className="min-h-screen pt-6 sm:pt-10 pb-20 relative">
                 {/* Background Elements */}
                 <div className="absolute inset-0 overflow-hidden pointer-events-none">
                     <div className="absolute top-[20%] left-[-10%] w-[500px] h-[500px] bg-cyber-orange/10 rounded-full blur-[100px]"></div>
@@ -103,6 +103,6 @@ export default function PracticePage() {
                     )}
                 </div>
             </div>
-        </LandingLayout>
+        </GameLayout>
     );
 }

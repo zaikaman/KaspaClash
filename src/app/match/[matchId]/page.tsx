@@ -6,6 +6,7 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import GameLayout from "@/components/layout/GameLayout";
 import { MatchGameClient } from "./MatchGameClient";
 import type { Match, MatchFormat, MatchStatus } from "@/types";
 
@@ -14,12 +15,14 @@ import type { Match, MatchFormat, MatchStatus } from "@/types";
  */
 function MatchLoading() {
   return (
-    <div className="flex items-center justify-center min-h-screen bg-[#0a0a0a]">
-      <div className="text-center">
-        <div className="w-16 h-16 border-4 border-[#F0B71F] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-cyber-gold text-lg font-medium font-orbitron tracking-widest uppercase">Loading match...</p>
+    <GameLayout>
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-[#F0B71F] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-cyber-gold text-lg font-medium font-orbitron tracking-widest uppercase">Loading match...</p>
+        </div>
       </div>
-    </div>
+    </GameLayout>
   );
 }
 
@@ -138,9 +141,11 @@ export default async function MatchPage({ params }: MatchPageProps) {
   }
 
   return (
-    <Suspense fallback={<MatchLoading />}>
-      <MatchGameClient match={match} />
-    </Suspense>
+    <GameLayout>
+      <Suspense fallback={<MatchLoading />}>
+        <MatchGameClient match={match} />
+      </Suspense>
+    </GameLayout>
   );
 }
 

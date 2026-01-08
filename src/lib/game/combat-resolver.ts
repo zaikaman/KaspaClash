@@ -10,6 +10,12 @@ import {
 } from "@/game/combat";
 import { updateMatchRatings, type RatingUpdateResult } from "@/lib/rating/elo";
 import type { MoveType } from "@/types";
+import {
+    trackMatchCompletion,
+    trackDamageDealt,
+    trackAbilityUsed,
+    trackOpponentDefeated,
+} from "@/lib/quests/quest-service";
 
 /**
  * Round resolution result.
@@ -167,6 +173,38 @@ export async function resolveRound(
             ? match.player2_address!
             : match.player1_address;
         ratingResult = await updateMatchRatings(winnerAddress, loserAddress);
+
+        // Track quest progress for match completion
+        try {
+            await trackMatchCompletion(winnerAddress, matchId, true);
+            await trackMatchCompletion(loserAddress, matchId, false);
+        } catch (questError) {
+            console.error("Error tracking quest progress:", questError);
+        }
+    }
+
+    // Track damage dealt for quest progress (for both players every turn)
+    try {
+        if (result.player1.damageDealt > 0) {
+            await trackDamageDealt(match.player1_address, matchId, result.player1.damageDealt);
+        }
+        if (result.player2.damageDealt > 0 && match.player2_address) {
+            await trackDamageDealt(match.player2_address, matchId, result.player2.damageDealt);
+        }
+
+        // Track ability usage
+        await trackAbilityUsed(match.player1_address, matchId, currentRound.player1_move);
+        if (match.player2_address) {
+            await trackAbilityUsed(match.player2_address, matchId, currentRound.player2_move);
+        }
+
+        // Track opponent defeated (round win by KO)
+        if (state.isRoundOver && state.roundWinner) {
+            const winnerAddr = state.roundWinner === "player1" ? match.player1_address : match.player2_address!;
+            await trackOpponentDefeated(winnerAddr, matchId);
+        }
+    } catch (questError) {
+        console.error("Error tracking quest progress for turn:", questError);
     }
 
     // Broadcast round_resolved event
@@ -286,7 +324,7 @@ export async function resolveRound(
         } else if (roundData) {
             console.log(`[CombatResolver] *** Created/updated round ${nextRoundNumber} for match ${matchId}`);
             console.log(`[CombatResolver] *** Player states - P1 stunned: ${newState.player1.isStunned}, P2 stunned: ${newState.player2.isStunned}`);
-            
+
             // Check for stunned players and pre-fill moves
             const movesToInsert: any[] = [];
             const roundUpdates: any = {};
