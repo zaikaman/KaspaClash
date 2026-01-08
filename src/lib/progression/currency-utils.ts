@@ -15,7 +15,7 @@ export const CURRENCY_SOURCES = {
   ACHIEVEMENT_UNLOCK: 'achievement_unlock',
   PRESTIGE_REWARD: 'prestige_reward',
   DAILY_BONUS: 'daily_bonus',
-  
+
   // Spending sources
   SHOP_PURCHASE: 'shop_purchase',
   COSMETIC_PURCHASE: 'cosmetic_purchase',
@@ -136,7 +136,10 @@ export function createTransaction(params: {
 /**
  * Format currency for display
  */
-export function formatCurrency(amount: number): string {
+export function formatCurrency(amount: number | undefined | null): string {
+  if (amount === undefined || amount === null) {
+    return '0';
+  }
   return amount.toLocaleString();
 }
 

@@ -67,10 +67,14 @@ export function calculateTierProgress(totalXP: number, currentTier: number): {
   xpRequired: number;
   progressPercentage: number;
 } {
-  const cumulativeForCurrentTier = calculateCumulativeXP(currentTier);
-  const currentXP = totalXP - cumulativeForCurrentTier;
-  const xpRequired = calculateXPForTier(currentTier + 1);
-  const progressPercentage = Math.min(100, (currentXP / xpRequired) * 100);
+  // Guard against invalid inputs
+  const safeTotalXP = totalXP || 0;
+  const safeTier = currentTier || 1;
+
+  const cumulativeForCurrentTier = calculateCumulativeXP(safeTier);
+  const currentXP = Math.max(0, safeTotalXP - cumulativeForCurrentTier);
+  const xpRequired = calculateXPForTier(safeTier + 1) || 100;
+  const progressPercentage = xpRequired > 0 ? Math.min(100, (currentXP / xpRequired) * 100) : 0;
 
   return {
     currentXP,

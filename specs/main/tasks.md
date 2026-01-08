@@ -66,19 +66,19 @@
 
 ### Implementation for User Story 1
 
-- [ ] T027 [P] [US1] Create BattlePassTiers component in src/components/progression/BattlePassTiers.tsx (displays all 50 tiers in grid)
-- [ ] T028 [P] [US1] Create XPProgressBar component in src/components/progression/XPProgressBar.tsx (shows current tier progress)
-- [ ] T029 [P] [US1] Create TierUnlockModal component in src/components/progression/TierUnlockModal.tsx (celebration animation on tier unlock)
-- [ ] T030 [US1] Implement battle pass page in src/app/battle-pass/page.tsx (main UI for viewing progression)
-- [ ] T031 [P] [US1] Create POST /api/progression/award-xp API route in src/app/api/progression/award-xp/route.ts
-- [ ] T032 [P] [US1] Create POST /api/progression/unlock-tier API route in src/app/api/progression/unlock-tier/route.ts
-- [ ] T033 [US1] Implement ProgressionManager in src/game/managers/ProgressionManager.ts (handles XP awards during matches)
-- [ ] T034 [US1] Create Supabase function award-xp-trigger in supabase/functions/award-xp-trigger/ (auto-calculates tier unlocks)
-- [ ] T035 [US1] Integrate XP awarding with existing match completion logic in match end handlers
-- [ ] T036 [US1] Add visual feedback animations for XP gains in ProgressionManager
-- [ ] T037 [US1] Create season transition handler in src/lib/progression/season-manager.ts
-- [ ] T038 [US1] Implement Supabase function season-transition in supabase/functions/season-transition/ (handles season rollover)
-- [ ] T039 [US1] Add season history display to player profile
+- [x] T027 [P] [US1] Create BattlePassTiers component in src/components/progression/BattlePassTiers.tsx (displays all 50 tiers in grid)
+- [x] T028 [P] [US1] Create XPProgressBar component in src/components/progression/XPProgressBar.tsx (shows current tier progress)
+- [x] T029 [P] [US1] Create TierUnlockModal component in src/components/progression/TierUnlockModal.tsx (celebration animation on tier unlock)
+- [x] T030 [US1] Implement battle pass page in src/app/battle-pass/page.tsx (main UI for viewing progression)
+- [x] T031 [P] [US1] Create POST /api/progression/award-xp API route in src/app/api/progression/award-xp/route.ts
+- [x] T032 [P] [US1] Create POST /api/progression/unlock-tier API route in src/app/api/progression/unlock-tier/route.ts
+- [x] T033 [US1] Implement ProgressionManager in src/game/managers/ProgressionManager.ts (handles XP awards during matches)
+- [x] T034 [US1] Create Supabase function award-xp-trigger in supabase/functions/award-xp-trigger/ (auto-calculates tier unlocks)
+- [x] T035 [US1] Integrate XP awarding with existing match completion logic in match end handlers
+- [x] T036 [US1] Add visual feedback animations for XP gains in ProgressionManager
+- [x] T037 [US1] Create season transition handler in src/lib/progression/season-manager.ts
+- [x] T038 [US1] Implement Supabase function season-transition in supabase/functions/season-transition/ (handles season rollover)
+- [x] T039 [US1] Add season history display to player profile
 
 **Checkpoint**: At this point, User Story 1 should be fully functional - players can progress through battle pass by playing matches
 

@@ -70,12 +70,7 @@ export default function LandingHeader() {
 
                 {/* Desktop Navigation */}
                 <div className="hidden md:flex items-center gap-8 text-base font-medium">
-                    <Link
-                        href="/"
-                        className={`hover:text-cyber-gold transition-colors ${pathname === "/" ? "text-cyber-gold" : "text-white"}`}
-                    >
-                        Home
-                    </Link>
+
                     <Link
                         href="/matchmaking"
                         className={`hover:text-cyber-gold transition-colors ${pathname === "/matchmaking" ? "text-cyber-gold" : "text-white"}`}
@@ -95,11 +90,12 @@ export default function LandingHeader() {
                         Leaderboard
                     </Link>
                     <Link
-                        href="/docs"
-                        className={`hover:text-cyber-gold transition-colors ${pathname === "/docs" ? "text-cyber-gold" : "text-white"}`}
+                        href="/battle-pass"
+                        className={`hover:text-cyber-gold transition-colors ${pathname === "/battle-pass" ? "text-cyber-gold" : "text-white"}`}
                     >
-                        Docs
+                        Battle Pass
                     </Link>
+
                 </div>
 
                 {/* Network Mode & Wallet / CTA */}
@@ -124,7 +120,7 @@ export default function LandingHeader() {
                 </div>
 
                 {/* Mobile Menu Button */}
-                <button 
+                <button
                     onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                     className="md:hidden text-white p-2 z-50 relative hover:text-cyber-gold transition-colors"
                     aria-label="Toggle menu"
@@ -145,13 +141,7 @@ export default function LandingHeader() {
             {isMobileMenuOpen && (
                 <div className="md:hidden fixed inset-0 top-[72px] bg-cyber-black/95 backdrop-blur-lg z-40 animate-in fade-in slide-in-from-top-4">
                     <nav className="container mx-auto px-6 py-8 flex flex-col gap-6">
-                        <Link
-                            href="/"
-                            onClick={() => setIsMobileMenuOpen(false)}
-                            className={`text-xl font-medium hover:text-cyber-gold transition-colors ${pathname === "/" ? "text-cyber-gold" : "text-white"}`}
-                        >
-                            Home
-                        </Link>
+
                         <Link
                             href="/matchmaking"
                             onClick={() => setIsMobileMenuOpen(false)}
@@ -174,12 +164,13 @@ export default function LandingHeader() {
                             Leaderboard
                         </Link>
                         <Link
-                            href="/docs"
+                            href="/battle-pass"
                             onClick={() => setIsMobileMenuOpen(false)}
-                            className={`text-xl font-medium hover:text-cyber-gold transition-colors ${pathname === "/docs" ? "text-cyber-gold" : "text-white"}`}
+                            className={`text-xl font-medium hover:text-cyber-gold transition-colors ${pathname === "/battle-pass" ? "text-cyber-gold" : "text-white"}`}
                         >
-                            Docs
+                            Battle Pass
                         </Link>
+
                         <div className="border-t border-cyber-gold/20 pt-6 mt-2 flex flex-col gap-4">
                             <NetworkModeIndicator />
                             {isConnected && truncatedAddress ? (
