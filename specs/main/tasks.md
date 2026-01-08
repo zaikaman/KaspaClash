@@ -18,13 +18,13 @@
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T001 Create project directory structure per plan.md (src/app/battle-pass, src/components/progression, src/lib/progression, src/stores, public/cosmetics)
-- [ ] T002 [P] Add TypeScript types for progression system in src/types/progression.ts
-- [ ] T003 [P] Add TypeScript types for quests in src/types/quest.ts
-- [ ] T004 [P] Add TypeScript types for cosmetics in src/types/cosmetic.ts
-- [ ] T005 [P] Add TypeScript types for achievements in src/types/achievement.ts
-- [ ] T006 [P] Add TypeScript types for blockchain anchors in src/types/blockchain.ts
-- [ ] T007 [P] Setup audio assets in public/audio/ (tier-unlock.mp3, quest-complete.mp3, achievement-unlock.mp3)
+- [X] T001 Create project directory structure per plan.md (src/app/battle-pass, src/components/progression, src/lib/progression, src/stores, public/cosmetics)
+- [X] T002 [P] Add TypeScript types for progression system in src/types/progression.ts
+- [X] T003 [P] Add TypeScript types for quests in src/types/quest.ts
+- [X] T004 [P] Add TypeScript types for cosmetics in src/types/cosmetic.ts
+- [X] T005 [P] Add TypeScript types for achievements in src/types/achievement.ts
+- [X] T006 [P] Add TypeScript types for blockchain anchors in src/types/blockchain.ts
+- [X] T007 [P] Setup audio assets in public/assets/audio/ (tier-unlock.mp3, quest-complete.mp3, achievement-unlock.mp3)
 
 ---
 
@@ -34,25 +34,25 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T008 Create database migration 020_battle_pass_schema.sql for battle_pass_seasons, battle_pass_tiers, player_progression tables in supabase/migrations/
-- [ ] T009 Create database migration 021_quests_schema.sql for daily_quests, player_quest_progress tables in supabase/migrations/
-- [ ] T010 Create database migration 022_cosmetics_shop.sql for cosmetic_items, player_inventory, player_loadouts tables in supabase/migrations/
-- [ ] T011 Create database migration 023_achievements_schema.sql for achievements, player_achievements tables in supabase/migrations/
-- [ ] T012 Create database migration 024_blockchain_anchors.sql for blockchain_anchors table in supabase/migrations/
+- [X] T008 Create database migration 020_battle_pass_schema.sql for battle_pass_seasons, battle_pass_tiers, player_progression tables in supabase/migrations/
+- [X] T009 Create database migration 021_quests_schema.sql for daily_quests, player_quest_progress tables in supabase/migrations/
+- [X] T010 Create database migration 022_cosmetics_shop.sql for cosmetic_items, player_inventory, player_loadouts tables in supabase/migrations/
+- [X] T011 Create database migration 023_achievements_schema.sql for achievements, player_achievements tables in supabase/migrations/
+- [X] T012 Create database migration 024_blockchain_anchors.sql for blockchain_anchors table in supabase/migrations/
 - [ ] T013 Run all database migrations and verify schema creation
-- [ ] T014 [P] Create RLS policies for player_progression table in supabase/migrations/025_rls_progression.sql
-- [ ] T015 [P] Create RLS policies for quest tables in supabase/migrations/026_rls_quests.sql
-- [ ] T016 [P] Create RLS policies for cosmetics tables in supabase/migrations/027_rls_cosmetics.sql
-- [ ] T017 [P] Create RLS policies for achievements tables in supabase/migrations/028_rls_achievements.sql
-- [ ] T018 Create performance indexes for leaderboard queries in supabase/migrations/029_indexes.sql
-- [ ] T019 [P] Implement XP calculation utilities in src/lib/progression/xp-calculator.ts (hybrid exponential-linear curve per research.md)
-- [ ] T020 [P] Implement tier reward distribution logic in src/lib/progression/tier-rewards.ts
-- [ ] T021 [P] Implement Clash Shards currency utilities in src/lib/progression/currency-utils.ts
-- [ ] T022 Create Zustand progression store in src/stores/progression-store.ts
-- [ ] T023 Create Zustand quest store in src/stores/quest-store.ts
-- [ ] T024 Create Zustand shop store in src/stores/shop-store.ts
-- [ ] T025 Create Zustand inventory store in src/stores/inventory-store.ts
-- [ ] T026 Create Zustand achievement store in src/stores/achievement-store.ts
+- [X] T014 [P] Create RLS policies for player_progression table in supabase/migrations/025_rls_progression.sql
+- [X] T015 [P] Create RLS policies for quest tables in supabase/migrations/026_rls_quests.sql
+- [X] T016 [P] Create RLS policies for cosmetics tables in supabase/migrations/027_rls_cosmetics.sql
+- [X] T017 [P] Create RLS policies for achievements tables in supabase/migrations/028_rls_achievements.sql
+- [X] T018 Create performance indexes for leaderboard queries in supabase/migrations/029_indexes.sql
+- [X] T019 [P] Implement XP calculation utilities in src/lib/progression/xp-calculator.ts (hybrid exponential-linear curve per research.md)
+- [X] T020 [P] Implement tier reward distribution logic in src/lib/progression/tier-rewards.ts
+- [X] T021 [P] Implement Clash Shards currency utilities in src/lib/progression/currency-utils.ts
+- [X] T022 Create Zustand progression store in src/stores/progression-store.ts
+- [X] T023 Create Zustand quest store in src/stores/quest-store.ts
+- [X] T024 Create Zustand shop store in src/stores/shop-store.ts
+- [X] T025 Create Zustand inventory store in src/stores/inventory-store.ts
+- [X] T026 Create Zustand achievement store in src/stores/achievement-store.ts
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 

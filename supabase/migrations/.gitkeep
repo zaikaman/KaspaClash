@@ -1,5 +1,0 @@
-// supabase/migrations/.gitkeep
-// Database migrations directory
-// Files planned:
-// - 001_initial_schema.sql : Initial database schema per data-model.md
-// - 002_rls_policies.sql   : Row Level Security policies

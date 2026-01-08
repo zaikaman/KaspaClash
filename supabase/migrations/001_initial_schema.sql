@@ -1,6 +1,65 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 
+CREATE TABLE public.achievement_statistics (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  player_id text NOT NULL UNIQUE,
+  total_achievements integer NOT NULL DEFAULT 0 CHECK (total_achievements >= 0),
+  unlocked_achievements integer NOT NULL DEFAULT 0 CHECK (unlocked_achievements >= 0),
+  total_xp_earned integer NOT NULL DEFAULT 0 CHECK (total_xp_earned >= 0),
+  total_currency_earned integer NOT NULL DEFAULT 0 CHECK (total_currency_earned >= 0),
+  combat_unlocked integer NOT NULL DEFAULT 0 CHECK (combat_unlocked >= 0),
+  progression_unlocked integer NOT NULL DEFAULT 0 CHECK (progression_unlocked >= 0),
+  social_unlocked integer NOT NULL DEFAULT 0 CHECK (social_unlocked >= 0),
+  collection_unlocked integer NOT NULL DEFAULT 0 CHECK (collection_unlocked >= 0),
+  mastery_unlocked integer NOT NULL DEFAULT 0 CHECK (mastery_unlocked >= 0),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT achievement_statistics_pkey PRIMARY KEY (id),
+  CONSTRAINT achievement_statistics_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address)
+);
+CREATE TABLE public.achievements (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  name text NOT NULL,
+  description text NOT NULL,
+  category text NOT NULL CHECK (category = ANY (ARRAY['combat'::text, 'progression'::text, 'social'::text, 'collection'::text, 'mastery'::text])),
+  tier text NOT NULL CHECK (tier = ANY (ARRAY['bronze'::text, 'silver'::text, 'gold'::text, 'platinum'::text, 'diamond'::text])),
+  icon_url text,
+  xp_reward integer NOT NULL CHECK (xp_reward >= 0),
+  currency_reward integer NOT NULL CHECK (currency_reward >= 0),
+  badge_reward uuid,
+  requirement jsonb NOT NULL,
+  is_secret boolean NOT NULL DEFAULT false,
+  display_order integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT achievements_pkey PRIMARY KEY (id),
+  CONSTRAINT achievements_badge_reward_fkey FOREIGN KEY (badge_reward) REFERENCES public.cosmetic_items(id)
+);
+CREATE TABLE public.battle_pass_seasons (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  name text NOT NULL,
+  description text,
+  start_date timestamp with time zone NOT NULL,
+  end_date timestamp with time zone NOT NULL,
+  tier_count integer NOT NULL DEFAULT 50 CHECK (tier_count > 0 AND tier_count <= 100),
+  is_active boolean NOT NULL DEFAULT false,
+  version integer NOT NULL DEFAULT 1 CHECK (version > 0),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT battle_pass_seasons_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.battle_pass_tiers (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  season_id uuid NOT NULL,
+  tier_number integer NOT NULL CHECK (tier_number > 0 AND tier_number <= 100),
+  xp_required integer NOT NULL CHECK (xp_required >= 0),
+  rewards jsonb NOT NULL DEFAULT '[]'::jsonb,
+  is_premium boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT battle_pass_tiers_pkey PRIMARY KEY (id),
+  CONSTRAINT battle_pass_tiers_season_id_fkey FOREIGN KEY (season_id) REFERENCES public.battle_pass_seasons(id)
+);
 CREATE TABLE public.bets (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   pool_id uuid NOT NULL,
@@ -35,6 +94,23 @@ CREATE TABLE public.betting_pools (
   CONSTRAINT betting_pools_pkey PRIMARY KEY (id),
   CONSTRAINT betting_pools_match_fkey FOREIGN KEY (match_id) REFERENCES public.matches(id)
 );
+CREATE TABLE public.blockchain_anchors (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  player_id text NOT NULL,
+  anchor_type text NOT NULL CHECK (anchor_type = ANY (ARRAY['leaderboard_rank'::text, 'prestige_level'::text, 'achievement_unlock'::text, 'season_completion'::text])),
+  data_hash text NOT NULL CHECK (data_hash ~ '^[a-f0-9]{64}$'::text),
+  data_payload jsonb NOT NULL,
+  transaction_id text UNIQUE,
+  block_hash text,
+  block_height bigint,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'broadcasting'::text, 'confirmed'::text, 'failed'::text])),
+  error_message text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  confirmed_at timestamp with time zone,
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT blockchain_anchors_pkey PRIMARY KEY (id),
+  CONSTRAINT blockchain_anchors_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address)
+);
 CREATE TABLE public.characters (
   id text NOT NULL,
   name text NOT NULL,
@@ -42,6 +118,57 @@ CREATE TABLE public.characters (
   portrait_url text NOT NULL,
   sprite_config jsonb NOT NULL,
   CONSTRAINT characters_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.cosmetic_items (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  name text NOT NULL,
+  description text,
+  category text NOT NULL CHECK (category = ANY (ARRAY['skin'::text, 'emote'::text, 'victory_pose'::text, 'profile_badge'::text, 'profile_frame'::text])),
+  rarity text NOT NULL CHECK (rarity = ANY (ARRAY['common'::text, 'rare'::text, 'epic'::text, 'legendary'::text, 'prestige'::text])),
+  character_id text,
+  price integer NOT NULL CHECK (price >= 0),
+  is_premium boolean NOT NULL DEFAULT false,
+  is_limited boolean NOT NULL DEFAULT false,
+  thumbnail_url text,
+  preview_url text,
+  asset_path text,
+  unlock_requirement text,
+  tags ARRAY DEFAULT ARRAY[]::text[],
+  release_date timestamp with time zone NOT NULL DEFAULT now(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT cosmetic_items_pkey PRIMARY KEY (id),
+  CONSTRAINT cosmetic_items_character_id_fkey FOREIGN KEY (character_id) REFERENCES public.characters(id)
+);
+CREATE TABLE public.currency_transactions (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  player_id text NOT NULL,
+  amount integer NOT NULL,
+  transaction_type text NOT NULL CHECK (transaction_type = ANY (ARRAY['earn'::text, 'spend'::text])),
+  source text NOT NULL,
+  balance_before integer NOT NULL CHECK (balance_before >= 0),
+  balance_after integer NOT NULL CHECK (balance_after >= 0),
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT currency_transactions_pkey PRIMARY KEY (id),
+  CONSTRAINT currency_transactions_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address)
+);
+CREATE TABLE public.daily_quests (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  player_id text NOT NULL,
+  template_id uuid NOT NULL,
+  assigned_date date NOT NULL,
+  expires_at timestamp with time zone NOT NULL,
+  current_progress integer NOT NULL DEFAULT 0 CHECK (current_progress >= 0),
+  target_progress integer NOT NULL CHECK (target_progress > 0),
+  is_completed boolean NOT NULL DEFAULT false,
+  is_claimed boolean NOT NULL DEFAULT false,
+  claimed_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT daily_quests_pkey PRIMARY KEY (id),
+  CONSTRAINT daily_quests_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address),
+  CONSTRAINT daily_quests_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.quest_templates(id)
 );
 CREATE TABLE public.matches (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -96,6 +223,80 @@ CREATE TABLE public.moves (
   CONSTRAINT moves_round_id_fkey FOREIGN KEY (round_id) REFERENCES public.rounds(id),
   CONSTRAINT moves_player_address_fkey FOREIGN KEY (player_address) REFERENCES public.players(address)
 );
+CREATE TABLE public.player_achievements (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  player_id text NOT NULL,
+  achievement_id uuid NOT NULL,
+  current_progress integer NOT NULL DEFAULT 0 CHECK (current_progress >= 0),
+  target_progress integer NOT NULL CHECK (target_progress > 0),
+  is_unlocked boolean NOT NULL DEFAULT false,
+  unlocked_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT player_achievements_pkey PRIMARY KEY (id),
+  CONSTRAINT player_achievements_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address),
+  CONSTRAINT player_achievements_achievement_id_fkey FOREIGN KEY (achievement_id) REFERENCES public.achievements(id)
+);
+CREATE TABLE public.player_currency (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  player_id text NOT NULL UNIQUE,
+  clash_shards integer NOT NULL DEFAULT 0 CHECK (clash_shards >= 0),
+  total_earned integer NOT NULL DEFAULT 0 CHECK (total_earned >= 0),
+  total_spent integer NOT NULL DEFAULT 0 CHECK (total_spent >= 0),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT player_currency_pkey PRIMARY KEY (id),
+  CONSTRAINT player_currency_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address)
+);
+CREATE TABLE public.player_inventory (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  player_id text NOT NULL,
+  cosmetic_id uuid NOT NULL,
+  acquired_date timestamp with time zone NOT NULL DEFAULT now(),
+  source text NOT NULL CHECK (source = ANY (ARRAY['battle_pass'::text, 'shop_purchase'::text, 'achievement'::text, 'prestige'::text, 'event'::text])),
+  is_equipped boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT player_inventory_pkey PRIMARY KEY (id),
+  CONSTRAINT player_inventory_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address),
+  CONSTRAINT player_inventory_cosmetic_id_fkey FOREIGN KEY (cosmetic_id) REFERENCES public.cosmetic_items(id)
+);
+CREATE TABLE public.player_loadouts (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  player_id text NOT NULL,
+  character_id text NOT NULL,
+  equipped_skin uuid,
+  equipped_emote uuid,
+  equipped_victory_pose uuid,
+  equipped_badge uuid,
+  equipped_frame uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT player_loadouts_pkey PRIMARY KEY (id),
+  CONSTRAINT player_loadouts_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address),
+  CONSTRAINT player_loadouts_character_id_fkey FOREIGN KEY (character_id) REFERENCES public.characters(id),
+  CONSTRAINT player_loadouts_equipped_skin_fkey FOREIGN KEY (equipped_skin) REFERENCES public.cosmetic_items(id),
+  CONSTRAINT player_loadouts_equipped_emote_fkey FOREIGN KEY (equipped_emote) REFERENCES public.cosmetic_items(id),
+  CONSTRAINT player_loadouts_equipped_victory_pose_fkey FOREIGN KEY (equipped_victory_pose) REFERENCES public.cosmetic_items(id),
+  CONSTRAINT player_loadouts_equipped_badge_fkey FOREIGN KEY (equipped_badge) REFERENCES public.cosmetic_items(id),
+  CONSTRAINT player_loadouts_equipped_frame_fkey FOREIGN KEY (equipped_frame) REFERENCES public.cosmetic_items(id)
+);
+CREATE TABLE public.player_progression (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  player_id text NOT NULL,
+  season_id uuid NOT NULL,
+  current_tier integer NOT NULL DEFAULT 1 CHECK (current_tier > 0),
+  current_xp integer NOT NULL DEFAULT 0 CHECK (current_xp >= 0),
+  total_xp integer NOT NULL DEFAULT 0 CHECK (total_xp >= 0),
+  prestige_level integer NOT NULL DEFAULT 0 CHECK (prestige_level >= 0),
+  prestige_xp_multiplier numeric NOT NULL DEFAULT 1.00 CHECK (prestige_xp_multiplier >= 1.00),
+  prestige_currency_multiplier numeric NOT NULL DEFAULT 1.00 CHECK (prestige_currency_multiplier >= 1.00),
+  last_prestige_date timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT player_progression_pkey PRIMARY KEY (id),
+  CONSTRAINT player_progression_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address),
+  CONSTRAINT player_progression_season_id_fkey FOREIGN KEY (season_id) REFERENCES public.battle_pass_seasons(id)
+);
 CREATE TABLE public.players (
   address text NOT NULL,
   display_name text CHECK (display_name IS NULL OR length(display_name) <= 32 AND display_name ~ '^[a-zA-Z0-9_]+$'::text),
@@ -106,6 +307,35 @@ CREATE TABLE public.players (
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   avatar_url text,
   CONSTRAINT players_pkey PRIMARY KEY (address)
+);
+CREATE TABLE public.quest_statistics (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  player_id text NOT NULL UNIQUE,
+  total_quests_completed integer NOT NULL DEFAULT 0 CHECK (total_quests_completed >= 0),
+  total_quests_claimed integer NOT NULL DEFAULT 0 CHECK (total_quests_claimed >= 0),
+  total_xp_earned integer NOT NULL DEFAULT 0 CHECK (total_xp_earned >= 0),
+  total_currency_earned integer NOT NULL DEFAULT 0 CHECK (total_currency_earned >= 0),
+  current_streak integer NOT NULL DEFAULT 0 CHECK (current_streak >= 0),
+  longest_streak integer NOT NULL DEFAULT 0 CHECK (longest_streak >= 0),
+  last_quest_date date,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT quest_statistics_pkey PRIMARY KEY (id),
+  CONSTRAINT quest_statistics_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address)
+);
+CREATE TABLE public.quest_templates (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  title text NOT NULL,
+  description text NOT NULL,
+  objective_type text NOT NULL CHECK (objective_type = ANY (ARRAY['win_matches'::text, 'play_matches'::text, 'deal_damage'::text, 'defeat_opponents'::text, 'use_character'::text, 'use_ability'::text, 'execute_combo'::text, 'win_streak'::text, 'survival_waves'::text, 'combo_challenge_stars'::text])),
+  target_value integer NOT NULL CHECK (target_value > 0),
+  difficulty text NOT NULL CHECK (difficulty = ANY (ARRAY['easy'::text, 'medium'::text, 'hard'::text])),
+  xp_reward integer NOT NULL CHECK (xp_reward > 0),
+  currency_reward integer NOT NULL CHECK (currency_reward >= 0),
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT quest_templates_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.rounds (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -125,4 +355,55 @@ CREATE TABLE public.rounds (
   CONSTRAINT rounds_pkey PRIMARY KEY (id),
   CONSTRAINT rounds_match_id_fkey FOREIGN KEY (match_id) REFERENCES public.matches(id),
   CONSTRAINT rounds_winner_address_fkey FOREIGN KEY (winner_address) REFERENCES public.players(address)
+);
+CREATE TABLE public.shop_purchases (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  player_id text NOT NULL,
+  cosmetic_id uuid NOT NULL,
+  price integer NOT NULL CHECK (price >= 0),
+  currency_type text NOT NULL DEFAULT 'clash_shards'::text,
+  purchase_date timestamp with time zone NOT NULL DEFAULT now(),
+  success boolean NOT NULL DEFAULT true,
+  error_message text,
+  CONSTRAINT shop_purchases_pkey PRIMARY KEY (id),
+  CONSTRAINT shop_purchases_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address),
+  CONSTRAINT shop_purchases_cosmetic_id_fkey FOREIGN KEY (cosmetic_id) REFERENCES public.cosmetic_items(id)
+);
+CREATE TABLE public.shop_rotations (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  week_start_date date NOT NULL,
+  week_end_date date NOT NULL,
+  featured_items ARRAY NOT NULL DEFAULT ARRAY[]::uuid[],
+  discounted_items ARRAY NOT NULL DEFAULT ARRAY[]::uuid[],
+  is_active boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT shop_rotations_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.verification_badges (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  player_id text NOT NULL,
+  anchor_id uuid NOT NULL UNIQUE,
+  badge_type text NOT NULL CHECK (badge_type = ANY (ARRAY['leaderboard_rank'::text, 'prestige_level'::text, 'achievement_unlock'::text, 'season_completion'::text])),
+  transaction_id text NOT NULL,
+  block_height bigint NOT NULL CHECK (block_height > 0),
+  explorer_url text NOT NULL,
+  verified_at timestamp with time zone NOT NULL DEFAULT now(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT verification_badges_pkey PRIMARY KEY (id),
+  CONSTRAINT verification_badges_anchor_id_fkey FOREIGN KEY (anchor_id) REFERENCES public.blockchain_anchors(id),
+  CONSTRAINT verification_badges_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address)
+);
+CREATE TABLE public.xp_awards (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  player_id text NOT NULL,
+  season_id uuid NOT NULL,
+  amount integer NOT NULL CHECK (amount > 0),
+  source text NOT NULL,
+  source_id uuid,
+  multiplier numeric NOT NULL DEFAULT 1.00,
+  final_amount integer NOT NULL CHECK (final_amount > 0),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT xp_awards_pkey PRIMARY KEY (id),
+  CONSTRAINT xp_awards_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address),
+  CONSTRAINT xp_awards_season_id_fkey FOREIGN KEY (season_id) REFERENCES public.battle_pass_seasons(id)
 );
