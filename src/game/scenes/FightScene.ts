@@ -3204,42 +3204,15 @@ export class FightScene extends Phaser.Scene {
     const p2Char = this.config.player2Character || "dag-warrior";
     const isLocalWinner = roundWinner === this.config.playerRole;
 
-    // Dead animation scale constants
-    // cyber-ninja: 408x305, block-bruiser: 551x380, dag-warrior: 539x325, hash-hunter: 513x248
-    const DEAD_SCALE = 0.70;  // cyber-ninja base scale
-    const BB_DEAD_SCALE = 0.65;  // block-bruiser (larger frame)
-    const DW_DEAD_SCALE = 0.85;  // dag-warrior
-    const HH_DEAD_SCALE = 0.99;  // hash-hunter (smaller frame)
-
-    // Idle scale constants (same as in handleServerRoundResolved)
-    const IDLE_SCALE = 0.45;
-    const BB_IDLE_SCALE = 0.95;
-    const DW_IDLE_SCALE = 0.90;
-    const HH_IDLE_SCALE = 0.90;
-
     // Play dead animation on the loser
     const loser = roundWinner === "player1" ? "player2" : "player1";
     const loserChar = loser === "player1" ? p1Char : p2Char;
     const loserSprite = loser === "player1" ? this.player1Sprite : this.player2Sprite;
 
-    // Get the correct dead scale for the loser's character
-    const getDeadScale = (charId: string) => {
-      if (charId === "block-bruiser") return BB_DEAD_SCALE;
-      if (charId === "dag-warrior") return DW_DEAD_SCALE;
-      if (charId === "hash-hunter") return HH_DEAD_SCALE;
-      return DEAD_SCALE;
-    };
-
-    const getIdleScale = (charId: string) => {
-      if (charId === "block-bruiser") return BB_IDLE_SCALE;
-      if (charId === "dag-warrior") return DW_IDLE_SCALE;
-      if (charId === "hash-hunter") return HH_IDLE_SCALE;
-      return IDLE_SCALE;
-    };
-
     // Play dead animation on loser if it exists
+    // Use centralized scale from sprite-config.ts
     if (this.anims.exists(`${loserChar}_dead`)) {
-      loserSprite.setScale(getDeadScale(loserChar));
+      loserSprite.setScale(getAnimationScale(loserChar, "dead"));
       loserSprite.play(`${loserChar}_dead`);
     }
 
@@ -3290,12 +3263,13 @@ export class FightScene extends Phaser.Scene {
               this.countdownText.setFontSize(72);
 
               // Reset both sprites to idle animations with proper scales
+              // Use centralized scale from sprite-config.ts
               if (this.anims.exists(`${p1Char}_idle`)) {
-                this.player1Sprite.setScale(getIdleScale(p1Char));
+                this.player1Sprite.setScale(getAnimationScale(p1Char, "idle"));
                 this.player1Sprite.play(`${p1Char}_idle`);
               }
               if (this.anims.exists(`${p2Char}_idle`)) {
-                this.player2Sprite.setScale(getIdleScale(p2Char));
+                this.player2Sprite.setScale(getAnimationScale(p2Char, "idle"));
                 this.player2Sprite.play(`${p2Char}_idle`);
               }
 

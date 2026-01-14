@@ -306,7 +306,11 @@ export async function resolveRound(
         const nextChannel = supabase.channel(`game:${matchId}`);
 
         // Create/update next round with server-side deadline
-        const nextRoundNumber = state.isRoundOver ? newState.currentRound : currentRound.round_number + 1;
+        // IMPORTANT: Always use turn-based numbering (currentRound.round_number + 1)
+        // The database round_number represents TURNS (1,2,3,4,5...), NOT game rounds (1,2,3)
+        // Previously this used newState.currentRound when isRoundOver was true, which caused
+        // database row conflicts (e.g., creating turn 2 when we should create turn 6)
+        const nextRoundNumber = currentRound.round_number + 1;
         const { data: roundData, error: roundUpsertError } = await supabase
             .from("rounds")
             .upsert({
@@ -475,6 +479,24 @@ export async function handleMoveRejection(
         };
     }
 
+    // Fetch current round to get round_number for proper turn-based numbering
+    const { data: currentRound, error: roundError } = await supabase
+        .from("rounds")
+        .select("round_number")
+        .eq("id", roundId)
+        .single();
+
+    if (roundError || !currentRound) {
+        return {
+            success: false,
+            roundWinner,
+            isMatchOver: false,
+            matchWinner: null,
+            narrative: "",
+            error: "Round not found",
+        };
+    }
+
     // Update round scores
     const player1RoundsWon = match.player1_rounds_won || 0;
     const player2RoundsWon = match.player2_rounds_won || 0;
@@ -619,7 +641,9 @@ export async function handleMoveRejection(
         const nextChannel = supabase.channel(`game:${matchId}`);
 
         // Create next round with server-side deadline
-        const nextRoundNumber = (match.player1_rounds_won || 0) + (match.player2_rounds_won || 0) + 2;
+        // IMPORTANT: Use turn-based numbering (currentRound.round_number + 1)
+        // The database round_number represents TURNS, not game rounds
+        const nextRoundNumber = currentRound.round_number + 1;
         await supabase
             .from("rounds")
             .upsert({
@@ -638,7 +662,7 @@ export async function handleMoveRejection(
             type: "broadcast",
             event: "round_starting",
             payload: {
-                roundNumber: (match.player1_rounds_won || 0) + (match.player2_rounds_won || 0) + 2,
+                roundNumber: nextRoundNumber,
                 turnNumber: 1,
                 moveDeadlineAt,
                 countdownSeconds: Math.floor(ROUND_COUNTDOWN_MS / 1000),
