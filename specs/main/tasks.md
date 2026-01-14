@@ -92,20 +92,20 @@
 
 ### Implementation for User Story 2
 
-- [ ] T040 [P] [US2] Create DailyQuestList component in src/components/quests/DailyQuestList.tsx (displays 3 active quests)
-- [ ] T041 [P] [US2] Create QuestCard component in src/components/quests/QuestCard.tsx (individual quest with progress bar)
-- [ ] T042 [P] [US2] Create QuestClaimButton component in src/components/quests/QuestClaimButton.tsx (claim rewards with animation)
-- [ ] T043 [US2] Implement quests page in src/app/quests/page.tsx (main daily quests screen)
-- [ ] T044 [US2] Implement quest template definitions in src/lib/quests/quest-templates.ts (40+ quest configurations)
-- [ ] T045 [US2] Implement quest generator in src/lib/quests/quest-generator.ts (selects 1 Easy + 1 Medium + 1 Hard)
-- [ ] T046 [US2] Implement quest validator in src/lib/quests/quest-validator.ts (server-side completion checking)
-- [ ] T047 [P] [US2] Create GET /api/quests/daily API route in src/app/api/quests/daily/route.ts (fetch active quests)
-- [ ] T048 [P] [US2] Create POST /api/quests/claim API route in src/app/api/quests/claim/route.ts (claim quest rewards)
-- [ ] T049 [P] [US2] Create POST /api/quests/progress API route in src/app/api/quests/progress/route.ts (update progress)
-- [ ] T050 [US2] Implement Supabase function daily-quest-reset in supabase/functions/daily-quest-reset/ (midnight UTC reset)
-- [ ] T051 [US2] Setup Supabase Realtime subscription for quest progress updates in src/hooks/useQuestProgress.ts
-- [ ] T052 [US2] Integrate quest progress tracking with match completion handlers
-- [ ] T053 [US2] Add quest completion notification system with visual celebration
+- [x] T040 [P] [US2] Create DailyQuestList component in src/components/quests/DailyQuestList.tsx (displays 3 active quests)
+- [x] T041 [P] [US2] Create QuestCard component in src/components/quests/QuestCard.tsx (individual quest with progress bar)
+- [x] T042 [P] [US2] Create QuestClaimButton component in src/components/quests/QuestClaimButton.tsx (claim rewards with animation)
+- [x] T043 [US2] Implement quests page in src/app/quests/page.tsx (main daily quests screen)
+- [x] T044 [US2] Implement quest template definitions in src/lib/quests/quest-templates.ts (40+ quest configurations)
+- [x] T045 [US2] Implement quest generator in src/lib/quests/quest-generator.ts (selects 1 Easy + 1 Medium + 1 Hard)
+- [x] T046 [US2] Implement quest validator in src/lib/quests/quest-validator.ts (server-side completion checking)
+- [x] T047 [P] [US2] Create GET /api/quests/daily API route in src/app/api/quests/daily/route.ts (fetch active quests)
+- [x] T048 [P] [US2] Create POST /api/quests/claim API route in src/app/api/quests/claim/route.ts (claim quest rewards)
+- [x] T049 [P] [US2] Create POST /api/quests/progress API route in src/app/api/quests/progress/route.ts (update progress)
+- [x] T050 [US2] Implement Supabase function daily-quest-reset in supabase/functions/daily-quest-reset/ (midnight UTC reset)
+- [x] T051 [US2] Setup Supabase Realtime subscription for quest progress updates in src/hooks/useQuestProgress.ts
+- [x] T052 [US2] Integrate quest progress tracking with match completion handlers
+- [x] T053 [US2] Add quest completion notification system with visual celebration
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently - players earn XP from matches AND daily quests
 

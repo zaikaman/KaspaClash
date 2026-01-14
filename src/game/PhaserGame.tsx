@@ -16,6 +16,7 @@ import React, {
 import { EventBus } from "./EventBus";
 import type { GameEvents } from "./EventBus";
 import type { FightSceneConfig } from "./scenes/FightScene";
+import type { CharacterSelectSceneConfig } from "./scenes/CharacterSelectScene";
 
 /**
  * Props for the PhaserGame component.
@@ -23,8 +24,8 @@ import type { FightSceneConfig } from "./scenes/FightScene";
 export interface PhaserGameProps {
   /** Current scene key to start with */
   currentScene?: string;
-  /** Scene configuration for FightScene */
-  sceneConfig?: FightSceneConfig;
+  /** Scene configuration for FightScene or CharacterSelectScene */
+  sceneConfig?: FightSceneConfig | CharacterSelectSceneConfig;
   /** Callback when scene is ready */
   onSceneReady?: (scene: Phaser.Scene) => void;
   /** Callback when current scene changes */
@@ -102,6 +103,7 @@ export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
           const { ResultsScene } = await import("./scenes/ResultsScene");
           const { PracticeScene } = await import("./scenes/PracticeScene");
           const { ReplayScene } = await import("./scenes/ReplayScene");
+          const { FakeScene } = await import("./scenes/FakeScene");
 
           if (!isMounted) return;
 
@@ -122,6 +124,7 @@ export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
           gameRef.current.scene.add("ResultsScene", ResultsScene, false);
           gameRef.current.scene.add("PracticeScene", PracticeScene, false);
           gameRef.current.scene.add("ReplayScene", ReplayScene, false);
+          gameRef.current.scene.add("FakeScene", FakeScene, false);
 
           // Start the initial scene with data when game is ready
           // CRITICAL: Use refs to get the LATEST config values when "ready" fires
@@ -138,6 +141,9 @@ export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
             if (latestScene && latestConfig) {
               // Start the scene with data - this is the FIRST time it runs
               gameRef.current?.scene.start(latestScene, latestConfig);
+            } else if (latestScene) {
+              // Start scene without config (e.g., FakeScene, test scenes)
+              gameRef.current?.scene.start(latestScene);
             } else if (latestConfig) {
               // Default to FightScene for backward compatibility if not specified
               gameRef.current?.scene.start("FightScene", latestConfig);

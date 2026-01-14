@@ -3,7 +3,7 @@
 /**
  * Cosmetic Item Categories
  */
-export type CosmeticCategory = 'skin' | 'emote' | 'victory_pose' | 'profile_badge' | 'profile_frame';
+export type CosmeticCategory = 'character' | 'sticker' | 'victory_pose' | 'profile_badge' | 'profile_frame';
 
 /**
  * Cosmetic Rarity Tiers
@@ -50,7 +50,7 @@ export interface PlayerLoadout {
   playerId: string;
   characterId: string;
   equippedSkin?: string;
-  equippedEmote?: string;
+  equippedSticker?: string;
   equippedVictoryPose?: string;
   equippedBadge?: string;
   equippedFrame?: string;

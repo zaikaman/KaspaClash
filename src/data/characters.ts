@@ -9,9 +9,6 @@ import type { Character, SpriteConfig, SpriteAnimation } from "@/types";
 // SPRITE ANIMATION DEFAULTS
 // =============================================================================
 
-/**
- * Default animation configuration factory.
- */
 function createDefaultAnimation(
   characterId: string,
   action: string,
@@ -27,10 +24,7 @@ function createDefaultAnimation(
   };
 }
 
-/**
- * Create default sprite config for a character.
- */
-function createDefaultSpriteConfig(characterId: string): SpriteConfig {
+function createSpriteConfig(characterId: string): SpriteConfig {
   return {
     idle: createDefaultAnimation(characterId, "idle", 4, 8),
     punch: createDefaultAnimation(characterId, "punch", 6, 12, 3),
@@ -44,154 +38,232 @@ function createDefaultSpriteConfig(characterId: string): SpriteConfig {
 }
 
 // =============================================================================
-// CHARACTER DEFINITIONS
+// CHARACTER DEFINITIONS (16 Unique Fighters)
 // =============================================================================
 
-/**
- * Cyber Ninja - Fast and technical
- * Theme: Kaspa's speed and efficiency
- */
+// --- Speed Fighters (Base: cyber-ninja) ---
+// --- Speed Fighters (Base: cyber-ninja) ---
 export const CYBER_NINJA: Character = {
   id: "cyber-ninja",
   name: "Cyber Ninja",
-  theme: "Digital shadow warrior representing Kaspa's lightning-fast block times. Masters of precision strikes and tactical defense.",
+  theme: "A digital assassin composed of glitching light. High risk, high reward.",
   portraitUrl: "/characters/cyber-ninja/portrait.webp",
-  spriteConfig: createDefaultSpriteConfig("cyber-ninja"),
+  spriteConfig: createSpriteConfig("cyber-ninja"),
+};
+export const NEON_WRAITH: Character = {
+  id: "neon-wraith",
+  name: "Neon Wraith",
+  theme: "The stealthy variant of the cyber ninja, focused on speed.",
+  portraitUrl: "/characters/neon-wraith/portrait.webp",
+  spriteConfig: createSpriteConfig("neon-wraith"),
+};
+export const KITSUNE_09: Character = {
+  id: "kitsune-09",
+  name: "Kitsune-09",
+  theme: "Bio-augmented cyborg with holographic tails. Elusive and tricky.",
+  portraitUrl: "/characters/kitsune-09/portrait.webp",
+  spriteConfig: createSpriteConfig("kitsune-09"),
+};
+export const VIPERBLADE: Character = {
+  id: "viperblade",
+  name: "Viperblade",
+  theme: "Toxic biomech with mantis-style blades. Balanced speed and offense.",
+  portraitUrl: "/characters/viperblade/portrait.webp",
+  spriteConfig: createSpriteConfig("viperblade"),
+};
+export const CHRONO_DRIFTER: Character = {
+  id: "chrono-drifter",
+  name: "Chrono-Drifter",
+  theme: "Time-displaced ronin. Slower but more resilient than other speedsters.",
+  portraitUrl: "/characters/chrono-drifter/portrait.webp",
+  spriteConfig: createSpriteConfig("chrono-drifter"),
 };
 
-/**
- * DAG Warrior - Balanced and adaptable
- * Theme: Kaspa's DAG structure
- */
-export const DAG_WARRIOR: Character = {
-  id: "dag-warrior",
-  name: "DAG Warrior",
-  theme: "Parallel processing champion embodying Kaspa's BlockDAG architecture. Versatile fighter who can handle any situation.",
-  portraitUrl: "/characters/dag-warrior/portrait.webp",
-  spriteConfig: createDefaultSpriteConfig("dag-warrior"),
-};
-
-/**
- * Block Bruiser - Heavy and powerful
- * Theme: Kaspa's block structure and security
- */
+// --- Tank Fighters (Base: block-bruiser) ---
 export const BLOCK_BRUISER: Character = {
   id: "block-bruiser",
   name: "Block Bruiser",
-  theme: "Immovable force representing Kaspa's rock-solid security. Heavy hitter with devastating power moves.",
+  theme: "The original tank, built to withstand anything.",
   portraitUrl: "/characters/block-bruiser/portrait.webp",
-  spriteConfig: createDefaultSpriteConfig("block-bruiser"),
+  spriteConfig: createSpriteConfig("block-bruiser"),
+};
+export const HEAVY_LOADER: Character = {
+  id: "heavy-loader",
+  name: "Heavy-Loader",
+  theme: "Industrial mech with hydraulic crushing claws. Massive health pool.",
+  portraitUrl: "/characters/heavy-loader/portrait.webp",
+  spriteConfig: createSpriteConfig("heavy-loader"),
+};
+export const GENE_SMASHER: Character = {
+  id: "gene-smasher",
+  name: "Gene-Smasher",
+  theme: "Experimental super-soldier using raw brute force. Devastating clicks.",
+  portraitUrl: "/characters/gene-smasher/portrait.webp",
+  spriteConfig: createSpriteConfig("gene-smasher"),
+};
+export const BASTION_HULK: Character = {
+  id: "bastion-hulk",
+  name: "Bastion Hulk",
+  theme: "Geometric golem with floating fists. specialized in defense and energy.",
+  portraitUrl: "/characters/bastion-hulk/portrait.webp",
+  spriteConfig: createSpriteConfig("bastion-hulk"),
+};
+export const SCRAP_GOLIATH: Character = {
+  id: "scrap-goliath",
+  name: "Scrap-Goliath",
+  theme: "A massive golem animated from urban debris. Regenerates energy quickly.",
+  portraitUrl: "/characters/scrap-goliath/portrait.webp",
+  spriteConfig: createSpriteConfig("scrap-goliath"),
 };
 
-/**
- * Hash Hunter - Aggressive and relentless
- * Theme: Kaspa's mining and proof-of-work
- */
+// --- Tech Fighters (Base: dag-warrior) ---
+export const DAG_WARRIOR: Character = {
+  id: "dag-warrior",
+  name: "Dag Warrior",
+  theme: "Futuristic knight with a hard-light hammer. Defensive but versatile.",
+  portraitUrl: "/characters/dag-warrior/portrait.webp",
+  spriteConfig: createSpriteConfig("dag-warrior"),
+};
+export const CYBER_PALADIN: Character = {
+  id: "cyber-paladin",
+  name: "Cyber-Paladin",
+  theme: "An upgraded paladin model with enhanced shielding.",
+  portraitUrl: "/characters/cyber-paladin/portrait.webp",
+  spriteConfig: createSpriteConfig("cyber-paladin"),
+};
+export const NANO_BRAWLER: Character = {
+  id: "nano-brawler",
+  name: "Nano-Brawler",
+  theme: "Street fighter utilizing nanobot-enhanced punches. Aggressive combo user.",
+  portraitUrl: "/characters/nano-brawler/portrait.webp",
+  spriteConfig: createSpriteConfig("nano-brawler"),
+};
+export const TECHNOMANCER: Character = {
+  id: "technomancer",
+  name: "Technomancer",
+  theme: "Sorcerer manipulating high-voltage cables. Specializes in ability usage.",
+  portraitUrl: "/characters/technomancer/portrait.webp",
+  spriteConfig: createSpriteConfig("technomancer"),
+};
+export const AEON_GUARD: Character = {
+  id: "aeon-guard",
+  name: "Aeon Guard",
+  theme: "Cosmic guardian wielding a gravity staff. Elite all-rounder.",
+  portraitUrl: "/characters/aeon-guard/portrait.webp",
+  spriteConfig: createSpriteConfig("aeon-guard"),
+};
+
+// --- Precision Fighters (Base: hash-hunter) ---
 export const HASH_HUNTER: Character = {
   id: "hash-hunter",
   name: "Hash Hunter",
-  theme: "Relentless proof-of-work champion fueled by computational fire. Aggressive attacker who never stops pressing forward.",
+  theme: "Robot duelist with laser whips. High critical strike potential.",
   portraitUrl: "/characters/hash-hunter/portrait.webp",
-  spriteConfig: createDefaultSpriteConfig("hash-hunter"),
+  spriteConfig: createSpriteConfig("hash-hunter"),
+};
+export const RAZOR_BOT_7: Character = {
+  id: "razor-bot-7",
+  name: "Razor-Bot 7",
+  theme: "A newer model of the Hunter series, faster but more fragile.",
+  portraitUrl: "/characters/razor-bot-7/portrait.webp",
+  spriteConfig: createSpriteConfig("razor-bot-7"),
+};
+export const SONIC_STRIKER: Character = {
+  id: "sonic-striker",
+  name: "Sonic-Striker",
+  theme: "Fighter using massive subwoofer-gauntlets. Heavy impact damage.",
+  portraitUrl: "/characters/sonic-striker/portrait.webp",
+  spriteConfig: createSpriteConfig("sonic-striker"),
+};
+export const PRISM_DUELIST: Character = {
+  id: "prism-duelist",
+  name: "Prism-Duelist",
+  theme: "Fencer with a rapier of focused light. Excellent counter-attacker.",
+  portraitUrl: "/characters/prism-duelist/portrait.webp",
+  spriteConfig: createSpriteConfig("prism-duelist"),
+};
+export const VOID_REAPER: Character = {
+  id: "void-reaper",
+  name: "Void-Reaper",
+  theme: "Alien predator wielding dark matter scythes. High damage, low health.",
+  portraitUrl: "/characters/void-reaper/portrait.webp",
+  spriteConfig: createSpriteConfig("void-reaper"),
 };
 
 // =============================================================================
 // CHARACTER ROSTER
 // =============================================================================
 
-/**
- * All available characters in order of selection screen position.
- */
 export const CHARACTER_ROSTER: Character[] = [
-  CYBER_NINJA,
-  DAG_WARRIOR,
-  BLOCK_BRUISER,
-  HASH_HUNTER,
+  // Speed Group
+  CYBER_NINJA, NEON_WRAITH, KITSUNE_09, VIPERBLADE, CHRONO_DRIFTER,
+  // Tech Group
+  DAG_WARRIOR, CYBER_PALADIN, NANO_BRAWLER, TECHNOMANCER, AEON_GUARD,
+  // Tank Group
+  BLOCK_BRUISER, HEAVY_LOADER, GENE_SMASHER, BASTION_HULK, SCRAP_GOLIATH,
+  // Precision Group
+  HASH_HUNTER, RAZOR_BOT_7, SONIC_STRIKER, PRISM_DUELIST, VOID_REAPER
 ];
 
-/**
- * Character lookup by ID.
- */
-export const CHARACTERS_BY_ID: Record<string, Character> = {
-  [CYBER_NINJA.id]: CYBER_NINJA,
-  [DAG_WARRIOR.id]: DAG_WARRIOR,
-  [BLOCK_BRUISER.id]: BLOCK_BRUISER,
-  [HASH_HUNTER.id]: HASH_HUNTER,
-};
+export const CHARACTERS_BY_ID: Record<string, Character> = {};
+CHARACTER_ROSTER.forEach(char => {
+  CHARACTERS_BY_ID[char.id] = char;
+});
 
 // =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
 
-/**
- * Get character by ID.
- */
 export function getCharacter(id: string): Character | undefined {
   return CHARACTERS_BY_ID[id];
 }
 
-/**
- * Get character by ID with fallback.
- */
 export function getCharacterOrDefault(id: string): Character {
   return CHARACTERS_BY_ID[id] ?? CYBER_NINJA;
 }
 
-/**
- * Validate if a character ID is valid.
- */
 export function isValidCharacterId(id: string): boolean {
   return id in CHARACTERS_BY_ID;
 }
 
-/**
- * Get random character (for AI or random selection).
- */
 export function getRandomCharacter(): Character {
   const index = Math.floor(Math.random() * CHARACTER_ROSTER.length);
   return CHARACTER_ROSTER[index];
 }
 
 /**
- * Get character selection grid layout.
- * Returns characters arranged for a 2x2 grid display.
- */
-export function getCharacterGrid(): Character[][] {
-  return [
-    [CYBER_NINJA, DAG_WARRIOR],
-    [BLOCK_BRUISER, HASH_HUNTER],
-  ];
-}
-
-/**
  * Character colors for UI theming.
  */
 export const CHARACTER_COLORS: Record<string, { primary: number; secondary: number; glow: number }> = {
-  "cyber-ninja": {
-    primary: 0x9333ea, // Purple
-    secondary: 0x7c3aed,
-    glow: 0xa855f7,
-  },
-  "dag-warrior": {
-    primary: 0x3b82f6, // Blue
-    secondary: 0x2563eb,
-    glow: 0x60a5fa,
-  },
-  "block-bruiser": {
-    primary: 0xf97316, // Orange
-    secondary: 0xea580c,
-    glow: 0xfb923c,
-  },
-  "hash-hunter": {
-    primary: 0xef4444, // Red
-    secondary: 0xdc2626,
-    glow: 0xf87171,
-  },
+  // Speed (Purple theme)
+  "cyber-ninja": { primary: 0x9333ea, secondary: 0x7c3aed, glow: 0xa855f7 },
+  "neon-wraith": { primary: 0x9333ea, secondary: 0x7c3aed, glow: 0xa855f7 },
+  "kitsune-09": { primary: 0x9333ea, secondary: 0x7c3aed, glow: 0xa855f7 },
+  "viperblade": { primary: 0x9333ea, secondary: 0x7c3aed, glow: 0xa855f7 },
+  "chrono-drifter": { primary: 0x9333ea, secondary: 0x7c3aed, glow: 0xa855f7 },
+
+  // Tech (Blue theme)
+  "dag-warrior": { primary: 0x3b82f6, secondary: 0x2563eb, glow: 0x60a5fa },
+  "cyber-paladin": { primary: 0x3b82f6, secondary: 0x2563eb, glow: 0x60a5fa },
+  "nano-brawler": { primary: 0x3b82f6, secondary: 0x2563eb, glow: 0x60a5fa },
+  "technomancer": { primary: 0x3b82f6, secondary: 0x2563eb, glow: 0x60a5fa },
+  "aeon-guard": { primary: 0x3b82f6, secondary: 0x2563eb, glow: 0x60a5fa },
+
+  // Tank (Orange theme)
+  "block-bruiser": { primary: 0xf97316, secondary: 0xea580c, glow: 0xfb923c },
+  "heavy-loader": { primary: 0xf97316, secondary: 0xea580c, glow: 0xfb923c },
+  "gene-smasher": { primary: 0xf97316, secondary: 0xea580c, glow: 0xfb923c },
+  "bastion-hulk": { primary: 0xf97316, secondary: 0xea580c, glow: 0xfb923c },
+  "scrap-goliath": { primary: 0xf97316, secondary: 0xea580c, glow: 0xfb923c },
+
+  // Precision (Red theme)
+  "hash-hunter": { primary: 0xef4444, secondary: 0xdc2626, glow: 0xf87171 },
+  "razor-bot-7": { primary: 0xef4444, secondary: 0xdc2626, glow: 0xf87171 },
+  "sonic-striker": { primary: 0xef4444, secondary: 0xdc2626, glow: 0xf87171 },
+  "prism-duelist": { primary: 0xef4444, secondary: 0xdc2626, glow: 0xf87171 },
+  "void-reaper": { primary: 0xef4444, secondary: 0xdc2626, glow: 0xf87171 },
 };
 
-/**
- * Get character theme color.
- */
 export function getCharacterColor(characterId: string): { primary: number; secondary: number; glow: number } {
-  return CHARACTER_COLORS[characterId] ?? CHARACTER_COLORS["cyber-ninja"];
+  return CHARACTER_COLORS[characterId] ?? { primary: 0x999999, secondary: 0x666666, glow: 0xcccccc };
 }

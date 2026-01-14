@@ -123,7 +123,7 @@ CREATE TABLE public.cosmetic_items (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   name text NOT NULL,
   description text,
-  category text NOT NULL CHECK (category = ANY (ARRAY['skin'::text, 'emote'::text, 'victory_pose'::text, 'profile_badge'::text, 'profile_frame'::text])),
+  category text NOT NULL CHECK (category = ANY (ARRAY['character'::text, 'sticker'::text, 'victory_pose'::text, 'profile_badge'::text, 'profile_frame'::text])),
   rarity text NOT NULL CHECK (rarity = ANY (ARRAY['common'::text, 'rare'::text, 'epic'::text, 'legendary'::text, 'prestige'::text])),
   character_id text,
   price integer NOT NULL CHECK (price >= 0),

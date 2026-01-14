@@ -21,6 +21,7 @@ export interface CharacterCardConfig {
   isDisabled?: boolean;
   onSelect?: (character: Character) => void;
   onInfo?: (character: Character) => void;
+  onHover?: (character: Character) => void;
 }
 
 /**
@@ -53,6 +54,7 @@ export class CharacterCard extends Phaser.GameObjects.Container {
   private cardHeight: number;
   private onSelect?: (character: Character) => void;
   private onInfo?: (character: Character) => void;
+  private onHover?: (character: Character) => void;
 
   // State
   private cardState: CardState = "default";
@@ -66,6 +68,7 @@ export class CharacterCard extends Phaser.GameObjects.Container {
   private nameText!: Phaser.GameObjects.Text;
   private themeText!: Phaser.GameObjects.Text;
   private lockIcon?: Phaser.GameObjects.Image;
+  private checkmarkGraphics?: Phaser.GameObjects.Graphics;
   private glowEffect!: Phaser.GameObjects.Graphics;
 
   // Colors
@@ -83,6 +86,7 @@ export class CharacterCard extends Phaser.GameObjects.Container {
     this.cardHeight = config.height ?? 280;
     this.onSelect = config.onSelect;
     this.onInfo = config.onInfo;
+    this.onHover = config.onHover;
     this.colors = getCharacterColor(config.character.id);
 
     // Determine initial state
@@ -135,12 +139,14 @@ export class CharacterCard extends Phaser.GameObjects.Container {
     if (this.scene.textures.exists(portraitKey)) {
       this.portrait = this.scene.add.image(
         this.cardWidth / 2,
-        100,
+        this.cardHeight * 0.4, // Responsive Y position (40% down)
         portraitKey
       );
 
-      // Auto-fit logic: Scale to fit within 160x160 while maintaining aspect ratio
-      const startScale = 160 / Math.max(this.portrait.width, this.portrait.height);
+      // Auto-fit logic: Scale to fit within available space (leaving room for text)
+      // Target about 60-70% of card width/height
+      const targetSize = Math.min(this.cardWidth * 0.8, this.cardHeight * 0.6);
+      const startScale = targetSize / Math.max(this.portrait.width, this.portrait.height);
       this.portrait.setScale(startScale);
 
       // Add portrait to container so it renders relative to card position
@@ -170,37 +176,47 @@ export class CharacterCard extends Phaser.GameObjects.Container {
     }
 
     // Character name
+    // Scale font size based on card width
+    const nameFontSize = Math.max(12, Math.floor(this.cardWidth / 12));
     this.nameText = this.scene.add.text(
       this.cardWidth / 2,
-      200,
+      this.cardHeight * 0.75, // Position near bottom
       this.character.name.toUpperCase(),
       {
         fontFamily: "Orbitron, sans-serif",
-        fontSize: "18px",
+        fontSize: `${nameFontSize}px`,
         color: "#ffffff",
         fontStyle: "bold",
+        align: "center",
+        wordWrap: { width: this.cardWidth - 10 }
       }
     );
-    this.nameText.setOrigin(0.5);
+    this.nameText.setOrigin(0.5, 0); // Top-center origin relative to Y position
     this.add(this.nameText);
 
-    // Theme description (truncated)
-    const themePreview = this.character.theme.slice(0, 50) + "...";
-    this.themeText = this.scene.add.text(
-      this.cardWidth / 2,
-      230,
-      themePreview,
-      {
-        fontFamily: "Arial, sans-serif",
-        fontSize: "11px",
-        color: "#888888",
-        wordWrap: { width: this.cardWidth - 20 },
-        align: "center",
-      }
-    );
-    this.themeText.setOrigin(0.5, 0);
-    this.themeText.setOrigin(0.5, 0);
-    this.add(this.themeText);
+    // Theme description (only if card height allows)
+    if (this.cardHeight > 180) {
+      const themePreview = this.character.theme.slice(0, 50) + "...";
+      this.themeText = this.scene.add.text(
+        this.cardWidth / 2,
+        this.cardHeight * 0.85,
+        themePreview,
+        {
+          fontFamily: "Arial, sans-serif",
+          fontSize: "10px",
+          color: "#888888",
+          wordWrap: { width: this.cardWidth - 20 },
+          align: "center",
+        }
+      );
+      this.themeText.setOrigin(0.5); // Center origin for theme text
+      this.add(this.themeText);
+    } else {
+      // Init placeholder for type safety even if not shown
+      this.themeText = this.scene.add.text(0, 0, "");
+      this.themeText.setVisible(false);
+      this.add(this.themeText);
+    }
 
     // Info Icon
     this.createInfoIcon();
@@ -280,6 +296,9 @@ export class CharacterCard extends Phaser.GameObjects.Container {
     if (this.cardState === "default") {
       this.cardState = "hover";
       this.animateToState();
+
+      // Notify listener
+      this.onHover?.(this.character);
     }
   }
 
@@ -364,6 +383,10 @@ export class CharacterCard extends Phaser.GameObjects.Container {
     this.lockIcon?.destroy();
     this.lockIcon = undefined;
 
+    // Remove checkmark if exists
+    this.checkmarkGraphics?.destroy();
+    this.checkmarkGraphics = undefined;
+
     const borderRadius = 12;
 
     switch (this.cardState) {
@@ -437,24 +460,82 @@ export class CharacterCard extends Phaser.GameObjects.Container {
   }
 
   /**
-   * Draw locked state.
+   * Draw locked state (confirmed selection).
    */
   private drawLockedState(radius: number): void {
-    // Same as selected but add lock icon
+    // Keep selected state background/border
     this.drawSelectedState(radius);
 
-    // Add lock icon image
-    this.lockIcon = this.scene.add.image(
-      this.cardWidth / 2,
-      130, // Positioned slightly differently for visual balance
-      "lock-icon"
-    );
+    // Draw green tick (checkmark)
+    this.checkmarkGraphics = this.scene.add.graphics();
+    this.add(this.checkmarkGraphics);
 
-    // Scale the lock icon appropriately (e.g., 64x64 or 80x80)
-    const lockSize = 80;
-    this.lockIcon.setDisplaySize(lockSize, lockSize);
+    // Circle background for tick
+    const centerX = this.cardWidth / 2;
+    const centerY = this.cardHeight / 2;
+    // Scale tick based on card size
+    const circleRadius = Math.min(this.cardWidth, this.cardHeight) * 0.15;
 
-    this.add(this.lockIcon);
+    this.checkmarkGraphics.fillStyle(0x22c55e, 1); // Green
+    this.checkmarkGraphics.fillCircle(centerX, centerY, circleRadius);
+
+    // Checkmark
+    this.checkmarkGraphics.lineStyle(3, 0xffffff, 1);
+    this.checkmarkGraphics.beginPath();
+    // Simple checkmark shape
+    this.checkmarkGraphics.moveTo(centerX - 10, centerY);
+    this.checkmarkGraphics.lineTo(centerX - 2, centerY + 8);
+    this.checkmarkGraphics.lineTo(centerX + 12, centerY - 8);
+    this.checkmarkGraphics.strokePath();
+
+    // Store reference for cleanup (though we clear everything in updateVisuals)
+    // We can assign it to a property if needed, but since we clear() everything in updateVisuals, 
+    // simply adding it to the container is enough. 
+    // However, to be cleaner with types, we can repurpose lockIcon or add a new property if we needed strict type safety.
+    // Given the current structure, adding to container works because updateVisuals() calls this.lockIcon?.destroy()
+    // but doesn't explicitly destroy graphics other than clearing the main ones.
+    // Actually, updateVisuals only clears specific graphics instances.
+    // To ensure this tick graphic is cleared, we should assign it to a class property 
+    // or create it inside createCardElements and toggle visibility.
+    // 
+    // Better approach: Let's use a class property for the status icon graphics.
+    // Since we don't have that yet, let's just create it here but ensure we track it.
+    // For now, let's reuse lockIcon property but as a Graphics object? No, TypeScript would complain.
+    // 
+    // Let's modify the class to have a checkmarkGraphics property.
+    // Wait, I can't modify the class definition easily with replace_file_content if I'm only targeting this method.
+    // 
+    // Alternative: Create the graphics in createCardElements and just toggle visibility here.
+    // But createCardElements is far away.
+    //
+    // Let's just create it and assign to a new property `this.statusIcon` if I could add it.
+    // 
+    // Simplest fix without changing class structure too much:
+    // Cast it to any or reuse lockIcon (if type allows, likely Image).
+    // lockIcon is Phaser.GameObjects.Image.
+    // 
+    // Let's create `this.tickGraphics` in `createCardElements` if possible, or just add it here and destroy it in `updateVisuals`.
+    // I need to look at updateVisuals again.
+    // It calls `this.lockIcon?.destroy()`.
+    //
+    // I will use `this.lockIcon` as a container for the checkmark if I can create an Texture for it on the fly?
+    // Or simpler: I will assume I can modify the class property type if I need to, but I'd rather not.
+    // 
+    // Let's try to draw the checkmark using a texture generated on the fly?
+    // 
+    // Actually, `updateVisuals` clears `this.background`, `this.border`, `this.glowEffect`.
+    // It effectively redraws everything.
+    // But it doesn't destroy random children added to the container.
+    // So if I add `tickGraphics` here, it will persist and duplicate if `drawLockedState` is called multiple times?
+    // No, `updateVisuals` calls clear() on standard graphics, but `drawLockedState` is called BY `updateVisuals`.
+    // So every time `updateVisuals` runs, if stats is locked, it runs this.
+    // If I switch away from locked, these graphics remain unless destroyed!
+    // 
+    // I MUST track this graphic object to destroy it.
+    // 
+    // I'll check if I can modify `lockIcon` definition to be `Phaser.GameObjects.Image | Phaser.GameObjects.Graphics`.
+    // 
+    // Or I can just remove `this.lockIcon` usage entirely and manage a `statusOverlay` container or graphics.
   }
 
   /**

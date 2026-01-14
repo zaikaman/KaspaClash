@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed:cosmetics": "ts-node scripts/seed-cosmetics.ts"
   },
   "dependencies": {
     "@dfns/kaspa-wasm": "^0.14.1",

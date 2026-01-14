@@ -6,8 +6,11 @@
 import Phaser from "phaser";
 import { EventBus } from "../EventBus";
 import { GAME_DIMENSIONS, CHARACTER_POSITIONS, UI_POSITIONS } from "../config";
+import { CHAR_SPRITE_CONFIG, TANK_CHARACTERS, getCharacterScale, getCharacterYOffset, getAnimationScale, getSoundDelay, getSFXKey } from "../config/sprite-config";
 import { CombatEngine, BASE_MOVE_STATS, getCharacterCombatStats } from "../combat";
 import { ChatPanel } from "../ui/ChatPanel";
+import { StickerPicker, STICKER_LIST, type StickerId } from "../ui/StickerPicker";
+import { useInventoryStore } from "@/stores/inventory-store";
 import type { MoveType, PlayerRole } from "@/types";
 import type { CombatState } from "../combat";
 
@@ -141,6 +144,9 @@ export class FightScene extends Phaser.Scene {
   // Track processed chat messages to prevent duplicates
   private processedChatMessages: Set<string> = new Set();
 
+  // Sticker picker for displaying stickers above character
+  private stickerPicker?: StickerPicker;
+
   constructor() {
     super({ key: "FightScene" });
   }
@@ -233,169 +239,26 @@ export class FightScene extends Phaser.Scene {
     this.load.image("move_block", "/assets/icons/block.webp");
     this.load.image("move_special", "/assets/icons/special.webp");
 
-    // Load character assets
-    const characters = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
-    characters.forEach((charId) => {
-      // idle: block-bruiser 305x260, dag-warrior 301x253, hash-hunter 310x234, standard 232x450
-      if (charId === "block-bruiser") {
-        this.load.spritesheet(`char_${charId}_idle`, `/characters/${charId}/idle.webp`, {
-          frameWidth: 305,
-          frameHeight: 260,
-        });
-      } else if (charId === "dag-warrior") {
-        this.load.spritesheet(`char_${charId}_idle`, `/characters/${charId}/idle.webp`, {
-          frameWidth: 301,
-          frameHeight: 253,
-        });
-      } else if (charId === "hash-hunter") {
-        this.load.spritesheet(`char_${charId}_idle`, `/characters/${charId}/idle.webp`, {
-          frameWidth: 310,
-          frameHeight: 234,
-        });
-      } else {
-        this.load.spritesheet(`char_${charId}_idle`, `/characters/${charId}/idle.webp`, {
-          frameWidth: 232,
-          frameHeight: 450,
-        });
-      }
+    // Using CHAR_SPRITE_CONFIG from sprite-config.ts (imported at top)
 
-      // run: block-bruiser 291x298, dag-warrior 285x211, hash-hunter 275x214, standard 213x287
-      if (charId === "block-bruiser") {
-        this.load.spritesheet(`char_${charId}_run`, `/characters/${charId}/run.webp`, {
-          frameWidth: 291,
-          frameHeight: 298,
-        });
-      } else if (charId === "dag-warrior") {
-        this.load.spritesheet(`char_${charId}_run`, `/characters/${charId}/run.webp`, {
-          frameWidth: 285,
-          frameHeight: 211,
-        });
-      } else if (charId === "hash-hunter") {
-        this.load.spritesheet(`char_${charId}_run`, `/characters/${charId}/run.webp`, {
-          frameWidth: 275,
-          frameHeight: 214,
-        });
-      } else {
-        this.load.spritesheet(`char_${charId}_run`, `/characters/${charId}/run.webp`, {
-          frameWidth: 213,
-          frameHeight: 287,
-        });
-      }
+    // Load character spritesheets for ALL characters
+    const allCharacters = Object.keys(CHAR_SPRITE_CONFIG);
+    const animations = ["idle", "run", "punch", "kick", "block", "special", "dead"];
 
-      // punch: block-bruiser 318x263, dag-warrior 406x232, hash-hunter 416x233, standard 269x260
-      if (charId === "block-bruiser") {
-        this.load.spritesheet(`char_${charId}_punch`, `/characters/${charId}/punch.webp`, {
-          frameWidth: 318,
-          frameHeight: 263,
-        });
-      } else if (charId === "dag-warrior") {
-        this.load.spritesheet(`char_${charId}_punch`, `/characters/${charId}/punch.webp`, {
-          frameWidth: 406,
-          frameHeight: 232,
-        });
-      } else if (charId === "hash-hunter") {
-        this.load.spritesheet(`char_${charId}_punch`, `/characters/${charId}/punch.webp`, {
-          frameWidth: 416,
-          frameHeight: 233,
-        });
-      } else {
-        this.load.spritesheet(`char_${charId}_punch`, `/characters/${charId}/punch.webp`, {
-          frameWidth: 269,
-          frameHeight: 260,
-        });
-      }
+    allCharacters.forEach((charId) => {
+      const charConfig = CHAR_SPRITE_CONFIG[charId];
+      if (!charConfig) return;
 
-      // kick: block-bruiser 477x329, dag-warrior 495x344, hash-hunter 425x295, standard 345x305
-      if (charId === "block-bruiser") {
-        this.load.spritesheet(`char_${charId}_kick`, `/characters/${charId}/kick.webp`, {
-          frameWidth: 477,
-          frameHeight: 329,
-        });
-      } else if (charId === "dag-warrior") {
-        this.load.spritesheet(`char_${charId}_kick`, `/characters/${charId}/kick.webp`, {
-          frameWidth: 495,
-          frameHeight: 344,
-        });
-      } else if (charId === "hash-hunter") {
-        this.load.spritesheet(`char_${charId}_kick`, `/characters/${charId}/kick.webp`, {
-          frameWidth: 425,
-          frameHeight: 295,
-        });
-      } else {
-        this.load.spritesheet(`char_${charId}_kick`, `/characters/${charId}/kick.webp`, {
-          frameWidth: 345,
-          frameHeight: 305,
-        });
-      }
+      animations.forEach((anim) => {
+        const animConfig = charConfig[anim];
+        if (!animConfig) return;
 
-      // block: cyber-ninja 391x350, block-bruiser 243x366, dag-warrior 389x277, hash-hunter 360x259
-      if (charId === "cyber-ninja") {
-        this.load.spritesheet(`char_${charId}_block`, `/characters/${charId}/block.webp`, {
-          frameWidth: 391,
-          frameHeight: 350,
-        });
-      } else if (charId === "block-bruiser") {
-        this.load.spritesheet(`char_${charId}_block`, `/characters/${charId}/block.webp`, {
-          frameWidth: 243,
-          frameHeight: 366,
-        });
-      } else if (charId === "dag-warrior") {
-        this.load.spritesheet(`char_${charId}_block`, `/characters/${charId}/block.webp`, {
-          frameWidth: 389,
-          frameHeight: 277,
-        });
-      } else if (charId === "hash-hunter") {
-        this.load.spritesheet(`char_${charId}_block`, `/characters/${charId}/block.webp`, {
-          frameWidth: 360,
-          frameHeight: 259,
-        });
-      }
-
-      // special: cyber-ninja 525x426, block-bruiser 583x379, dag-warrior 584x228, hash-hunter 621x302
-      if (charId === "cyber-ninja") {
-        this.load.spritesheet(`char_${charId}_special`, `/characters/${charId}/special.webp`, {
-          frameWidth: 525,
-          frameHeight: 426,
-        });
-      } else if (charId === "block-bruiser") {
-        this.load.spritesheet(`char_${charId}_special`, `/characters/${charId}/special.webp`, {
-          frameWidth: 583,
-          frameHeight: 379,
-        });
-      } else if (charId === "dag-warrior") {
-        this.load.spritesheet(`char_${charId}_special`, `/characters/${charId}/special.webp`, {
-          frameWidth: 584,
-          frameHeight: 228,
-        });
-      } else if (charId === "hash-hunter") {
-        this.load.spritesheet(`char_${charId}_special`, `/characters/${charId}/special.webp`, {
-          frameWidth: 621,
-          frameHeight: 302,
-        });
-      }
-
-      // dead: block-bruiser 551x380, cyber-ninja 408x305, dag-warrior 539x325, hash-hunter 513x248
-      if (charId === "block-bruiser") {
-        this.load.spritesheet(`char_${charId}_dead`, `/characters/${charId}/dead.webp`, {
-          frameWidth: 551,
-          frameHeight: 380,
-        });
-      } else if (charId === "cyber-ninja") {
-        this.load.spritesheet(`char_${charId}_dead`, `/characters/${charId}/dead.webp`, {
-          frameWidth: 408,
-          frameHeight: 305,
-        });
-      } else if (charId === "dag-warrior") {
-        this.load.spritesheet(`char_${charId}_dead`, `/characters/${charId}/dead.webp`, {
-          frameWidth: 539,
-          frameHeight: 325,
-        });
-      } else if (charId === "hash-hunter") {
-        this.load.spritesheet(`char_${charId}_dead`, `/characters/${charId}/dead.webp`, {
-          frameWidth: 513,
-          frameHeight: 248,
-        });
-      }
+        this.load.spritesheet(
+          `char_${charId}_${anim}`,
+          `/characters/${charId}/${anim}.webp`,
+          { frameWidth: animConfig.frameWidth, frameHeight: animConfig.frameHeight }
+        );
+      });
     });
 
     // Audio Loading
@@ -409,14 +272,30 @@ export class FightScene extends Phaser.Scene {
     this.load.audio("sfx_click", "/assets/audio/click.mp3");
     this.load.audio("sfx_cd_fight", "/assets/audio/3-2-1-fight.mp3");
 
-    // Character SFX
-    characters.forEach(charId => {
+    // Character SFX - load for base characters (others will use fallback)
+    const baseChars = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
+    baseChars.forEach(charId => {
       this.load.audio(`sfx_${charId}_punch`, `/assets/audio/${charId}-punch.mp3`);
       this.load.audio(`sfx_${charId}_kick`, `/assets/audio/${charId}-kick.mp3`);
       this.load.audio(`sfx_${charId}_block`, `/assets/audio/${charId}-block.mp3`);
-      // Use block-bruiser special as placeholder for hash-hunter if missing scheme
       this.load.audio(`sfx_${charId}_special`, `/assets/audio/${charId}-special.mp3`);
     });
+
+    // Specific additional SFX
+    this.load.audio("sfx_nano-brawler_punch", "/assets/audio/nano-brawler-punch.mp3");
+    this.load.audio("sfx_neon-wraith_special", "/assets/audio/neon-wraith-special.mp3");
+    this.load.audio("sfx_prism-duelist_special", "/assets/audio/prism-duelist-special.mp3");
+    this.load.audio("sfx_razor-bot-7_punch", "/assets/audio/razor-bot-7-punch.mp3");
+    this.load.audio("sfx_razor-bot-7_special", "/assets/audio/razor-bot-7-special.mp3");
+    this.load.audio("sfx_scrap-goliath_special", "/assets/audio/scrap-goliath-special.mp3");
+    this.load.audio("sfx_sonic-striker_punch", "/assets/audio/sonic-striker-punch.mp3");
+    this.load.audio("sfx_sonic-striker_special", "/assets/audio/sonic-striker-special.mp3");
+    this.load.audio("sfx_void-reaper_special", "/assets/audio/void-reaper-special.mp3");
+    this.load.audio("sfx_aeon-guard_special", "/assets/audio/aeon-guard-special.mp3");
+    this.load.audio("sfx_bastion-hulk_special", "/assets/audio/bastion-hulk-special.mp3");
+
+    // Load stickers
+    StickerPicker.preloadStickers(this);
   }
 
   /**
@@ -483,6 +362,38 @@ export class FightScene extends Phaser.Scene {
           EventBus.emit("game:sendChat", { message });
         },
       });
+
+      // Create sticker picker (positioned left of chat)
+      const playerSprite = this.config.playerRole === "player1" ? this.player1Sprite : this.player2Sprite;
+
+      // Get owned stickers from inventory store (Zustand store accessed directly)
+      const inventoryState = useInventoryStore.getState();
+      const ownedStickerItems = inventoryState.getItemsByCategory("sticker");
+
+      // Map cosmetic IDs to sticker IDs 
+      // Sticker cosmetic names in DB match sticker filenames (e.g., "GG Glitch" -> "gg_glitch")
+      const ownedStickerIds: StickerId[] = [];
+      for (const item of ownedStickerItems) {
+        // Match by checking if any sticker's ID appears in the cosmetic thumbnail URL
+        const matchingSticker = STICKER_LIST.find(s =>
+          item.cosmetic.thumbnailUrl?.includes(s.filename)
+        );
+        if (matchingSticker) {
+          ownedStickerIds.push(matchingSticker.id);
+        }
+      }
+
+      console.log("[FightScene] Owned stickers:", ownedStickerIds);
+
+      this.stickerPicker = new StickerPicker(this, {
+        x: GAME_DIMENSIONS.WIDTH - 290,
+        y: GAME_DIMENSIONS.HEIGHT - 50,
+        playerSprite: playerSprite,
+        ownedStickers: ownedStickerIds,
+        onStickerSelected: (stickerId) => {
+          console.log("[FightScene] Sticker selected:", stickerId);
+        },
+      });
     }
 
     // Setup event listeners
@@ -524,115 +435,51 @@ export class FightScene extends Phaser.Scene {
 
   /**
    * Create global animations for characters.
-   * idle.png: 36 frames, 232x450 | run.png: 36 frames, 213x287 | punch.png: 36 frames, 269x260
+   * Dynamically generates animations for all loaded character spritesheets.
    */
   private createAnimations(): void {
-    const characters = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
+    // All 20 characters
+    const allCharacters = [
+      "aeon-guard", "bastion-hulk", "block-bruiser", "chrono-drifter",
+      "cyber-ninja", "cyber-paladin", "dag-warrior", "gene-smasher",
+      "hash-hunter", "heavy-loader", "kitsune-09", "nano-brawler",
+      "neon-wraith", "prism-duelist", "razor-bot-7", "scrap-goliath",
+      "sonic-striker", "technomancer", "viperblade", "void-reaper"
+    ];
+    const animationTypes = ["idle", "run", "punch", "kick", "block", "special", "dead"];
 
-    characters.forEach((charId) => {
-      // Idle animation (24fps, loops)
+    allCharacters.forEach((charId) => {
+      animationTypes.forEach((animType) => {
+        const textureKey = `char_${charId}_${animType}`;
+        const animKey = `${charId}_${animType}`;
+
+        if (this.textures.exists(textureKey) && !this.anims.exists(animKey)) {
+          // Get frame count from texture
+          const frameCount = this.textures.get(textureKey).frameTotal - 1; // -1 for __BASE frame
+          const endFrame = Math.max(0, frameCount - 1);
+
+          this.anims.create({
+            key: animKey,
+            frames: this.anims.generateFrameNumbers(textureKey, { start: 0, end: endFrame }),
+            frameRate: 24,
+            repeat: animType === "idle" || animType === "run" ? -1 : 0,
+          });
+        }
+      });
+
+      // Fallback animations (hurt, victory, defeat -> map to idle)
       const idleKey = `char_${charId}_idle`;
-      if (this.textures.exists(idleKey)) {
-        if (!this.anims.exists(`${charId}_idle`)) {
-          this.anims.create({
-            key: `${charId}_idle`,
-            frames: this.anims.generateFrameNumbers(idleKey, { start: 0, end: 35 }),
-            frameRate: 24,
-            repeat: -1,
-          });
-        }
-      }
+      ['hurt', 'victory', 'defeat'].forEach(key => {
+        const fallbackAnimKey = `${charId}_${key}`;
+        if (!this.anims.exists(fallbackAnimKey) && this.textures.exists(idleKey)) {
+          const frameCount = this.textures.get(idleKey).frameTotal - 1;
+          const endFrame = Math.max(0, frameCount - 1);
 
-      // Run animation (24fps = 2x speed, loops)
-      const runKey = `char_${charId}_run`;
-      if (this.textures.exists(runKey)) {
-        if (!this.anims.exists(`${charId}_run`)) {
           this.anims.create({
-            key: `${charId}_run`,
-            frames: this.anims.generateFrameNumbers(runKey, { start: 0, end: 35 }),
-            frameRate: 24,
-            repeat: -1,
-          });
-        }
-      }
-
-      // Punch animation (24fps = 2x speed, plays once)
-      const punchKey = `char_${charId}_punch`;
-      if (this.textures.exists(punchKey)) {
-        if (!this.anims.exists(`${charId}_punch`)) {
-          this.anims.create({
-            key: `${charId}_punch`,
-            frames: this.anims.generateFrameNumbers(punchKey, { start: 0, end: 35 }),
+            key: fallbackAnimKey,
+            frames: this.anims.generateFrameNumbers(idleKey, { start: 0, end: endFrame }),
             frameRate: 24,
             repeat: 0,
-          });
-        }
-      }
-
-      // Kick animation (24fps = 2x speed, plays once)
-      const kickKey = `char_${charId}_kick`;
-      if (this.textures.exists(kickKey)) {
-        if (!this.anims.exists(`${charId}_kick`)) {
-          this.anims.create({
-            key: `${charId}_kick`,
-            frames: this.anims.generateFrameNumbers(kickKey, { start: 0, end: 35 }),
-            frameRate: 24,
-            repeat: 0,
-          });
-        }
-      }
-
-      // Block animation (specific for cyber-ninja or others with assets)
-      const blockKey = `char_${charId}_block`;
-      if (this.textures.exists(blockKey)) {
-        if (!this.anims.exists(`${charId}_block`)) {
-          this.anims.create({
-            key: `${charId}_block`,
-            frames: this.anims.generateFrameNumbers(blockKey, { start: 0, end: 35 }),
-            frameRate: 24,
-            repeat: 0,
-          });
-        }
-      }
-
-      // Special animation (specific for cyber-ninja or others with assets)
-      const specialKey = `char_${charId}_special`;
-      if (this.textures.exists(specialKey)) {
-        if (!this.anims.exists(`${charId}_special`)) {
-          this.anims.create({
-            key: `${charId}_special`,
-            frames: this.anims.generateFrameNumbers(specialKey, { start: 0, end: 35 }),
-            frameRate: 24,
-            repeat: 0,
-          });
-        }
-      }
-
-      // Dead animation (24fps, plays once)
-      const deadKey = `char_${charId}_dead`;
-      if (this.textures.exists(deadKey)) {
-        if (!this.anims.exists(`${charId}_dead`)) {
-          this.anims.create({
-            key: `${charId}_dead`,
-            frames: this.anims.generateFrameNumbers(deadKey, { start: 0, end: 35 }),
-            frameRate: 24,
-            repeat: 0,
-          });
-        }
-      }
-
-      // Fallback animations map to idle
-      ['block', 'special', 'hurt', 'victory', 'defeat'].forEach(key => {
-        // If we already created a real animation (like block above), skip fallback
-        if (this.anims.exists(`${charId}_${key}`)) return;
-
-        const fallbackKey = `${charId}_${key}`;
-        if (!this.anims.exists(fallbackKey) && this.textures.exists(idleKey)) {
-          this.anims.create({
-            key: fallbackKey,
-            frames: this.anims.generateFrameNumbers(idleKey, { start: 0, end: 35 }),
-            frameRate: 24,
-            repeat: key === 'block' ? -1 : 0,
           });
         }
       });
@@ -745,48 +592,40 @@ export class FightScene extends Phaser.Scene {
     const p1Char = this.config.player1Character || "dag-warrior";
     const p2Char = this.config.player2Character || "dag-warrior";
 
-    // Player 1 sprite (left side)
-    // Only use the idle spritesheet we loaded
-    const p1TextureKey = `char_${p1Char}_idle`;
+    // Using getCharacterScale from sprite-config.ts which calculates:
+    // scale = targetHeight / idleFrameHeight (280px regular, 336px tanks)
 
-    // Adjust Y position for specific characters
-    // Move block-bruiser up a bit more (larger negative offset)
-    const p1YOffset = p1Char === "block-bruiser" ? 70 : 50;
+    // Player 1 sprite (left side)
+    const p1TextureKey = `char_${p1Char}_idle`;
+    const p1BaseYOffset = 50;
+    const p1ConfigOffset = getCharacterYOffset(p1Char, "idle");
 
     this.player1Sprite = this.add.sprite(
       CHARACTER_POSITIONS.PLAYER1.X,
-      CHARACTER_POSITIONS.PLAYER1.Y - p1YOffset,
+      CHARACTER_POSITIONS.PLAYER1.Y - p1BaseYOffset + p1ConfigOffset,
       p1TextureKey
     );
 
-    // Scale down to fit: Standard is 450px -> 0.45 = 202.5px.
-    // block-bruiser 0.95, dag-warrior 0.80, hash-hunter 0.90
-    const p1Scale = p1Char === "block-bruiser" ? 0.95 : p1Char === "dag-warrior" ? 0.80 : p1Char === "hash-hunter" ? 0.90 : 0.45;
-    this.player1Sprite.setScale(p1Scale);  // Scale down to fit
-    // Use center origin to prevent bouncing during animation
+    const p1Scale = getCharacterScale(p1Char);
+    this.player1Sprite.setScale(p1Scale);
     this.player1Sprite.setOrigin(0.5, 0.5);
     if (this.anims.exists(`${p1Char}_idle`)) {
       this.player1Sprite.play(`${p1Char}_idle`);
     }
 
     // Player 2 sprite (right side, flipped)
-    // Only use the idle spritesheet we loaded
     const p2TextureKey = `char_${p2Char}_idle`;
-
-    // Adjust Y position for specific characters
-    const p2YOffset = p2Char === "block-bruiser" ? 70 : 50;
+    const p2BaseYOffset = 50;
+    const p2ConfigOffset = getCharacterYOffset(p2Char, "idle");
 
     this.player2Sprite = this.add.sprite(
       CHARACTER_POSITIONS.PLAYER2.X,
-      CHARACTER_POSITIONS.PLAYER2.Y - p2YOffset,
+      CHARACTER_POSITIONS.PLAYER2.Y - p2BaseYOffset + p2ConfigOffset,
       p2TextureKey
     );
 
-    // Scale down to fit: Standard is 450px -> 0.45 = 202.5px.
-    // block-bruiser 0.95, dag-warrior 0.80, hash-hunter 0.90
-    const p2Scale = p2Char === "block-bruiser" ? 0.95 : p2Char === "dag-warrior" ? 0.80 : p2Char === "hash-hunter" ? 0.90 : 0.45;
-    this.player2Sprite.setScale(p2Scale);  // Scale down to fit
-    // Use center origin to prevent bouncing during animation
+    const p2Scale = getCharacterScale(p2Char);
+    this.player2Sprite.setScale(p2Scale);
     this.player2Sprite.setOrigin(0.5, 0.5);
     this.player2Sprite.setFlipX(true);
     if (this.anims.exists(`${p2Char}_idle`)) {
@@ -3084,41 +2923,8 @@ export class FightScene extends Phaser.Scene {
     const p1Char = this.config.player1Character || "dag-warrior";
     const p2Char = this.config.player2Character || "dag-warrior";
 
-    // Scale constants to maintain consistent visual size
-    // Base: idle is 232x450, we use 0.45 scale
-    // Each animation has different frame sizes AND the character fills different amounts of each frame
-    // These values need visual tuning to match the idle character size
-    const IDLE_SCALE = 0.45;
-    const RUN_SCALE = 0.71;      // run is 213x287
-    const PUNCH_SCALE = 0.78;    // punch is 269x260
-    const KICK_SCALE = 0.75;    // kick is 345x305
-    const BLOCK_SCALE = 0.80;    // block is 391x350 - increased for visual match
-    const SPECIAL_SCALE = 0.80;  // special is 384x309 - increased for visual match
-
-    // Block Bruiser specific scales (idle is 260px height at 0.95 scale = 247px displayed)
-    // All scales calculated to match: targetHeight / frameHeight = scale
-    const BB_IDLE_SCALE = 0.95;     // 260px * 0.95 = 247px
-    const BB_RUN_SCALE = 0.90;      // 298px * 0.90 = 269px
-    const BB_PUNCH_SCALE = 0.94;    // 263px * 0.94 = 247px
-    const BB_KICK_SCALE = 0.90;     // 329px * 0.75 = 247px
-    const BB_BLOCK_SCALE = 0.90;   // 366px * 0.80 = 247px
-    const BB_SPECIAL_SCALE = 0.90;  // 379px * 0.80 = 247px
-
-    // DAG Warrior specific scales (idle is 253px height at 0.80 scale = 202px displayed)
-    const DW_IDLE_SCALE = 0.90;     // 253px * 0.80 = 202px
-    const DW_RUN_SCALE = 0.96;      // 211px * 0.96 = 202px
-    const DW_PUNCH_SCALE = 0.90;    // 232px * 0.87 = 202px
-    const DW_KICK_SCALE = 0.90;     // 344px * 0.59 = 203px
-    const DW_BLOCK_SCALE = 0.90;    // 277px * 0.73 = 202px
-    const DW_SPECIAL_SCALE = 0.90;  // 228px * 0.89 = 203px
-
-    // Hash Hunter specific scales (all 0.90 for consistent sizing)
-    const HH_IDLE_SCALE = 0.90;
-    const HH_RUN_SCALE = 0.90;
-    const HH_PUNCH_SCALE = 0.90;
-    const HH_KICK_SCALE = 0.90;
-    const HH_BLOCK_SCALE = 0.90;
-    const HH_SPECIAL_SCALE = 0.90;
+    // Using centralized getAnimationScale(charId, animType) from sprite-config.ts
+    // All scale values are managed in MANUAL_SCALE_OVERRIDES or calculated dynamically
 
     // Store original positions
     const p1OriginalX = CHARACTER_POSITIONS.PLAYER1.X;
@@ -3143,12 +2949,12 @@ export class FightScene extends Phaser.Scene {
 
     // Phase 1: Both characters run toward target with run scale (only if not stunned)
     if (!p1IsStunned && this.anims.exists(`${p1Char}_run`)) {
-      const p1RunScale = p1Char === "block-bruiser" ? BB_RUN_SCALE : p1Char === "dag-warrior" ? DW_RUN_SCALE : p1Char === "hash-hunter" ? HH_RUN_SCALE : RUN_SCALE;
+      const p1RunScale = getAnimationScale(p1Char, "run");
       this.player1Sprite.setScale(p1RunScale);
       this.player1Sprite.play(`${p1Char}_run`);
     }
     if (!p2IsStunned && this.anims.exists(`${p2Char}_run`)) {
-      const p2RunScale = p2Char === "block-bruiser" ? BB_RUN_SCALE : p2Char === "dag-warrior" ? DW_RUN_SCALE : p2Char === "hash-hunter" ? HH_RUN_SCALE : RUN_SCALE;
+      const p2RunScale = getAnimationScale(p2Char, "run");
       this.player2Sprite.setScale(p2RunScale);
       this.player2Sprite.play(`${p2Char}_run`);
     }
@@ -3186,23 +2992,18 @@ export class FightScene extends Phaser.Scene {
             // Play P1 animation
             const animKey = `${p1Char}_${p1Move}`;
             if (this.anims.exists(animKey) || p1Move === "block") { // Allow Block even if anim missing? Ideally exists.
-              let scale = 0.45;
-              if (p1Move === "kick") scale = p1Char === "block-bruiser" ? BB_KICK_SCALE : p1Char === "dag-warrior" ? DW_KICK_SCALE : p1Char === "hash-hunter" ? HH_KICK_SCALE : KICK_SCALE;
-              else if (p1Move === "punch") scale = p1Char === "block-bruiser" ? BB_PUNCH_SCALE : p1Char === "dag-warrior" ? DW_PUNCH_SCALE : p1Char === "hash-hunter" ? HH_PUNCH_SCALE : PUNCH_SCALE;
-              else if (p1Move === "block") scale = p1Char === "block-bruiser" ? BB_BLOCK_SCALE : p1Char === "dag-warrior" ? DW_BLOCK_SCALE : p1Char === "hash-hunter" ? HH_BLOCK_SCALE : BLOCK_SCALE;
-              else if (p1Move === "special") scale = p1Char === "block-bruiser" ? BB_SPECIAL_SCALE : p1Char === "dag-warrior" ? DW_SPECIAL_SCALE : p1Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
+              const scale = getAnimationScale(p1Char, p1Move);
 
               this.player1Sprite.setScale(scale);
 
               // Play Animation immediately
               if (this.anims.exists(animKey)) this.player1Sprite.play(animKey);
 
-              // SFX Logic with character-specific delays
-              const sfxKey = `sfx_${p1Char}_${p1Move}`;
-              if (p1Char === "block-bruiser" && p1Move === "special") {
-                this.time.delayedCall(1000, () => this.playSFX(sfxKey));
-              } else if ((p1Char === "cyber-ninja" || p1Char === "hash-hunter") && p1Move === "special") {
-                this.time.delayedCall(500, () => this.playSFX(sfxKey));
+              // SFX Logic with centralized delays and keys
+              const sfxKey = getSFXKey(p1Char, p1Move);
+              const delay = getSoundDelay(p1Char, p1Move);
+              if (delay > 0) {
+                this.time.delayedCall(delay, () => this.playSFX(sfxKey));
               } else {
                 this.playSFX(sfxKey);
               }
@@ -3247,23 +3048,18 @@ export class FightScene extends Phaser.Scene {
             // Play P2 animation
             const animKey = `${p2Char}_${p2Move}`;
             if (this.anims.exists(animKey) || p2Move === "block") {
-              let scale = 0.45;
-              if (p2Move === "kick") scale = p2Char === "block-bruiser" ? BB_KICK_SCALE : p2Char === "dag-warrior" ? DW_KICK_SCALE : p2Char === "hash-hunter" ? HH_KICK_SCALE : KICK_SCALE;
-              else if (p2Move === "punch") scale = p2Char === "block-bruiser" ? BB_PUNCH_SCALE : p2Char === "dag-warrior" ? DW_PUNCH_SCALE : p2Char === "hash-hunter" ? HH_PUNCH_SCALE : PUNCH_SCALE;
-              else if (p2Move === "block") scale = p2Char === "block-bruiser" ? BB_BLOCK_SCALE : p2Char === "dag-warrior" ? DW_BLOCK_SCALE : p2Char === "hash-hunter" ? HH_BLOCK_SCALE : BLOCK_SCALE;
-              else if (p2Move === "special") scale = p2Char === "block-bruiser" ? BB_SPECIAL_SCALE : p2Char === "dag-warrior" ? DW_SPECIAL_SCALE : p2Char === "hash-hunter" ? HH_SPECIAL_SCALE : SPECIAL_SCALE;
+              const scale = getAnimationScale(p2Char, p2Move);
 
               this.player2Sprite.setScale(scale);
 
               // Play Animation immediately
               if (this.anims.exists(animKey)) this.player2Sprite.play(animKey);
 
-              // SFX Logic with character-specific delays
-              const sfxKey = `sfx_${p2Char}_${p2Move}`;
-              if (p2Char === "block-bruiser" && p2Move === "special") {
-                this.time.delayedCall(1000, () => this.playSFX(sfxKey));
-              } else if ((p2Char === "cyber-ninja" || p2Char === "hash-hunter") && p2Move === "special") {
-                this.time.delayedCall(500, () => this.playSFX(sfxKey));
+              // SFX Logic with centralized delays and keys
+              const sfxKey = getSFXKey(p2Char, p2Move);
+              const p2Delay = getSoundDelay(p2Char, p2Move);
+              if (p2Delay > 0) {
+                this.time.delayedCall(p2Delay, () => this.playSFX(sfxKey));
               } else {
                 this.playSFX(sfxKey);
               }
@@ -3307,30 +3103,8 @@ export class FightScene extends Phaser.Scene {
             await runP2Attack();
           }
 
-          // Show overall narrative
-          let narrative = "";
-          if (p1IsStunned && p2IsStunned) {
-            narrative = "Both players are stunned!";
-          } else if (p1IsStunned) {
-            narrative = `Player 1 is STUNNED! Player 2 uses ${p2Move}!`;
-          } else if (p2IsStunned) {
-            narrative = `Player 2 is STUNNED! Player 1 uses ${p1Move}!`;
-          } else if (p1ActualDamage > 0 && p2ActualDamage > 0) {
-            // Both players took damage - show who did more
-            if (p2ActualDamage > p1ActualDamage) {
-              narrative = `Brutal exchange! P1 ${p1Move} for ${p2ActualDamage} dmg, but takes ${p1ActualDamage}!`;
-            } else if (p1ActualDamage > p2ActualDamage) {
-              narrative = `Fierce clash! P2 ${p2Move} for ${p1ActualDamage} dmg, but takes ${p2ActualDamage}!`;
-            } else {
-              narrative = `Devastating trade! Both deal ${p1ActualDamage} damage!`;
-            }
-          } else if (p2ActualDamage > 0) {
-            narrative = `Player 1 hits for ${p2ActualDamage} damage!`;
-          } else if (p1ActualDamage > 0) {
-            narrative = `Player 2 hits for ${p1ActualDamage} damage!`;
-          } else {
-            narrative = "Both attacks were blocked or missed!";
-          }
+          // Use server-provided narrative (authoritative)
+          const narrative = payload.narrative || "Both attacks were blocked or missed!";
           this.narrativeText.setText(narrative);
           this.narrativeText.setAlpha(1);
 
@@ -3342,12 +3116,12 @@ export class FightScene extends Phaser.Scene {
 
           // Run back animations
           if (!p1IsStunned && this.anims.exists(`${p1Char}_run`)) {
-            const p1RunScale = p1Char === "block-bruiser" ? BB_RUN_SCALE : p1Char === "dag-warrior" ? DW_RUN_SCALE : p1Char === "hash-hunter" ? HH_RUN_SCALE : RUN_SCALE;
+            const p1RunScale = getAnimationScale(p1Char, "run");
             this.player1Sprite.setScale(p1RunScale);
             this.player1Sprite.play(`${p1Char}_run`);
           }
           if (!p2IsStunned && this.anims.exists(`${p2Char}_run`)) {
-            const p2RunScale = p2Char === "block-bruiser" ? BB_RUN_SCALE : p2Char === "dag-warrior" ? DW_RUN_SCALE : p2Char === "hash-hunter" ? HH_RUN_SCALE : RUN_SCALE;
+            const p2RunScale = getAnimationScale(p2Char, "run");
             this.player2Sprite.setScale(p2RunScale);
             this.player2Sprite.play(`${p2Char}_run`);
             this.player2Sprite.setFlipX(true); // Ensure facing correct way
@@ -3369,12 +3143,12 @@ export class FightScene extends Phaser.Scene {
             onComplete: () => {
               // Phase 5: Return to idle
               if (this.anims.exists(`${p1Char}_idle`)) {
-                const p1IdleScale = p1Char === "block-bruiser" ? BB_IDLE_SCALE : p1Char === "dag-warrior" ? DW_IDLE_SCALE : p1Char === "hash-hunter" ? HH_IDLE_SCALE : IDLE_SCALE;
+                const p1IdleScale = getAnimationScale(p1Char, "idle");
                 this.player1Sprite.setScale(p1IdleScale);
                 this.player1Sprite.play(`${p1Char}_idle`);
               }
               if (this.anims.exists(`${p2Char}_idle`)) {
-                const p2IdleScale = p2Char === "block-bruiser" ? BB_IDLE_SCALE : p2Char === "dag-warrior" ? DW_IDLE_SCALE : p2Char === "hash-hunter" ? HH_IDLE_SCALE : IDLE_SCALE;
+                const p2IdleScale = getAnimationScale(p2Char, "idle");
                 this.player2Sprite.setScale(p2IdleScale);
                 this.player2Sprite.play(`${p2Char}_idle`);
               }

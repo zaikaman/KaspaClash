@@ -24,6 +24,7 @@ export interface CharacterSelectSceneConfig {
   // For reconnection - existing character selections
   existingPlayerCharacter?: string | null;
   existingOpponentCharacter?: string | null;
+  ownedCharacterIds?: string[]; // IDs of characters owned by the player
 }
 
 /**
@@ -52,6 +53,8 @@ export class CharacterSelectScene extends Phaser.Scene {
   private confirmButton!: Phaser.GameObjects.Container;
   private statsPanel!: Phaser.GameObjects.Container;
   private statsText!: Phaser.GameObjects.Text;
+  private selectedNameText!: Phaser.GameObjects.Text;
+  private selectedThemeText!: Phaser.GameObjects.Text;
   private statsOverlay!: StatsOverlay;
 
   // State
@@ -60,12 +63,12 @@ export class CharacterSelectScene extends Phaser.Scene {
   private opponentCharacter: Character | null = null;
   private isConfirmed: boolean = false;
 
-  // Layout constants
-  private readonly CARD_WIDTH = 200;
-  private readonly CARD_HEIGHT = 260;
-  private readonly CARD_SPACING = 40;
-  private readonly GRID_COLS = 4;
-  private readonly GRID_START_Y = 280;
+  // Layout constants - optimized for compact 10x2 grid at bottom
+  private readonly CARD_WIDTH = 110;
+  private readonly CARD_HEIGHT = 140;
+  private readonly CARD_SPACING = 10;
+  private readonly GRID_COLS = 10;
+  private readonly GRID_START_Y = 360; // Moved up slightly from 380
 
   constructor() {
     super({ key: "CharacterSelectScene" });
@@ -85,6 +88,9 @@ export class CharacterSelectScene extends Phaser.Scene {
       selectionDeadlineAt: data?.selectionDeadlineAt,
       existingPlayerCharacter: data?.existingPlayerCharacter,
       existingOpponentCharacter: data?.existingOpponentCharacter,
+      ownedCharacterIds: data?.ownedCharacterIds || [
+        "cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"
+      ], // Default starters if missing
     };
     this.resetState();
   }
@@ -152,8 +158,8 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.createCharacterGrid();
     this.createSelectionTimer();
     this.createOpponentStatus();
-    this.createOpponentStatus();
     this.createConfirmButton();
+    this.createSelectedNameDisplay(); // New: Central large name display
     this.createStatsDisplay(); // Add stats display (summary)
     this.createInstructions();
 
@@ -367,10 +373,20 @@ export class CharacterSelectScene extends Phaser.Scene {
     // Cards are drawn from (0,0) top-left, so no need for center offset
     const startX = (GAME_DIMENSIONS.WIDTH - totalWidth) / 2;
 
+    // Default starter characters (always unlocked)
+    const STARTERS = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
+
     CHARACTER_ROSTER.forEach((character, index) => {
       const col = index % this.GRID_COLS;
+      const row = Math.floor(index / this.GRID_COLS);
+
       const x = startX + col * (this.CARD_WIDTH + this.CARD_SPACING);
-      const y = this.GRID_START_Y;
+      const y = this.GRID_START_Y + row * (this.CARD_HEIGHT + 20); // Add row spacing
+
+      // Check ownership
+      const isStarter = STARTERS.includes(character.id);
+      const isOwned = this.config.ownedCharacterIds?.includes(character.id);
+      const isUnlocked = isStarter || isOwned;
 
       const card = new CharacterCard(this, {
         x,
@@ -378,9 +394,23 @@ export class CharacterSelectScene extends Phaser.Scene {
         character,
         width: this.CARD_WIDTH,
         height: this.CARD_HEIGHT,
-        onSelect: (char) => this.onCharacterSelect(char),
+        onSelect: (char) => {
+          if (isUnlocked) {
+            this.onCharacterSelect(char);
+          } else {
+            this.sound.play("sfx_click", { volume: 0.2, detune: -500 }); // Error sound
+          }
+        },
+        onHover: (char) => {
+          this.updateSelectedNameDisplay(char);
+        },
         onInfo: (char) => this.statsOverlay.show(char),
       });
+
+      // Apply locked state if not owned
+      if (!isUnlocked) {
+        card.setAlpha(0.5);
+      }
 
       this.characterCards.push(card);
     });
@@ -424,6 +454,58 @@ export class CharacterSelectScene extends Phaser.Scene {
       opponentAddress: this.config.opponentAddress,
     });
     this.opponentStatus.setWaiting();
+  }
+
+  /**
+   * Create central selected character name display.
+   */
+  private createSelectedNameDisplay(): void {
+    const centerX = GAME_DIMENSIONS.CENTER_X;
+    // Position comfortably in the middle space (moved down from 200)
+    const centerY = 280;
+
+    this.selectedNameText = this.add.text(centerX, centerY, "", {
+      fontFamily: "Orbitron, sans-serif",
+      fontSize: "48px",
+      color: "#ffffff",
+      fontStyle: "bold",
+    });
+    this.selectedNameText.setOrigin(0.5);
+    this.selectedNameText.setAlpha(0); // Hidden initially
+
+    this.selectedThemeText = this.add.text(centerX, centerY + 50, "", {
+      fontFamily: "Arial, sans-serif",
+      fontSize: "20px",
+      color: "#aaa",
+      fontStyle: "italic",
+    });
+    this.selectedThemeText.setOrigin(0.5);
+    this.selectedThemeText.setAlpha(0);
+  }
+
+  /**
+   * Update the central name display on hover.
+   */
+  private updateSelectedNameDisplay(character: Character): void {
+    if (!character) return;
+
+    this.selectedNameText.setText(character.name.toUpperCase());
+    this.selectedNameText.setAlpha(1);
+
+    // Tint text based on character color if available
+    // const colors = getCharacterColor(character.id);
+    // this.selectedNameText.setTint(colors.primary);
+
+    this.selectedThemeText.setText(character.theme);
+    this.selectedThemeText.setAlpha(1);
+
+    // Simple pulse animation
+    this.tweens.add({
+      targets: [this.selectedNameText],
+      scale: { from: 1.1, to: 1 },
+      duration: 200,
+      ease: "Back.out"
+    });
   }
 
   /**
@@ -725,7 +807,21 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     // Auto-select random character if none selected
     if (!this.selectedCharacter) {
-      this.selectedCharacter = getRandomCharacter();
+      // Filter for unlocked characters
+      const STARTERS = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
+      const unlockedCharacters = CHARACTER_ROSTER.filter(c =>
+        STARTERS.includes(c.id) || this.config.ownedCharacterIds?.includes(c.id)
+      );
+
+      // Pick random from unlocked
+      if (unlockedCharacters.length > 0) {
+        const randomIndex = Math.floor(Math.random() * unlockedCharacters.length);
+        this.selectedCharacter = unlockedCharacters[randomIndex];
+      } else {
+        // Fallback to purely random if somehow no characters are unlocked (shouldn't happen)
+        this.selectedCharacter = getRandomCharacter();
+      }
+
       const card = this.characterCards.find(
         (c) => c.getCharacter()?.id === this.selectedCharacter?.id
       );

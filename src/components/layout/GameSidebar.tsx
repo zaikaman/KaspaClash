@@ -14,6 +14,7 @@ import {
     Target02Icon,
     Menu01Icon,
     Cancel01Icon,
+    Store01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
@@ -47,6 +48,12 @@ const NAV_ITEMS = [
         href: "/quests",
         icon: Target02Icon,
         color: "text-blue-400",
+    },
+    {
+        label: "Shop",
+        href: "/shop",
+        icon: Store01Icon,
+        color: "text-pink-400",
     },
 ];
 

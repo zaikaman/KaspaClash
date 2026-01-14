@@ -82,6 +82,7 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
   const [isReconnecting, setIsReconnecting] = useState(needsReconnect);
   // Stake deposit tracking
   const [stakesReady, setStakesReady] = useState(match.stakesConfirmed ?? false);
+  const [ownedCharacterIds, setOwnedCharacterIds] = useState<string[]>([]);
   const router = useRouter();
   const [reconnectState, setReconnectState] = useState<{
     gameState?: {
@@ -117,6 +118,32 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       setStakesReady(true);
     }
   }, [match.stakesConfirmed]);
+
+  // Fetch owned characters
+  useEffect(() => {
+    const fetchInventory = async () => {
+      if (!address) return;
+      try {
+        const response = await fetch(`/api/shop/inventory?playerId=${encodeURIComponent(address)}&pageSize=100&category=character`);
+        if (response.ok) {
+          const data = await response.json();
+          const items = data.items as any[];
+          const ownedIds = new Set(data.ownedIds as string[]);
+
+          const characters = items
+            .filter(item => item.category === 'character' && ownedIds.has(item.id))
+            .map(item => item.characterId)
+            .filter(Boolean) as string[];
+
+          setOwnedCharacterIds(characters);
+        }
+      } catch (err) {
+        console.error("Error fetching inventory:", err);
+      }
+    };
+
+    fetchInventory();
+  }, [address]);
 
 
   // Determine player role
@@ -796,6 +823,16 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
               // Pass reconnect state if available
               isReconnect: !!reconnectState,
               reconnectState: reconnectState?.gameState,
+            } : initialScene === "CharacterSelectScene" ? {
+              matchId: match.id,
+              playerAddress: match.player1Address,
+              opponentAddress: match.player2Address || "",
+              isHost: playerRole === "player1",
+              selectionTimeLimit: 30,
+              selectionDeadlineAt: match.selectionDeadlineAt,
+              existingPlayerCharacter: match.player1CharacterId,
+              existingOpponentCharacter: match.player2CharacterId,
+              ownedCharacterIds: ownedCharacterIds,
             } : initialScene === "ResultsScene" ? {
               result: {
                 winner: match.winnerAddress === match.player1Address ? "player1" :

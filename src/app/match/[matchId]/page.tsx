@@ -15,14 +15,12 @@ import type { Match, MatchFormat, MatchStatus } from "@/types";
  */
 function MatchLoading() {
   return (
-    <GameLayout>
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#F0B71F] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-cyber-gold text-lg font-medium font-orbitron tracking-widest uppercase">Loading match...</p>
-        </div>
+    <div className="fixed inset-0 bg-[#0a0a0f] flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-16 h-16 border-4 border-[#F0B71F] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-[#F0B71F] text-lg font-medium font-orbitron tracking-widest uppercase">Loading match...</p>
       </div>
-    </GameLayout>
+    </div>
   );
 }
 
@@ -141,11 +139,9 @@ export default async function MatchPage({ params }: MatchPageProps) {
   }
 
   return (
-    <GameLayout>
-      <Suspense fallback={<MatchLoading />}>
-        <MatchGameClient match={match} />
-      </Suspense>
-    </GameLayout>
+    <Suspense fallback={<MatchLoading />}>
+      <MatchGameClient match={match} />
+    </Suspense>
   );
 }
 

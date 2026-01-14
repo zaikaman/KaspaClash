@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import WalletConnectModal from "@/components/wallet/WalletConnectModal";
 import NetworkModeIndicator from "@/components/shared/NetworkModeIndicator";
@@ -15,6 +16,7 @@ export function GameHeader() {
 
     const {
         balance,
+        address,
         truncatedAddress,
         isConnected,
         isConnecting,
@@ -50,9 +52,11 @@ export function GameHeader() {
                             </div>
 
                             {/* Address */}
-                            <div className="font-mono text-white text-sm tracking-wide mr-3 font-medium opacity-90">
-                                {truncatedAddress}
-                            </div>
+                            <Link href={`/player/${address}`}>
+                                <div className="font-mono text-white text-sm tracking-wide mr-3 font-medium opacity-90 hover:text-cyber-gold transition-colors cursor-pointer">
+                                    {truncatedAddress}
+                                </div>
+                            </Link>
 
                             {/* Disconnect Icon */}
                             <Button
