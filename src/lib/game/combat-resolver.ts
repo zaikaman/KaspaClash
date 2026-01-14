@@ -16,6 +16,7 @@ import {
     trackAbilityUsed,
     trackOpponentDefeated,
 } from "@/lib/quests/quest-service";
+import { updateWinStreakAfterMatch } from "@/lib/quests/win-streak-service";
 
 /**
  * Round resolution result.
@@ -178,6 +179,9 @@ export async function resolveRound(
         try {
             await trackMatchCompletion(winnerAddress, matchId, true);
             await trackMatchCompletion(loserAddress, matchId, false);
+
+            // Track win streak for winner
+            await updateWinStreakAfterMatch(winnerAddress, matchId, true);
         } catch (questError) {
             console.error("Error tracking quest progress:", questError);
         }
@@ -525,6 +529,25 @@ export async function handleMoveRejection(
             ? match.player2_address
             : match.player1_address;
         ratingResult = await updateMatchRatings(winnerAddr, loserAddr);
+
+        // Track quest progress for match completion (wins by opponent rejection)
+        try {
+            await trackMatchCompletion(winnerAddr, matchId, true);
+            await trackMatchCompletion(loserAddr, matchId, false);
+
+            // Track win streak for winner
+            await updateWinStreakAfterMatch(winnerAddr, matchId, true);
+        } catch (questError) {
+            console.error("Error tracking quest progress for rejection win:", questError);
+        }
+    }
+
+    // Track opponent defeated for round winner (player won because opponent rejected)
+    try {
+        const roundWinnerAddr = roundWinner === "player1" ? match.player1_address : match.player2_address!;
+        await trackOpponentDefeated(roundWinnerAddr, matchId);
+    } catch (questError) {
+        console.error("Error tracking opponent defeated:", questError);
     }
 
     // Broadcast round_resolved with rejection info
