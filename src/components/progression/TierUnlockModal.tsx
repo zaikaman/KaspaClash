@@ -31,9 +31,11 @@ import {
 } from "@hugeicons/core-free-icons";
 import type { TierReward } from "@/types/progression";
 
+
 interface UnlockedTier {
     tier: number;
     rewards: TierReward[];
+    isClaimed?: boolean;
 }
 
 interface TierUnlockModalProps {
@@ -241,12 +243,17 @@ export function TierUnlockModal({
     React.useEffect(() => {
         if (isOpen) {
             setCurrentIndex(0);
-            setShowConfetti(true);
-            // Hide confetti after animation
-            const timer = setTimeout(() => setShowConfetti(false), 4000);
-            return () => clearTimeout(timer);
+            const currentTier = unlockedTiers?.[0];
+            // Only show confetti if NOT claimed
+            if (currentTier && !currentTier.isClaimed) {
+                setShowConfetti(true);
+                const timer = setTimeout(() => setShowConfetti(false), 4000);
+                return () => clearTimeout(timer);
+            } else {
+                setShowConfetti(false);
+            }
         }
-    }, [isOpen]);
+    }, [isOpen, unlockedTiers]);
 
     if (!unlockedTiers || unlockedTiers.length === 0) return null;
 
@@ -254,6 +261,7 @@ export function TierUnlockModal({
     const colorScheme = getTierColorScheme(currentTier.tier);
     const isMultipleTiers = unlockedTiers.length > 1;
     const isLastTier = currentIndex === unlockedTiers.length - 1;
+    const isCurrentTierClaimed = !!currentTier.isClaimed;
 
     const handleNext = () => {
         if (currentIndex < unlockedTiers.length - 1) {
@@ -263,7 +271,9 @@ export function TierUnlockModal({
 
     const handleClaim = () => {
         onClaim();
-        onClose();
+        // Don't close immediately here, let parent handle it or close on success
+        // But for "Claim All", we might want to close?
+        // Parent implementation closes modal on success.
     };
 
     return (
@@ -293,13 +303,13 @@ export function TierUnlockModal({
                             {isMultipleTiers ? (
                                 <span>{unlockedTiers.length} Tiers Unlocked!</span>
                             ) : (
-                                <span>Tier Unlocked!</span>
+                                <span>{isCurrentTierClaimed ? "Tier Unlocked" : "Tier Unlocked!"}</span>
                             )}
                         </DialogTitle>
                         <DialogDescription className="text-base text-muted-foreground">
                             {isMultipleTiers
                                 ? `Tier ${currentIndex + 1} of ${unlockedTiers.length}`
-                                : "You've reached a new tier!"
+                                : (isCurrentTierClaimed ? "You have already claimed this tier." : "You've reached a new tier!")
                             }
                         </DialogDescription>
                     </div>
@@ -396,8 +406,8 @@ export function TierUnlockModal({
                 <DialogFooter className="relative z-10 gap-3 sm:gap-0 sm:flex-row flex-col px-6 pb-6">
                     {isMultipleTiers && !isLastTier ? (
                         <div className="flex gap-2 w-full">
-                            <Button variant="outline" onClick={handleClaim} disabled={isClaimingRewards} className="flex-1">
-                                Claim All
+                            <Button variant="outline" onClick={handleClaim} disabled={isClaimingRewards || isCurrentTierClaimed} className="flex-1">
+                                {isCurrentTierClaimed ? 'Claimed' : 'Claim All'}
                             </Button>
                             <Button onClick={handleNext} className="flex-1 gap-2" variant="default">
                                 Next Tier
@@ -407,14 +417,22 @@ export function TierUnlockModal({
                     ) : (
                         <Button
                             onClick={handleClaim}
-                            disabled={isClaimingRewards}
-                            className="w-full gap-2 h-11 text-base font-semibold shadow-lg shadow-kaspa/20"
-                            variant="kaspa"
+                            disabled={isClaimingRewards || isCurrentTierClaimed}
+                            className={cn(
+                                "w-full gap-2 h-11 text-base font-semibold shadow-lg",
+                                isCurrentTierClaimed ? "bg-muted text-muted-foreground shadow-none" : "shadow-kaspa/20"
+                            )}
+                            variant={isCurrentTierClaimed ? "secondary" : "kaspa"}
                         >
                             {isClaimingRewards ? (
                                 <>
                                     <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                     Claiming Rewards...
+                                </>
+                            ) : isCurrentTierClaimed ? (
+                                <>
+                                    <HugeiconsIcon icon={CheckmarkCircle02Icon} className="h-5 w-5" />
+                                    Rewards Claimed
                                 </>
                             ) : (
                                 <>

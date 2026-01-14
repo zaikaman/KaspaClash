@@ -292,6 +292,7 @@ CREATE TABLE public.player_progression (
   last_prestige_date timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  claimed_tiers ARRAY DEFAULT '{}'::integer[],
   CONSTRAINT player_progression_pkey PRIMARY KEY (id),
   CONSTRAINT player_progression_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address),
   CONSTRAINT player_progression_season_id_fkey FOREIGN KEY (season_id) REFERENCES public.battle_pass_seasons(id)

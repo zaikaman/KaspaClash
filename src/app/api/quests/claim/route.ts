@@ -155,17 +155,24 @@ export async function POST(
         // Award currency
         if (rewards.currency > 0) {
             // Get current currency balance
-            const { data: currencyData } = await supabase
+            const { data: currencyData, error: currencyFetchError } = await supabase
                 .from('player_currency')
                 .select('*')
                 .eq('player_id', playerId)
                 .single();
 
+            if (currencyFetchError && currencyFetchError.code !== 'PGRST116') {
+                // PGRST116 is "not found" which is OK - we'll create the record
+                console.error('Error fetching currency:', currencyFetchError);
+            }
+
             const currentBalance = currencyData?.clash_shards || 0;
             const newBalance = currentBalance + rewards.currency;
 
+            console.log(`[QuestClaim] Awarding ${rewards.currency} shards to ${playerId}. Current: ${currentBalance}, New: ${newBalance}`);
+
             if (currencyData) {
-                await supabase
+                const { error: updateError } = await supabase
                     .from('player_currency')
                     .update({
                         clash_shards: newBalance,
@@ -173,17 +180,29 @@ export async function POST(
                         updated_at: new Date().toISOString(),
                     })
                     .eq('player_id', playerId);
+
+                if (updateError) {
+                    console.error('[QuestClaim] Error updating currency:', updateError);
+                } else {
+                    console.log(`[QuestClaim] Successfully updated currency for ${playerId}`);
+                }
             } else {
-                await supabase.from('player_currency').insert({
+                const { error: insertError } = await supabase.from('player_currency').insert({
                     player_id: playerId,
                     clash_shards: rewards.currency,
                     total_earned: rewards.currency,
                     total_spent: 0,
                 });
+
+                if (insertError) {
+                    console.error('[QuestClaim] Error inserting currency:', insertError);
+                } else {
+                    console.log(`[QuestClaim] Successfully created currency record for ${playerId}`);
+                }
             }
 
             // Record currency transaction
-            await supabase.from('currency_transactions').insert({
+            const { error: txError } = await supabase.from('currency_transactions').insert({
                 player_id: playerId,
                 amount: rewards.currency,
                 transaction_type: 'earn',
@@ -192,7 +211,19 @@ export async function POST(
                 balance_after: newBalance,
                 metadata: { quest_id: questId, template_id: template.id },
             });
+
+            if (txError) {
+                console.error('[QuestClaim] Error recording transaction:', txError);
+            }
         }
+
+        // Fetch final currency balance to return in response
+        const { data: finalCurrency } = await supabase
+            .from('player_currency')
+            .select('clash_shards')
+            .eq('player_id', playerId)
+            .single();
+        const newCurrencyBalance = finalCurrency?.clash_shards || 0;
 
         // Get today's date for checking all quests
         const today = getTodayUTC();
@@ -300,6 +331,7 @@ export async function POST(
             success: true,
             questId,
             rewards,
+            newBalance: newCurrencyBalance,
             streakBonus,
             allQuestsCompleted: allCompleted,
             allQuestsClaimed: allClaimed,

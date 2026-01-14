@@ -29,6 +29,7 @@ interface PlayerProgressionRow {
     last_prestige_date: string | null;
     created_at: string;
     updated_at: string;
+    claimed_tiers?: number[];
 }
 
 interface PlayerCurrencyRow {

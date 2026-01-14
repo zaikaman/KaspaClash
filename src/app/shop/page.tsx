@@ -12,7 +12,6 @@ import { ShopGrid } from "@/components/shop/ShopGrid";
 import { CategoryFilter } from "@/components/shop/CategoryFilter";
 import { CosmeticPreview } from "@/components/shop/CosmeticPreview";
 import { PurchaseModal } from "@/components/shop/PurchaseModal";
-import { ClashShardsDisplay } from "@/components/currency/ClashShardsDisplay";
 import { useShopStore } from "@/stores/shop-store";
 import { useWalletStore, selectIsConnected, selectPersistedAddress } from "@/stores/wallet-store";
 import { Button } from "@/components/ui/button";
@@ -212,10 +211,9 @@ export default function ShopPage() {
                 <div className="container mx-auto px-4 sm:px-6 lg:px-12 xl:px-24 relative z-10 w-full max-w-7xl">
                     {/* Header */}
                     <div className="text-center max-w-4xl mx-auto mb-12 sm:mb-16 relative">
-                        {/* Refresh & Balance - Desktop */}
+                        {/* Refresh Button - Desktop */}
                         {isConnected && (
-                            <div className="absolute right-0 top-0 hidden sm:flex items-center gap-3">
-                                <ClashShardsDisplay balance={currentBalance} variant="compact" />
+                            <div className="absolute right-0 top-0 hidden sm:block">
                                 <Button
                                     variant="ghost"
                                     size="sm"
@@ -227,6 +225,7 @@ export default function ShopPage() {
                                         icon={isRefreshing ? Loading03Icon : RefreshIcon}
                                         className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
                                     />
+                                    Refresh
                                 </Button>
                             </div>
                         )}
@@ -246,10 +245,9 @@ export default function ShopPage() {
                             Browse and collect exclusive characters and stickers. New items rotate weekly!
                         </p>
 
-                        {/* Mobile Balance & Refresh */}
+                        {/* Mobile Refresh Button */}
                         {isConnected && (
-                            <div className="mt-4 sm:hidden flex justify-center items-center gap-3">
-                                <ClashShardsDisplay balance={currentBalance} variant="compact" />
+                            <div className="mt-4 sm:hidden flex justify-center">
                                 <Button
                                     variant="ghost"
                                     size="sm"
@@ -261,6 +259,7 @@ export default function ShopPage() {
                                         icon={isRefreshing ? Loading03Icon : RefreshIcon}
                                         className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
                                     />
+                                    Refresh
                                 </Button>
                             </div>
                         )}

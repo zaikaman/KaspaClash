@@ -31,6 +31,7 @@ interface ShopStore {
   setError: (error: string | null) => void;
   reset: () => void;
   setHasHydrated: (state: boolean) => void;
+  fetchCurrency: (playerId: string) => Promise<void>;
 }
 
 const initialState = {
@@ -47,7 +48,7 @@ const initialState = {
 
 export const useShopStore = create<ShopStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       ...initialState,
 
       setItems: (items) => set({ items }),
@@ -65,7 +66,7 @@ export const useShopStore = create<ShopStore>()(
       updateCurrencyBalance: (newBalance) =>
         set((state) => {
           if (!state.currency) return state;
-          
+
           return {
             currency: {
               ...state.currency,
@@ -82,6 +83,30 @@ export const useShopStore = create<ShopStore>()(
       reset: () => set(initialState),
 
       setHasHydrated: (state) => set({ _hasHydrated: state }),
+
+      fetchCurrency: async (playerId: string) => {
+        if (!playerId) return;
+        try {
+          // Reusing the progression endpoint which returns currency
+          const response = await fetch(`/api/progression/player/${playerId}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.currency) {
+              set({
+                currency: {
+                  playerId: playerId,
+                  clashShards: data.currency.clash_shards || 0,
+                  totalEarned: data.currency.total_earned || 0,
+                  totalSpent: data.currency.total_spent || 0,
+                  lastUpdated: new Date(),
+                }
+              });
+            }
+          }
+        } catch (err) {
+          console.error("Error fetching currency:", err);
+        }
+      },
     }),
     {
       name: 'shop-storage',

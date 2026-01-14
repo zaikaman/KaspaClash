@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import WalletConnectModal from "@/components/wallet/WalletConnectModal";
 import NetworkModeIndicator from "@/components/shared/NetworkModeIndicator";
 import { useWallet } from "@/hooks/useWallet";
+import { ClashShardsDisplay } from "@/components/currency/ClashShardsDisplay";
+import { useShopStore } from "@/stores/shop-store";
 import {
     Logout01Icon,
 } from "@hugeicons/core-free-icons";
@@ -13,6 +15,9 @@ import { HugeiconsIcon } from "@hugeicons/react";
 
 export function GameHeader() {
     const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
+
+    // Use shop store for currency to share state across components
+    const { currency, setCurrency } = useShopStore();
 
     const {
         balance,
@@ -23,6 +28,38 @@ export function GameHeader() {
         connect,
         disconnect,
     } = useWallet();
+
+    // Fetch currency when connected
+    const fetchCurrency = useCallback(async () => {
+        if (!address) return;
+
+        try {
+            const response = await fetch(`/api/progression/player?playerId=${encodeURIComponent(address)}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.currency) {
+                    setCurrency({
+                        playerId: address,
+                        clashShards: data.currency.clash_shards || 0,
+                        totalEarned: data.currency.total_earned || 0,
+                        totalSpent: data.currency.total_spent || 0,
+                        lastUpdated: new Date(),
+                    });
+                }
+            }
+        } catch (err) {
+            console.error("Error fetching currency:", err);
+        }
+    }, [address, setCurrency]);
+
+    useEffect(() => {
+        if (isConnected && address) {
+            fetchCurrency();
+            // Poll for currency updates every 30 seconds
+            const interval = setInterval(fetchCurrency, 30000);
+            return () => clearInterval(interval);
+        }
+    }, [isConnected, address, fetchCurrency]);
 
     const handleConnect = async () => {
         try {
@@ -40,6 +77,11 @@ export function GameHeader() {
 
                 {isConnected && truncatedAddress ? (
                     <div className="flex items-center gap-2">
+                        {/* Clash Shards Display */}
+                        <div className="hidden sm:block">
+                            <ClashShardsDisplay balance={currency?.clashShards || 0} variant="compact" />
+                        </div>
+
                         {/* Main Pill Container */}
                         <div className="flex items-center bg-black/80 border border-cyber-gold/50 rounded-full h-10 p-1 pl-1 backdrop-blur-md relative group hover:border-cyber-gold transition-colors">
 

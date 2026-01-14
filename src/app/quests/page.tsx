@@ -11,6 +11,7 @@ import DecorativeLine from "@/components/landing/DecorativeLine";
 import { DailyQuestList } from "@/components/quests/DailyQuestList";
 import { useQuestStore } from "@/stores/quest-store";
 import { useWalletStore, selectIsConnected, selectPersistedAddress } from "@/stores/wallet-store";
+import { useShopStore } from "@/stores/shop-store";
 import { Button } from "@/components/ui/button";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -18,6 +19,9 @@ import {
     Loading03Icon,
     RefreshIcon,
     Target01Icon,
+    Tick02Icon,
+    SparklesIcon,
+    Coins01Icon,
 } from "@hugeicons/core-free-icons";
 import type { DailyQuest } from "@/types/quest";
 
@@ -35,10 +39,36 @@ export default function QuestsPage() {
         setLoading,
         setError,
         markQuestClaimed,
-        updateQuestProgress,
     } = useQuestStore();
 
+    // Use shop store for currency updates (to sync with header)
+    const { setCurrency: setShopCurrency } = useShopStore();
+
     const [isRefreshing, setIsRefreshing] = React.useState(false);
+    const [claimSuccess, setClaimSuccess] = React.useState<{ xp: number; shards: number } | null>(null);
+
+    // Fetch player currency
+    const fetchCurrency = React.useCallback(async () => {
+        if (!walletAddress) return;
+
+        try {
+            const response = await fetch(`/api/progression/player?playerId=${encodeURIComponent(walletAddress)}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.currency) {
+                    setShopCurrency({
+                        playerId: walletAddress,
+                        clashShards: data.currency.clash_shards || 0,
+                        totalEarned: data.currency.total_earned || 0,
+                        totalSpent: data.currency.total_spent || 0,
+                        lastUpdated: new Date(),
+                    });
+                }
+            }
+        } catch (err) {
+            console.error("Error fetching currency:", err);
+        }
+    }, [walletAddress, setShopCurrency]);
 
     // Fetch quests on mount and when wallet connects
     const fetchQuests = React.useCallback(async () => {
@@ -48,10 +78,14 @@ export default function QuestsPage() {
         setError(null);
 
         try {
-            const response = await fetch(`/api/quests/daily?playerId=${encodeURIComponent(walletAddress)}`);
-            const data = await response.json();
+            const [questsResponse] = await Promise.all([
+                fetch(`/api/quests/daily?playerId=${encodeURIComponent(walletAddress)}`),
+                fetchCurrency()
+            ]);
 
-            if (!response.ok) {
+            const data = await questsResponse.json();
+
+            if (!questsResponse.ok) {
                 throw new Error(data.error || "Failed to fetch quests");
             }
 
@@ -71,7 +105,7 @@ export default function QuestsPage() {
         } finally {
             setLoading(false);
         }
-    }, [walletAddress, setDailyQuests, setStatistics, setLoading, setError]);
+    }, [walletAddress, fetchCurrency, setDailyQuests, setStatistics, setLoading, setError]);
 
     React.useEffect(() => {
         if (isConnected && walletAddress) {
@@ -112,6 +146,38 @@ export default function QuestsPage() {
             // Update local state
             markQuestClaimed(questId);
 
+            // Show success toast with rewards
+            if (data.rewards) {
+                setClaimSuccess({
+                    xp: data.rewards.xp || 0,
+                    shards: data.rewards.currency || 0,
+                });
+
+                if (data.newBalance !== undefined) {
+                    setShopCurrency({
+                        playerId: walletAddress,
+                        clashShards: data.newBalance,
+                        // Update only shards, other fields are required but safe to default or omit here if store allows partial updates, 
+                        // but useShopStore usually expects full object or partial if properly typed. 
+                        // Checking useShopStore impl, it expects full object.
+                        // Ideally we should merge with current state, but we don't have current state here easily.
+                        // However, we just fetched currency so updating just shards is ... 
+                        // Actually, let's just re-fetch currency to be safe and consistent.
+                        totalEarned: 0, // Should use existing but cleaner to refetch
+                        totalSpent: 0,
+                        lastUpdated: new Date()
+                    });
+
+                    // Actually, re-fetching is safer to ensure consistency
+                    fetchCurrency();
+                }
+
+                console.log(`[QuestClaim] Claimed! XP: ${data.rewards.xp}, Shards: ${data.rewards.currency}, New Balance: ${data.newBalance}`);
+
+                // Auto-hide after 5 seconds
+                setTimeout(() => setClaimSuccess(null), 5000);
+            }
+
             // Refresh quests to get updated statistics
             await fetchQuests();
         } catch (err) {
@@ -142,7 +208,7 @@ export default function QuestsPage() {
                 <div className="container mx-auto px-4 sm:px-6 lg:px-12 xl:px-24 relative z-10 w-full max-w-4xl">
                     {/* Header */}
                     <div className="text-center max-w-4xl mx-auto mb-12 sm:mb-16 relative">
-                        {/* Refresh Button - Positioned absolute in top right of header area */}
+                        {/* Refresh Button - Desktop */}
                         {isConnected && (
                             <div className="absolute right-0 top-0 hidden sm:block">
                                 <Button
@@ -176,7 +242,7 @@ export default function QuestsPage() {
                             Complete quests to earn XP and Clash Shards. New quests available every day at midnight UTC.
                         </p>
 
-                        {/* Mobile Refresh Button - Visible only on small screens below the text */}
+                        {/* Mobile Refresh Button */}
                         {isConnected && (
                             <div className="mt-4 sm:hidden flex justify-center">
                                 <Button
@@ -197,6 +263,30 @@ export default function QuestsPage() {
                     </div>
 
                     <DecorativeLine className="mb-20 sm:mb-24" variant="left-red-right-gold" />
+
+                    {/* Success Toast */}
+                    {claimSuccess && (
+                        <div className="fixed top-24 right-4 z-50 animate-in fade-in slide-in-from-right-8 duration-300">
+                            <div className="bg-card/90 backdrop-blur-md border border-kaspa/50 rounded-lg shadow-lg p-4 flex items-center gap-4 min-w-[300px]">
+                                <div className="p-2 rounded-full bg-kaspa/20 border border-kaspa/30">
+                                    <HugeiconsIcon icon={Tick02Icon} className="h-6 w-6 text-kaspa" />
+                                </div>
+                                <div className="flex-1">
+                                    <h4 className="font-bold text-kaspa font-orbitron mb-1">Quest Claimed!</h4>
+                                    <div className="flex items-center gap-3 text-sm">
+                                        <div className="flex items-center gap-1 text-purple-400">
+                                            <HugeiconsIcon icon={SparklesIcon} className="h-3 w-3" />
+                                            <span>+{claimSuccess.xp} XP</span>
+                                        </div>
+                                        <div className="flex items-center gap-1 text-cyber-gold">
+                                            <HugeiconsIcon icon={Coins01Icon} className="h-3 w-3" />
+                                            <span>+{claimSuccess.shards} Shards</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Connection Warning */}
                     {!isConnected && (
@@ -223,8 +313,6 @@ export default function QuestsPage() {
                     {/* Main Content */}
                     {isConnected && (
                         <div className="space-y-6">
-
-
                             {/* Quest List */}
                             <div className="p-6 sm:p-8 rounded-xl bg-card/10 border border-white/5 backdrop-blur-sm shadow-xl">
                                 <DailyQuestList

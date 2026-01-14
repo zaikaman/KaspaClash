@@ -12,6 +12,7 @@ import { XPProgressBar } from "@/components/progression/XPProgressBar";
 import { BattlePassTiers } from "@/components/progression/BattlePassTiers";
 import { TierUnlockModal } from "@/components/progression/TierUnlockModal";
 import { useProgressionStore } from "@/stores/progression-store";
+import { useShopStore } from "@/stores/shop-store";
 import { useWalletStore, selectIsConnected } from "@/stores/wallet-store";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/progression/currency-utils";
@@ -67,6 +68,7 @@ function SeasonStatsCard({
 
 export default function BattlePassPage() {
     const isConnected = useWalletStore(selectIsConnected);
+    const { fetchCurrency } = useShopStore();
     const {
         currentSeason,
         progression,
@@ -78,7 +80,7 @@ export default function BattlePassPage() {
 
     const [isRefreshing, setIsRefreshing] = React.useState(false);
     const [showUnlockModal, setShowUnlockModal] = React.useState(false);
-    const [unlockedTiers, setUnlockedTiers] = React.useState<{ tier: number; rewards: TierReward[] }[]>([]);
+    const [unlockedTiers, setUnlockedTiers] = React.useState<{ tier: number; rewards: TierReward[]; isClaimed?: boolean }[]>([]);
 
     // Initial data fetch
     React.useEffect(() => {
@@ -102,17 +104,17 @@ export default function BattlePassPage() {
         }
     };
 
+
     // Calculate display values
-    // Note: API returns snake_case (current_tier, current_xp, total_xp) from Supabase
     const displayProgression = React.useMemo(() => {
         if (isConnected && progression) {
-            // Handle both camelCase and snake_case for compatibility
             const prog = progression as any;
             return {
                 currentTier: prog.currentTier ?? prog.current_tier ?? 1,
                 totalXP: prog.totalXP ?? prog.total_xp ?? 0,
                 prestigeLevel: prog.prestigeLevel ?? prog.prestige_level ?? 0,
                 currentXP: prog.currentXP ?? prog.current_xp ?? 0,
+                claimedTiers: prog.claimedTiers ?? prog.claimed_tiers ?? [],
             };
         }
         // Demo/Guest data
@@ -121,6 +123,7 @@ export default function BattlePassPage() {
             totalXP: 0,
             prestigeLevel: 0,
             currentXP: 0,
+            claimedTiers: [],
         };
     }, [isConnected, progression]);
 
@@ -137,24 +140,83 @@ export default function BattlePassPage() {
         };
     }, [displayProgression.currentTier]);
 
-    // Handle claiming rewards (mock function for now)
-    const handleClaimRewards = () => {
-        // In a real implementation, this would call an API
-        console.log("Claiming rewards...");
+    // Handle claiming rewards
+    const [isClaiming, setIsClaiming] = React.useState(false);
+    const [lastClaimedTier, setLastClaimedTier] = React.useState<number | null>(null);
+
+    const handleClaimRewards = async () => {
+        if (!unlockedTiers.length || isClaiming || !isConnected) return;
+
+        // Claim the first unlocked tier in the list (usually just one)
+        const tierToClaim = unlockedTiers[0].tier;
+        setIsClaiming(true);
+
+        try {
+            // Get address from wallet store directly just to be safe, though isConnected check covers it
+            const address = useWalletStore.getState().address;
+            if (!address) throw new Error("Wallet not connected");
+
+            const response = await fetch("/api/battle-pass/claim", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    playerId: address,
+                    tier: tierToClaim,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error?.message || "Failed to claim rewards");
+            }
+
+            // Success!
+            setLastClaimedTier(tierToClaim);
+
+            // Refresh progression to update UI
+            await fetchPlayerProgression();
+
+            // Refresh global currency balance
+            if (address) {
+                await fetchCurrency(address);
+            }
+
+            // Close modal after short delay or let user close? 
+            // Better to let user see "Claimed" state if we had one, but for now we just close or refresh.
+            // But wait, the modal has success handling inside? No, it just calls onClaim.
+            // actually we can keep modal open and change button state?
+            // The modal will close if we call setShowUnlockModal(false).
+            // Let's keep it open for a second then close? Or just update local state.
+
+            // For now, simple finish:
+            setShowUnlockModal(false);
+
+        } catch (err: any) {
+            console.error("Error claiming rewards:", err);
+            // Optionally show toast error here
+        } finally {
+            setIsClaiming(false);
+        }
     };
 
     // Handle tier click for info/unlock
     const handleTierClick = (tier: number) => {
-        // If clicking on a newly unlocked tier that hasn't been claimed, show modal
-        // For now, just show info
-        console.log(`Clicked tier ${tier}`);
-
-        // Demo unlock modal for testing
-        if (tier === displayProgression.currentTier && process.env.NODE_ENV === "development") {
-            const rewards = getTierRewards(tier, false);
-            setUnlockedTiers([{ tier, rewards }]);
-            setShowUnlockModal(true);
+        // Only show for unlocked tiers
+        if (tier > displayProgression.currentTier) {
+            return;
         }
+
+        const isClaimed = displayProgression.claimedTiers?.includes(tier);
+        const rewards = getTierRewards(tier, false);
+
+        // Show modal if it's unlocked. 
+        // We pass "isClaimed" status implicitly by checking if we should show claim button.
+        // Actually TierUnlockModal needs to know if it's claimed to hide button?
+        // Or we pass `onClaim` only if it's NOT claimed.
+
+        setUnlockedTiers([{ tier, rewards, isClaimed }]);
+        setShowUnlockModal(true);
     };
 
     return (

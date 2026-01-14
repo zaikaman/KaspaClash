@@ -47,6 +47,7 @@ export interface PlayerProgression {
   totalXP: number;
   prestigeLevel: number;
   lastUpdated: Date;
+  claimedTiers?: number[];
 }
 
 /**
