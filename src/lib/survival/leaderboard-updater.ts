@@ -35,6 +35,7 @@ export interface SurvivalLeaderboardEntry {
     victories: number;
     lastRunAt: string | null;
     rank: number;
+    prestigeLevel: number;
 }
 
 /**
@@ -182,6 +183,19 @@ export async function getSurvivalLeaderboard(
         return { entries: [], total: 0 };
     }
 
+    // Fetch prestige levels for all players in this batch
+    const playerAddresses = (data || []).map(row => row.address);
+    const { data: prestigeData } = await supabase
+        .from("player_progression")
+        .select("player_address, prestige_level")
+        .in("player_address", playerAddresses);
+
+    // Create a map of player address to prestige level
+    const prestigeMap = new Map<string, number>();
+    (prestigeData || []).forEach(row => {
+        prestigeMap.set(row.player_address, row.prestige_level || 0);
+    });
+
     const entries: SurvivalLeaderboardEntry[] = (data || []).map((row) => ({
         address: row.address,
         displayName: row.display_name,
@@ -193,6 +207,7 @@ export async function getSurvivalLeaderboard(
         victories: row.victories,
         lastRunAt: row.last_run_at,
         rank: row.rank,
+        prestigeLevel: prestigeMap.get(row.address) || 0,
     }));
 
     return { entries, total: count || 0 };

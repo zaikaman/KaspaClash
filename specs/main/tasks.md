@@ -253,16 +253,16 @@
 
 ### Implementation for User Story 7
 
-- [ ] T123 [P] [US7] Create PrestigeConfirmation component in src/components/progression/PrestigeConfirmation.tsx (modal explaining prestige)
-- [ ] T124 [US7] Implement prestige calculator in src/lib/progression/prestige-calculator.ts (multiplier calculations)
-- [ ] T125 [US7] Implement prestige handler in src/lib/progression/prestige-handler.ts (reset logic)
-- [ ] T126 [P] [US7] Create POST /api/progression/prestige API route in src/app/api/progression/prestige/route.ts (execute prestige)
-- [ ] T127 [P] [US7] Create GET /api/progression/prestige-status API route in src/app/api/progression/prestige-status/route.ts (check eligibility)
-- [ ] T128 [US7] Add prestige option to battle pass screen when tier 50 reached
-- [ ] T129 [US7] Add prestige level display to player profile with visual effects (auras/borders)
-- [ ] T130 [US7] Add prestige multiplier application to all XP and currency calculations
-- [ ] T131 [US7] Add prestige-exclusive cosmetic rewards at milestone levels
-- [ ] T132 [US7] Add prestige level tracking to leaderboards
+- [x] T123 [P] [US7] Create PrestigeConfirmation component in src/components/progression/PrestigeConfirmation.tsx (modal explaining prestige)
+- [x] T124 [US7] Implement prestige calculator in src/lib/progression/prestige-calculator.ts (multiplier calculations)
+- [x] T125 [US7] Implement prestige handler in src/lib/progression/prestige-handler.ts (reset logic)
+- [x] T126 [P] [US7] Create POST /api/progression/prestige API route in src/app/api/progression/prestige/route.ts (execute prestige)
+- [x] T127 [P] [US7] Create GET /api/progression/prestige-status API route in src/app/api/progression/prestige-status/route.ts (check eligibility)
+- [x] T128 [US7] Add prestige option to battle pass screen when tier 50 reached
+- [x] T129 [US7] Add prestige level display to player profile with visual effects (auras/borders)
+- [x] T130 [US7] Add prestige multiplier application to all XP and currency calculations
+- [x] T131 [US7] Add prestige-exclusive cosmetic rewards at milestone levels
+- [x] T132 [US7] Add prestige level tracking to leaderboards
 
 **Checkpoint**: Prestige system functional as endgame progression for dedicated players
 

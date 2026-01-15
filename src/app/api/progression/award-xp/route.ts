@@ -244,6 +244,10 @@ export async function POST(
 
         // Update player currency if currency was awarded
         if (currencyAwarded > 0) {
+            // Apply prestige currency multiplier
+            const prestigeCurrencyMultiplier = progression.prestige_currency_multiplier || Math.pow(1.1, prestigeLevel);
+            const finalCurrencyAwarded = Math.floor(currencyAwarded * prestigeCurrencyMultiplier);
+
             // Get current currency
             const { data: currencyData } = await supabase
                 .from("player_currency")
@@ -252,22 +256,22 @@ export async function POST(
                 .single() as { data: PlayerCurrencyRow | null; error: any };
 
             const currentBalance = currencyData?.clash_shards || 0;
-            const newBalance = currentBalance + currencyAwarded;
+            const newBalance = currentBalance + finalCurrencyAwarded;
 
             if (currencyData) {
                 await supabase
                     .from("player_currency")
                     .update({
                         clash_shards: newBalance,
-                        total_earned: (currencyData.total_earned || 0) + currencyAwarded,
+                        total_earned: (currencyData.total_earned || 0) + finalCurrencyAwarded,
                         updated_at: new Date().toISOString(),
                     })
                     .eq("player_id", playerId);
             } else {
                 await supabase.from("player_currency").insert({
                     player_id: playerId,
-                    clash_shards: currencyAwarded,
-                    total_earned: currencyAwarded,
+                    clash_shards: finalCurrencyAwarded,
+                    total_earned: finalCurrencyAwarded,
                     total_spent: 0,
                 });
             }
@@ -275,12 +279,17 @@ export async function POST(
             // Record currency transaction
             await supabase.from("currency_transactions").insert({
                 player_id: playerId,
-                amount: currencyAwarded,
+                amount: finalCurrencyAwarded,
                 transaction_type: "earn",
                 source: CURRENCY_SOURCES.TIER_UNLOCK,
                 balance_before: currentBalance,
                 balance_after: newBalance,
-                metadata: { tiers_unlocked: tiersUnlocked, source: "battle_pass" },
+                metadata: { 
+                    tiers_unlocked: tiersUnlocked, 
+                    source: "battle_pass",
+                    base_amount: currencyAwarded,
+                    prestige_multiplier: prestigeCurrencyMultiplier,
+                },
             });
         }
 

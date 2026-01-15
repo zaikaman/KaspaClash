@@ -11,6 +11,7 @@ import DecorativeLine from "@/components/landing/DecorativeLine";
 import { XPProgressBar } from "@/components/progression/XPProgressBar";
 import { BattlePassTiers } from "@/components/progression/BattlePassTiers";
 import { TierUnlockModal } from "@/components/progression/TierUnlockModal";
+import { PrestigeConfirmation } from "@/components/progression/PrestigeConfirmation";
 import { useProgressionStore } from "@/stores/progression-store";
 import { useShopStore } from "@/stores/shop-store";
 import { useWalletStore, selectIsConnected } from "@/stores/wallet-store";
@@ -18,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/progression/currency-utils";
 import { calculateTierProgress } from "@/lib/progression/xp-calculator";
 import { getTierRewards, calculateSeasonTotalRewards as getTotalRewards } from "@/lib/progression/tier-rewards";
+import { getPrestigeTierInfo, getPrestigeBonusDisplay, PRESTIGE_REQUIRED_TIER, MAX_PRESTIGE_LEVEL } from "@/lib/progression/prestige-calculator";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
     Coins01Icon,
@@ -25,6 +27,7 @@ import {
     Globe02Icon,
     Alert02Icon,
     Loading03Icon,
+    ArrowUp01Icon,
 } from "@hugeicons/core-free-icons";
 import type { TierReward } from "@/types/progression";
 
@@ -81,6 +84,10 @@ export default function BattlePassPage() {
     const [isRefreshing, setIsRefreshing] = React.useState(false);
     const [showUnlockModal, setShowUnlockModal] = React.useState(false);
     const [unlockedTiers, setUnlockedTiers] = React.useState<{ tier: number; rewards: TierReward[]; isClaimed?: boolean }[]>([]);
+    
+    // Prestige state
+    const [showPrestigeModal, setShowPrestigeModal] = React.useState(false);
+    const [isPrestiging, setIsPrestiging] = React.useState(false);
 
     // Initial data fetch
     React.useEffect(() => {
@@ -219,6 +226,53 @@ export default function BattlePassPage() {
         setShowUnlockModal(true);
     };
 
+    // Check if eligible for prestige
+    const isEligibleForPrestige = React.useMemo(() => {
+        return displayProgression.currentTier >= PRESTIGE_REQUIRED_TIER && 
+               displayProgression.prestigeLevel < MAX_PRESTIGE_LEVEL &&
+               isConnected;
+    }, [displayProgression.currentTier, displayProgression.prestigeLevel, isConnected]);
+
+    // Get prestige display info
+    const prestigeInfo = React.useMemo(() => {
+        const tierInfo = getPrestigeTierInfo(displayProgression.prestigeLevel);
+        const bonusDisplay = getPrestigeBonusDisplay(displayProgression.prestigeLevel);
+        return { tierInfo, bonusDisplay };
+    }, [displayProgression.prestigeLevel]);
+
+    // Handle prestige confirmation
+    const handlePrestige = async () => {
+        if (!isConnected || isPrestiging) return;
+
+        const address = useWalletStore.getState().address;
+        if (!address) return;
+
+        setIsPrestiging(true);
+        try {
+            const response = await fetch("/api/progression/prestige", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ playerId: address }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error?.message || "Failed to prestige");
+            }
+
+            // Refresh progression to show reset tier
+            await fetchPlayerProgression();
+            
+            // Close modal
+            setShowPrestigeModal(false);
+        } catch (err) {
+            console.error("Prestige error:", err);
+        } finally {
+            setIsPrestiging(false);
+        }
+    };
+
     return (
         <GameLayout>
             <div className="relative w-full min-h-screen pt-6 sm:pt-10 pb-20">
@@ -323,6 +377,62 @@ export default function BattlePassPage() {
                             />
                         </div>
 
+                        {/* Prestige Section - Show when at tier 50 or already prestiged */}
+                        {isConnected && (displayProgression.prestigeLevel > 0 || displayProgression.currentTier >= PRESTIGE_REQUIRED_TIER) && (
+                            <div className="p-6 sm:p-8 rounded-xl bg-gradient-to-r from-cyber-gold/10 via-amber-500/5 to-cyber-gold/10 border border-cyber-gold/30 backdrop-blur-sm shadow-xl">
+                                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-cyber-gold/30 to-amber-500/20 flex items-center justify-center border-2 border-cyber-gold/50 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+                                            <div className="relative">
+                                                <HugeiconsIcon icon={ChampionIcon} className="h-8 w-8 text-cyber-gold" />
+                                                {displayProgression.prestigeLevel > 0 && (
+                                                    <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-cyber-gold flex items-center justify-center text-black font-bold text-xs">
+                                                        {displayProgression.prestigeLevel}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xl font-orbitron font-bold text-white flex items-center gap-2">
+                                                Prestige {displayProgression.prestigeLevel > 0 ? displayProgression.prestigeLevel : 'Available'}
+                                                {displayProgression.prestigeLevel > 0 && (
+                                                    <span className={`text-sm ${prestigeInfo.tierInfo.cssClass}`}>
+                                                        {prestigeInfo.tierInfo.icon} {prestigeInfo.tierInfo.tier}
+                                                    </span>
+                                                )}
+                                            </h3>
+                                            <p className="text-sm text-cyber-gray">
+                                                {displayProgression.prestigeLevel > 0 ? (
+                                                    <>
+                                                        Current Bonuses: <span className="text-cyber-gold">{prestigeInfo.bonusDisplay.xpBonusFormatted} XP</span>,{' '}
+                                                        <span className="text-cyber-gold">{prestigeInfo.bonusDisplay.currencyBonusFormatted} Shards</span>
+                                                    </>
+                                                ) : (
+                                                    <>Reset your progress for permanent bonuses!</>
+                                                )}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    
+                                    {isEligibleForPrestige && (
+                                        <Button
+                                            onClick={() => setShowPrestigeModal(true)}
+                                            className="gap-2 font-orbitron font-bold bg-gradient-to-r from-cyber-gold to-amber-500 hover:from-amber-500 hover:to-cyber-gold text-black shadow-[0_0_15px_rgba(245,158,11,0.3)] transition-all duration-300"
+                                        >
+                                            <HugeiconsIcon icon={ArrowUp01Icon} className="h-5 w-5" />
+                                            Prestige Now
+                                        </Button>
+                                    )}
+                                    
+                                    {displayProgression.prestigeLevel >= MAX_PRESTIGE_LEVEL && (
+                                        <div className="px-4 py-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-orbitron font-bold text-sm">
+                                            💎 MAX PRESTIGE
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Battle Pass Tiers */}
                         <div className="space-y-6">
                             <h2 className="text-2xl font-orbitron font-bold text-white tracking-wide text-center">ALL TIERS</h2>
@@ -342,6 +452,15 @@ export default function BattlePassPage() {
                 onClose={() => setShowUnlockModal(false)}
                 unlockedTiers={unlockedTiers}
                 onClaim={handleClaimRewards}
+            />
+
+            {/* Prestige Confirmation Modal */}
+            <PrestigeConfirmation
+                isOpen={showPrestigeModal}
+                onClose={() => setShowPrestigeModal(false)}
+                onConfirm={handlePrestige}
+                currentPrestigeLevel={displayProgression.prestigeLevel}
+                isLoading={isPrestiging}
             />
         </GameLayout>
     );

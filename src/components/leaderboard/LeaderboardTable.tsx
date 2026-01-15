@@ -16,6 +16,25 @@ function formatAddress(address: string): string {
     return `${prefix}...${suffix}`;
 }
 
+/**
+ * Get prestige badge styling based on level.
+ */
+function getPrestigeBadge(prestigeLevel: number): { color: string; label: string; glow: string } | null {
+    if (prestigeLevel === 0) return null;
+    
+    if (prestigeLevel >= 10) {
+        return { color: "text-cyan-300", label: `P${prestigeLevel}`, glow: "drop-shadow-[0_0_8px_rgba(103,232,249,0.8)]" };
+    } else if (prestigeLevel >= 7) {
+        return { color: "text-purple-400", label: `P${prestigeLevel}`, glow: "drop-shadow-[0_0_6px_rgba(192,132,252,0.7)]" };
+    } else if (prestigeLevel >= 5) {
+        return { color: "text-yellow-400", label: `P${prestigeLevel}`, glow: "drop-shadow-[0_0_6px_rgba(250,204,21,0.7)]" };
+    } else if (prestigeLevel >= 3) {
+        return { color: "text-gray-300", label: `P${prestigeLevel}`, glow: "drop-shadow-[0_0_4px_rgba(209,213,219,0.6)]" };
+    } else {
+        return { color: "text-amber-600", label: `P${prestigeLevel}`, glow: "drop-shadow-[0_0_4px_rgba(217,119,6,0.5)]" };
+    }
+}
+
 export default function LeaderboardTable() {
     const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
     const [loading, setLoading] = useState(true);
@@ -114,10 +133,24 @@ export default function LeaderboardTable() {
                                                 className="rounded-full border-2 border-cyber-gold/30 group-hover/player:border-cyber-gold w-8 h-8 sm:w-9 sm:h-9"
                                             />
                                         )}
-                                        <div className="min-w-0">
-                                            <p className="text-white font-orbitron font-medium group-hover/player:text-cyber-gold transition-colors text-sm sm:text-base truncate">
-                                                {player.displayName || formatAddress(player.address)}
-                                            </p>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-white font-orbitron font-medium group-hover/player:text-cyber-gold transition-colors text-sm sm:text-base truncate">
+                                                    {player.displayName || formatAddress(player.address)}
+                                                </p>
+                                                {(() => {
+                                                    const badge = getPrestigeBadge(player.prestigeLevel);
+                                                    if (!badge) return null;
+                                                    return (
+                                                        <span 
+                                                            className={`${badge.color} ${badge.glow} font-orbitron text-xs font-bold px-1.5 py-0.5 bg-black/50 rounded border border-current`}
+                                                            title={`Prestige Level ${player.prestigeLevel}`}
+                                                        >
+                                                            {badge.label}
+                                                        </span>
+                                                    );
+                                                })()}
+                                            </div>
                                             {player.displayName && (
                                                 <p className="text-cyber-gray text-xs group-hover/player:text-cyber-gold/70 font-mono truncate">
                                                     {formatAddress(player.address)}

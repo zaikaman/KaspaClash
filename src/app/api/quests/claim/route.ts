@@ -154,6 +154,32 @@ export async function POST(
 
         // Award currency
         if (rewards.currency > 0) {
+            // Get player's prestige multiplier
+            let prestigeCurrencyMultiplier = 1.0;
+            
+            // Get current active season
+            const { data: season } = await supabase
+                .from('battle_pass_seasons')
+                .select('id')
+                .eq('is_active', true)
+                .single();
+
+            if (season) {
+                const { data: progression } = await supabase
+                    .from('player_progression')
+                    .select('prestige_currency_multiplier, prestige_level')
+                    .eq('player_id', playerId)
+                    .eq('season_id', season.id)
+                    .single();
+
+                if (progression) {
+                    prestigeCurrencyMultiplier = progression.prestige_currency_multiplier || Math.pow(1.1, progression.prestige_level || 0);
+                }
+            }
+
+            // Apply prestige multiplier to currency
+            const finalCurrencyReward = Math.floor(rewards.currency * prestigeCurrencyMultiplier);
+
             // Get current currency balance
             const { data: currencyData, error: currencyFetchError } = await supabase
                 .from('player_currency')
@@ -167,16 +193,16 @@ export async function POST(
             }
 
             const currentBalance = currencyData?.clash_shards || 0;
-            const newBalance = currentBalance + rewards.currency;
+            const newBalance = currentBalance + finalCurrencyReward;
 
-            console.log(`[QuestClaim] Awarding ${rewards.currency} shards to ${playerId}. Current: ${currentBalance}, New: ${newBalance}`);
+            console.log(`[QuestClaim] Awarding ${finalCurrencyReward} shards to ${playerId} (base: ${rewards.currency}, multiplier: ${prestigeCurrencyMultiplier}). Current: ${currentBalance}, New: ${newBalance}`);
 
             if (currencyData) {
                 const { error: updateError } = await supabase
                     .from('player_currency')
                     .update({
                         clash_shards: newBalance,
-                        total_earned: (currencyData.total_earned || 0) + rewards.currency,
+                        total_earned: (currencyData.total_earned || 0) + finalCurrencyReward,
                         updated_at: new Date().toISOString(),
                     })
                     .eq('player_id', playerId);
@@ -189,8 +215,8 @@ export async function POST(
             } else {
                 const { error: insertError } = await supabase.from('player_currency').insert({
                     player_id: playerId,
-                    clash_shards: rewards.currency,
-                    total_earned: rewards.currency,
+                    clash_shards: finalCurrencyReward,
+                    total_earned: finalCurrencyReward,
                     total_spent: 0,
                 });
 
@@ -204,12 +230,17 @@ export async function POST(
             // Record currency transaction
             const { error: txError } = await supabase.from('currency_transactions').insert({
                 player_id: playerId,
-                amount: rewards.currency,
+                amount: finalCurrencyReward,
                 transaction_type: 'earn',
                 source: CURRENCY_SOURCES.QUEST_CLAIM,
                 balance_before: currentBalance,
                 balance_after: newBalance,
-                metadata: { quest_id: questId, template_id: template.id },
+                metadata: { 
+                    quest_id: questId, 
+                    template_id: template.id,
+                    base_amount: rewards.currency,
+                    prestige_multiplier: prestigeCurrencyMultiplier,
+                },
             });
 
             if (txError) {

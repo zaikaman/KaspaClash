@@ -15,9 +15,19 @@ interface PlayerProfile {
     created_at: string;
 }
 
-async function getPlayerData(address: string): Promise<{ profile: PlayerProfile | null; rank: number | null }> {
+interface PrestigeData {
+    level: number;
+    xpMultiplier: number;
+    currencyMultiplier: number;
+}
+
+async function getPlayerData(address: string): Promise<{ 
+    profile: PlayerProfile | null; 
+    rank: number | null;
+    prestige: PrestigeData | null;
+}> {
     try {
-        const supabase = await createSupabaseServerClient();
+        const supabase = await createSupabaseServerClient() as any;
 
         // Get player profile
         const { data: player, error } = await supabase
@@ -27,7 +37,7 @@ async function getPlayerData(address: string): Promise<{ profile: PlayerProfile 
             .single();
 
         if (error || !player) {
-            return { profile: null, rank: null };
+            return { profile: null, rank: null, prestige: null };
         }
 
         // Get rank (count of players with higher rating)
@@ -41,6 +51,33 @@ async function getPlayerData(address: string): Promise<{ profile: PlayerProfile 
         // Cast to unknown first since Supabase schema might not have avatar_url yet
         const playerData = player as unknown as Record<string, unknown>;
 
+        // Get prestige data from player_progression (current active season)
+        let prestige: PrestigeData | null = null;
+        
+        // Get current active season
+        const { data: season } = await supabase
+            .from("battle_pass_seasons")
+            .select("id")
+            .eq("is_active", true)
+            .single();
+
+        if (season) {
+            const { data: progression } = await supabase
+                .from("player_progression")
+                .select("prestige_level, prestige_xp_multiplier, prestige_currency_multiplier")
+                .eq("player_id", address)
+                .eq("season_id", season.id)
+                .single();
+
+            if (progression) {
+                prestige = {
+                    level: progression.prestige_level || 0,
+                    xpMultiplier: progression.prestige_xp_multiplier || 1,
+                    currencyMultiplier: progression.prestige_currency_multiplier || 1,
+                };
+            }
+        }
+
         return {
             profile: {
                 address: player.address,
@@ -51,10 +88,11 @@ async function getPlayerData(address: string): Promise<{ profile: PlayerProfile 
                 losses: player.losses,
                 created_at: player.created_at,
             },
-            rank
+            rank,
+            prestige,
         };
     } catch {
-        return { profile: null, rank: null };
+        return { profile: null, rank: null, prestige: null };
     }
 }
 
@@ -70,7 +108,7 @@ function formatAddress(address: string): string {
 export default async function PlayerProfilePage({ params }: { params: Promise<{ address: string }> }) {
     const { address: encodedAddress } = await params;
     const address = decodeURIComponent(encodedAddress);
-    const { profile, rank } = await getPlayerData(address);
+    const { profile, rank, prestige } = await getPlayerData(address);
 
     // If player not found, show error state
     if (!profile) {
@@ -98,7 +136,7 @@ export default async function PlayerProfilePage({ params }: { params: Promise<{ 
                 <div className="container mx-auto px-6 lg:px-12 xl:px-24 relative z-10">
 
                     {/* Profile Header Card - Client Component for interactivity */}
-                    <ProfileHeaderClient profile={profile} rank={rank} />
+                    <ProfileHeaderClient profile={profile} rank={rank} prestige={prestige} />
 
                     <DecorativeLine className="mb-12" variant="left-gold-right-red" />
 

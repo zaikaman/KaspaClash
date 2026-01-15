@@ -21,6 +21,7 @@ export interface LeaderboardEntry {
   winRate: number;
   rating: number;
   avatarUrl: string | null;
+  prestigeLevel: number;
 }
 
 /**
@@ -79,6 +80,19 @@ export async function getLeaderboard(
     throw new Error("Failed to fetch leaderboard");
   }
 
+  // Fetch prestige levels for all players in this batch
+  const playerAddresses = (data || []).map(row => row.address);
+  const { data: prestigeData } = await supabase
+    .from("player_progression" as never)
+    .select("player_address, prestige_level")
+    .in("player_address", playerAddresses);
+
+  // Create a map of player address to prestige level
+  const prestigeMap = new Map<string, number>();
+  ((prestigeData || []) as Array<{ player_address: string; prestige_level: number }>).forEach(row => {
+    prestigeMap.set(row.player_address, row.prestige_level || 0);
+  });
+
   // Map to leaderboard entries
   const entries: LeaderboardEntry[] = (data || []).map((row, index) => ({
     rank: clampedOffset + index + 1,
@@ -89,6 +103,7 @@ export async function getLeaderboard(
     winRate: calculateWinRate(row.wins, row.losses),
     rating: row.rating,
     avatarUrl: (row as unknown as Record<string, any>).avatar_url || null,
+    prestigeLevel: prestigeMap.get(row.address) || 0,
   }));
 
   // If sorting by win rate, re-sort the entries

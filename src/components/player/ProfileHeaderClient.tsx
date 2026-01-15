@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useWallet } from "@/hooks/useWallet";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ChampionIcon } from "@hugeicons/core-free-icons";
+import { ChampionIcon, ArrowUp01Icon } from "@hugeicons/core-free-icons";
 import ProfileEditModal from "./ProfileEditModal";
+import { getPrestigeTierInfo, getPrestigeBonusDisplay } from "@/lib/progression/prestige-calculator";
+import { cn } from "@/lib/utils";
 
 interface ProfileHeaderClientProps {
     profile: {
@@ -19,6 +21,11 @@ interface ProfileHeaderClientProps {
         created_at: string;
     };
     rank: number | null;
+    prestige?: {
+        level: number;
+        xpMultiplier: number;
+        currencyMultiplier: number;
+    } | null;
 }
 
 function formatAddress(address: string): string {
@@ -36,7 +43,42 @@ function calculateWinRate(wins: number, losses: number): string {
     return `${Math.round((wins / total) * 100)}%`;
 }
 
-export default function ProfileHeaderClient({ profile, rank }: ProfileHeaderClientProps) {
+/**
+ * Get prestige border style based on prestige level
+ */
+function getPrestigeBorderStyle(prestigeLevel: number): string {
+    if (prestigeLevel >= 10) {
+        return "border-cyan-400 shadow-[0_0_20px_rgba(0,212,255,0.5),0_0_40px_rgba(0,212,255,0.3)]";
+    }
+    if (prestigeLevel >= 7) {
+        return "border-gray-200 shadow-[0_0_20px_rgba(229,228,226,0.5),0_0_40px_rgba(229,228,226,0.3)]";
+    }
+    if (prestigeLevel >= 5) {
+        return "border-yellow-400 shadow-[0_0_20px_rgba(255,215,0,0.5),0_0_40px_rgba(255,215,0,0.3)]";
+    }
+    if (prestigeLevel >= 3) {
+        return "border-gray-400 shadow-[0_0_15px_rgba(192,192,192,0.4),0_0_30px_rgba(192,192,192,0.2)]";
+    }
+    if (prestigeLevel >= 1) {
+        return "border-amber-600 shadow-[0_0_15px_rgba(205,127,50,0.4),0_0_30px_rgba(205,127,50,0.2)]";
+    }
+    return "border-cyber-gold";
+}
+
+/**
+ * Get prestige aura animation class
+ */
+function getPrestigeAuraClass(prestigeLevel: number): string {
+    if (prestigeLevel >= 10) {
+        return "animate-pulse";
+    }
+    if (prestigeLevel >= 5) {
+        return "animate-pulse";
+    }
+    return "";
+}
+
+export default function ProfileHeaderClient({ profile, rank, prestige }: ProfileHeaderClientProps) {
     const { address: connectedAddress } = useWallet();
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const router = useRouter();
@@ -44,6 +86,13 @@ export default function ProfileHeaderClient({ profile, rank }: ProfileHeaderClie
     const isOwnProfile = connectedAddress === profile.address;
     const displayRank = rank ? `#${rank}` : "Unranked";
     const winRate = calculateWinRate(profile.wins, profile.losses);
+    
+    // Prestige display info
+    const prestigeLevel = prestige?.level || 0;
+    const prestigeTierInfo = getPrestigeTierInfo(prestigeLevel);
+    const prestigeBonuses = getPrestigeBonusDisplay(prestigeLevel);
+    const prestigeBorderStyle = getPrestigeBorderStyle(prestigeLevel);
+    const prestigeAuraClass = getPrestigeAuraClass(prestigeLevel);
 
     const handleProfileUpdated = () => {
         // Refresh the page to show updated data
@@ -53,11 +102,28 @@ export default function ProfileHeaderClient({ profile, rank }: ProfileHeaderClie
     return (
         <>
             {/* Profile Header Card */}
-            <div className="bg-black/40 border border-cyber-gold/30 rounded-2xl p-8 backdrop-blur-md mb-12">
+            <div className={cn(
+                "bg-black/40 border rounded-2xl p-8 backdrop-blur-md mb-12",
+                prestigeLevel > 0 ? "border-opacity-50" : "border-cyber-gold/30",
+                prestigeLevel >= 5 && "bg-gradient-to-r from-black/40 via-yellow-900/10 to-black/40",
+                prestigeLevel >= 10 && "bg-gradient-to-r from-black/40 via-cyan-900/10 to-black/40"
+            )}>
                 <div className="flex flex-col md:flex-row gap-8 items-center">
-                    {/* Avatar / Rank */}
+                    {/* Avatar / Rank with Prestige Border */}
                     <div className="relative">
-                        <div className="w-32 h-32 rounded-full border-4 border-cyber-gold bg-black flex items-center justify-center overflow-hidden">
+                        {/* Prestige Aura Effect */}
+                        {prestigeLevel >= 5 && (
+                            <div className={cn(
+                                "absolute inset-0 rounded-full blur-xl opacity-30",
+                                prestigeLevel >= 10 ? "bg-cyan-400" : "bg-yellow-400",
+                                prestigeAuraClass
+                            )} style={{ transform: "scale(1.3)" }} />
+                        )}
+                        
+                        <div className={cn(
+                            "w-32 h-32 rounded-full border-4 bg-black flex items-center justify-center overflow-hidden relative",
+                            prestigeBorderStyle
+                        )}>
                             {profile.avatar_url ? (
                                 <Image
                                     src={profile.avatar_url}
@@ -69,9 +135,25 @@ export default function ProfileHeaderClient({ profile, rank }: ProfileHeaderClie
                                 <HugeiconsIcon icon={ChampionIcon} className="w-16 h-16 text-cyber-gold/50" />
                             )}
                         </div>
+                        
+                        {/* Rank Badge */}
                         <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-cyber-gold text-black font-bold font-orbitron px-4 py-1 rounded-full text-sm whitespace-nowrap shadow-lg">
                             RANK {displayRank}
                         </div>
+                        
+                        {/* Prestige Badge */}
+                        {prestigeLevel > 0 && (
+                            <div className={cn(
+                                "absolute -top-2 -right-2 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-lg",
+                                prestigeLevel >= 10 ? "bg-cyan-400 text-black" :
+                                prestigeLevel >= 7 ? "bg-gray-200 text-black" :
+                                prestigeLevel >= 5 ? "bg-yellow-400 text-black" :
+                                prestigeLevel >= 3 ? "bg-gray-400 text-black" :
+                                "bg-amber-600 text-white"
+                            )}>
+                                {prestigeTierInfo.icon || prestigeLevel}
+                            </div>
+                        )}
                     </div>
 
                     {/* Info */}
@@ -80,6 +162,19 @@ export default function ProfileHeaderClient({ profile, rank }: ProfileHeaderClie
                             <h1 className="text-2xl md:text-4xl font-bold text-white font-orbitron break-all">
                                 {profile.display_name || formatAddress(profile.address)}
                             </h1>
+                            {/* Prestige Title Badge */}
+                            {prestigeLevel > 0 && (
+                                <span className={cn(
+                                    "px-3 py-1 rounded-full text-xs font-bold font-orbitron",
+                                    prestigeLevel >= 10 ? "bg-cyan-400/20 text-cyan-400 border border-cyan-400/30" :
+                                    prestigeLevel >= 7 ? "bg-gray-200/20 text-gray-200 border border-gray-200/30" :
+                                    prestigeLevel >= 5 ? "bg-yellow-400/20 text-yellow-400 border border-yellow-400/30" :
+                                    prestigeLevel >= 3 ? "bg-gray-400/20 text-gray-400 border border-gray-400/30" :
+                                    "bg-amber-600/20 text-amber-500 border border-amber-600/30"
+                                )}>
+                                    {prestigeTierInfo.icon} P{prestigeLevel}
+                                </span>
+                            )}
                             {isOwnProfile && (
                                 <button
                                     onClick={() => setIsEditModalOpen(true)}
@@ -100,6 +195,18 @@ export default function ProfileHeaderClient({ profile, rank }: ProfileHeaderClie
                             <span className="bg-cyber-gray/10 px-4 py-2 rounded text-cyber-gray font-mono text-sm border border-cyber-gray/20">
                                 Joined: {new Date(profile.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
                             </span>
+                            {/* Prestige Bonuses Display */}
+                            {prestigeLevel > 0 && (
+                                <span className={cn(
+                                    "px-4 py-2 rounded font-mono text-sm flex items-center gap-2 border",
+                                    prestigeLevel >= 10 ? "bg-cyan-400/10 text-cyan-400 border-cyan-400/30" :
+                                    prestigeLevel >= 5 ? "bg-yellow-400/10 text-yellow-400 border-yellow-400/30" :
+                                    "bg-amber-600/10 text-amber-500 border-amber-600/30"
+                                )}>
+                                    <HugeiconsIcon icon={ArrowUp01Icon} className="h-4 w-4" />
+                                    {prestigeBonuses.xpBonusFormatted} XP • {prestigeBonuses.currencyBonusFormatted} Shards
+                                </span>
+                            )}
                         </div>
                     </div>
 
