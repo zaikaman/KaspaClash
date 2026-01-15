@@ -3,7 +3,8 @@
  * Defines 20 waves with escalating AI difficulty
  */
 
-import { CHARACTER_ROSTER, type Character } from "@/data/characters";
+import { CHARACTER_ROSTER } from "@/data/characters";
+import type { Character } from "@/types";
 import type { AIDifficulty } from "@/lib/game/ai-opponent";
 
 /**

@@ -84,7 +84,7 @@ export async function POST(
     await addToQueue(address, rating);
 
     // Attempt immediate match
-    let matchResult = await attemptMatch(address);
+    const matchResult = await attemptMatch(address);
 
     // If we didn't find a match (e.g., we're the "waiter" due to tie-breaker),
     // trigger match attempts for OTHER players in the queue.

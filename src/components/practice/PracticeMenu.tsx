@@ -28,7 +28,7 @@ export default function PracticeMenu({ onStart }: PracticeMenuProps) {
     const address = useWalletStore(selectPersistedAddress);
     const [selectedChar, setSelectedChar] = useState<string>(CHARACTER_ROSTER[0].id);
     const [difficulty, setDifficulty] = useState<string>("medium");
-    const [ownedCharacterIds, setOwnedCharacterIds] = useState<String[]>([]);
+    const [ownedCharacterIds, setOwnedCharacterIds] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     // Fetch owned characters

@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Filter and transform rounds with valid moves
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const validRounds: ReplayRoundData[] = (rounds || [])
             .filter((r) => isValidMove(r.player1_move) && isValidMove(r.player2_move))
             .map((r) => ({
