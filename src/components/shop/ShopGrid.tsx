@@ -32,6 +32,7 @@ function getRarityStyle(rarity: string): {
     border: string;
     bg: string;
     text: string;
+    line: string;
     glow: string;
 } {
     switch (rarity) {
@@ -40,6 +41,7 @@ function getRarityStyle(rarity: string): {
                 border: "border-gray-500/20 hover:border-gray-500/40",
                 bg: "from-gray-500/5 to-transparent",
                 text: "text-gray-400",
+                line: "bg-gray-400",
                 glow: "",
             };
         case "rare":
@@ -47,6 +49,7 @@ function getRarityStyle(rarity: string): {
                 border: "border-blue-500/20 hover:border-blue-500/40",
                 bg: "from-blue-500/5 to-transparent",
                 text: "text-blue-400",
+                line: "bg-blue-500",
                 glow: "hover:shadow-blue-500/10",
             };
         case "epic":
@@ -54,6 +57,7 @@ function getRarityStyle(rarity: string): {
                 border: "border-purple-500/20 hover:border-purple-500/40",
                 bg: "from-purple-500/5 to-transparent",
                 text: "text-purple-400",
+                line: "bg-purple-400",
                 glow: "hover:shadow-purple-500/15",
             };
         case "legendary":
@@ -61,6 +65,7 @@ function getRarityStyle(rarity: string): {
                 border: "border-cyber-gold/30 hover:border-cyber-gold/50",
                 bg: "from-cyber-gold/10 to-amber-500/5",
                 text: "text-cyber-gold",
+                line: "bg-cyber-gold",
                 glow: "hover:shadow-cyber-gold/20",
             };
         case "prestige":
@@ -68,6 +73,7 @@ function getRarityStyle(rarity: string): {
                 border: "border-pink-500/30 hover:border-pink-500/50",
                 bg: "from-pink-500/10 to-purple-500/5",
                 text: "text-pink-400",
+                line: "bg-pink-400",
                 glow: "hover:shadow-pink-500/20",
             };
         default:
@@ -75,6 +81,7 @@ function getRarityStyle(rarity: string): {
                 border: "border-white/10 hover:border-white/20",
                 bg: "from-white/5 to-transparent",
                 text: "text-gray-400",
+                line: "bg-gray-400",
                 glow: "",
             };
     }
@@ -111,7 +118,7 @@ function CosmeticCard({
             <div
                 className={cn(
                     "absolute top-0 left-4 right-4 h-0.5 rounded-full",
-                    rarityStyle.text.replace("text-", "bg-")
+                    rarityStyle.line
                 )}
             />
 
