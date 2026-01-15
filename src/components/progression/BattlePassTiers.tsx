@@ -14,6 +14,9 @@ import {
     LockKeyIcon,
     Tick02Icon,
     Coins01Icon,
+    SparklesIcon,
+    Gif01Icon,
+    ChampionIcon,
 } from "@hugeicons/core-free-icons";
 import type { TierReward } from "@/types/progression";
 
@@ -73,9 +76,9 @@ function RewardIcon({ type }: { type: TierReward["type"] }) {
         case "currency":
             return <HugeiconsIcon icon={Coins01Icon} className="h-4 w-4 text-cyber-gold" />;
         case "cosmetic":
-            return <span className="text-sm">✨</span>;
+            return <HugeiconsIcon icon={SparklesIcon} className="h-4 w-4 text-kaspa" />;
         case "achievement_badge":
-            return <span className="text-sm">🎁</span>;
+            return <HugeiconsIcon icon={Gif01Icon} className="h-4 w-4 text-cyber-gold" />;
         default:
             return null;
     }
@@ -174,12 +177,12 @@ function TierCard({
                 <div className="flex items-center gap-1">
                     {hasCosmetic && (
                         <div className="p-1 rounded bg-kaspa/10 border border-kaspa/20" title="Cosmetic Reward">
-                            <span className="text-xs">✨</span>
+                            <HugeiconsIcon icon={SparklesIcon} className="h-3 w-3 text-kaspa" />
                         </div>
                     )}
                     {hasBadge && (
                         <div className="p-1 rounded bg-cyber-gold/10 border border-cyber-gold/20" title="Badge Reward">
-                            <span className="text-xs">🏆</span>
+                            <HugeiconsIcon icon={ChampionIcon} className="h-3 w-3 text-cyber-gold" />
                         </div>
                     )}
                 </div>
@@ -293,11 +296,11 @@ export function BattlePassTiers({
                     <span>Clash Shards</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                    <span className="text-xs">✨</span>
+                    <HugeiconsIcon icon={SparklesIcon} className="h-3 w-3 text-kaspa" />
                     <span>Cosmetic</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                    <span className="text-xs">🏆</span>
+                    <HugeiconsIcon icon={ChampionIcon} className="h-3 w-3 text-cyber-gold" />
                     <span>Badge</span>
                 </div>
             </div>

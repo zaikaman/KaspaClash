@@ -13,6 +13,8 @@ import {
     downloadBlob,
     fetchReplayData,
 } from "@/lib/video-recorder";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Alert02Icon } from "@hugeicons/core-free-icons";
 
 interface ExportMP4ButtonProps {
     matchId: string;
@@ -117,10 +119,12 @@ export function ExportMP4Button({ matchId, disabled = false }: ExportMP4ButtonPr
 
             {/* Warning when exporting */}
             {isExporting && (
-                <div className="mt-3 p-2 bg-yellow-900/30 border border-yellow-500/30 rounded text-center">
-                    <p className="text-[10px] text-yellow-500 font-bold uppercase tracking-wider animate-pulse">
-                        ⚠ Do not switch tabs while exporting ⚠
+                <div className="mt-3 p-2 bg-yellow-900/30 border border-yellow-500/30 rounded text-center flex items-center justify-center gap-2">
+                    <HugeiconsIcon icon={Alert02Icon} className="w-3 h-3 text-yellow-500 animate-pulse" />
+                    <p className="text-[10px] text-yellow-500 font-bold uppercase tracking-wider">
+                        Do not switch tabs while exporting
                     </p>
+                    <HugeiconsIcon icon={Alert02Icon} className="w-3 h-3 text-yellow-500 animate-pulse" />
                 </div>
             )}
 

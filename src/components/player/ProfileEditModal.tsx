@@ -3,6 +3,8 @@
 import React, { useState, useRef, useCallback } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ChampionIcon } from "@hugeicons/core-free-icons";
 
 interface ProfileEditModalProps {
     isOpen: boolean;
@@ -145,7 +147,7 @@ export default function ProfileEditModal({
                                 />
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center">
-                                    <span className="text-6xl">🥷</span>
+                                    <HugeiconsIcon icon={ChampionIcon} className="w-16 h-16 text-cyber-gold/50" />
                                 </div>
                             )}
 

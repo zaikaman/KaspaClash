@@ -379,6 +379,31 @@ CREATE TABLE public.shop_rotations (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT shop_rotations_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.survival_daily_plays (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  player_id text NOT NULL,
+  play_date date NOT NULL DEFAULT CURRENT_DATE,
+  plays_count integer NOT NULL DEFAULT 0 CHECK (plays_count >= 0 AND plays_count <= 3),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT survival_daily_plays_pkey PRIMARY KEY (id),
+  CONSTRAINT survival_daily_plays_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address)
+);
+CREATE TABLE public.survival_runs (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  player_id text NOT NULL,
+  character_id text NOT NULL,
+  waves_cleared integer NOT NULL DEFAULT 0 CHECK (waves_cleared >= 0 AND waves_cleared <= 20),
+  score integer NOT NULL DEFAULT 0 CHECK (score >= 0),
+  shards_earned integer NOT NULL DEFAULT 0 CHECK (shards_earned >= 0),
+  final_health integer CHECK (final_health IS NULL OR final_health >= 0 AND final_health <= 100),
+  is_victory boolean NOT NULL DEFAULT false,
+  started_at timestamp with time zone NOT NULL DEFAULT now(),
+  ended_at timestamp with time zone,
+  CONSTRAINT survival_runs_pkey PRIMARY KEY (id),
+  CONSTRAINT survival_runs_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address),
+  CONSTRAINT survival_runs_character_id_fkey FOREIGN KEY (character_id) REFERENCES public.characters(id)
+);
 CREATE TABLE public.verification_badges (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   player_id text NOT NULL,

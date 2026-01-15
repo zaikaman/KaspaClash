@@ -13,7 +13,9 @@ import {
     Blockchain03Icon,
     Alert02Icon,
     CheckmarkCircle02Icon,
-    ViewIcon
+    ViewIcon,
+    ArrowUp01Icon,
+    ArrowDown01Icon,
 } from "@hugeicons/core-free-icons";
 
 export interface TransactionData {
@@ -265,10 +267,13 @@ export default function TransactionTimeline({
                         onClick={() => setExpanded(!expanded)}
                         className="text-cyber-gray hover:text-cyber-gold font-mono text-xs"
                     >
-                        {expanded
-                            ? `Show Less ↑`
-                            : `Show All ${sortedTxs.length} Transactions ↓`
-                        }
+                        <div className="flex items-center justify-center gap-2">
+                            <span>{expanded ? "Show Less" : `Show All ${sortedTxs.length} Transactions`}</span>
+                            <HugeiconsIcon
+                                icon={expanded ? ArrowUp01Icon : ArrowDown01Icon}
+                                className="w-3 h-3"
+                            />
+                        </div>
                     </Button>
                 </div>
             )}

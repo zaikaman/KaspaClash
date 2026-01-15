@@ -4,6 +4,8 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useWallet } from "@/hooks/useWallet";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ChampionIcon } from "@hugeicons/core-free-icons";
 import ProfileEditModal from "./ProfileEditModal";
 
 interface ProfileHeaderClientProps {
@@ -64,7 +66,7 @@ export default function ProfileHeaderClient({ profile, rank }: ProfileHeaderClie
                                     className="object-cover"
                                 />
                             ) : (
-                                <span className="text-6xl">🥷</span>
+                                <HugeiconsIcon icon={ChampionIcon} className="w-16 h-16 text-cyber-gold/50" />
                             )}
                         </div>
                         <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-cyber-gold text-black font-bold font-orbitron px-4 py-1 rounded-full text-sm whitespace-nowrap shadow-lg">

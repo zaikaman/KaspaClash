@@ -17,6 +17,8 @@ import {
     Coins01Icon,
     FireIcon,
     Loading03Icon,
+    SparklesIcon,
+    Tick02Icon,
 } from "@hugeicons/core-free-icons";
 import type { DailyQuest } from "@/types/quest";
 
@@ -173,17 +175,19 @@ export function DailyQuestList({
 
             {/* All Completed Banner */}
             {allCompleted && !allClaimed && (
-                <div className="p-4 rounded-lg bg-gradient-to-r from-kaspa/20 to-emerald-500/20 border border-kaspa/30 text-center">
+                <div className="p-4 rounded-lg bg-gradient-to-r from-kaspa/20 to-emerald-500/20 border border-kaspa/30 text-center flex items-center justify-center gap-2">
+                    <HugeiconsIcon icon={SparklesIcon} className="w-5 h-5 text-kaspa" />
                     <p className="text-sm font-semibold text-kaspa">
-                        🎉 All quests completed! Claim your rewards!
+                        All quests completed! Claim your rewards!
                     </p>
                 </div>
             )}
 
             {allClaimed && (
-                <div className="p-4 rounded-lg bg-gradient-to-r from-kaspa/10 to-emerald-500/10 border border-kaspa/20 text-center">
+                <div className="p-4 rounded-lg bg-gradient-to-r from-kaspa/10 to-emerald-500/10 border border-kaspa/20 text-center flex items-center justify-center gap-2">
+                    <HugeiconsIcon icon={Tick02Icon} className="w-5 h-5 text-kaspa" />
                     <p className="text-sm font-medium text-muted-foreground">
-                        ✅ All rewards claimed for today. Come back tomorrow!
+                        All rewards claimed for today. Come back tomorrow!
                     </p>
                 </div>
             )}

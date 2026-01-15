@@ -8,6 +8,15 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/progression/currency-utils";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+    CrownIcon,
+    Diamond01Icon,
+    ChampionIcon,
+    StarIcon,
+    Medal01Icon,
+    SparklesIcon
+} from "@hugeicons/core-free-icons";
 
 interface XPProgressBarProps {
     currentTier: number;
@@ -35,13 +44,13 @@ function getPrestigeColor(level: number): string {
 /**
  * Get prestige icon based on level
  */
-function getPrestigeIcon(level: number): string {
-    if (level >= 10) return "👑";
-    if (level >= 7) return "💎";
-    if (level >= 5) return "🏆";
-    if (level >= 3) return "⭐";
-    if (level >= 1) return "🔱";
-    return "";
+function getPrestigeIcon(level: number) {
+    if (level >= 10) return <HugeiconsIcon icon={CrownIcon} className="w-3 h-3 text-white" />;
+    if (level >= 7) return <HugeiconsIcon icon={Diamond01Icon} className="w-3 h-3 text-white" />;
+    if (level >= 5) return <HugeiconsIcon icon={ChampionIcon} className="w-3 h-3 text-white" />;
+    if (level >= 3) return <HugeiconsIcon icon={StarIcon} className="w-3 h-3 text-white fill-current" />;
+    if (level >= 1) return <HugeiconsIcon icon={Medal01Icon} className="w-3 h-3 text-white" />;
+    return null;
 }
 
 export function XPProgressBar({
@@ -193,7 +202,7 @@ export function XPProgressBar({
             {/* Tier 50 celebration */}
             {currentTier === 50 && (
                 <div className="flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-gradient-to-r from-amber-500/10 to-yellow-500/10 border border-amber-500/30">
-                    <span className="text-xl">🎉</span>
+                    <HugeiconsIcon icon={SparklesIcon} className="w-5 h-5 text-amber-500" />
                     <span className="text-sm font-medium text-amber-500">
                         Maximum Tier Reached! Ready for Prestige?
                     </span>

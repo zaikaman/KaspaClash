@@ -175,18 +175,18 @@
 
 ### Implementation for User Story 4
 
-- [ ] T084 [US4] Implement SurvivalScene in src/game/scenes/SurvivalScene.ts (main survival game mode Phaser scene)
-- [ ] T085 [US4] Implement wave generator in src/lib/survival/wave-generator.ts (AI difficulty scaling formulas)
-- [ ] T086 [US4] Implement score calculator in src/lib/survival/score-calculator.ts (scoring and reward formulas)
-- [ ] T087 [US4] Implement leaderboard updater in src/lib/survival/leaderboard-updater.ts (rank management)
-- [ ] T088 [US4] Implement survival launcher page in src/app/survival/page.tsx (mode selection screen)
-- [ ] T089 [P] [US4] Create POST /api/survival/start API route in src/app/api/survival/start/route.ts (initialize run)
-- [ ] T090 [P] [US4] Create POST /api/survival/end API route in src/app/api/survival/end/route.ts (save results)
-- [ ] T091 [P] [US4] Create GET /api/survival/leaderboard API route in src/app/api/survival/leaderboard/route.ts (fetch rankings)
-- [ ] T092 [US4] Add wave transition UI in SurvivalScene (wave number, brief rest period)
-- [ ] T093 [US4] Add survival results screen showing waves survived, score, rewards earned
-- [ ] T094 [US4] Add survival leaderboard display with top 100 players
-- [ ] T095 [US4] Integrate milestone wave bonus rewards (every 5 or 10 waves)
+- [x] T084 [US4] Implement SurvivalScene in src/game/scenes/SurvivalScene.ts (main survival game mode Phaser scene)
+- [x] T085 [US4] Implement wave generator in src/lib/survival/wave-generator.ts (AI difficulty scaling formulas)
+- [x] T086 [US4] Implement score calculator in src/lib/survival/score-calculator.ts (scoring and reward formulas)
+- [x] T087 [US4] Implement leaderboard updater in src/lib/survival/leaderboard-updater.ts (rank management)
+- [x] T088 [US4] Implement survival launcher page in src/app/survival/page.tsx (mode selection screen)
+- [x] T089 [P] [US4] Create POST /api/survival/start API route in src/app/api/survival/start/route.ts (initialize run)
+- [x] T090 [P] [US4] Create POST /api/survival/end API route in src/app/api/survival/end/route.ts (save results)
+- [x] T091 [P] [US4] Create GET /api/survival/leaderboard API route in src/app/api/survival/leaderboard/route.ts (fetch rankings)
+- [x] T092 [US4] Add wave transition UI in SurvivalScene (wave number, brief rest period)
+- [x] T093 [US4] Add survival results screen showing waves survived, score, rewards earned
+- [x] T094 [US4] Add survival leaderboard display with top 100 players
+- [x] T095 [US4] Integrate milestone wave bonus rewards (every 5 or 10 waves)
 
 **Checkpoint**: Survival mode fully functional as standalone endless challenge mode
 

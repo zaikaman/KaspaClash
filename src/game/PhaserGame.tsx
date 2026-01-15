@@ -104,6 +104,7 @@ export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
           const { PracticeScene } = await import("./scenes/PracticeScene");
           const { ReplayScene } = await import("./scenes/ReplayScene");
           const { FakeScene } = await import("./scenes/FakeScene");
+          const { SurvivalScene } = await import("./scenes/SurvivalScene");
 
           if (!isMounted) return;
 
@@ -125,6 +126,7 @@ export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
           gameRef.current.scene.add("PracticeScene", PracticeScene, false);
           gameRef.current.scene.add("ReplayScene", ReplayScene, false);
           gameRef.current.scene.add("FakeScene", FakeScene, false);
+          gameRef.current.scene.add("SurvivalScene", SurvivalScene, false);
 
           // Start the initial scene with data when game is ready
           // CRITICAL: Use refs to get the LATEST config values when "ready" fires

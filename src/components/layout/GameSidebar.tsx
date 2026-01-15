@@ -15,6 +15,7 @@ import {
     Menu01Icon,
     Cancel01Icon,
     Store01Icon,
+    FireIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
@@ -54,6 +55,12 @@ const NAV_ITEMS = [
         href: "/shop",
         icon: Store01Icon,
         color: "text-pink-400",
+    },
+    {
+        label: "Survival",
+        href: "/survival",
+        icon: FireIcon,
+        color: "text-red-500",
     },
 ];
 

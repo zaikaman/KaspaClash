@@ -3,17 +3,23 @@ import { Button } from "@/components/ui/button";
 import { CHARACTER_ROSTER } from "@/data/characters";
 import type { Character } from "@/types";
 import { useWalletStore, selectPersistedAddress } from "@/stores/wallet-store";
-import { Loading03Icon, LockIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react"; // Assuming this usage based on ShopPage
+import {
+    Loading03Icon,
+    LockIcon,
+    Leaf01Icon,
+    Sword01Icon,
+    ChampionIcon
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 
 interface PracticeMenuProps {
     onStart: (characterId: string, difficulty: string) => void;
 }
 
 const DIFFICULTIES = [
-    { id: "easy", label: "BEGINNER", color: "bg-green-600", icon: "🌱" },
-    { id: "medium", label: "FIGHTER", color: "bg-amber-500", icon: "⚔️" },
-    { id: "hard", label: "CHAMPION", color: "bg-red-600", icon: "🏆" },
+    { id: "easy", label: "BEGINNER", color: "bg-green-600", icon: Leaf01Icon },
+    { id: "medium", label: "FIGHTER", color: "bg-amber-500", icon: Sword01Icon },
+    { id: "hard", label: "CHAMPION", color: "bg-red-600", icon: ChampionIcon },
 ];
 
 const STARTERS = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
@@ -172,7 +178,7 @@ export default function PracticeMenu({ onStart }: PracticeMenuProps) {
                                 `}
                             >
                                 <span className="flex items-center gap-2">
-                                    <span>{diff.icon}</span>
+                                    <HugeiconsIcon icon={diff.icon} className="w-4 h-4" />
                                     <span>{diff.label}</span>
                                 </span>
                             </Button>
