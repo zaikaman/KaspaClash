@@ -119,22 +119,22 @@
 
 ### Implementation for User Story 3
 
-- [ ] T054 [P] [US3] Create ShopGrid component in src/components/shop/ShopGrid.tsx (grid layout with category tabs)
-- [ ] T055 [P] [US3] Create CosmeticPreview component in src/components/shop/CosmeticPreview.tsx (modal with item preview)
-- [ ] T056 [P] [US3] Create PurchaseModal component in src/components/shop/PurchaseModal.tsx (confirmation dialog)
-- [ ] T057 [P] [US3] Create CategoryFilter component in src/components/shop/CategoryFilter.tsx (tab navigation)
-- [ ] T058 [P] [US3] Create ClashShardsDisplay component in src/components/currency/ClashShardsDisplay.tsx (balance display)
-- [ ] T059 [P] [US3] Create TransactionHistory component in src/components/currency/TransactionHistory.tsx (earn/spend log)
-- [ ] T060 [US3] Implement shop page in src/app/shop/page.tsx (main cosmetic shop screen)
-- [ ] T061 [US3] Implement shop inventory manager in src/lib/shop/shop-inventory.ts (item catalog management)
-- [ ] T062 [US3] Implement purchase handler in src/lib/shop/purchase-handler.ts (transaction processing with validation)
-- [ ] T063 [US3] Implement rotation scheduler in src/lib/shop/rotation-scheduler.ts (weekly featured items)
-- [ ] T064 [P] [US3] Create GET /api/shop/inventory API route in src/app/api/shop/inventory/route.ts (fetch shop items)
-- [ ] T065 [P] [US3] Create POST /api/shop/purchase API route in src/app/api/shop/purchase/route.ts (process purchase)
-- [ ] T066 [P] [US3] Create GET /api/shop/featured API route in src/app/api/shop/featured/route.ts (weekly rotation)
-- [ ] T067 [US3] Add cosmetic asset organization in public/cosmetics/ (skins, emotes, victory-poses, badges directories)
-- [ ] T068 [US3] Implement Clash Shards transaction logging for audit trail
-- [ ] T069 [US3] Add shop item preview assets (thumbnails and full previews)
+- [x] T054 [P] [US3] Create ShopGrid component in src/components/shop/ShopGrid.tsx (grid layout with category tabs)
+- [x] T055 [P] [US3] Create CosmeticPreview component in src/components/shop/CosmeticPreview.tsx (modal with item preview)
+- [x] T056 [P] [US3] Create PurchaseModal component in src/components/shop/PurchaseModal.tsx (confirmation dialog)
+- [x] T057 [P] [US3] Create CategoryFilter component in src/components/shop/CategoryFilter.tsx (tab navigation)
+- [x] T058 [P] [US3] Create ClashShardsDisplay component in src/components/currency/ClashShardsDisplay.tsx (balance display)
+- [x] T059 [P] [US3] Create TransactionHistory component in src/components/currency/TransactionHistory.tsx (earn/spend log)
+- [x] T060 [US3] Implement shop page in src/app/shop/page.tsx (main cosmetic shop screen)
+- [x] T061 [US3] Implement shop inventory manager in src/lib/shop/shop-inventory.ts (item catalog management)
+- [x] T062 [US3] Implement purchase handler in src/lib/shop/purchase-handler.ts (transaction processing with validation)
+- [x] T063 [US3] Implement rotation scheduler in src/lib/shop/rotation-scheduler.ts (weekly featured items)
+- [x] T064 [P] [US3] Create GET /api/shop/inventory API route in src/app/api/shop/inventory/route.ts (fetch shop items)
+- [x] T065 [P] [US3] Create POST /api/shop/purchase API route in src/app/api/shop/purchase/route.ts (process purchase)
+- [x] T066 [P] [US3] Create GET /api/shop/featured API route in src/app/api/shop/featured/route.ts (weekly rotation)
+- [x] T067 [US3] Add cosmetic asset organization in public/cosmetics/ (skins, emotes, victory-poses, badges directories)
+- [x] T068 [US3] Implement Clash Shards transaction logging for audit trail
+- [x] T069 [US3] Add shop item preview assets (thumbnails and full previews)
 
 **Checkpoint**: At this point, User Stories 1, 2, AND 3 work independently - full progression and shop economy functional
 

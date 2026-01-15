@@ -34,7 +34,7 @@ export function GameHeader() {
         if (!address) return;
 
         try {
-            const response = await fetch(`/api/progression/player?playerId=${encodeURIComponent(address)}`);
+            const response = await fetch(`/api/progression/player/${encodeURIComponent(address)}`);
             if (response.ok) {
                 const data = await response.json();
                 if (data.currency) {
