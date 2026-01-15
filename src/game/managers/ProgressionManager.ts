@@ -8,6 +8,7 @@ import { EventBus } from "@/game/EventBus";
 import { calculateMatchXP } from "@/lib/progression/xp-calculator";
 import { getTierRewards } from "@/lib/progression/tier-rewards";
 import { calculateMatchCurrency } from "@/lib/progression/currency-utils";
+import { AchievementTracker } from "./AchievementTracker";
 import type { XPCalculation, TierReward } from "@/types/progression";
 
 /**
