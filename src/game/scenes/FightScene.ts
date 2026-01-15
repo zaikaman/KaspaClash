@@ -10,7 +10,6 @@ import { CHAR_SPRITE_CONFIG, TANK_CHARACTERS, getCharacterScale, getCharacterYOf
 import { CombatEngine, BASE_MOVE_STATS, getCharacterCombatStats } from "../combat";
 import { ChatPanel } from "../ui/ChatPanel";
 import { StickerPicker, STICKER_LIST, type StickerId } from "../ui/StickerPicker";
-import { useInventoryStore } from "@/stores/inventory-store";
 import type { MoveType, PlayerRole } from "@/types";
 import type { CombatState } from "../combat";
 
@@ -146,6 +145,9 @@ export class FightScene extends Phaser.Scene {
 
   // Sticker picker for displaying stickers above character
   private stickerPicker?: StickerPicker;
+  // Track sticker display containers for each player
+  private localStickerDisplay?: Phaser.GameObjects.Container;
+  private opponentStickerDisplay?: Phaser.GameObjects.Container;
 
   constructor() {
     super({ key: "FightScene" });
@@ -240,7 +242,7 @@ export class FightScene extends Phaser.Scene {
     // Use optimized loading - only load the 2 characters in this match
     const player1Char = this.config?.player1Character || "dag-warrior";
     const player2Char = this.config?.player2Character || "dag-warrior";
-    
+
     preloadFightSceneAssets(this, player1Char, player2Char);
 
     // Load stickers
@@ -320,34 +322,8 @@ export class FightScene extends Phaser.Scene {
       // Create sticker picker (positioned left of chat)
       const playerSprite = this.config.playerRole === "player1" ? this.player1Sprite : this.player2Sprite;
 
-      // Get owned stickers from inventory store (Zustand store accessed directly)
-      const inventoryState = useInventoryStore.getState();
-      const ownedStickerItems = inventoryState.getItemsByCategory("sticker");
-
-      // Map cosmetic IDs to sticker IDs 
-      // Sticker cosmetic names in DB match sticker filenames (e.g., "GG Glitch" -> "gg_glitch")
-      const ownedStickerIds: StickerId[] = [];
-      for (const item of ownedStickerItems) {
-        // Match by checking if any sticker's ID appears in the cosmetic thumbnail URL
-        const matchingSticker = STICKER_LIST.find(s =>
-          item.cosmetic.thumbnailUrl?.includes(s.filename)
-        );
-        if (matchingSticker) {
-          ownedStickerIds.push(matchingSticker.id);
-        }
-      }
-
-      console.log("[FightScene] Owned stickers:", ownedStickerIds);
-
-      this.stickerPicker = new StickerPicker(this, {
-        x: GAME_DIMENSIONS.WIDTH - 290,
-        y: GAME_DIMENSIONS.HEIGHT - 50,
-        playerSprite: playerSprite,
-        ownedStickers: ownedStickerIds,
-        onStickerSelected: (stickerId) => {
-          console.log("[FightScene] Sticker selected:", stickerId);
-        },
-      });
+      // Fetch owned stickers from database asynchronously
+      this.fetchAndInitializeStickerPicker(playerSprite);
     }
 
     // Setup event listeners
@@ -447,6 +423,152 @@ export class FightScene extends Phaser.Scene {
     if (this.phase === "selecting" && this.roundTimerText) {
       this.roundTimerText.setText(`${Math.ceil(this.turnTimer)}`);
     }
+  }
+
+  /**
+   * Fetch sticker inventory from database and initialize sticker picker.
+   * Called asynchronously after scene creation.
+   */
+  private async fetchAndInitializeStickerPicker(playerSprite: Phaser.GameObjects.Sprite): Promise<void> {
+    const ownedStickerIds: StickerId[] = [];
+    const playerAddress = this.config.playerRole === "player1" ? this.config.player1Address : this.config.player2Address;
+
+    try {
+      const response = await fetch(`/api/shop/inventory?playerId=${encodeURIComponent(playerAddress)}&pageSize=100&category=sticker`);
+      if (response.ok) {
+        const data = await response.json();
+        const items = data.items as any[];
+        const ownedIds = new Set(data.ownedIds as string[]);
+
+        // Map owned cosmetics to sticker IDs by matching thumbnail URLs
+        for (const item of items) {
+          if (item.category === 'sticker' && ownedIds.has(item.id)) {
+            const matchingSticker = STICKER_LIST.find(s =>
+              item.thumbnailUrl?.includes(s.filename)
+            );
+            if (matchingSticker) {
+              ownedStickerIds.push(matchingSticker.id);
+            }
+          }
+        }
+        console.log("[FightScene] Owned stickers fetched from DB:", ownedStickerIds);
+      } else {
+        console.warn("[FightScene] Failed to fetch sticker inventory:", response.status);
+      }
+    } catch (err) {
+      console.error("[FightScene] Error fetching sticker inventory:", err);
+    }
+
+    // Create sticker picker with fetched data
+    this.stickerPicker = new StickerPicker(this, {
+      x: GAME_DIMENSIONS.WIDTH - 290,
+      y: GAME_DIMENSIONS.HEIGHT - 50,
+      playerSprite: playerSprite,
+      ownedStickers: ownedStickerIds,
+      onStickerSelected: (stickerId) => {
+        console.log("[FightScene] Sticker selected:", stickerId);
+        // Emit event to send sticker to opponent via React/Supabase
+        EventBus.emit("game:sendSticker", { stickerId });
+      },
+    });
+
+    // Listen for opponent stickers
+    EventBus.on("game:stickerMessage", (data: unknown) => {
+      const payload = data as { sender: string; senderAddress: string; stickerId: string; timestamp: number };
+      this.handleOpponentSticker(payload);
+    });
+  }
+
+  /**
+   * Handle sticker message from broadcast.
+   * Displays the sticker above the sender's character (works for both self and opponent).
+   */
+  private handleOpponentSticker(payload: { sender: string; senderAddress: string; stickerId: string; timestamp: number }): void {
+    console.log("[FightScene] Received sticker broadcast:", payload);
+
+    // Determine which sprite to display on based on sender
+    const isOwnSticker = payload.sender === this.config.playerRole;
+    const targetSprite = payload.sender === "player1" ? this.player1Sprite : this.player2Sprite;
+    if (!targetSprite) return;
+
+    // Remove existing sticker for this player if any
+    if (isOwnSticker) {
+      if (this.localStickerDisplay) {
+        this.localStickerDisplay.destroy();
+        this.localStickerDisplay = undefined;
+      }
+    } else {
+      if (this.opponentStickerDisplay) {
+        this.opponentStickerDisplay.destroy();
+        this.opponentStickerDisplay = undefined;
+      }
+    }
+
+    const textureKey = `sticker_${payload.stickerId}`;
+    if (!this.textures.exists(textureKey)) {
+      console.warn("[FightScene] Sticker texture not found:", textureKey);
+      return;
+    }
+
+    // Create container for sticker above the sender's character
+    const container = this.add.container(targetSprite.x, targetSprite.y - 150);
+    container.setDepth(1000);
+
+    // Sticker image
+    const stickerImg = this.add.image(0, 0, textureKey);
+    const targetSize = 80;
+    const scale = Math.min(targetSize / stickerImg.width, targetSize / stickerImg.height);
+    stickerImg.setScale(scale);
+    container.add(stickerImg);
+
+    // Store reference
+    if (isOwnSticker) {
+      this.localStickerDisplay = container;
+    } else {
+      this.opponentStickerDisplay = container;
+    }
+
+    // Pop-in animation
+    container.setScale(0);
+    this.tweens.add({
+      targets: container,
+      scaleX: 1,
+      scaleY: 1,
+      duration: 300,
+      ease: "Back.easeOut",
+    });
+
+    // Swaying animation
+    this.tweens.add({
+      targets: container,
+      y: container.y - 8,
+      angle: { from: -5, to: 5 },
+      duration: 800,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+
+    // Fade out and destroy after display duration (5 seconds)
+    this.time.delayedCall(5000, () => {
+      if (container && container.active) {
+        this.tweens.add({
+          targets: container,
+          alpha: 0,
+          y: container.y - 30,
+          duration: 400,
+          ease: "Quad.easeIn",
+          onComplete: () => {
+            container.destroy();
+            if (isOwnSticker && this.localStickerDisplay === container) {
+              this.localStickerDisplay = undefined;
+            } else if (!isOwnSticker && this.opponentStickerDisplay === container) {
+              this.opponentStickerDisplay = undefined;
+            }
+          },
+        });
+      }
+    });
   }
 
   // ===========================================================================
@@ -602,7 +724,7 @@ export class FightScene extends Phaser.Scene {
     // Position above the character
     // Characters are approx 200-250px tall after scaling (450 * 0.45 = ~200)
     const x = targetSprite.x;
-    const y = targetSprite.y - 120; // Adjust height based on scaling
+    const y = targetSprite.y - 160; // Adjust height based on scaling
 
     // Create container for the indicator
     const container = this.add.container(x, y);

@@ -22,6 +22,7 @@ import type {
   MatchStartingPayload,
   CharacterSelectedPayload,
   ChatMessagePayload,
+  StickerPayload,
 } from "@/types/websocket";
 import type { PlayerRole } from "@/types";
 
@@ -54,6 +55,7 @@ export interface UseGameChannelOptions {
   onCharacterSelected?: (payload: CharacterSelectedPayload) => void;
   onMatchStarting?: (payload: MatchStartingPayload) => void;
   onChatMessage?: (payload: ChatMessagePayload) => void;
+  onStickerMessage?: (payload: StickerPayload) => void;
   onPlayerJoin?: (presence: GamePlayerPresence) => void;
   onPlayerLeave?: (address: string) => void;
   onError?: (error: string) => void;
@@ -68,6 +70,7 @@ export interface UseGameChannelReturn {
   unsubscribe: () => void;
   trackPresence: (isReady: boolean) => Promise<void>;
   sendChatMessage: (message: string) => Promise<void>;
+  sendSticker: (stickerId: string) => Promise<void>;
 }
 
 // =============================================================================
@@ -87,6 +90,7 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
     onCharacterSelected,
     onMatchStarting,
     onChatMessage,
+    onStickerMessage,
     onPlayerJoin,
     onPlayerLeave,
     onError,
@@ -367,6 +371,23 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
   );
 
   /**
+   * Handle sticker_displayed event.
+   * Display sticker from opponent above their character.
+   */
+  const handleStickerMessage = useCallback(
+    (payload: StickerPayload) => {
+      console.log("[GameChannel] sticker_displayed:", payload);
+
+      // Emit to Phaser to display sticker
+      EventBus.emit("game:stickerMessage", payload);
+
+      // Call user callback
+      onStickerMessage?.(payload);
+    },
+    [onStickerMessage]
+  );
+
+  /**
    * Handle presence sync.
    */
   const handlePresenceSync = useCallback(() => {
@@ -470,6 +491,7 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
       const channel = supabase.channel(channelName, {
         config: {
           presence: { key: playerAddress },
+          broadcast: { self: true }, // Receive own broadcasts for synchronized sticker timing
         },
       });
 
@@ -510,6 +532,9 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
         })
         .on("broadcast", { event: "chat_message" }, ({ payload }) => {
           handleChatMessage(payload as ChatMessagePayload);
+        })
+        .on("broadcast", { event: "sticker_displayed" }, ({ payload }) => {
+          handleStickerMessage(payload as StickerPayload);
         });
 
       // Set up presence listeners
@@ -657,6 +682,37 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
     [playerRole, playerAddress]
   );
 
+  /**
+   * Send a sticker to the opponent via broadcast.
+   */
+  const sendSticker = useCallback(
+    async (stickerId: string) => {
+      if (!channelRef.current) {
+        console.warn("[GameChannel] Cannot send sticker - not connected");
+        return;
+      }
+
+      const payload: StickerPayload = {
+        sender: playerRole,
+        senderAddress: playerAddress,
+        stickerId,
+        timestamp: Date.now(),
+      };
+
+      try {
+        await channelRef.current.send({
+          type: "broadcast",
+          event: "sticker_displayed",
+          payload,
+        });
+        console.log("[GameChannel] Sticker sent:", stickerId);
+      } catch (error) {
+        console.error("[GameChannel] Failed to send sticker:", error);
+      }
+    },
+    [playerRole, playerAddress]
+  );
+
   // ===========================================================================
   // LIFECYCLE
   // ===========================================================================
@@ -686,6 +742,7 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
     unsubscribe,
     trackPresence,
     sendChatMessage,
+    sendSticker,
   };
 }
 

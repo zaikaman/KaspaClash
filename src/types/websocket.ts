@@ -298,6 +298,21 @@ export interface ChatMessagePayload {
   timestamp: number;
 }
 
+/**
+ * Event: sticker_displayed
+ * Sent when a player displays a sticker above their character.
+ */
+export interface StickerPayload {
+  /** The player who displayed the sticker */
+  sender: PlayerRole;
+  /** The sender's wallet address */
+  senderAddress: string;
+  /** The sticker ID being displayed */
+  stickerId: string;
+  /** Unix timestamp when sticker was displayed */
+  timestamp: number;
+}
+
 // =============================================================================
 // TYPED EVENT MAP
 // =============================================================================
@@ -317,6 +332,7 @@ export interface WebSocketEventMap {
   player_disconnected: PlayerDisconnectedPayload;
   state_sync: StateSyncPayload;
   chat_message: ChatMessagePayload;
+  sticker_displayed: StickerPayload;
 }
 
 /**

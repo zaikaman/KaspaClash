@@ -348,13 +348,13 @@ export class StickerPicker extends Phaser.GameObjects.Container {
         // Close the panel
         this.closePanel();
 
-        // Display the sticker above the player
-        this.displaySticker(stickerId);
+        // NOTE: Don't display locally here - wait for broadcast to sync timing with opponent
+        // The sticker will be displayed when we receive our own broadcast back
 
         // Start cooldown
         this.startCooldown();
 
-        // Emit event
+        // Emit event (will broadcast to channel, we receive our own broadcast)
         if (this.config.onStickerSelected) {
             this.config.onStickerSelected(stickerId);
         }

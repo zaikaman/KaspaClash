@@ -189,6 +189,9 @@ export default function ShopPage() {
             updateCurrencyBalance(result.newBalance);
         }
         setOwnedIds(prev => new Set([...prev, purchaseItem.id]));
+        
+        // Refresh inventory to fetch updated data from database
+        await fetchInventory();
     };
 
     // Filter items by category for display

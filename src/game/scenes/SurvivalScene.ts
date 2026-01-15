@@ -369,7 +369,7 @@ export class SurvivalScene extends Phaser.Scene {
 
     private createPlayerIndicator(): void {
         const x = this.player1Sprite.x;
-        const y = this.player1Sprite.y - 120;
+        const y = this.player1Sprite.y - 160;
 
         const container = this.add.container(x, y);
 

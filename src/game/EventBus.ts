@@ -70,6 +70,10 @@ export interface GameEvents {
   // Chat Events
   "game:chatMessage": { sender: string; senderAddress: string; message: string; timestamp: number };
   "game:sendChat": { message: string };
+
+  // Sticker Events
+  "game:stickerMessage": { sender: string; senderAddress: string; stickerId: string; timestamp: number };
+  "game:sendSticker": { stickerId: string };
 }
 
 /**

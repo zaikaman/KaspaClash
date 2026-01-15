@@ -46,8 +46,8 @@ export const BASE_GAME_CONFIG: Phaser.Types.Core.GameConfig = {
 
   // Rendering options - optimized for performance
   render: {
-    antialias: false, // Disable for better performance on weak devices
-    antialiasGL: false, // Disable WebGL antialiasing
+    antialias: true, // Keep visual quality high
+    antialiasGL: true, // Keep WebGL antialiasing for smooth edges
     pixelArt: false,
     roundPixels: true, // Prevents sub-pixel rendering issues
     transparent: false,
@@ -56,7 +56,6 @@ export const BASE_GAME_CONFIG: Phaser.Types.Core.GameConfig = {
     powerPreference: "high-performance", // Request high-performance GPU
     batchSize: 4096, // Default batch size for sprite batching
     maxTextures: -1, // Auto-detect max textures
-    mipmapFilter: "NEAREST", // Faster mipmap filtering
   },
 
   // Audio configuration

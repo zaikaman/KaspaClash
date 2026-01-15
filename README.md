@@ -25,6 +25,7 @@
 - [Game Architecture](#game-architecture)
 - [Getting Started](#getting-started)
 - [Project Structure](#project-structure)
+- [Progression System](#progression-system)
 - [Game Mechanics](#game-mechanics)
 - [Kaspa Integration](#kaspa-integration)
 - [API Documentation](#api-documentation)
@@ -73,18 +74,33 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 
 ### 🎮 Core Gameplay
 - **Turn-Based Combat System:** Strategic rock-paper-scissors style fighting with energy management
-- **4 Unique Characters:** Each fighter embodies a Kaspa concept (Speed, DAG, Security, PoW)
+- **20 Unique Characters:** Diverse roster of fighters with unique stats and abilities
 - **Multiple Game Modes:**
   - **Ranked Matchmaking:** ELO-based competitive queue
   - **Private Rooms:** 6-character room codes for custom matches
   - **Practice Mode:** Offline AI training
+  - **Survival Mode:** Endless wave-based challenge with escalating difficulty
   - **Spectator Mode:** Watch live matches with real-time betting
+
+### 🏆 Progression & Rewards
+- **Battle Pass System:** Progress through 50 tiers by earning XP from matches and quests
+- **Daily Quests:** Complete 3 rotating objectives daily (Easy/Medium/Hard difficulty)
+- **Achievement System:** Unlock 60+ achievements across 5 categories (Combat, Mastery, Social, Collection, Milestones)
+- **Prestige System:** Reset progression at tier 50 for permanent XP/currency multipliers and exclusive rewards
+- **Clash Shards Currency:** Earn in-game currency from matches, quests, and achievements
+- **Season System:** Seasonal battle pass content with unique rewards and progression resets
+
+### 🛍️ Customization & Shop
+- **Cosmetic Shop:** Browse and purchase skins, emotes, victory poses, and profile badges
+- **Weekly Featured Rotation:** Special limited-time items with exclusive designs
+- **Inventory Management:** Track owned cosmetics and transaction history
+- **Currency Economy:** Spend Clash Shards earned from gameplay to unlock new cosmetics
 
 ### 🔗 Blockchain Features
 - **Kaspa Wallet Integration:** Seamless connection via Kasware wallet
 - **Live Betting System:** Spectators can bet on match outcomes with instant confirmations
 - **On-Chain Leaderboard:** Transparent ranking system powered by ELO ratings
-- **Match History:** All game results stored permanently on-chain
+- **Match History:** All game results stored with blockchain verification
 - **Transaction Verification:** Real-time bet confirmation and payout tracking
 
 ### 📹 Replay & Sharing
@@ -325,6 +341,10 @@ KaspaClash/
 ├── src/
 │   ├── app/                         # Next.js App Router
 │   │   ├── api/                     # API routes (serverless functions)
+│   │   │   ├── achievements/        # Achievement system endpoints
+│   │   │   │   ├── list/            # GET - Fetch all achievements
+│   │   │   │   ├── unlock/          # POST - Unlock achievement
+│   │   │   │   └── progress/        # GET - Fetch progress
 │   │   │   ├── betting/             # Betting system endpoints
 │   │   │   │   ├── place/           # POST - Place bet
 │   │   │   │   ├── pool/            # GET - Get betting pool
@@ -339,9 +359,30 @@ KaspaClash/
 │   │   │   ├── matchmaking/
 │   │   │   │   ├── queue/           # POST - Join/leave queue
 │   │   │   │   └── rooms/           # POST - Create/join private room
-│   │   │   └── players/
-│   │   │       ├── [address]/       # GET - Player profile
-│   │   │       └── create/          # POST - Create player
+│   │   │   ├── players/
+│   │   │   │   ├── [address]/       # GET - Player profile
+│   │   │   │   └── create/          # POST - Create player
+│   │   │   ├── progression/         # Battle Pass progression endpoints
+│   │   │   │   ├── award-xp/        # POST - Award XP
+│   │   │   │   ├── unlock-tier/     # POST - Unlock tier
+│   │   │   │   ├── prestige/        # POST - Execute prestige
+│   │   │   │   └── prestige-status/ # GET - Check eligibility
+│   │   │   ├── quests/              # Daily quest system endpoints
+│   │   │   │   ├── daily/           # GET - Fetch active quests
+│   │   │   │   ├── claim/           # POST - Claim quest rewards
+│   │   │   │   └── progress/        # POST - Update progress
+│   │   │   ├── shop/                # Cosmetic shop endpoints
+│   │   │   │   ├── inventory/       # GET - Fetch shop items
+│   │   │   │   ├── purchase/        # POST - Process purchase
+│   │   │   │   └── featured/        # GET - Weekly rotation
+│   │   │   └── survival/            # Survival mode endpoints
+│   │   │       ├── start/           # POST - Initialize run
+│   │   │       ├── end/             # POST - Save results
+│   │   │       └── leaderboard/     # GET - Fetch rankings
+│   │   ├── achievements/
+│   │   │   └── page.tsx             # Achievement collection screen
+│   │   ├── battle-pass/
+│   │   │   └── page.tsx             # Battle Pass progression screen
 │   │   ├── leaderboard/
 │   │   │   └── page.tsx             # Leaderboard page
 │   │   ├── m/[matchId]/             # Short URL for matches
@@ -354,21 +395,35 @@ KaspaClash/
 │   │   │   └── page.tsx
 │   │   ├── practice/
 │   │   │   └── page.tsx             # Practice mode
+│   │   ├── quests/
+│   │   │   └── page.tsx             # Daily quests screen
 │   │   ├── queue/
 │   │   │   └── page.tsx             # Queue waiting room
 │   │   ├── replay/[matchId]/        # Match replay viewer
 │   │   │   └── page.tsx
+│   │   ├── shop/
+│   │   │   └── page.tsx             # Cosmetic shop screen
 │   │   ├── spectate/
 │   │   │   ├── page.tsx             # Spectator lobby
 │   │   │   └── [matchId]/           # Live spectate match
 │   │   │       └── page.tsx
+│   │   ├── survival/
+│   │   │   └── page.tsx             # Survival mode launcher
 │   │   ├── layout.tsx               # Root layout with providers
 │   │   ├── page.tsx                 # Landing page
 │   │   └── globals.css              # Global styles
 │   │
 │   ├── components/                  # React components
+│   │   ├── achievements/
+│   │   │   ├── AchievementCard.tsx  # Individual achievement display
+│   │   │   ├── AchievementGrid.tsx  # Achievement collection grid
+│   │   │   ├── ProgressBar.tsx      # Progress tracking
+│   │   │   └── UnlockNotification.tsx # Achievement unlock popup
 │   │   ├── betting/
 │   │   │   └── BettingPanel.tsx     # Live betting UI for spectators
+│   │   ├── currency/
+│   │   │   ├── ClashShardsDisplay.tsx # Currency balance display
+│   │   │   └── TransactionHistory.tsx # Earn/spend log
 │   │   ├── game/
 │   │   │   └── MatchResults.tsx     # Post-match results display
 │   │   ├── landing/
@@ -390,14 +445,32 @@ KaspaClash/
 │   │   │   ├── PracticeGameClient.tsx
 │   │   │   ├── PracticeMenu.tsx
 │   │   │   └── PracticeResults.tsx
+│   │   ├── progression/
+│   │   │   ├── BattlePassTiers.tsx  # 50-tier grid display
+│   │   │   ├── PrestigeConfirmation.tsx # Prestige modal
+│   │   │   ├── TierUnlockModal.tsx  # Tier unlock celebration
+│   │   │   └── XPProgressBar.tsx    # Current tier progress
 │   │   ├── providers/
 │   │   │   └── WalletProvider.tsx   # Wallet context provider
+│   │   ├── quests/
+│   │   │   ├── DailyQuestList.tsx   # 3 active quests display
+│   │   │   ├── QuestCard.tsx        # Individual quest card
+│   │   │   └── QuestClaimButton.tsx # Claim rewards button
 │   │   ├── share/
 │   │   │   ├── MatchSummary.tsx
 │   │   │   ├── ShareMatchButton.tsx
 │   │   │   └── TransactionTimeline.tsx
 │   │   ├── shared/
 │   │   │   └── NetworkModeIndicator.tsx
+│   │   ├── shop/
+│   │   │   ├── CategoryFilter.tsx   # Shop category tabs
+│   │   │   ├── CosmeticPreview.tsx  # Item preview modal
+│   │   │   ├── PurchaseModal.tsx    # Purchase confirmation
+│   │   │   └── ShopGrid.tsx         # Shop item grid
+│   │   ├── survival/
+│   │   │   ├── SurvivalLauncher.tsx # Mode selection screen
+│   │   │   ├── SurvivalResults.tsx  # Post-run stats
+│   │   │   └── WaveTransition.tsx   # Wave number display
 │   │   ├── ui/                      # shadcn/ui components
 │   │   │   ├── button.tsx
 │   │   │   ├── card.tsx
@@ -419,12 +492,16 @@ KaspaClash/
 │   │   │   └── index.ts
 │   │   ├── handlers/                # Event handlers
 │   │   ├── input/                   # Input management
+│   │   ├── managers/
+│   │   │   ├── AchievementTracker.ts # In-game achievement tracking
+│   │   │   └── ProgressionManager.ts # XP award management
 │   │   ├── scenes/
 │   │   │   ├── CharacterSelectScene.ts
 │   │   │   ├── FightScene.ts        # Main battle arena (3485 lines)
 │   │   │   ├── PracticeScene.ts
 │   │   │   ├── ReplayScene.ts
-│   │   │   └── ResultsScene.ts
+│   │   │   ├── ResultsScene.ts
+│   │   │   └── SurvivalScene.ts     # Survival mode scene
 │   │   ├── sprites/                 # Sprite management
 │   │   ├── ui/                      # In-game UI elements
 │   │   ├── AudioKeys.ts             # Audio asset constants
@@ -437,10 +514,15 @@ KaspaClash/
 │   │   ├── useBettingPool.ts        # Betting state management
 │   │   ├── useGameChannel.ts        # Realtime game events (674 lines)
 │   │   ├── useMatchmakingQueue.ts   # Queue management (407 lines)
+│   │   ├── useQuestProgress.ts      # Quest progress tracking
 │   │   ├── useSpectatorChannel.ts   # Spectator mode events
 │   │   └── useWallet.ts             # Wallet connection state
 │   │
 │   ├── lib/                         # Core libraries
+│   │   ├── achievements/
+│   │   │   ├── achievement-definitions.ts # 80+ achievement configs
+│   │   │   ├── achievement-evaluator.ts # Completion checking
+│   │   │   └── achievement-tracker.ts # Progress tracking
 │   │   ├── api/                     # API client utilities
 │   │   ├── betting/
 │   │   │   ├── betting-service.ts   # Odds calculation & payouts (422 lines)
@@ -456,33 +538,72 @@ KaspaClash/
 │   │   ├── leaderboard/             # Ranking algorithms
 │   │   ├── matchmaking/             # Matchmaking logic
 │   │   ├── player/                  # Player management
+│   │   ├── progression/
+│   │   │   ├── currency-utils.ts    # Clash Shards utilities
+│   │   │   ├── prestige-calculator.ts # Prestige multipliers
+│   │   │   ├── prestige-handler.ts  # Prestige reset logic
+│   │   │   ├── season-manager.ts    # Season transitions
+│   │   │   ├── tier-rewards.ts      # Reward distribution
+│   │   │   └── xp-calculator.ts     # XP curve calculations
+│   │   ├── quests/
+│   │   │   ├── quest-generator.ts   # Daily quest selection
+│   │   │   ├── quest-templates.ts   # 40+ quest definitions
+│   │   │   └── quest-validator.ts   # Server-side validation
 │   │   ├── rating/                  # ELO rating system
 │   │   ├── share/                   # Social sharing utilities
+│   │   ├── shop/
+│   │   │   ├── purchase-handler.ts  # Transaction processing
+│   │   │   ├── rotation-scheduler.ts # Weekly featured items
+│   │   │   └── shop-inventory.ts    # Item catalog management
 │   │   ├── supabase/
 │   │   │   ├── client.ts            # Browser client
 │   │   │   └── types.ts             # Generated database types
+│   │   ├── survival/
+│   │   │   ├── leaderboard-updater.ts # Rank management
+│   │   │   ├── score-calculator.ts  # Scoring formulas
+│   │   │   └── wave-generator.ts    # AI difficulty scaling
 │   │   └── utils.ts                 # Shared utilities
 │   │
 │   ├── stores/                      # Zustand state stores
+│   │   ├── achievement-store.ts     # Achievement state
+│   │   ├── inventory-store.ts       # Cosmetic inventory
 │   │   ├── match-store.ts           # Match state
 │   │   ├── matchmaking-store.ts     # Queue state
 │   │   ├── network-store.ts         # Network status
 │   │   ├── practice-store.ts        # Practice mode state
+│   │   ├── progression-store.ts     # Battle Pass state
+│   │   ├── quest-store.ts           # Quest state
+│   │   ├── shop-store.ts            # Shop state
 │   │   └── wallet-store.ts          # Wallet state (167 lines)
 │   │
 │   └── types/                       # TypeScript definitions
+│       ├── achievement.ts           # Achievement types
 │       ├── api.ts                   # API response types
+│       ├── blockchain.ts            # Blockchain anchor types
 │       ├── constants.ts             # Game constants
+│       ├── cosmetic.ts              # Cosmetic item types
 │       ├── database.ts              # Database types
 │       ├── index.ts                 # Core game types (255 lines)
 │       ├── kaspa.ts                 # Kaspa SDK types
 │       ├── kaspalib.d.ts            # kaspalib type declarations
+│       ├── progression.ts           # Progression types
+│       ├── quest.ts                 # Quest types
 │       └── websocket.ts             # Realtime event types
 │
 ├── supabase/
 │   └── migrations/
-│       ├── 001_initial_schema.sql   # Database schema (128 lines)
-│       └── 002_rls_policies.sql     # Row Level Security policies
+│       ├── 001_initial_schema.sql   # Core database schema (128 lines)
+│       ├── 002_rls_policies.sql     # Row Level Security policies
+│       ├── 020_battle_pass_schema.sql # Battle Pass tables
+│       ├── 021_quests_schema.sql    # Daily quest tables
+│       ├── 022_cosmetics_shop.sql   # Shop & inventory tables
+│       ├── 023_achievements_schema.sql # Achievement tables
+│       ├── 024_blockchain_anchors.sql # Blockchain verification
+│       ├── 025_rls_progression.sql  # Progression RLS policies
+│       ├── 026_rls_quests.sql       # Quest RLS policies
+│       ├── 027_rls_cosmetics.sql    # Cosmetics RLS policies
+│       ├── 028_rls_achievements.sql # Achievement RLS policies
+│       └── 029_indexes.sql          # Performance indexes
 │
 ├── components.json                  # shadcn/ui configuration
 ├── eslint.config.mjs                # ESLint configuration
@@ -492,6 +613,128 @@ KaspaClash/
 ├── tailwind.config.ts               # Tailwind CSS configuration
 └── tsconfig.json                    # TypeScript configuration
 ```
+
+---
+
+## 🏆 Progression System
+
+### Battle Pass (50 Tiers)
+
+KaspaClash features a comprehensive Battle Pass system with seasonal progression:
+
+#### XP System
+- **XP Sources:**
+  - Match completion: Base XP + performance bonuses
+  - Daily quests: 100-500 XP per quest
+  - Achievements: 50-1000 XP per unlock
+  - Survival mode: XP based on waves survived
+  
+- **XP Curve:** Hybrid exponential-linear progression
+  - Early tiers (1-10): ~500-800 XP per tier
+  - Mid tiers (11-30): ~800-1200 XP per tier
+  - Late tiers (31-50): ~1200-2000 XP per tier
+
+#### Tier Rewards
+Each tier unlocks rewards including:
+- **Clash Shards:** 50-500 shards per tier
+- **Cosmetics:** Skins, emotes, victory poses, badges
+- **Milestone Rewards:** Special items at tiers 10, 25, 50
+
+#### Season System
+- **Duration:** 8-12 weeks per season
+- **Season Transition:** Automatic rollover with progress reset
+- **Season History:** Track lifetime progress across all seasons
+
+### Daily Quests
+
+Complete 3 rotating daily objectives for bonus rewards:
+
+#### Quest Difficulties
+- **Easy (100 XP + 50 Shards):** Play 3 matches, deal 500 damage
+- **Medium (250 XP + 100 Shards):** Win 2 matches, execute 5 combos
+- **Hard (500 XP + 200 Shards):** Win 3 matches in a row, perfect block 10 times
+
+#### Quest Features
+- **Daily Reset:** Midnight UTC automatic refresh
+- **Quest Pool:** 40+ unique quest templates across multiple categories
+- **Progress Tracking:** Real-time progress updates via Supabase Realtime
+- **Smart Generation:** Ensures variety with weighted random selection
+
+### Achievement System
+
+Unlock 80+ achievements across 5 categories:
+
+#### Categories
+1. **Combat (25 achievements):** Win streaks, perfect rounds, specific move mastery
+2. **Mastery (20 achievements):** Character-specific challenges, advanced combos
+3. **Social (15 achievements):** Matchmaking, spectating, betting
+4. **Collection (10 achievements):** Cosmetic unlocks, shop purchases
+5. **Milestones (10 achievements):** Prestige levels, total matches, lifetime stats
+
+#### Achievement Rewards
+- **XP Bonuses:** 50-1000 XP per achievement
+- **Clash Shards:** 25-500 shards per achievement
+- **Cosmetic Unlocks:** Exclusive badges and profile frames
+- **Mastery Badges:** Complete all achievements in a category for special rewards
+
+### Prestige System
+
+For dedicated players who reach tier 50:
+
+#### Prestige Benefits
+- **Permanent Bonuses:**
+  - +10% XP multiplier per prestige level (stacks)
+  - +5% Clash Shards earnings per prestige level
+  - Exclusive cosmetic rewards at prestige levels 1, 5, 10
+  
+- **Visual Recognition:**
+  - Prestige badge on profile with animated effects
+  - Special nameplate borders and auras
+  - Leaderboard prestige level display
+
+#### Prestige Process
+1. Reach Battle Pass tier 50
+2. Option to prestige becomes available
+3. Confirm reset (tier progress returns to 1, rewards retained)
+4. Receive prestige badge + multipliers
+5. Continue earning XP with enhanced bonuses
+
+### Cosmetic Shop
+
+Spend earned Clash Shards on customization:
+
+#### Shop Categories
+- **Skins:** Character-specific alternate appearances
+- **Emotes:** Animated expressions for pre/post-match
+- **Victory Poses:** Special animations for match victories
+- **Profile Badges:** Decorative profile customization
+
+#### Shop Features
+- **Weekly Featured Rotation:** 4-6 limited-time exclusive items
+- **Rarity Tiers:** Common, Rare, Epic, Legendary
+- **Preview System:** View cosmetics before purchasing
+- **Transaction History:** Track all Clash Shards spending
+
+#### Pricing
+- **Common:** 100-250 Shards
+- **Rare:** 300-500 Shards
+- **Epic:** 600-1000 Shards
+- **Legendary:** 1200-2500 Shards
+
+### Survival Mode
+
+Endless wave-based challenge mode:
+
+#### Gameplay
+- **Wave System:** Fight progressively harder AI opponents
+- **Difficulty Scaling:** +10% HP, +5% damage per wave
+- **Milestone Bonuses:** Extra rewards every 5 waves
+- **Leaderboard:** Top 100 players by waves survived
+
+#### Rewards
+- **XP Earned:** 50 XP per wave survived
+- **Clash Shards:** 25 shards per wave + bonus for milestones
+- **Exclusive Cosmetics:** Unlockable only through survival achievements
 
 ---
 
@@ -778,7 +1021,321 @@ Fetch top players.
       "wins": 45,
       "losses": 12,
       "rating": 1850,
-      "winRate": 0.789
+      "winRate": 0.789,
+      "prestigeLevel": 2
+    }
+  ]
+}
+```
+
+### Progression Endpoints
+
+#### POST `/api/progression/award-xp`
+Award XP to a player for match completion or other activities.
+
+**Request Body:**
+```json
+{
+  "playerAddress": "kaspa:qz...",
+  "xpAmount": 150,
+  "source": "match_completion"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "newXp": 2350,
+  "currentTier": 15,
+  "tierUnlocked": false,
+  "prestigeMultiplier": 1.2
+}
+```
+
+#### POST `/api/progression/unlock-tier`
+Unlock a battle pass tier and claim rewards.
+
+**Request Body:**
+```json
+{
+  "playerAddress": "kaspa:qz...",
+  "tierNumber": 16
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "rewards": {
+    "clashShards": 150,
+    "cosmetics": ["skin_cyber_ninja_02"]
+  }
+}
+```
+
+#### POST `/api/progression/prestige`
+Execute prestige for a player at tier 50.
+
+**Request Body:**
+```json
+{
+  "playerAddress": "kaspa:qz..."
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "prestigeLevel": 3,
+  "bonuses": {
+    "xpMultiplier": 1.3,
+    "shardMultiplier": 1.15
+  },
+  "rewards": ["prestige_badge_03", "prestige_aura_gold"]
+}
+```
+
+### Quest Endpoints
+
+#### GET `/api/quests/daily?playerAddress=kaspa:qz...`
+Fetch active daily quests for a player.
+
+**Response:**
+```json
+{
+  "quests": [
+    {
+      "id": "uuid",
+      "difficulty": "easy",
+      "description": "Play 3 matches",
+      "objectiveType": "play_matches",
+      "targetValue": 3,
+      "currentProgress": 1,
+      "xpReward": 100,
+      "shardReward": 50,
+      "isCompleted": false,
+      "isClaimed": false,
+      "expiresAt": "2026-01-16T00:00:00Z"
+    }
+  ]
+}
+```
+
+#### POST `/api/quests/claim`
+Claim rewards for a completed quest.
+
+**Request Body:**
+```json
+{
+  "playerAddress": "kaspa:qz...",
+  "questId": "uuid"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "rewards": {
+    "xp": 100,
+    "clashShards": 50
+  }
+}
+```
+
+#### POST `/api/quests/progress`
+Update progress for a quest.
+
+**Request Body:**
+```json
+{
+  "playerAddress": "kaspa:qz...",
+  "questId": "uuid",
+  "progressIncrement": 1
+}
+```
+
+### Shop Endpoints
+
+#### GET `/api/shop/inventory`
+Fetch all available cosmetic items.
+
+**Response:**
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "itemId": "skin_dag_warrior_02",
+      "name": "DAG Warrior Neon Skin",
+      "type": "skin",
+      "rarity": "epic",
+      "price": 800,
+      "isFeatured": false,
+      "characterId": "dag-warrior",
+      "previewUrl": "https://...",
+      "thumbnailUrl": "https://..."
+    }
+  ]
+}
+```
+
+#### POST `/api/shop/purchase`
+Purchase a cosmetic item with Clash Shards.
+
+**Request Body:**
+```json
+{
+  "playerAddress": "kaspa:qz...",
+  "cosmeticId": "uuid"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "item": {
+    "itemId": "skin_dag_warrior_02",
+    "name": "DAG Warrior Neon Skin"
+  },
+  "remainingShards": 2450
+}
+```
+
+#### GET `/api/shop/featured`
+Get weekly featured items.
+
+**Response:**
+```json
+{
+  "featured": [
+    {
+      "itemId": "emote_legendary_taunt",
+      "name": "Legendary Taunt",
+      "type": "emote",
+      "rarity": "legendary",
+      "price": 2000,
+      "endsAt": "2026-01-22T00:00:00Z"
+    }
+  ]
+}
+```
+
+### Achievement Endpoints
+
+#### GET `/api/achievements/list?playerAddress=kaspa:qz...`
+Fetch all achievements and player progress.
+
+**Response:**
+```json
+{
+  "achievements": [
+    {
+      "id": "uuid",
+      "achievementId": "win_10_matches",
+      "name": "Veteran Fighter",
+      "description": "Win 10 ranked matches",
+      "category": "combat",
+      "requirementType": "win_matches",
+      "requirementValue": 10,
+      "xpReward": 200,
+      "shardReward": 100,
+      "progress": 7,
+      "isUnlocked": false
+    }
+  ]
+}
+```
+
+#### POST `/api/achievements/unlock`
+Unlock an achievement (server-validated).
+
+**Request Body:**
+```json
+{
+  "playerAddress": "kaspa:qz...",
+  "achievementId": "win_10_matches"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "achievement": {
+    "name": "Veteran Fighter",
+    "xpReward": 200,
+    "shardReward": 100,
+    "cosmeticReward": "badge_veteran"
+  }
+}
+```
+
+### Survival Endpoints
+
+#### POST `/api/survival/start`
+Initialize a survival mode run.
+
+**Request Body:**
+```json
+{
+  "playerAddress": "kaspa:qz...",
+  "characterId": "cyber-ninja"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "runId": "uuid",
+  "startingWave": 1
+}
+```
+
+#### POST `/api/survival/end`
+Save survival run results.
+
+**Request Body:**
+```json
+{
+  "playerAddress": "kaspa:qz...",
+  "runId": "uuid",
+  "wavesSurvived": 23,
+  "finalScore": 5640
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "rewards": {
+    "xp": 1150,
+    "clashShards": 575
+  },
+  "leaderboardRank": 42
+}
+```
+
+#### GET `/api/survival/leaderboard?limit=100`
+Fetch survival mode rankings.
+
+**Response:**
+```json
+{
+  "entries": [
+    {
+      "rank": 1,
+      "playerAddress": "kaspa:qz...",
+      "displayName": "SurvivalKing",
+      "wavesSurvived": 47,
+      "score": 12850,
+      "characterUsed": "block-bruiser"
     }
   ]
 }
@@ -824,6 +1381,144 @@ CREATE TABLE matches (
 );
 ```
 
+### Progression Tables
+
+#### `battle_pass_seasons`
+```sql
+CREATE TABLE battle_pass_seasons (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  season_number INTEGER UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  start_date TIMESTAMPTZ NOT NULL,
+  end_date TIMESTAMPTZ NOT NULL,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+#### `battle_pass_tiers`
+```sql
+CREATE TABLE battle_pass_tiers (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  season_id UUID REFERENCES battle_pass_seasons(id),
+  tier_number INTEGER NOT NULL,
+  xp_required INTEGER NOT NULL,
+  rewards JSONB NOT NULL,                -- {shards: 100, cosmetics: [...]}
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(season_id, tier_number)
+);
+```
+
+#### `player_progression`
+```sql
+CREATE TABLE player_progression (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  player_address TEXT REFERENCES players(address),
+  season_id UUID REFERENCES battle_pass_seasons(id),
+  current_xp INTEGER DEFAULT 0,
+  current_tier INTEGER DEFAULT 1,
+  clash_shards INTEGER DEFAULT 0,
+  prestige_level INTEGER DEFAULT 0,
+  lifetime_xp BIGINT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(player_address, season_id)
+);
+```
+
+#### `daily_quests`
+```sql
+CREATE TABLE daily_quests (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  template_id TEXT NOT NULL,
+  difficulty TEXT NOT NULL,              -- easy | medium | hard
+  description TEXT NOT NULL,
+  objective_type TEXT NOT NULL,          -- win_matches | deal_damage | etc
+  target_value INTEGER NOT NULL,
+  xp_reward INTEGER NOT NULL,
+  shard_reward INTEGER NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+#### `player_quest_progress`
+```sql
+CREATE TABLE player_quest_progress (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  player_address TEXT REFERENCES players(address),
+  quest_id UUID REFERENCES daily_quests(id),
+  current_progress INTEGER DEFAULT 0,
+  is_completed BOOLEAN DEFAULT false,
+  is_claimed BOOLEAN DEFAULT false,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(player_address, quest_id)
+);
+```
+
+#### `achievements`
+```sql
+CREATE TABLE achievements (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  achievement_id TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL,
+  category TEXT NOT NULL,                -- combat | mastery | social | collection | milestones
+  requirement_type TEXT NOT NULL,
+  requirement_value INTEGER NOT NULL,
+  xp_reward INTEGER NOT NULL,
+  shard_reward INTEGER NOT NULL,
+  cosmetic_reward TEXT,
+  icon_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+#### `player_achievements`
+```sql
+CREATE TABLE player_achievements (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  player_address TEXT REFERENCES players(address),
+  achievement_id UUID REFERENCES achievements(id),
+  progress INTEGER DEFAULT 0,
+  is_unlocked BOOLEAN DEFAULT false,
+  unlocked_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(player_address, achievement_id)
+);
+```
+
+#### `cosmetic_items`
+```sql
+CREATE TABLE cosmetic_items (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  item_id TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,                    -- skin | emote | victory_pose | badge
+  rarity TEXT NOT NULL,                  -- common | rare | epic | legendary
+  price INTEGER NOT NULL,                -- Cost in Clash Shards
+  is_featured BOOLEAN DEFAULT false,
+  character_id TEXT,                     -- NULL for universal items
+  preview_url TEXT,
+  thumbnail_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+#### `player_inventory`
+```sql
+CREATE TABLE player_inventory (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  player_address TEXT REFERENCES players(address),
+  cosmetic_id UUID REFERENCES cosmetic_items(id),
+  acquired_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(player_address, cosmetic_id)
+);
+```
+
+### Betting Tables
+
 #### `betting_pools`
 ```sql
 CREATE TABLE betting_pools (
@@ -867,6 +1562,9 @@ KaspaClash uses Supabase Realtime for live updates:
 - **`matchmaking:queue`** - Queue updates, player counts
 - **`game:${matchId}`** - Match events, round results, move submissions
 - **`spectate:${matchId}`** - Spectator view, betting pool updates
+- **`progression:${playerAddress}`** - XP gains, tier unlocks, quest progress
+- **`quests:daily`** - Daily quest refresh notifications
+- **`shop:featured`** - Weekly featured item rotation updates
 
 ---
 
@@ -1083,8 +1781,10 @@ git push origin feature/amazing-feature
 
 ### Areas for Contribution
 
-- 🎮 New game modes (tournaments, teams, draft pick)
-- 🎨 Additional characters with unique abilities
+- 🎮 New game modes (tournaments, teams, draft pick, combo challenge)
+- 🎨 Additional characters with unique abilities (currently 20 characters)
+- 🛍️ Character customization & loadout system (equip owned cosmetics)
+- 🔗 Blockchain verification for achievements & prestige levels
 - 🌐 Internationalization (i18n)
 - ♿ Accessibility improvements
 - 📱 Mobile UX enhancements
@@ -1092,6 +1792,7 @@ git push origin feature/amazing-feature
 - 📊 Analytics and telemetry
 - 🧪 Test coverage
 - 📚 Additional documentation
+- 🎭 More cosmetic items and weekly featured rotations
 
 ---
 
