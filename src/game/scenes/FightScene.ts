@@ -228,71 +228,20 @@ export class FightScene extends Phaser.Scene {
 
   /**
    * Preload assets.
+   * OPTIMIZED: Only loads the 2 characters needed for this match, not all 20!
+   * This dramatically reduces loading time (from 140 spritesheets to just 14).
    */
   preload(): void {
-    // Load arena background
-    this.load.image("arena-bg", "/assets/background_2.webp");
+    // Import optimized asset loader
+    const {
+      preloadFightSceneAssets,
+    } = require("../utils/asset-loader");
 
-    // Load move icons
-    this.load.image("move_punch", "/assets/icons/punch.webp");
-    this.load.image("move_kick", "/assets/icons/kick.webp");
-    this.load.image("move_block", "/assets/icons/block.webp");
-    this.load.image("move_special", "/assets/icons/special.webp");
-
-    // Using CHAR_SPRITE_CONFIG from sprite-config.ts (imported at top)
-
-    // Load character spritesheets for ALL characters
-    const allCharacters = Object.keys(CHAR_SPRITE_CONFIG);
-    const animations = ["idle", "run", "punch", "kick", "block", "special", "dead"];
-
-    allCharacters.forEach((charId) => {
-      const charConfig = CHAR_SPRITE_CONFIG[charId];
-      if (!charConfig) return;
-
-      animations.forEach((anim) => {
-        const animConfig = charConfig[anim];
-        if (!animConfig) return;
-
-        this.load.spritesheet(
-          `char_${charId}_${anim}`,
-          `/characters/${charId}/${anim}.webp`,
-          { frameWidth: animConfig.frameWidth, frameHeight: animConfig.frameHeight }
-        );
-      });
-    });
-
-    // Audio Loading
-    // Background Music
-    this.load.audio("bgm_fight", "/assets/audio/fight.mp3");
-    this.load.audio("sfx_victory", "/assets/audio/victory.mp3");
-    this.load.audio("sfx_defeat", "/assets/audio/defeat.mp3");
-
-    // UI SFX
-    this.load.audio("sfx_hover", "/assets/audio/hover.mp3");
-    this.load.audio("sfx_click", "/assets/audio/click.mp3");
-    this.load.audio("sfx_cd_fight", "/assets/audio/3-2-1-fight.mp3");
-
-    // Character SFX - load for base characters (others will use fallback)
-    const baseChars = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
-    baseChars.forEach(charId => {
-      this.load.audio(`sfx_${charId}_punch`, `/assets/audio/${charId}-punch.mp3`);
-      this.load.audio(`sfx_${charId}_kick`, `/assets/audio/${charId}-kick.mp3`);
-      this.load.audio(`sfx_${charId}_block`, `/assets/audio/${charId}-block.mp3`);
-      this.load.audio(`sfx_${charId}_special`, `/assets/audio/${charId}-special.mp3`);
-    });
-
-    // Specific additional SFX
-    this.load.audio("sfx_nano-brawler_punch", "/assets/audio/nano-brawler-punch.mp3");
-    this.load.audio("sfx_neon-wraith_special", "/assets/audio/neon-wraith-special.mp3");
-    this.load.audio("sfx_prism-duelist_special", "/assets/audio/prism-duelist-special.mp3");
-    this.load.audio("sfx_razor-bot-7_punch", "/assets/audio/razor-bot-7-punch.mp3");
-    this.load.audio("sfx_razor-bot-7_special", "/assets/audio/razor-bot-7-special.mp3");
-    this.load.audio("sfx_scrap-goliath_special", "/assets/audio/scrap-goliath-special.mp3");
-    this.load.audio("sfx_sonic-striker_punch", "/assets/audio/sonic-striker-punch.mp3");
-    this.load.audio("sfx_sonic-striker_special", "/assets/audio/sonic-striker-special.mp3");
-    this.load.audio("sfx_void-reaper_special", "/assets/audio/void-reaper-special.mp3");
-    this.load.audio("sfx_aeon-guard_special", "/assets/audio/aeon-guard-special.mp3");
-    this.load.audio("sfx_bastion-hulk_special", "/assets/audio/bastion-hulk-special.mp3");
+    // Use optimized loading - only load the 2 characters in this match
+    const player1Char = this.config?.player1Character || "dag-warrior";
+    const player2Char = this.config?.player2Character || "dag-warrior";
+    
+    preloadFightSceneAssets(this, player1Char, player2Char);
 
     // Load stickers
     StickerPicker.preloadStickers(this);
@@ -302,6 +251,9 @@ export class FightScene extends Phaser.Scene {
    * Create scene elements.
    */
   create(): void {
+    // Import animation creator
+    const { createCharacterAnimations } = require("../utils/asset-loader");
+
     // Initialize combat engine
     this.combatEngine = new CombatEngine(
       this.config.player1Character || "dag-warrior",
@@ -309,8 +261,10 @@ export class FightScene extends Phaser.Scene {
       "best_of_5"
     );
 
-    // Create animations
-    this.createAnimations();
+    // Create animations only for the characters in this match
+    const player1Char = this.config?.player1Character || "dag-warrior";
+    const player2Char = this.config?.player2Character || "dag-warrior";
+    createCharacterAnimations(this, [player1Char, player2Char]);
 
     // Load audio settings from localStorage
     this.loadAudioSettings();
@@ -1654,26 +1608,25 @@ export class FightScene extends Phaser.Scene {
       return;
     }
 
+    // Update each move button based on affordability
     this.moveButtons.forEach((button, move) => {
-      // Clear tint
-      button.list.forEach((child: any) => {
-        if (child.clearTint) child.clearTint();
-      });
-
       const isAffordable = this.combatEngine.canAffordMove("player1", move);
 
-      // If a move is already selected, don't mess with alpha too much, 
-      // but if we are in selection phase and nothing selected yet:
-      if (!this.selectedMove) {
-        button.setAlpha(isAffordable ? 1 : 0.3);
-
-        // grayscale effect or just alpha? Alpha is easier.
-        // We can also disable interactivity
-        if (!isAffordable) {
-          button.disableInteractive();
-        } else {
-          button.setInteractive();
-        }
+      // Apply visual feedback for unaffordable moves (same as stunned)
+      if (!isAffordable) {
+        button.setAlpha(0.3);
+        button.disableInteractive();
+        // Tint children to grayscale
+        button.list.forEach((child: any) => {
+          if (child.setTint) child.setTint(0x555555);
+        });
+      } else {
+        button.setAlpha(1);
+        button.setInteractive();
+        // Clear tint
+        button.list.forEach((child: any) => {
+          if (child.clearTint) child.clearTint();
+        });
       }
     });
   }

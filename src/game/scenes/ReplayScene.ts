@@ -209,64 +209,21 @@ export class ReplayScene extends Phaser.Scene {
   }
 
   preload(): void {
-    // Load arena background
-    this.load.image("arena-bg", "/assets/background_2.webp");
+    // OPTIMIZED: Only load the 2 characters in this replay, not all 20!
+    const {
+      preloadReplaySceneAssets,
+    } = require("../utils/asset-loader");
 
-    // Using CHAR_SPRITE_CONFIG from sprite-config.ts (imported at top)
-
-    // Load character spritesheets for ALL characters
-    const allCharacters = Object.keys(CHAR_SPRITE_CONFIG);
-    const animations = ["idle", "run", "punch", "kick", "block", "special", "dead"];
-
-    allCharacters.forEach((charId) => {
-      const charConfig = CHAR_SPRITE_CONFIG[charId];
-      if (!charConfig) return;
-
-      animations.forEach((anim) => {
-        const animConfig = charConfig[anim];
-        if (!animConfig) return;
-
-        this.load.spritesheet(
-          `char_${charId}_${anim}`,
-          `/characters/${charId}/${anim}.webp`,
-          { frameWidth: animConfig.frameWidth, frameHeight: animConfig.frameHeight }
-        );
-      });
-    });
-
-    // Audio Loading
-    this.load.audio("bgm_fight", "/assets/audio/fight.mp3");
-    this.load.audio("sfx_victory", "/assets/audio/victory.mp3");
-    this.load.audio("sfx_defeat", "/assets/audio/defeat.mp3");
-
-    // UI SFX
-    this.load.audio("sfx_hover", "/assets/audio/hover.mp3");
-    this.load.audio("sfx_click", "/assets/audio/click.mp3");
-
-    // Character SFX (base characters only)
-    const baseChars = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
-    baseChars.forEach(charId => {
-      this.load.audio(`sfx_${charId}_punch`, `/assets/audio/${charId}-punch.mp3`);
-      this.load.audio(`sfx_${charId}_kick`, `/assets/audio/${charId}-kick.mp3`);
-      this.load.audio(`sfx_${charId}_block`, `/assets/audio/${charId}-block.mp3`);
-      this.load.audio(`sfx_${charId}_special`, `/assets/audio/${charId}-special.mp3`);
-    });
-
-    // Specific additional SFX
-    this.load.audio("sfx_nano-brawler_punch", "/assets/audio/nano-brawler-punch.mp3");
-    this.load.audio("sfx_neon-wraith_special", "/assets/audio/neon-wraith-special.mp3");
-    this.load.audio("sfx_prism-duelist_special", "/assets/audio/prism-duelist-special.mp3");
-    this.load.audio("sfx_razor-bot-7_punch", "/assets/audio/razor-bot-7-punch.mp3");
-    this.load.audio("sfx_razor-bot-7_special", "/assets/audio/razor-bot-7-special.mp3");
-    this.load.audio("sfx_scrap-goliath_special", "/assets/audio/scrap-goliath-special.mp3");
-    this.load.audio("sfx_sonic-striker_punch", "/assets/audio/sonic-striker-punch.mp3");
-    this.load.audio("sfx_sonic-striker_special", "/assets/audio/sonic-striker-special.mp3");
-    this.load.audio("sfx_void-reaper_special", "/assets/audio/void-reaper-special.mp3");
-    this.load.audio("sfx_aeon-guard_special", "/assets/audio/aeon-guard-special.mp3");
-    this.load.audio("sfx_bastion-hulk_special", "/assets/audio/bastion-hulk-special.mp3");
+    const player1Char = this.config?.player1Character || "dag-warrior";
+    const player2Char = this.config?.player2Character || "dag-warrior";
+    
+    preloadReplaySceneAssets(this, player1Char, player2Char);
   }
 
   create(): void {
+    // Import animation creator
+    const { createCharacterAnimations } = require("../utils/asset-loader");
+
     // Apply speed multiplier for export mode
     if (this.speedMultiplier > 1) {
       this.time.timeScale = this.speedMultiplier;
@@ -290,7 +247,12 @@ export class ReplayScene extends Phaser.Scene {
     }
 
     this.createBackground();
-    this.createAnimations();
+    
+    // Create animations only for the 2 characters in this replay
+    const player1Char = this.config?.player1Character || "dag-warrior";
+    const player2Char = this.config?.player2Character || "dag-warrior";
+    createCharacterAnimations(this, [player1Char, player2Char]);
+
     this.createUI();
     this.createCharacters();
     this.createReplayBadge();

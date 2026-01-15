@@ -114,76 +114,44 @@ export class PracticeScene extends Phaser.Scene {
 
   /**
    * Preload assets.
+   * OPTIMIZED: Only loads the player and AI character, not all 20!
    */
   preload(): void {
-    // Load arena background
-    this.load.image("arena-bg", "/assets/dojo.webp");
+    const {
+      loadBackground,
+      loadUIAssets,
+      loadCharacterSprites,
+      loadCommonAudio,
+      loadCharacterAudio,
+    } = require("../utils/asset-loader");
 
-    // Load move icons
-    this.load.image("move_punch", "/assets/icons/punch.webp");
-    this.load.image("move_kick", "/assets/icons/kick.webp");
-    this.load.image("move_block", "/assets/icons/block.webp");
-    this.load.image("move_special", "/assets/icons/special.webp");
+    // Load dojo background (unique to practice mode)
+    loadBackground(this, "arena-bg", "/assets/dojo.webp");
 
-    // Load Audio
-    this.load.audio("bgm_dojo", "/assets/audio/dojo.mp3");
-    this.load.audio("sfx_victory", "/assets/audio/victory.mp3");
-    this.load.audio("sfx_defeat", "/assets/audio/defeat.mp3");
+    // Load UI assets
+    loadUIAssets(this);
 
-    // UI SFX
-    this.load.audio("sfx_hover", "/assets/audio/hover.mp3");
-    this.load.audio("sfx_click", "/assets/audio/click.mp3");
-    this.load.audio("sfx_cd_fight", "/assets/audio/3-2-1-fight.mp3");
+    // Load only the player and AI character - not all 20!
+    const playerChar = this.config?.playerCharacterId || "dag-warrior";
+    const aiChar = this.aiCharacter?.id || "dag-warrior";
+    loadCharacterSprites(this, [playerChar, aiChar]);
 
-    // Character SFX (base characters only - others will use fallback)
-    const baseChars = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
-    baseChars.forEach(charId => {
-      this.load.audio(`sfx_${charId}_punch`, `/assets/audio/${charId}-punch.mp3`);
-      this.load.audio(`sfx_${charId}_kick`, `/assets/audio/${charId}-kick.mp3`);
-      this.load.audio(`sfx_${charId}_block`, `/assets/audio/${charId}-block.mp3`);
-      this.load.audio(`sfx_${charId}_special`, `/assets/audio/${charId}-special.mp3`);
-    });
+    // Load audio
+    loadCommonAudio(this);
+    loadCharacterAudio(this, [playerChar, aiChar]);
 
-    // Specific additional SFX
-    this.load.audio("sfx_nano-brawler_punch", "/assets/audio/nano-brawler-punch.mp3");
-    this.load.audio("sfx_neon-wraith_special", "/assets/audio/neon-wraith-special.mp3");
-    this.load.audio("sfx_prism-duelist_special", "/assets/audio/prism-duelist-special.mp3");
-    this.load.audio("sfx_razor-bot-7_punch", "/assets/audio/razor-bot-7-punch.mp3");
-    this.load.audio("sfx_razor-bot-7_special", "/assets/audio/razor-bot-7-special.mp3");
-    this.load.audio("sfx_scrap-goliath_special", "/assets/audio/scrap-goliath-special.mp3");
-    this.load.audio("sfx_sonic-striker_punch", "/assets/audio/sonic-striker-punch.mp3");
-    this.load.audio("sfx_sonic-striker_special", "/assets/audio/sonic-striker-special.mp3");
-    this.load.audio("sfx_void-reaper_special", "/assets/audio/void-reaper-special.mp3");
-    this.load.audio("sfx_aeon-guard_special", "/assets/audio/aeon-guard-special.mp3");
-    this.load.audio("sfx_bastion-hulk_special", "/assets/audio/bastion-hulk-special.mp3");
-
-    // Using CHAR_SPRITE_CONFIG from sprite-config.ts (imported at top)
-
-    // Load character spritesheets for ALL characters
-    const allCharacters = Object.keys(CHAR_SPRITE_CONFIG);
-    const animations = ["idle", "run", "punch", "kick", "block", "special", "dead"];
-
-    allCharacters.forEach((charId) => {
-      const charConfig = CHAR_SPRITE_CONFIG[charId];
-      if (!charConfig) return;
-
-      animations.forEach((anim) => {
-        const animConfig = charConfig[anim];
-        if (!animConfig) return;
-
-        this.load.spritesheet(
-          `char_${charId}_${anim}`,
-          `/characters/${charId}/${anim}.webp`,
-          { frameWidth: animConfig.frameWidth, frameHeight: animConfig.frameHeight }
-        );
-      });
-    });
+    // Load dojo-specific BGM
+    if (!this.cache.audio.exists("bgm_dojo")) {
+      this.load.audio("bgm_dojo", "/assets/audio/dojo.mp3");
+    }
   }
 
   /**
    * Create scene elements.
    */
   create(): void {
+    const { createCharacterAnimations } = require("../utils/asset-loader");
+
     // Load audio settings from localStorage
     this.loadAudioSettings();
 
@@ -195,8 +163,8 @@ export class PracticeScene extends Phaser.Scene {
       matchFormat
     );
 
-    // Create animations
-    this.createAnimations();
+    // Create animations only for the 2 characters in this match
+    createCharacterAnimations(this, [this.playerCharacter.id, this.aiCharacter.id]);
 
     // Background
     this.createBackground();
@@ -960,11 +928,20 @@ export class PracticeScene extends Phaser.Scene {
       const canAfford = this.combatEngine.canAffordMove("player1", move);
       const container = this.moveButtons.get(move);
       if (container) {
-        container.setAlpha(canAfford ? 1 : 0.4);
-        if (canAfford) {
-          container.setInteractive();
-        } else {
+        if (!canAfford) {
+          container.setAlpha(0.3);
           container.disableInteractive();
+          // Tint children to grayscale for visual feedback
+          container.list.forEach((child: any) => {
+            if (child.setTint) child.setTint(0x555555);
+          });
+        } else {
+          container.setAlpha(1);
+          container.setInteractive();
+          // Clear tint
+          container.list.forEach((child: any) => {
+            if (child.clearTint) child.clearTint();
+          });
         }
       }
     });

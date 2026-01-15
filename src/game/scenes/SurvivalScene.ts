@@ -113,67 +113,38 @@ export class SurvivalScene extends Phaser.Scene {
     }
 
     preload(): void {
+        // OPTIMIZED: Load player + first few opponents, then dynamically load more
+        const {
+            loadBackground,
+            loadUIAssets,
+            loadCharacterSprites,
+            loadCommonAudio,
+            loadCharacterAudio,
+        } = require("../utils/asset-loader");
+
         // Load survival background
-        this.load.image("survival-bg", "/assets/survival.webp");
+        loadBackground(this, "survival-bg", "/assets/survival.webp");
 
-        // Load move icons
-        this.load.image("move_punch", "/assets/icons/punch.webp");
-        this.load.image("move_kick", "/assets/icons/kick.webp");
-        this.load.image("move_block", "/assets/icons/block.webp");
-        this.load.image("move_special", "/assets/icons/special.webp");
+        // Load UI assets
+        loadUIAssets(this);
 
-        // Load Audio
-        this.load.audio("bgm_survival", "/assets/audio/dojo.mp3");
-        this.load.audio("sfx_victory", "/assets/audio/victory.mp3");
-        this.load.audio("sfx_defeat", "/assets/audio/defeat.mp3");
-        this.load.audio("sfx_hover", "/assets/audio/hover.mp3");
-        this.load.audio("sfx_click", "/assets/audio/click.mp3");
-        this.load.audio("sfx_cd_fight", "/assets/audio/3-2-1-fight.mp3");
+        // Get first 5 opponents to preload (rest will be loaded dynamically)
+        const firstOpponents = this.waves.slice(0, 5).map(w => w.characterId);
+        const charactersToLoad = [this.playerCharacter.id, ...firstOpponents];
+        
+        loadCharacterSprites(this, charactersToLoad);
+        loadCommonAudio(this);
+        loadCharacterAudio(this, charactersToLoad);
 
-        // Character SFX (base characters)
-        const baseChars = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
-        baseChars.forEach(charId => {
-            this.load.audio(`sfx_${charId}_punch`, `/assets/audio/${charId}-punch.mp3`);
-            this.load.audio(`sfx_${charId}_kick`, `/assets/audio/${charId}-kick.mp3`);
-            this.load.audio(`sfx_${charId}_block`, `/assets/audio/${charId}-block.mp3`);
-            this.load.audio(`sfx_${charId}_special`, `/assets/audio/${charId}-special.mp3`);
-        });
-
-        // Specific additional SFX
-        this.load.audio("sfx_nano-brawler_punch", "/assets/audio/nano-brawler-punch.mp3");
-        this.load.audio("sfx_neon-wraith_special", "/assets/audio/neon-wraith-special.mp3");
-        this.load.audio("sfx_prism-duelist_special", "/assets/audio/prism-duelist-special.mp3");
-        this.load.audio("sfx_razor-bot-7_punch", "/assets/audio/razor-bot-7-punch.mp3");
-        this.load.audio("sfx_razor-bot-7_special", "/assets/audio/razor-bot-7-special.mp3");
-        this.load.audio("sfx_scrap-goliath_special", "/assets/audio/scrap-goliath-special.mp3");
-        this.load.audio("sfx_sonic-striker_punch", "/assets/audio/sonic-striker-punch.mp3");
-        this.load.audio("sfx_sonic-striker_special", "/assets/audio/sonic-striker-special.mp3");
-        this.load.audio("sfx_void-reaper_special", "/assets/audio/void-reaper-special.mp3");
-        this.load.audio("sfx_aeon-guard_special", "/assets/audio/aeon-guard-special.mp3");
-        this.load.audio("sfx_bastion-hulk_special", "/assets/audio/bastion-hulk-special.mp3");
-
-        // Load character spritesheets
-        const allCharacters = Object.keys(CHAR_SPRITE_CONFIG);
-        const animations = ["idle", "run", "punch", "kick", "block", "special", "dead"];
-
-        allCharacters.forEach((charId) => {
-            const charConfig = CHAR_SPRITE_CONFIG[charId];
-            if (!charConfig) return;
-
-            animations.forEach((anim) => {
-                const animConfig = charConfig[anim];
-                if (!animConfig) return;
-
-                this.load.spritesheet(
-                    `char_${charId}_${anim}`,
-                    `/characters/${charId}/${anim}.webp`,
-                    { frameWidth: animConfig.frameWidth, frameHeight: animConfig.frameHeight }
-                );
-            });
-        });
+        // Load survival-specific BGM
+        if (!this.cache.audio.exists("bgm_survival")) {
+            this.load.audio("bgm_survival", "/assets/audio/dojo.mp3");
+        }
     }
 
     create(): void {
+        const { createCharacterAnimations, loadAdditionalCharacter } = require("../utils/asset-loader");
+
         this.loadAudioSettings();
 
         // Initialize combat engine
@@ -183,7 +154,10 @@ export class SurvivalScene extends Phaser.Scene {
             "best_of_1"
         );
 
-        this.createAnimations();
+        // Create animations for loaded characters
+        const firstOpponents = this.waves.slice(0, 5).map(w => w.characterId);
+        createCharacterAnimations(this, [this.playerCharacter.id, ...firstOpponents]);
+
         this.createBackground();
         this.createCharacterSprites();
         this.createHealthBars();
@@ -214,6 +188,22 @@ export class SurvivalScene extends Phaser.Scene {
 
         this.events.once("shutdown", this.handleShutdown, this);
         this.events.once("destroy", this.handleShutdown, this);
+
+        // Preload remaining opponents in background (waves 6-20)
+        this.preloadRemainingOpponents();
+    }
+
+    /**
+     * Preload remaining opponents in background after scene starts
+     */
+    private async preloadRemainingOpponents(): Promise<void> {
+        const { loadAdditionalCharacter } = require("../utils/asset-loader");
+        
+        // Load remaining opponents (after wave 5)
+        for (let i = 5; i < this.waves.length; i++) {
+            const opponentId = this.waves[i].characterId;
+            await loadAdditionalCharacter(this, opponentId);
+        }
     }
 
     private playSFX(key: string): void {
@@ -819,8 +809,21 @@ export class SurvivalScene extends Phaser.Scene {
             const canAfford = this.combatEngine.canAffordMove("player1", move);
             const container = this.moveButtons.get(move);
             if (container) {
-                container.setAlpha(canAfford ? 1 : 0.4);
-                canAfford ? container.setInteractive() : container.disableInteractive();
+                if (!canAfford) {
+                    container.setAlpha(0.3);
+                    container.disableInteractive();
+                    // Tint children to grayscale for visual feedback
+                    container.list.forEach((child: any) => {
+                        if (child.setTint) child.setTint(0x555555);
+                    });
+                } else {
+                    container.setAlpha(1);
+                    container.setInteractive();
+                    // Clear tint
+                    container.list.forEach((child: any) => {
+                        if (child.clearTint) child.clearTint();
+                    });
+                }
             }
         });
     }
@@ -1087,24 +1090,40 @@ export class SurvivalScene extends Phaser.Scene {
                         duration: 600,
                         ease: 'Power2',
                         onComplete: () => {
-                            // Phase 5: Return to idle
-                            if (this.anims.exists(`${p1Char}_idle`)) {
-                                const p1IdleScale = getAnimationScale(p1Char, 'idle');
-                                this.player1Sprite.setScale(p1IdleScale);
-                                this.player1Sprite.play(`${p1Char}_idle`);
-                            }
-                            if (this.anims.exists(`${p2Char}_idle`)) {
-                                const p2IdleScale = getAnimationScale(p2Char, 'idle');
-                                this.player2Sprite.setScale(p2IdleScale);
-                                this.player2Sprite.play(`${p2Char}_idle`);
-                            }
+                            // Check result first to determine animation
+                            if (state.isMatchOver || state.isRoundOver) {
+                                // Don't return to idle - showRoundEnd will handle death animation
+                                if (state.isRoundOver) {
+                                    this.showRoundEnd();
+                                } else {
+                                    // Match is over, play death animation on loser before ending
+                                    const loser = state.matchWinner === "player1" ? "player2" : "player1";
+                                    const loserChar = loser === "player1" ? p1Char : p2Char;
+                                    const loserSprite = loser === "player1" ? this.player1Sprite : this.player2Sprite;
 
-                            // Check result
-                            if (state.isMatchOver) {
-                                state.matchWinner === "player1" ? this.onWaveComplete() : this.onSurvivalEnd(false);
-                            } else if (state.isRoundOver) {
-                                this.showRoundEnd();
+                                    // Play dead animation on loser if it exists
+                                    if (this.anims.exists(`${loserChar}_dead`)) {
+                                        loserSprite.setScale(getAnimationScale(loserChar, "dead"));
+                                        loserSprite.play(`${loserChar}_dead`);
+                                    }
+
+                                    // Wait for death animation then end
+                                    this.time.delayedCall(1500, () => {
+                                        state.matchWinner === "player1" ? this.onWaveComplete() : this.onSurvivalEnd(false);
+                                    });
+                                }
                             } else {
+                                // Phase 5: Return to idle for continuing combat
+                                if (this.anims.exists(`${p1Char}_idle`)) {
+                                    const p1IdleScale = getAnimationScale(p1Char, 'idle');
+                                    this.player1Sprite.setScale(p1IdleScale);
+                                    this.player1Sprite.play(`${p1Char}_idle`);
+                                }
+                                if (this.anims.exists(`${p2Char}_idle`)) {
+                                    const p2IdleScale = getAnimationScale(p2Char, 'idle');
+                                    this.player2Sprite.setScale(p2IdleScale);
+                                    this.player2Sprite.play(`${p2Char}_idle`);
+                                }
                                 this.startSelectionPhase();
                             }
                         }
@@ -1117,21 +1136,36 @@ export class SurvivalScene extends Phaser.Scene {
     private showRoundEnd(): void {
         const state = this.combatEngine.getState();
         const isWin = state.roundWinner === "player1";
-        this.countdownText.setText(isWin ? "ROUND WON!" : "ROUND LOST!").setColor(isWin ? "#22c55e" : "#ef4444").setAlpha(1);
-        this.time.delayedCall(2000, () => {
-            this.countdownText.setAlpha(0);
 
-            // Re-check state to see if match is now over
-            const currentState = this.combatEngine.getState();
-            if (currentState.isMatchOver) {
-                // Match is over - handle win or loss
-                currentState.matchWinner === "player1" ? this.onWaveComplete() : this.onSurvivalEnd(false);
-            } else {
-                // Match continues - start new round
-                this.combatEngine.startNewRound();
-                this.syncUIWithCombatState();
-                this.startSelectionPhase();
-            }
+        // Play death animation on the loser
+        const loser = state.roundWinner === "player1" ? "player2" : "player1";
+        const loserChar = loser === "player1" ? this.playerCharacter.id : this.currentOpponent.id;
+        const loserSprite = loser === "player1" ? this.player1Sprite : this.player2Sprite;
+
+        // Play dead animation on loser if it exists
+        if (this.anims.exists(`${loserChar}_dead`)) {
+            loserSprite.setScale(getAnimationScale(loserChar, "dead"));
+            loserSprite.play(`${loserChar}_dead`);
+        }
+
+        // Wait for death animation to complete (36 frames at 24fps = 1.5s)
+        this.time.delayedCall(1500, () => {
+            this.countdownText.setText(isWin ? "ROUND WON!" : "ROUND LOST!").setColor(isWin ? "#22c55e" : "#ef4444").setAlpha(1);
+            this.time.delayedCall(2000, () => {
+                this.countdownText.setAlpha(0);
+
+                // Re-check state to see if match is now over
+                const currentState = this.combatEngine.getState();
+                if (currentState.isMatchOver) {
+                    // Match is over - handle win or loss
+                    currentState.matchWinner === "player1" ? this.onWaveComplete() : this.onSurvivalEnd(false);
+                } else {
+                    // Match continues - start new round
+                    this.combatEngine.startNewRound();
+                    this.syncUIWithCombatState();
+                    this.startSelectionPhase();
+                }
+            });
         });
     }
 

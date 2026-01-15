@@ -1,6 +1,12 @@
 /**
  * Phaser Game Configuration
  * Core configuration for the KaspaClash fighting game engine
+ * 
+ * PERFORMANCE OPTIMIZATIONS:
+ * - WebGL with high-performance power preference
+ * - Increased parallel downloads for faster asset loading
+ * - Optimized render settings for weak devices
+ * - Disabled unnecessary features
  */
 
 import Phaser from "phaser";
@@ -34,22 +40,23 @@ export const BASE_GAME_CONFIG: Phaser.Types.Core.GameConfig = {
     },
   },
 
-  // Physics configuration - not needed for turn-based game
-  // but included for potential animation effects
-  physics: {
-    default: "arcade",
-    arcade: {
-      gravity: { x: 0, y: 0 },
-      debug: process.env.NODE_ENV === "development",
-    },
-  },
+  // Physics disabled - not needed for turn-based game
+  // Omitting physics config entirely improves performance
+  // physics: { default: false },
 
-  // Rendering options
+  // Rendering options - optimized for performance
   render: {
-    antialias: true,
-    pixelArt: false, // Set to true if using pixel art
-    roundPixels: true,
+    antialias: false, // Disable for better performance on weak devices
+    antialiasGL: false, // Disable WebGL antialiasing
+    pixelArt: false,
+    roundPixels: true, // Prevents sub-pixel rendering issues
     transparent: false,
+    clearBeforeRender: true,
+    preserveDrawingBuffer: false, // Better performance
+    powerPreference: "high-performance", // Request high-performance GPU
+    batchSize: 4096, // Default batch size for sprite batching
+    maxTextures: -1, // Auto-detect max textures
+    mipmapFilter: "NEAREST", // Faster mipmap filtering
   },
 
   // Audio configuration
@@ -57,10 +64,20 @@ export const BASE_GAME_CONFIG: Phaser.Types.Core.GameConfig = {
     disableWebAudio: false,
   },
 
+  // Loader configuration - optimized for faster asset loading
+  loader: {
+    maxParallelDownloads: 32, // Increase parallel downloads (default is 4)
+    crossOrigin: "anonymous",
+    async: true,
+    maxRetries: 2,
+  },
+
   // Performance options
   fps: {
     target: 60,
     forceSetTimeOut: false,
+    smoothStep: true, // Smooth frame time
+    deltaHistory: 10, // Stabilize delta calculations
   },
 
   // Disable banner in production
