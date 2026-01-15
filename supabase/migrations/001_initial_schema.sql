@@ -19,7 +19,7 @@ CREATE TABLE public.achievement_statistics (
   CONSTRAINT achievement_statistics_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address)
 );
 CREATE TABLE public.achievements (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  id text NOT NULL,
   name text NOT NULL,
   description text NOT NULL,
   category text NOT NULL CHECK (category = ANY (ARRAY['combat'::text, 'progression'::text, 'social'::text, 'collection'::text, 'mastery'::text])),
@@ -225,7 +225,7 @@ CREATE TABLE public.moves (
 CREATE TABLE public.player_achievements (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   player_id text NOT NULL,
-  achievement_id uuid NOT NULL,
+  achievement_id text NOT NULL,
   current_progress integer NOT NULL DEFAULT 0 CHECK (current_progress >= 0),
   target_progress integer NOT NULL CHECK (target_progress > 0),
   is_unlocked boolean NOT NULL DEFAULT false,

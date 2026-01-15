@@ -128,7 +128,7 @@ export interface CombatState {
     player2: PlayerCombatState;
     currentRound: number;
     currentTurn: number;
-    matchFormat: "best_of_3" | "best_of_5";
+    matchFormat: "best_of_1" | "best_of_3" | "best_of_5";
     roundsToWin: number;
     isRoundOver: boolean;
     isMatchOver: boolean;

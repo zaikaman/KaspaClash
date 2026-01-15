@@ -2,12 +2,18 @@
  * Achievements Unlock API Route
  * POST /api/achievements/unlock - Unlock an achievement and award rewards
  * Task: T117 [P] [US8]
+ * 
+ * Fixed: Now verifies player has actually met achievement requirements
+ * by checking real player stats from game data
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { Errors, handleError, createErrorResponse, type ApiErrorResponse } from '@/lib/api/errors';
 import { getAchievementById } from '@/lib/achievements/achievement-definitions';
+import { fetchPlayerStats } from '@/lib/achievements/player-stats-fetcher';
+import type { PlayerStats } from '@/lib/achievements/achievement-tracker';
+import { calculateTierFromXP, calculateTierProgress, applyPrestigeMultiplier } from '@/lib/progression/xp-calculator';
 
 interface UnlockRequest {
     playerId: string;
@@ -66,14 +72,31 @@ export async function POST(
             throw Errors.badRequest('Achievement already unlocked');
         }
 
+        // Fetch player's actual stats from game data
+        const playerStats = await fetchPlayerStats(supabase, playerId);
+        
+        // Verify player has met the achievement requirements
+        const trackingKey = achievement.requirement.trackingKey as keyof PlayerStats;
+        const currentProgress = playerStats[trackingKey] || 0;
+        const targetProgress = achievement.requirement.targetValue || 1;
+        
+        console.log(`[unlock] Achievement ${achievementId}: trackingKey=${trackingKey}, progress=${currentProgress}/${targetProgress}`);
+        console.log(`[unlock] Player stats for ${playerId}:`, JSON.stringify(playerStats, null, 2));
+        
+        if (currentProgress < targetProgress) {
+            throw Errors.badRequest(
+                `Achievement requirements not met. Progress: ${currentProgress}/${targetProgress}`
+            );
+        }
+
         // Upsert player achievement as unlocked
         const { error: upsertError } = await supabase
             .from('player_achievements')
             .upsert({
                 player_id: playerId,
                 achievement_id: achievementId,
-                current_progress: achievement.requirement.targetValue || 1,
-                target_progress: achievement.requirement.targetValue || 1,
+                current_progress: currentProgress,
+                target_progress: targetProgress,
                 is_unlocked: true,
                 unlocked_at: new Date().toISOString(),
             }, { onConflict: 'player_id,achievement_id' });
@@ -115,15 +138,91 @@ export async function POST(
             });
         }
 
+        // Award XP if there's an XP reward
+        if (achievement.xpReward > 0) {
+            // Get current active season
+            const { data: season } = await supabase
+                .from('battle_pass_seasons')
+                .select('*')
+                .eq('is_active', true)
+                .single();
+
+            if (season) {
+                // Get or create player progression
+                let { data: progression } = await supabase
+                    .from('player_progression')
+                    .select('*')
+                    .eq('player_id', playerId)
+                    .eq('season_id', season.id)
+                    .single();
+
+                if (!progression) {
+                    // Create default progression
+                    const { data: newProgression } = await supabase
+                        .from('player_progression')
+                        .insert({
+                            player_id: playerId,
+                            season_id: season.id,
+                            current_tier: 1,
+                            current_xp: 0,
+                            total_xp: 0,
+                            prestige_level: 0,
+                            prestige_xp_multiplier: 1.0,
+                            prestige_currency_multiplier: 1.0,
+                        })
+                        .select()
+                        .single();
+
+                    progression = newProgression;
+                }
+
+                if (progression) {
+                    // Apply prestige multiplier
+                    const finalXP = applyPrestigeMultiplier(achievement.xpReward, progression.prestige_level);
+                    const newTotalXP = progression.total_xp + finalXP;
+                    const newTier = Math.min(50, calculateTierFromXP(newTotalXP));
+                    const tierProgress = calculateTierProgress(newTotalXP, newTier);
+
+                    // Update progression
+                    await supabase
+                        .from('player_progression')
+                        .update({
+                            current_tier: newTier,
+                            current_xp: tierProgress.currentXP,
+                            total_xp: newTotalXP,
+                            updated_at: new Date().toISOString(),
+                        })
+                        .eq('id', progression.id);
+
+                    // Record XP award
+                    await supabase.from('xp_awards').insert({
+                        player_id: playerId,
+                        season_id: season.id,
+                        amount: achievement.xpReward,
+                        source: 'achievement',
+                        source_id: achievementId,
+                        multiplier: progression.prestige_level > 0 ? Math.pow(1.1, progression.prestige_level) : 1.0,
+                    });
+                }
+            }
+        }
+
         // Update achievement statistics
-        await supabase.rpc('increment_achievement_stats', {
-            p_player_id: playerId,
-            p_category: achievement.category,
-            p_xp: achievement.xpReward,
-            p_currency: achievement.currencyReward,
-        }).catch(() => {
-            // RPC may not exist, skip silently
-        });
+        try {
+            const { error: statsError } = await supabase.rpc('increment_achievement_stats', {
+                p_player_id: playerId,
+                p_category: achievement.category,
+                p_xp: achievement.xpReward,
+                p_currency: achievement.currencyReward,
+            });
+
+            if (statsError) {
+                console.warn('increment_achievement_stats RPC failed:', statsError);
+            }
+        } catch (statsError) {
+            // RPC may not exist or failed; skip silently
+            console.warn('increment_achievement_stats RPC threw:', statsError);
+        }
 
         return NextResponse.json({
             success: true,

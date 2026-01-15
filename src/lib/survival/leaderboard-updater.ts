@@ -86,22 +86,47 @@ export async function recordSurvivalRun(
 
         // Award shards to player
         if (record.shards_earned > 0) {
-            const { error: currencyError } = await supabase.rpc("add_clash_shards", {
-                p_player_id: record.player_id,
-                p_amount: record.shards_earned,
-                p_source: "survival_mode",
-            });
+            // Manual update instead of RPC to ensure reliability
+            const { data: currencyData } = await supabase
+                .from('player_currency')
+                .select('clash_shards, total_earned')
+                .eq('player_id', record.player_id)
+                .single();
 
-            if (currencyError) {
-                console.error("Failed to award shards:", currencyError);
-                // Don't fail the whole operation, just log it
+            const currentShards = currencyData?.clash_shards || 0;
+            const currentTotal = currencyData?.total_earned || 0;
+            const newBalance = currentShards + record.shards_earned;
+
+            // Update balance
+            const { error: updateError } = await supabase
+                .from('player_currency')
+                .upsert({
+                    player_id: record.player_id,
+                    clash_shards: newBalance,
+                    total_earned: currentTotal + record.shards_earned,
+                }, { onConflict: 'player_id' });
+
+            if (updateError) {
+                console.error("Failed to award shards:", updateError);
+            } else {
+                // Log transaction
+                await supabase.from('currency_transactions').insert({
+                    player_id: record.player_id,
+                    amount: record.shards_earned,
+                    transaction_type: 'earn',
+                    source: 'survival_mode',
+                    balance_before: currentShards,
+                    balance_after: newBalance,
+                    metadata: {
+                        runId: newRun.id,
+                        waves: record.waves_cleared,
+                        score: record.score
+                    },
+                });
             }
         }
 
-        // Increment daily plays
-        await supabase.rpc("increment_survival_plays", {
-            p_player_id: record.player_id,
-        });
+        // NOTE: Play count is now deducted at start via /api/survival/start, not here
 
         // Get new rank if it's a high score
         let newRank: number | null = null;

@@ -16,6 +16,7 @@ import {
     Cancel01Icon,
     Store01Icon,
     FireIcon,
+    Award02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
@@ -61,6 +62,12 @@ const NAV_ITEMS = [
         href: "/survival",
         icon: FireIcon,
         color: "text-red-500",
+    },
+    {
+        label: "Achievements",
+        href: "/achievements",
+        icon: Award02Icon,
+        color: "text-amber-400",
     },
 ];
 

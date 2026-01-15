@@ -4,6 +4,8 @@
  * Achievement Card Component
  * Displays individual achievement with tier styling, progress, and rewards
  * Task: T108 [P] [US8]
+ * 
+ * Updated: Added claim button for completed but unclaimed achievements
  */
 
 import * as React from "react";
@@ -12,17 +14,21 @@ import { AchievementProgressBar } from "./ProgressBar";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
     Tick02Icon,
-    Lock02Icon,
-    SparklesIcon,
-    Coins01Icon,
-    Medal01Icon,
+    LockKeyIcon,
+    Fire02Icon,
+    Bitcoin01Icon,
+    Award01Icon,
     EyeIcon,
+    Loading03Icon,
+    Gif02Icon,
 } from "@hugeicons/core-free-icons";
+import { Button } from "@/components/ui/button";
 import type { PlayerAchievement, AchievementTier } from "@/types/achievement";
 
 interface AchievementCardProps {
     achievement: PlayerAchievement;
     onViewDetails?: (achievementId: string) => void;
+    onClaim?: (achievementId: string) => Promise<void>;
     className?: string;
 }
 
@@ -108,9 +114,27 @@ function SecretAchievementCard({ className }: { className?: string }) {
 export function AchievementCard({
     achievement,
     onViewDetails,
+    onClaim,
     className,
 }: AchievementCardProps) {
     const { achievement: achievementDef, isUnlocked, progressPercentage, currentProgress, targetProgress } = achievement;
+    const [isClaiming, setIsClaiming] = React.useState(false);
+
+    // Check if achievement is ready to claim (100% progress but not unlocked)
+    const isReadyToClaim = !isUnlocked && progressPercentage >= 100;
+
+    // Handle claim action
+    const handleClaim = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!onClaim || isClaiming) return;
+        
+        setIsClaiming(true);
+        try {
+            await onClaim(achievement.achievementId);
+        } finally {
+            setIsClaiming(false);
+        }
+    };
 
     // Handle secret achievements
     if (achievementDef.isSecret && !isUnlocked) {
@@ -168,24 +192,13 @@ export function AchievementCard({
                                 : "bg-card/50 border border-white/10"
                         )}
                     >
-                        {achievementDef.iconUrl ? (
-                            <img
-                                src={achievementDef.iconUrl}
-                                alt={achievementDef.name}
-                                className={cn(
-                                    "w-10 h-10 object-contain",
-                                    !isUnlocked && "grayscale opacity-50"
-                                )}
-                            />
-                        ) : (
-                            <HugeiconsIcon
-                                icon={isUnlocked ? Medal01Icon : Lock02Icon}
-                                className={cn(
-                                    "h-8 w-8",
-                                    isUnlocked ? tierConfig.color : "text-muted-foreground"
-                                )}
-                            />
-                        )}
+                        <HugeiconsIcon
+                            icon={isUnlocked ? Award01Icon : LockKeyIcon}
+                            className={cn(
+                                "h-8 w-8",
+                                isUnlocked ? tierConfig.color : "text-muted-foreground"
+                            )}
+                        />
                     </div>
                 </div>
 
@@ -218,14 +231,14 @@ export function AchievementCard({
                     {/* Rewards */}
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-1.5">
-                            <HugeiconsIcon icon={SparklesIcon} className="h-4 w-4 text-purple-400" />
+                            <HugeiconsIcon icon={Fire02Icon} className="h-4 w-4 text-purple-400" />
                             <span className="text-sm font-bold text-purple-400 font-orbitron">
                                 +{achievementDef.xpReward} XP
                             </span>
                         </div>
                         {achievementDef.currencyReward > 0 && (
                             <div className="flex items-center gap-1.5">
-                                <HugeiconsIcon icon={Coins01Icon} className="h-4 w-4 text-cyber-gold" />
+                                <HugeiconsIcon icon={Bitcoin01Icon} className="h-4 w-4 text-cyber-gold" />
                                 <span className="text-sm font-bold text-cyber-gold font-orbitron">
                                     +{achievementDef.currencyReward}
                                 </span>
@@ -233,11 +246,37 @@ export function AchievementCard({
                         )}
                         {achievementDef.badgeReward && (
                             <div className="flex items-center gap-1.5">
-                                <HugeiconsIcon icon={Medal01Icon} className="h-4 w-4 text-kaspa" />
+                                <HugeiconsIcon icon={Award01Icon} className="h-4 w-4 text-kaspa" />
                                 <span className="text-sm font-bold text-kaspa">Badge</span>
                             </div>
                         )}
                     </div>
+
+                    {/* Claim Button - Show when achievement is ready to claim */}
+                    {isReadyToClaim && onClaim && (
+                        <Button
+                            onClick={handleClaim}
+                            disabled={isClaiming}
+                            className={cn(
+                                "w-full mt-2",
+                                "bg-gradient-to-r from-kaspa to-kaspa-dark hover:from-kaspa-light hover:to-kaspa",
+                                "text-black font-bold font-orbitron"
+                            )}
+                            size="sm"
+                        >
+                            {isClaiming ? (
+                                <>
+                                    <HugeiconsIcon icon={Loading03Icon} className="h-4 w-4 mr-2 animate-spin" />
+                                    Claiming...
+                                </>
+                            ) : (
+                                <>
+                                    <HugeiconsIcon icon={Gif02Icon} className="h-4 w-4 mr-2" />
+                                    Claim Reward
+                                </>
+                            )}
+                        </Button>
+                    )}
 
                     {/* Unlock Date */}
                     {isUnlocked && achievement.unlockedAt && (

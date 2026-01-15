@@ -91,7 +91,7 @@ export default function SurvivalPage() {
                     )}
 
                     {gameState === "playing" && survivalConfig && (
-                        <div className="w-full h-[400px] sm:h-[500px] md:h-[600px] bg-black/50 border border-red-500/30 rounded-2xl overflow-hidden">
+                        <div className="w-full h-[500px] sm:h-[600px] md:h-[720px] lg:h-[800px] bg-black/50 border border-red-500/30 rounded-2xl overflow-hidden">
                             <SurvivalGameClient
                                 characterId={survivalConfig.characterId}
                                 onMatchEnd={handleMatchEnd}

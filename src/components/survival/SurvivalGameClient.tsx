@@ -9,6 +9,7 @@ import React, { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { EventBus } from "@/game/EventBus";
 import { useWalletStore, selectPersistedAddress } from "@/stores/wallet-store";
+import { sendKaspa } from "@/lib/kaspa/wallet";
 import type { SurvivalResult } from "@/game/scenes/SurvivalScene";
 
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -33,7 +34,7 @@ export function SurvivalGameClient({
 }: SurvivalGameClientProps) {
     const address = useWalletStore(selectPersistedAddress);
     const [isReady, setIsReady] = useState(false);
-    const [isRecording, setIsRecording] = useState(false);
+    const [recordingStatus, setRecordingStatus] = useState<string | null>(null);
 
     const onMatchEndRef = useRef(onMatchEnd);
     const onExitRef = useRef(onExit);
@@ -45,6 +46,30 @@ export function SurvivalGameClient({
         addressRef.current = address;
     }, [onMatchEnd, onExit, address]);
 
+    // Deduct play count when starting a survival run
+    useEffect(() => {
+        const deductPlay = async () => {
+            if (!address) return;
+
+            try {
+                const response = await fetch("/api/survival/start", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ playerAddress: address }),
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    console.error("Failed to deduct survival play:", data.error);
+                }
+            } catch (error) {
+                console.error("Error calling survival start API:", error);
+            }
+        };
+
+        deductPlay();
+    }, [address, characterId]); // Run once when component mounts with valid address
+
     // Listen for survival events
     useEffect(() => {
         const handleSceneReady = () => {
@@ -53,10 +78,26 @@ export function SurvivalGameClient({
 
         const handleSurvivalEnded = async (data: unknown) => {
             const result = data as SurvivalResult;
-            // Record the result to the backend
+
+            // If player is connected, require on-chain confirmation
             if (addressRef.current) {
-                setIsRecording(true);
+                setRecordingStatus("Confirming Score (1 KAS)...");
                 try {
+                    // 1. Send 1 KAS to self to verify on-chain
+                    // 1 KAS = 100,000,000 sompi
+                    await sendKaspa(
+                        addressRef.current,
+                        100000000,
+                        "Survival Score Recording"
+                    );
+
+                    // 2. Record to backend
+                    setRecordingStatus("Recording score...");
+
+                    // Small delay to let UI update and simulate "waiting for confirmation" 
+                    // (since kaspa blocks are 1s, this effectively waits for 1 block)
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+
                     const response = await fetch("/api/survival/end", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -81,13 +122,16 @@ export function SurvivalGameClient({
                         });
                     } else {
                         // Still call onMatchEnd even if API fails
+                        console.error("API Error");
                         onMatchEndRef.current(result);
                     }
                 } catch (error) {
                     console.error("Failed to record survival result:", error);
+                    // If user rejected transaction or other error, still end match but maybe don't record?
+                    // For now, allow proceeding to end screen but logged error implies score might not be saved properly
                     onMatchEndRef.current(result);
                 } finally {
-                    setIsRecording(false);
+                    setRecordingStatus(null);
                 }
             } else {
                 onMatchEndRef.current(result);
@@ -125,10 +169,10 @@ export function SurvivalGameClient({
             </div>
 
             {/* Recording indicator */}
-            {isRecording && (
+            {recordingStatus && (
                 <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20 bg-black/80 px-4 py-2 rounded-lg border border-cyan-500/30">
                     <span className="text-cyan-400 text-sm font-orbitron animate-pulse">
-                        Recording score...
+                        {recordingStatus}
                     </span>
                 </div>
             )}

@@ -130,7 +130,7 @@ export class SurvivalScene extends Phaser.Scene {
         this.load.audio("sfx_click", "/assets/audio/click.mp3");
         this.load.audio("sfx_cd_fight", "/assets/audio/3-2-1-fight.mp3");
 
-        // Character SFX
+        // Character SFX (base characters)
         const baseChars = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
         baseChars.forEach(charId => {
             this.load.audio(`sfx_${charId}_punch`, `/assets/audio/${charId}-punch.mp3`);
@@ -138,6 +138,19 @@ export class SurvivalScene extends Phaser.Scene {
             this.load.audio(`sfx_${charId}_block`, `/assets/audio/${charId}-block.mp3`);
             this.load.audio(`sfx_${charId}_special`, `/assets/audio/${charId}-special.mp3`);
         });
+
+        // Specific additional SFX
+        this.load.audio("sfx_nano-brawler_punch", "/assets/audio/nano-brawler-punch.mp3");
+        this.load.audio("sfx_neon-wraith_special", "/assets/audio/neon-wraith-special.mp3");
+        this.load.audio("sfx_prism-duelist_special", "/assets/audio/prism-duelist-special.mp3");
+        this.load.audio("sfx_razor-bot-7_punch", "/assets/audio/razor-bot-7-punch.mp3");
+        this.load.audio("sfx_razor-bot-7_special", "/assets/audio/razor-bot-7-special.mp3");
+        this.load.audio("sfx_scrap-goliath_special", "/assets/audio/scrap-goliath-special.mp3");
+        this.load.audio("sfx_sonic-striker_punch", "/assets/audio/sonic-striker-punch.mp3");
+        this.load.audio("sfx_sonic-striker_special", "/assets/audio/sonic-striker-special.mp3");
+        this.load.audio("sfx_void-reaper_special", "/assets/audio/void-reaper-special.mp3");
+        this.load.audio("sfx_aeon-guard_special", "/assets/audio/aeon-guard-special.mp3");
+        this.load.audio("sfx_bastion-hulk_special", "/assets/audio/bastion-hulk-special.mp3");
 
         // Load character spritesheets
         const allCharacters = Object.keys(CHAR_SPRITE_CONFIG);
@@ -167,7 +180,7 @@ export class SurvivalScene extends Phaser.Scene {
         this.combatEngine = new CombatEngine(
             this.playerCharacter.id,
             this.currentOpponent.id,
-            "best_of_3"
+            "best_of_1"
         );
 
         this.createAnimations();
@@ -564,6 +577,21 @@ export class SurvivalScene extends Phaser.Scene {
         }).setOrigin(0.5);
         container.add(costText);
 
+        // Advantage Text
+        let advantage = "";
+        if (move === "punch") advantage = "Beats Special";
+        if (move === "kick") advantage = "Beats Punch";
+        if (move === "block") advantage = "Reflects Kick";
+        if (move === "special") advantage = "Beats Block";
+
+        const advText = this.add.text(0, 65, advantage, {
+            fontFamily: "monospace",
+            fontSize: "10px",
+            color: "#aaaaaa",
+            fontStyle: "italic"
+        }).setOrigin(0.5);
+        container.add(advText);
+
         const hitArea = new Phaser.Geom.Rectangle(-width / 2, -height / 2, width, height);
         container.setInteractive(hitArea, Phaser.Geom.Rectangle.Contains);
 
@@ -714,8 +742,56 @@ export class SurvivalScene extends Phaser.Scene {
         this.selectedMove = null;
         this.turnTimer = 15;
 
+        // Get current state to check if player is stunned
+        const state = this.combatEngine.getState();
+
+        // Check if player is stunned
+        if (state.player1.isStunned) {
+            // Player is stunned - show message and disable buttons
+            this.turnIndicatorText.setText("YOU ARE STUNNED!").setColor("#ff4444");
+            this.roundTimerText.setColor("#ff4444");
+
+            // Disable all buttons visually
+            this.moveButtons.forEach(btn => {
+                btn.setAlpha(0.3);
+                btn.disableInteractive();
+            });
+
+            // Flash the stun message
+            this.tweens.add({
+                targets: this.turnIndicatorText,
+                alpha: { from: 1, to: 0.5 },
+                duration: 300,
+                yoyo: true,
+                repeat: 2,
+            });
+
+            // AI makes its decision immediately (player can't act)
+            const thinkTime = getAIThinkTime(this.waves[this.currentWave - 1].difficulty);
+            this.time.delayedCall(thinkTime, () => {
+                // Update AI context with stunned state before deciding
+                this.ai.updateContext({
+                    aiHealth: state.player2.hp,
+                    playerHealth: state.player1.hp,
+                    roundNumber: state.currentRound,
+                    playerRoundsWon: state.player1.roundsWon,
+                    aiRoundsWon: state.player2.roundsWon,
+                    playerIsStunned: true,
+                    aiEnergy: state.player2.energy,
+                });
+                const decision = this.ai.decide();
+                const aiMove = decision.move;
+                // Player's move doesn't matter when stunned - use punch as placeholder
+                this.resolveRound("punch", aiMove);
+            });
+            return;
+        }
+
+        // Normal selection phase (player not stunned)
         this.turnIndicatorText.setText("Select your move!").setColor("#888888");
         this.roundTimerText.setColor("#ef4444");
+
+        // Reset button visuals and affordability
         this.updateMoveButtonAffordability();
 
         this.timerEvent = this.time.addEvent({
@@ -729,7 +805,6 @@ export class SurvivalScene extends Phaser.Scene {
             repeat: 14
         });
 
-        const state = this.combatEngine.getState();
         this.ai.updateContext({
             aiHealth: state.player2.hp,
             playerHealth: state.player1.hp,
@@ -795,18 +870,246 @@ export class SurvivalScene extends Phaser.Scene {
 
     private resolveRound(playerMove: MoveType, aiMove: MoveType): void {
         this.phase = "resolving";
-        this.combatEngine.resolveTurn(playerMove, aiMove);
-        const state = this.combatEngine.getState();
-        this.turnIndicatorText.setText(`YOU: ${playerMove.toUpperCase()} vs AI: ${aiMove.toUpperCase()}`).setColor("#ffffff");
 
-        this.time.delayedCall(1500, () => {
-            this.syncUIWithCombatState();
-            if (state.isMatchOver) {
-                state.matchWinner === "player1" ? this.onWaveComplete() : this.onSurvivalEnd(false);
-            } else if (state.isRoundOver) {
-                this.showRoundEnd();
-            } else {
-                this.startSelectionPhase();
+        // Store previous health for damage calculation
+        const prevState = this.combatEngine.getState();
+        const prevP1Health = prevState.player1.hp;
+        const prevP2Health = prevState.player2.hp;
+
+        // Execute moves in combat engine
+        const turnResult = this.combatEngine.resolveTurn(playerMove, aiMove);
+        const state = this.combatEngine.getState();
+
+        const p1Char = this.playerCharacter.id;
+        const p2Char = this.currentOpponent.id;
+
+        // Store original positions
+        const p1OriginalX = CHARACTER_POSITIONS.PLAYER1.X;
+        const p2OriginalX = CHARACTER_POSITIONS.PLAYER2.X;
+        const meetingPointX = GAME_DIMENSIONS.CENTER_X;
+
+        // Check if either player was stunned
+        const p1WasStunned = turnResult.player1.outcome === "stunned";
+        const p2WasStunned = turnResult.player2.outcome === "stunned";
+
+        // Determine movement targets based on stun state
+        let p1TargetX: number;
+        let p2TargetX: number;
+
+        if (p1WasStunned && !p2WasStunned) {
+            p1TargetX = p1OriginalX;
+            p2TargetX = p1OriginalX + 100;
+        } else if (p2WasStunned && !p1WasStunned) {
+            p1TargetX = p2OriginalX - 100;
+            p2TargetX = p2OriginalX;
+        } else {
+            p1TargetX = meetingPointX - 50;
+            p2TargetX = meetingPointX + 50;
+        }
+
+        // Phase 1: Run animations
+        if (!p1WasStunned && this.anims.exists(`${p1Char}_run`)) {
+            const p1RunScale = getAnimationScale(p1Char, 'run');
+            this.player1Sprite.setScale(p1RunScale);
+            this.player1Sprite.play(`${p1Char}_run`);
+        }
+        if (!p2WasStunned && this.anims.exists(`${p2Char}_run`)) {
+            const p2RunScale = getAnimationScale(p2Char, 'run');
+            this.player2Sprite.setScale(p2RunScale);
+            this.player2Sprite.play(`${p2Char}_run`);
+        }
+
+        // Tween to target positions
+        this.tweens.add({
+            targets: this.player1Sprite,
+            x: p1TargetX,
+            duration: 600,
+            ease: 'Power2',
+        });
+
+        this.tweens.add({
+            targets: this.player2Sprite,
+            x: p2TargetX,
+            duration: 600,
+            ease: 'Power2',
+            onComplete: () => {
+                // Calculate actual damage
+                const p1ActualDamage = Math.max(0, prevP1Health - this.combatEngine.getState().player1.hp);
+                const p2ActualDamage = Math.max(0, prevP2Health - this.combatEngine.getState().player2.hp);
+
+                // Phase 2: Player 1 Attack
+                const runP1Attack = () => {
+                    return new Promise<void>((resolve) => {
+                        if (p1WasStunned) {
+                            resolve();
+                            return;
+                        }
+
+                        const animKey = `${p1Char}_${playerMove}`;
+                        if (this.anims.exists(animKey)) {
+                            const scale = getAnimationScale(p1Char, playerMove);
+                            this.player1Sprite.setScale(scale);
+                            this.player1Sprite.play(animKey);
+
+                            const sfxKey = getSFXKey(p1Char, playerMove);
+                            const delay = getSoundDelay(p1Char, playerMove);
+                            if (delay > 0) {
+                                this.time.delayedCall(delay, () => this.playSFX(sfxKey));
+                            } else {
+                                this.playSFX(sfxKey);
+                            }
+                        }
+
+                        this.turnIndicatorText.setText(playerMove.toUpperCase()).setColor("#22c55e");
+
+                        if (p2ActualDamage > 0) {
+                            this.time.delayedCall(300, () => {
+                                this.showFloatingText(`-${p2ActualDamage}`, p2OriginalX - 50, CHARACTER_POSITIONS.PLAYER2.Y - 130, "#ff4444");
+                                this.tweens.add({
+                                    targets: this.player2Sprite,
+                                    alpha: 0.5,
+                                    yoyo: true,
+                                    duration: 50,
+                                    repeat: 3
+                                });
+                            });
+                        }
+
+                        this.time.delayedCall(1200, () => resolve());
+                    });
+                };
+
+                // Phase 3: Player 2 (AI) Attack
+                const runP2Attack = () => {
+                    return new Promise<void>((resolve) => {
+                        if (p2WasStunned) {
+                            resolve();
+                            return;
+                        }
+
+                        const animKey = `${p2Char}_${aiMove}`;
+                        if (this.anims.exists(animKey)) {
+                            const scale = getAnimationScale(p2Char, aiMove);
+                            this.player2Sprite.setScale(scale);
+                            this.player2Sprite.play(animKey);
+
+                            const sfxKey = getSFXKey(p2Char, aiMove);
+                            const p2Delay = getSoundDelay(p2Char, aiMove);
+                            if (p2Delay > 0) {
+                                this.time.delayedCall(p2Delay, () => this.playSFX(sfxKey));
+                            } else {
+                                this.playSFX(sfxKey);
+                            }
+                        }
+
+                        this.turnIndicatorText.setText(aiMove.toUpperCase()).setColor("#ef4444");
+
+                        if (p1ActualDamage > 0) {
+                            this.time.delayedCall(300, () => {
+                                this.showFloatingText(`-${p1ActualDamage}`, p1OriginalX + 50, CHARACTER_POSITIONS.PLAYER1.Y - 130, "#ff4444");
+                                this.tweens.add({
+                                    targets: this.player1Sprite,
+                                    alpha: 0.5,
+                                    yoyo: true,
+                                    duration: 50,
+                                    repeat: 3
+                                });
+                            });
+                        }
+
+                        this.time.delayedCall(1200, () => resolve());
+                    });
+                };
+
+                // Execute attack sequence
+                (async () => {
+                    const isConcurrent = playerMove === "block" || aiMove === "block";
+
+                    if (isConcurrent) {
+                        await Promise.all([runP1Attack(), runP2Attack()]);
+                    } else {
+                        await runP1Attack();
+                        await runP2Attack();
+                    }
+
+                    // Show narrative
+                    let narrative = "";
+                    if (p1WasStunned && p2WasStunned) {
+                        narrative = "Both players are stunned!";
+                    } else if (p1WasStunned) {
+                        narrative = `You are STUNNED! AI uses ${aiMove}!`;
+                    } else if (p2WasStunned) {
+                        narrative = `AI is STUNNED! You use ${playerMove}!`;
+                    } else if (p1ActualDamage > 0 && p2ActualDamage > 0) {
+                        if (p2ActualDamage > p1ActualDamage) {
+                            narrative = `Brutal exchange! You ${playerMove} for ${p2ActualDamage} dmg, but take ${p1ActualDamage}!`;
+                        } else if (p1ActualDamage > p2ActualDamage) {
+                            narrative = `Fierce clash! AI ${aiMove} for ${p1ActualDamage} dmg, but takes ${p2ActualDamage}!`;
+                        } else {
+                            narrative = `Devastating trade! Both deal ${p1ActualDamage} damage!`;
+                        }
+                    } else if (p2ActualDamage > 0) {
+                        narrative = `You hit for ${p2ActualDamage} damage!`;
+                    } else if (p1ActualDamage > 0) {
+                        narrative = `AI hits for ${p1ActualDamage} damage!`;
+                    } else {
+                        narrative = "Both attacks were blocked or missed!";
+                    }
+                    this.narrativeText.setText(narrative).setAlpha(1);
+
+                    // Phase 4: Sync UI & Return
+                    this.syncUIWithCombatState();
+
+                    // Run back animations
+                    if (this.anims.exists(`${p1Char}_run`)) {
+                        const p1RunScale = getAnimationScale(p1Char, 'run');
+                        this.player1Sprite.setScale(p1RunScale);
+                        this.player1Sprite.play(`${p1Char}_run`);
+                    }
+                    if (this.anims.exists(`${p2Char}_run`)) {
+                        const p2RunScale = getAnimationScale(p2Char, 'run');
+                        this.player2Sprite.setScale(p2RunScale);
+                        this.player2Sprite.play(`${p2Char}_run`);
+                        this.player2Sprite.setFlipX(true);
+                    }
+
+                    // Tween back to original positions
+                    this.tweens.add({
+                        targets: this.player1Sprite,
+                        x: p1OriginalX,
+                        duration: 600,
+                        ease: 'Power2',
+                    });
+
+                    this.tweens.add({
+                        targets: this.player2Sprite,
+                        x: p2OriginalX,
+                        duration: 600,
+                        ease: 'Power2',
+                        onComplete: () => {
+                            // Phase 5: Return to idle
+                            if (this.anims.exists(`${p1Char}_idle`)) {
+                                const p1IdleScale = getAnimationScale(p1Char, 'idle');
+                                this.player1Sprite.setScale(p1IdleScale);
+                                this.player1Sprite.play(`${p1Char}_idle`);
+                            }
+                            if (this.anims.exists(`${p2Char}_idle`)) {
+                                const p2IdleScale = getAnimationScale(p2Char, 'idle');
+                                this.player2Sprite.setScale(p2IdleScale);
+                                this.player2Sprite.play(`${p2Char}_idle`);
+                            }
+
+                            // Check result
+                            if (state.isMatchOver) {
+                                state.matchWinner === "player1" ? this.onWaveComplete() : this.onSurvivalEnd(false);
+                            } else if (state.isRoundOver) {
+                                this.showRoundEnd();
+                            } else {
+                                this.startSelectionPhase();
+                            }
+                        }
+                    });
+                })();
             }
         });
     }
@@ -817,9 +1120,18 @@ export class SurvivalScene extends Phaser.Scene {
         this.countdownText.setText(isWin ? "ROUND WON!" : "ROUND LOST!").setColor(isWin ? "#22c55e" : "#ef4444").setAlpha(1);
         this.time.delayedCall(2000, () => {
             this.countdownText.setAlpha(0);
-            this.combatEngine.startNewRound();
-            this.syncUIWithCombatState();
-            this.startSelectionPhase();
+
+            // Re-check state to see if match is now over
+            const currentState = this.combatEngine.getState();
+            if (currentState.isMatchOver) {
+                // Match is over - handle win or loss
+                currentState.matchWinner === "player1" ? this.onWaveComplete() : this.onSurvivalEnd(false);
+            } else {
+                // Match continues - start new round
+                this.combatEngine.startNewRound();
+                this.syncUIWithCombatState();
+                this.startSelectionPhase();
+            }
         });
     }
 
@@ -860,7 +1172,7 @@ export class SurvivalScene extends Phaser.Scene {
         const wave = this.waves[this.currentWave - 1];
         this.currentOpponent = getCharacter(wave.characterId) ?? CHARACTER_ROSTER[0];
         this.ai = new AIOpponent(wave.difficulty);
-        this.combatEngine = new CombatEngine(this.playerCharacter.id, this.currentOpponent.id, "best_of_3");
+        this.combatEngine = new CombatEngine(this.playerCharacter.id, this.currentOpponent.id, "best_of_1");
 
         const tierName = getWaveTierName(this.currentWave);
         const tierColor = getWaveTierColor(this.currentWave);

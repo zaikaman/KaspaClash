@@ -84,7 +84,7 @@ export default function PracticePage() {
                     )}
 
                     {gameState === "playing" && practiceConfig && (
-                        <div className="w-full h-[400px] sm:h-[500px] md:h-[600px] bg-black/50 border border-cyber-gray/30 rounded-2xl overflow-hidden">
+                        <div className="w-full h-[500px] sm:h-[600px] md:h-[720px] lg:h-[800px] bg-black/50 border border-cyber-gray/30 rounded-2xl overflow-hidden">
                             <PracticeGameClient
                                 characterId={practiceConfig.characterId}
                                 aiDifficulty={practiceConfig.difficulty}

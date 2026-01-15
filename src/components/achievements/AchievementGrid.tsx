@@ -18,7 +18,7 @@ import {
     StarIcon,
     FilterIcon,
     Tick02Icon,
-    Lock02Icon,
+    CancelCircleIcon,
 } from "@hugeicons/core-free-icons";
 import type { PlayerAchievement, AchievementCategory } from "@/types/achievement";
 
@@ -28,6 +28,7 @@ interface AchievementGridProps {
     showUnlockedOnly: boolean;
     onCategoryChange: (category: AchievementCategory | null) => void;
     onShowUnlockedOnlyChange: (showUnlockedOnly: boolean) => void;
+    onClaimAchievement?: (achievementId: string) => Promise<void>;
     isLoading?: boolean;
     className?: string;
 }
@@ -140,7 +141,7 @@ function EmptyState({ category, showUnlockedOnly }: { category: AchievementCateg
                 config?.bgColor || "bg-card/30"
             )}>
                 <HugeiconsIcon
-                    icon={showUnlockedOnly ? Lock02Icon : (config?.icon || StarIcon)}
+                    icon={showUnlockedOnly ? CancelCircleIcon : (config?.icon || StarIcon)}
                     className={cn("h-12 w-12", config?.color || "text-muted-foreground")}
                 />
             </div>
@@ -187,6 +188,7 @@ export function AchievementGrid({
     showUnlockedOnly,
     onCategoryChange,
     onShowUnlockedOnlyChange,
+    onClaimAchievement,
     isLoading = false,
     className,
 }: AchievementGridProps) {
@@ -275,7 +277,7 @@ export function AchievementGrid({
                             : "bg-card/30 border-white/5 text-muted-foreground hover:bg-card/50"
                     )}
                 >
-                    <HugeiconsIcon icon={showUnlockedOnly ? Tick02Icon : Lock02Icon} className="h-4 w-4" />
+                    <HugeiconsIcon icon={showUnlockedOnly ? Tick02Icon : CancelCircleIcon} className="h-4 w-4" />
                     <span>{showUnlockedOnly ? "Unlocked Only" : "Show All"}</span>
                 </button>
             </div>
@@ -291,6 +293,7 @@ export function AchievementGrid({
                         <AchievementCard
                             key={achievement.achievementId}
                             achievement={achievement}
+                            onClaim={onClaimAchievement}
                         />
                     ))}
                 </div>

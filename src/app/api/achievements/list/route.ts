@@ -2,12 +2,17 @@
  * Achievements List API Route
  * GET /api/achievements/list - Fetch all achievements with player progress
  * Task: T116 [P] [US8]
+ * 
+ * Fixed: Now fetches real player stats from game data sources
+ * instead of only relying on player_achievements table
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { Errors, handleError, createErrorResponse, type ApiErrorResponse } from '@/lib/api/errors';
-import { ALL_ACHIEVEMENTS, getAchievementById } from '@/lib/achievements/achievement-definitions';
+import { ALL_ACHIEVEMENTS } from '@/lib/achievements/achievement-definitions';
+import { fetchPlayerStats } from '@/lib/achievements/player-stats-fetcher';
+import type { PlayerStats } from '@/lib/achievements/achievement-tracker';
 import type { PlayerAchievement } from '@/types/achievement';
 
 interface AchievementsListResponse {
@@ -42,11 +47,16 @@ export async function GET(
 
         const supabase = createSupabaseAdminClient() as any;
 
-        // Fetch player's unlocked achievements
-        const { data: playerAchievements, error: fetchError } = await supabase
-            .from('player_achievements')
-            .select('*')
-            .eq('player_id', playerId);
+        // Fetch player's unlocked achievements and real stats in parallel
+        const [playerAchievementsResult, playerStats] = await Promise.all([
+            supabase
+                .from('player_achievements')
+                .select('*')
+                .eq('player_id', playerId),
+            fetchPlayerStats(supabase, playerId),
+        ]);
+
+        const { data: playerAchievements, error: fetchError } = playerAchievementsResult;
 
         if (fetchError) {
             console.error('Error fetching achievements:', fetchError);
@@ -64,24 +74,23 @@ export async function GET(
             }
         });
 
-        // Build progress map for in-progress achievements
-        const progressMap = new Map<string, number>();
-        (playerAchievements || []).forEach((pa: any) => {
-            progressMap.set(pa.achievement_id, pa.current_progress || 0);
-        });
-
-        // Map all achievements with player progress
+        // Map all achievements with player progress from REAL stats
         const achievements: PlayerAchievement[] = ALL_ACHIEVEMENTS.map((achievement) => {
             const isUnlocked = unlockedMap.has(achievement.id);
             const unlockData = unlockedMap.get(achievement.id);
-            const currentProgress = progressMap.get(achievement.id) || 0;
             const targetProgress = achievement.requirement.targetValue || 1;
+            
+            // Get current progress from real player stats
+            const trackingKey = achievement.requirement.trackingKey as keyof PlayerStats;
+            const currentProgress = isUnlocked 
+                ? targetProgress  // If unlocked, show as complete
+                : Math.min(playerStats[trackingKey] || 0, targetProgress);
 
             return {
                 playerId,
                 achievementId: achievement.id,
                 achievement,
-                currentProgress: Math.min(currentProgress, targetProgress),
+                currentProgress,
                 targetProgress,
                 isUnlocked,
                 unlockedAt: unlockData?.unlockedAt,

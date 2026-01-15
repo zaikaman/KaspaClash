@@ -16,6 +16,7 @@ export interface PlayerStats {
     total_blocks: number;
     perfect_rounds: number;
     perfect_matches: number;
+    perfect_rounds_in_match: number; // Max perfect rounds in a single match
     win_streak: number;
     max_win_streak: number;
     current_tier: number;
@@ -39,8 +40,8 @@ export interface PlayerStats {
 /** Default player stats */
 export const DEFAULT_PLAYER_STATS: PlayerStats = {
     total_wins: 0, total_losses: 0, total_combos: 0, total_damage_dealt: 0,
-    total_blocks: 0, perfect_rounds: 0, perfect_matches: 0, win_streak: 0,
-    max_win_streak: 0, current_tier: 1, total_xp: 0, quests_completed: 0,
+    total_blocks: 0, perfect_rounds: 0, perfect_matches: 0, perfect_rounds_in_match: 0,
+    win_streak: 0, max_win_streak: 0, current_tier: 1, total_xp: 0, quests_completed: 0,
     quest_streak: 0, prestige_level: 0, matches_played: 0, unique_opponents: 0,
     shop_purchases: 0, cosmetics_owned: 0, total_shards_earned: 0,
     epic_or_legendary_owned: 0, legendary_owned: 0, max_survival_waves: 0,

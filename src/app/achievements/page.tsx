@@ -19,10 +19,10 @@ import {
     Alert02Icon,
     Loading03Icon,
     RefreshIcon,
-    Trophy01Icon,
-    SparklesIcon,
-    Coins01Icon,
-    Medal01Icon,
+    Award02Icon,
+    Fire02Icon,
+    Bitcoin01Icon,
+    Award01Icon,
 } from "@hugeicons/core-free-icons";
 import type { PlayerAchievement, AchievementCategory, Achievement } from "@/types/achievement";
 
@@ -148,6 +148,46 @@ export default function AchievementsPage() {
         }
     };
 
+    // Handle claiming an achievement
+    const handleClaimAchievement = async (achievementId: string) => {
+        if (!walletAddress) return;
+
+        try {
+            const response = await fetch('/api/achievements/unlock', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ playerId: walletAddress, achievementId }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                // Handle API error response structure { error: { code, message } }
+                const errorMessage = typeof data.error === 'object' 
+                    ? data.error.message || data.error.code || 'Failed to claim achievement'
+                    : data.error || 'Failed to claim achievement';
+                throw new Error(errorMessage);
+            }
+
+            // Show unlock notification
+            const achievementDef = achievements.find((a) => a.id === achievementId);
+            if (achievementDef) {
+                setPendingUnlock({
+                    achievement: achievementDef,
+                    xpAwarded: data.xpAwarded,
+                    currencyAwarded: data.currencyAwarded,
+                    badgeAwarded: data.badgeAwarded,
+                });
+            }
+
+            // Refresh achievements to update the UI
+            await fetchAchievements();
+        } catch (err) {
+            console.error('Error claiming achievement:', err);
+            setError(err instanceof Error ? err.message : 'Failed to claim achievement');
+        }
+    };
+
     // Calculate statistics
     const stats = React.useMemo(() => {
         const total = playerAchievements.length;
@@ -197,7 +237,7 @@ export default function AchievementsPage() {
                         <div className="flex items-center justify-center gap-3 mb-4">
                             <div className="p-3 rounded-xl bg-gradient-to-br from-amber-500/20 to-kaspa/20 border border-amber-500/30">
                                 <HugeiconsIcon
-                                    icon={Trophy01Icon}
+                                    icon={Award02Icon}
                                     className="h-8 w-8 text-amber-400"
                                 />
                             </div>
@@ -229,7 +269,7 @@ export default function AchievementsPage() {
                         )}
                     </div>
 
-                    <DecorativeLine className="mb-12 sm:mb-16" variant="left-red-right-gold" />
+                    <DecorativeLine className="mb-24 sm:mb-32" variant="left-red-right-gold" />
 
                     {/* Unlock Notification */}
                     {pendingUnlock && (
@@ -270,26 +310,26 @@ export default function AchievementsPage() {
                             {/* Statistics */}
                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                                 <StatCard
-                                    icon={Trophy01Icon}
+                                    icon={Award02Icon}
                                     label="Unlocked"
                                     value={`${stats.unlocked}/${stats.total}`}
                                     subValue={`${stats.percentage}% Complete`}
                                     color="bg-amber-500/20 text-amber-400"
                                 />
                                 <StatCard
-                                    icon={SparklesIcon}
+                                    icon={Fire02Icon}
                                     label="XP Earned"
                                     value={stats.totalXP.toLocaleString()}
                                     color="bg-purple-500/20 text-purple-400"
                                 />
                                 <StatCard
-                                    icon={Coins01Icon}
+                                    icon={Bitcoin01Icon}
                                     label="Shards Earned"
                                     value={stats.totalCurrency.toLocaleString()}
                                     color="bg-cyber-gold/20 text-cyber-gold"
                                 />
                                 <StatCard
-                                    icon={Medal01Icon}
+                                    icon={Award01Icon}
                                     label="Categories"
                                     value="5"
                                     subValue="Combat, Progression, Social..."
@@ -305,6 +345,7 @@ export default function AchievementsPage() {
                                     showUnlockedOnly={showUnlockedOnly}
                                     onCategoryChange={(cat) => setSelectedCategory(cat)}
                                     onShowUnlockedOnlyChange={setShowUnlockedOnly}
+                                    onClaimAchievement={handleClaimAchievement}
                                     isLoading={isLoading}
                                 />
                             </div>
@@ -316,7 +357,7 @@ export default function AchievementsPage() {
                         <div className="p-12 rounded-xl bg-card/10 border border-white/5 backdrop-blur-sm text-center">
                             <div className="p-4 rounded-full bg-card/30 inline-block mb-4">
                                 <HugeiconsIcon
-                                    icon={Trophy01Icon}
+                                    icon={Award02Icon}
                                     className="h-12 w-12 text-muted-foreground"
                                 />
                             </div>

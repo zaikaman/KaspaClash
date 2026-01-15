@@ -15,6 +15,7 @@ import {
     Coins01Icon,
     Medal01Icon,
     Cancel01Icon,
+    Award01Icon,
 } from "@hugeicons/core-free-icons";
 import type { Achievement, AchievementTier } from "@/types/achievement";
 
@@ -152,18 +153,10 @@ export function UnlockNotification({
                                 "bg-black/20"
                             )}
                         >
-                            {achievement.iconUrl ? (
-                                <img
-                                    src={achievement.iconUrl}
-                                    alt={achievement.name}
-                                    className="w-10 h-10 object-contain"
-                                />
-                            ) : (
-                                <HugeiconsIcon
-                                    icon={Medal01Icon}
-                                    className={cn("h-8 w-8", tierConfig.color)}
-                                />
-                            )}
+                            <HugeiconsIcon
+                                icon={Award01Icon}
+                                className={cn("h-8 w-8", tierConfig.color)}
+                            />
                         </div>
 
                         {/* Details */}

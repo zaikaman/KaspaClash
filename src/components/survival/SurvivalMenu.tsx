@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { CHARACTER_ROSTER } from "@/data/characters";
 import type { Character } from "@/types";
-import { useWalletStore, selectPersistedAddress } from "@/stores/wallet-store";
+import { useWalletStore, selectPersistedAddress, selectIsConnected } from "@/stores/wallet-store";
 import { TOTAL_WAVES, MAX_DAILY_PLAYS } from "@/lib/survival/wave-generator";
 import { getMaxPossibleShards } from "@/lib/survival/score-calculator";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -38,6 +38,7 @@ interface SurvivalStatus {
 
 export default function SurvivalMenu({ onStart }: SurvivalMenuProps) {
     const address = useWalletStore(selectPersistedAddress);
+    const isConnected = useWalletStore(selectIsConnected);
     const [selectedChar, setSelectedChar] = useState<string>(CHARACTER_ROSTER[0].id);
     const [ownedCharacterIds, setOwnedCharacterIds] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -91,7 +92,7 @@ export default function SurvivalMenu({ onStart }: SurvivalMenuProps) {
     const playsRemaining = status?.playsRemaining ?? MAX_DAILY_PLAYS;
 
     const handleStart = () => {
-        if (!canStart || !address) return;
+        if (!canStart || !isConnected) return;
         onStart(selectedChar);
     };
 
@@ -229,7 +230,7 @@ export default function SurvivalMenu({ onStart }: SurvivalMenuProps) {
 
                 {/* Start Button */}
                 <div className="pt-4 border-t border-white/10">
-                    {!address ? (
+                    {!isConnected ? (
                         <p className="text-center text-cyber-gray text-sm mb-4">Connect wallet to play</p>
                     ) : !canStart ? (
                         <p className="text-center text-red-400 text-sm mb-4">No plays remaining today</p>
@@ -237,7 +238,7 @@ export default function SurvivalMenu({ onStart }: SurvivalMenuProps) {
 
                     <Button
                         onClick={handleStart}
-                        disabled={!canStart || !address || isLoading}
+                        disabled={!canStart || !isConnected || isLoading}
                         className="w-full h-14 text-lg bg-gradient-to-r from-red-600 to-red-500 text-white font-orbitron font-bold shadow-[0_0_20px_rgba(239,68,68,0.3)] hover:shadow-[0_0_30px_rgba(239,68,68,0.5)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isLoading ? (

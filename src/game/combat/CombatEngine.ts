@@ -30,7 +30,7 @@ export class CombatEngine {
     constructor(
         player1CharacterId: string,
         player2CharacterId: string,
-        matchFormat: "best_of_3" | "best_of_5" = "best_of_5"
+        matchFormat: "best_of_1" | "best_of_3" | "best_of_5" = "best_of_5"
     ) {
         const p1Stats = getCharacterCombatStats(player1CharacterId);
         const p2Stats = getCharacterCombatStats(player2CharacterId);
@@ -61,7 +61,7 @@ export class CombatEngine {
             currentRound: 1,
             currentTurn: 1,
             matchFormat,
-            roundsToWin: matchFormat === "best_of_5" ? 3 : 2,
+            roundsToWin: matchFormat === "best_of_5" ? 3 : matchFormat === "best_of_3" ? 2 : 1,
             isRoundOver: false,
             isMatchOver: false,
             roundWinner: null,
