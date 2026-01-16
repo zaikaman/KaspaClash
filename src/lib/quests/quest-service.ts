@@ -86,27 +86,20 @@ export async function trackQuestProgress(
         });
 
         // Find quests that can receive progress from this event
+        // Collect all updates to batch them
         const updatedQuests: { questId: string; newProgress: number; isCompleted: boolean }[] = [];
+        const pendingUpdates: { id: string; current_progress: number; is_completed: boolean }[] = [];
         let completedCount = 0;
 
         for (const quest of quests) {
             if (canApplyProgress(quest, progressEvent)) {
                 const result = calculateNewProgress(quest, progressEvent);
 
-                // Update the quest in database
-                const { error: updateError } = await supabase
-                    .from('daily_quests')
-                    .update({
-                        current_progress: result.newProgress,
-                        is_completed: result.isCompleted,
-                        updated_at: new Date().toISOString(),
-                    })
-                    .eq('id', quest.id);
-
-                if (updateError) {
-                    console.error('Error updating quest progress:', updateError);
-                    continue;
-                }
+                pendingUpdates.push({
+                    id: quest.id,
+                    current_progress: result.newProgress,
+                    is_completed: result.isCompleted,
+                });
 
                 updatedQuests.push({
                     questId: quest.id,
@@ -118,6 +111,29 @@ export async function trackQuestProgress(
                     completedCount++;
                 }
             }
+        }
+
+        // Batch update all quests in parallel instead of sequentially
+        if (pendingUpdates.length > 0) {
+            const updatePromises = pendingUpdates.map(update =>
+                supabase
+                    .from('daily_quests')
+                    .update({
+                        current_progress: update.current_progress,
+                        is_completed: update.is_completed,
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq('id', update.id)
+            );
+
+            const results = await Promise.all(updatePromises);
+
+            // Log any errors but don't fail the whole operation
+            results.forEach((result, index) => {
+                if (result.error) {
+                    console.error(`Error updating quest ${pendingUpdates[index].id}:`, result.error);
+                }
+            });
         }
 
         return { success: true, updatedQuests, completedCount };

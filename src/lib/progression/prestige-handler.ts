@@ -232,6 +232,7 @@ export async function executePrestige(playerId: string): Promise<PrestigeResult>
 
 /**
  * Grant prestige rewards to player inventory
+ * Uses batch insert for better performance
  * 
  * @param playerId - Player's wallet address
  * @param prestigeLevel - New prestige level
@@ -244,46 +245,74 @@ async function grantPrestigeRewards(
 ): Promise<void> {
     const supabase = createSupabaseAdminClient() as any;
 
-    const itemsToGrant: { item_id: string; item_type: string }[] = [];
+    const inventoryItems: {
+        player_id: string;
+        item_id: string;
+        item_type: string;
+        source: string;
+        acquired_at: string;
+    }[] = [];
+
+    const source = `prestige_${prestigeLevel}`;
+    const acquiredAt = new Date().toISOString();
 
     // Add badge
     if (rewards.badge) {
-        itemsToGrant.push({ item_id: rewards.badge, item_type: 'badge' });
+        inventoryItems.push({
+            player_id: playerId,
+            item_id: rewards.badge,
+            item_type: 'badge',
+            source,
+            acquired_at: acquiredAt,
+        });
     }
 
     // Add profile border
     if (rewards.profileBorder) {
-        itemsToGrant.push({ item_id: rewards.profileBorder, item_type: 'profile_border' });
+        inventoryItems.push({
+            player_id: playerId,
+            item_id: rewards.profileBorder,
+            item_type: 'profile_border',
+            source,
+            acquired_at: acquiredAt,
+        });
     }
 
     // Add aura
     if (rewards.aura) {
-        itemsToGrant.push({ item_id: rewards.aura, item_type: 'aura' });
+        inventoryItems.push({
+            player_id: playerId,
+            item_id: rewards.aura,
+            item_type: 'aura',
+            source,
+            acquired_at: acquiredAt,
+        });
     }
 
     // Add cosmetics
     if (rewards.cosmetics) {
         for (const cosmetic of rewards.cosmetics) {
-            itemsToGrant.push({ item_id: cosmetic, item_type: 'skin' });
+            inventoryItems.push({
+                player_id: playerId,
+                item_id: cosmetic,
+                item_type: 'skin',
+                source,
+                acquired_at: acquiredAt,
+            });
         }
     }
 
-    // Insert all items into player inventory
-    for (const item of itemsToGrant) {
+    // Batch insert all items in a single operation
+    if (inventoryItems.length > 0) {
         const { error } = await supabase
             .from('player_inventory')
-            .upsert({
-                player_id: playerId,
-                item_id: item.item_id,
-                item_type: item.item_type,
-                source: `prestige_${prestigeLevel}`,
-                acquired_at: new Date().toISOString(),
-            }, {
+            .upsert(inventoryItems, {
                 onConflict: 'player_id,item_id',
+                ignoreDuplicates: true,
             });
 
         if (error) {
-            console.warn(`Failed to grant item ${item.item_id}:`, error);
+            console.warn(`Failed to batch grant prestige rewards:`, error);
         }
     }
 }

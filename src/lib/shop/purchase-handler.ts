@@ -20,6 +20,7 @@ export interface PurchaseResult {
 
 /**
  * Validate purchase prerequisites
+ * Uses parallel queries to minimize database round-trips
  */
 export async function validatePurchase(
     playerId: string,
@@ -27,39 +28,42 @@ export async function validatePurchase(
 ): Promise<{ valid: boolean; error?: string; errorCode?: string; item?: any; balance?: number }> {
     const supabase = createSupabaseAdminClient() as any;
 
-    // Check if item exists
-    const { data: item, error: itemError } = await supabase
-        .from('cosmetic_items')
-        .select('*')
-        .eq('id', cosmeticId)
-        .single();
+    // Execute all validation queries in parallel for better performance
+    const [itemResult, ownershipResult, currencyResult] = await Promise.all([
+        // Check if item exists
+        supabase
+            .from('cosmetic_items')
+            .select('*')
+            .eq('id', cosmeticId)
+            .single(),
+        // Check if player already owns item (maybeSingle to avoid error on no match)
+        supabase
+            .from('player_inventory')
+            .select('id')
+            .eq('player_id', playerId)
+            .eq('cosmetic_id', cosmeticId)
+            .maybeSingle(),
+        // Get player's current balance
+        supabase
+            .from('player_currency')
+            .select('clash_shards')
+            .eq('player_id', playerId)
+            .maybeSingle(),
+    ]);
 
-    if (itemError || !item) {
+    // Validate item exists
+    if (itemResult.error || !itemResult.data) {
         return { valid: false, error: 'Item not found', errorCode: 'ITEM_NOT_FOUND' };
     }
+    const item = itemResult.data;
 
-    // Check if player already owns item
-    const { data: existingOwnership } = await supabase
-        .from('player_inventory')
-        .select('id')
-        .eq('player_id', playerId)
-        .eq('cosmetic_id', cosmeticId)
-        .single();
-
-    if (existingOwnership) {
+    // Check ownership
+    if (ownershipResult.data) {
         return { valid: false, error: 'You already own this item', errorCode: 'ALREADY_OWNED' };
     }
 
-    // Get player's current balance
-    const { data: currency, error: currencyError } = await supabase
-        .from('player_currency')
-        .select('clash_shards')
-        .eq('player_id', playerId)
-        .single();
-
-    const currentBalance = currency?.clash_shards || 0;
-
-    // Check if player can afford
+    // Check balance
+    const currentBalance = currencyResult.data?.clash_shards || 0;
     if (!canAffordPurchase(currentBalance, item.price)) {
         return { valid: false, error: 'Insufficient Clash Shards', errorCode: 'INSUFFICIENT_FUNDS', balance: currentBalance };
     }
