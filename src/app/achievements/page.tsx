@@ -13,6 +13,7 @@ import { AchievementGrid } from "@/components/achievements/AchievementGrid";
 import { UnlockNotification } from "@/components/achievements/UnlockNotification";
 import { useAchievementStore } from "@/stores/achievement-store";
 import { useWalletStore, selectIsConnected, selectPersistedAddress } from "@/stores/wallet-store";
+import { useShopStore } from "@/stores/shop-store";
 import { Button } from "@/components/ui/button";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -67,6 +68,7 @@ function StatCard({
 export default function AchievementsPage() {
     const isConnected = useWalletStore(selectIsConnected);
     const walletAddress = useWalletStore(selectPersistedAddress);
+    const { updateCurrencyBalance } = useShopStore();
 
     const {
         achievements,
@@ -178,6 +180,11 @@ export default function AchievementsPage() {
                     currencyAwarded: data.currencyAwarded,
                     badgeAwarded: data.badgeAwarded,
                 });
+            }
+
+            // Immediately update the currency balance in the header
+            if (data.newBalance !== undefined) {
+                updateCurrencyBalance(data.newBalance);
             }
 
             // Refresh achievements to update the UI
