@@ -19,12 +19,14 @@ import {
     ChampionIcon,
 } from "@hugeicons/core-free-icons";
 import type { TierReward } from "@/types/progression";
+import { TierCardSkeleton } from "@/components/ui/Skeleton";
 
 interface BattlePassTiersProps {
     currentTier: number;
     tiers?: { tier: number; rewards: TierReward[] }[];
     isPremium?: boolean;
     onTierClick?: (tier: number) => void;
+    isLoading?: boolean;
     className?: string;
 }
 
@@ -203,6 +205,7 @@ export function BattlePassTiers({
     tiers,
     isPremium = false,
     onTierClick,
+    isLoading = false,
     className,
 }: BattlePassTiersProps) {
     const containerRef = React.useRef<HTMLDivElement>(null);
@@ -265,20 +268,27 @@ export function BattlePassTiers({
                 ref={containerRef}
                 className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3 p-4 rounded-xl bg-card/30 border border-border/50"
             >
-                {allTiers.map(({ tier, rewards }) => (
-                    <div
-                        key={tier}
-                        ref={tier === currentTier ? currentTierRef : undefined}
-                    >
-                        <TierCard
-                            tier={tier}
-                            rewards={rewards}
-                            isUnlocked={tier <= currentTier}
-                            isCurrent={tier === currentTier}
-                            onClick={onTierClick ? () => onTierClick(tier) : undefined}
-                        />
-                    </div>
-                ))}
+                {isLoading ? (
+                    // Loading skeleton grid
+                    Array.from({ length: 20 }).map((_, i) => (
+                        <TierCardSkeleton key={i} />
+                    ))
+                ) : (
+                    allTiers.map(({ tier, rewards }) => (
+                        <div
+                            key={tier}
+                            ref={tier === currentTier ? currentTierRef : undefined}
+                        >
+                            <TierCard
+                                tier={tier}
+                                rewards={rewards}
+                                isUnlocked={tier <= currentTier}
+                                isCurrent={tier === currentTier}
+                                onClick={onTierClick ? () => onTierClick(tier) : undefined}
+                            />
+                        </div>
+                    ))
+                )}
             </div>
 
             {/* Legend */}

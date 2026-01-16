@@ -84,7 +84,7 @@ export default function BattlePassPage() {
     const [isRefreshing, setIsRefreshing] = React.useState(false);
     const [showUnlockModal, setShowUnlockModal] = React.useState(false);
     const [unlockedTiers, setUnlockedTiers] = React.useState<{ tier: number; rewards: TierReward[]; isClaimed?: boolean }[]>([]);
-    
+
     // Prestige state
     const [showPrestigeModal, setShowPrestigeModal] = React.useState(false);
     const [isPrestiging, setIsPrestiging] = React.useState(false);
@@ -228,9 +228,9 @@ export default function BattlePassPage() {
 
     // Check if eligible for prestige
     const isEligibleForPrestige = React.useMemo(() => {
-        return displayProgression.currentTier >= PRESTIGE_REQUIRED_TIER && 
-               displayProgression.prestigeLevel < MAX_PRESTIGE_LEVEL &&
-               isConnected;
+        return displayProgression.currentTier >= PRESTIGE_REQUIRED_TIER &&
+            displayProgression.prestigeLevel < MAX_PRESTIGE_LEVEL &&
+            isConnected;
     }, [displayProgression.currentTier, displayProgression.prestigeLevel, isConnected]);
 
     // Get prestige display info
@@ -263,7 +263,7 @@ export default function BattlePassPage() {
 
             // Refresh progression to show reset tier
             await fetchPlayerProgression();
-            
+
             // Close modal
             setShowPrestigeModal(false);
         } catch (err) {
@@ -413,7 +413,7 @@ export default function BattlePassPage() {
                                             </p>
                                         </div>
                                     </div>
-                                    
+
                                     {isEligibleForPrestige && (
                                         <Button
                                             onClick={() => setShowPrestigeModal(true)}
@@ -423,7 +423,7 @@ export default function BattlePassPage() {
                                             Prestige Now
                                         </Button>
                                     )}
-                                    
+
                                     {displayProgression.prestigeLevel >= MAX_PRESTIGE_LEVEL && (
                                         <div className="px-4 py-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-orbitron font-bold text-sm">
                                             💎 MAX PRESTIGE
@@ -440,6 +440,7 @@ export default function BattlePassPage() {
                                 currentTier={displayProgression.currentTier}
                                 isPremium={false}
                                 onTierClick={handleTierClick}
+                                isLoading={isLoading}
                             />
                         </div>
                     </div>
@@ -452,6 +453,7 @@ export default function BattlePassPage() {
                 onClose={() => setShowUnlockModal(false)}
                 unlockedTiers={unlockedTiers}
                 onClaim={handleClaimRewards}
+                isClaimingRewards={isClaiming}
             />
 
             {/* Prestige Confirmation Modal */}

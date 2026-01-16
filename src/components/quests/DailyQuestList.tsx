@@ -16,10 +16,10 @@ import {
     FlashIcon,
     Coins01Icon,
     FireIcon,
-    Loading03Icon,
     SparklesIcon,
     Tick02Icon,
 } from "@hugeicons/core-free-icons";
+import { QuestCardSkeleton, StatCardSkeleton } from "@/components/ui/Skeleton";
 import type { DailyQuest } from "@/types/quest";
 
 interface DailyQuestListProps {
@@ -124,12 +124,21 @@ export function DailyQuestList({
 
     if (isLoading) {
         return (
-            <div className={cn("flex flex-col items-center justify-center py-12", className)}>
-                <HugeiconsIcon
-                    icon={Loading03Icon}
-                    className="h-8 w-8 text-kaspa animate-spin mb-4"
-                />
-                <p className="text-sm text-muted-foreground">Loading quests...</p>
+            <div className={cn("space-y-6", className)}>
+                {/* Header Skeleton */}
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <StatCardSkeleton />
+                    <div className="flex items-center gap-3">
+                        <StatCardSkeleton />
+                    </div>
+                </div>
+
+                {/* Quest Card Skeletons */}
+                <div className="grid gap-4">
+                    {[1, 2, 3].map((i) => (
+                        <QuestCardSkeleton key={i} />
+                    ))}
+                </div>
             </div>
         );
     }
