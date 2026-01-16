@@ -154,7 +154,12 @@ export default function AchievementsPage() {
     const handleClaimAchievement = async (achievementId: string) => {
         if (!walletAddress) return;
 
+        // Clear any previous error before attempting claim
+        setError(null);
+
         try {
+            console.log(`[AchievementsPage] Attempting to claim achievement: ${achievementId} for player: ${walletAddress}`);
+            
             const response = await fetch('/api/achievements/unlock', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -162,12 +167,22 @@ export default function AchievementsPage() {
             });
 
             const data = await response.json();
+            
+            console.log(`[AchievementsPage] Unlock response:`, { status: response.status, data });
 
             if (!response.ok) {
-                // Handle API error response structure { error: { code, message } }
-                const errorMessage = typeof data.error === 'object' 
-                    ? data.error.message || data.error.code || 'Failed to claim achievement'
-                    : data.error || 'Failed to claim achievement';
+                // Handle API error response structure { error: { code, message, details } }
+                let errorMessage = 'Failed to claim achievement';
+                if (typeof data.error === 'object' && data.error !== null) {
+                    // Include error code and message for better debugging
+                    const code = data.error.code || 'UNKNOWN';
+                    const msg = data.error.message || 'Unknown error';
+                    const details = data.error.details ? ` (${JSON.stringify(data.error.details)})` : '';
+                    errorMessage = `[${code}] ${msg}${details}`;
+                    console.error(`[AchievementsPage] Claim failed:`, data.error);
+                } else if (data.error) {
+                    errorMessage = String(data.error);
+                }
                 throw new Error(errorMessage);
             }
 
@@ -306,8 +321,22 @@ export default function AchievementsPage() {
 
                     {/* Error State */}
                     {error && (
-                        <div className="mb-8 p-4 rounded-lg bg-red-500/10 border border-red-500/30 max-w-2xl mx-auto backdrop-blur-md">
-                            <p className="text-sm text-red-500 text-center">{error}</p>
+                        <div className="mb-8 p-4 rounded-lg bg-red-500/10 border border-red-500/30 max-w-2xl mx-auto backdrop-blur-md flex items-start gap-3">
+                            <HugeiconsIcon
+                                icon={Alert02Icon}
+                                className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5"
+                            />
+                            <div className="flex-1">
+                                <p className="text-sm font-medium text-red-400 mb-1">Failed to claim achievement</p>
+                                <p className="text-xs text-red-400/80">{error}</p>
+                            </div>
+                            <button 
+                                onClick={() => setError(null)} 
+                                className="text-red-400/60 hover:text-red-400 transition-colors"
+                                aria-label="Dismiss error"
+                            >
+                                ✕
+                            </button>
                         </div>
                     )}
 

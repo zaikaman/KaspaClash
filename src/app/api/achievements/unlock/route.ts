@@ -73,6 +73,7 @@ export async function POST(
         }
 
         // Fetch player's actual stats from game data
+        console.log(`[unlock] Fetching player stats for ${playerId}...`);
         const playerStats = await fetchPlayerStats(supabase, playerId);
         
         // Verify player has met the achievement requirements
@@ -80,14 +81,16 @@ export async function POST(
         const currentProgress = playerStats[trackingKey] || 0;
         const targetProgress = achievement.requirement.targetValue || 1;
         
-        console.log(`[unlock] Achievement ${achievementId}: trackingKey=${trackingKey}, progress=${currentProgress}/${targetProgress}`);
-        console.log(`[unlock] Player stats for ${playerId}:`, JSON.stringify(playerStats, null, 2));
+        console.log(`[unlock] Achievement ${achievementId} (${achievement.name}): trackingKey=${trackingKey}, progress=${currentProgress}/${targetProgress}`);
+        console.log(`[unlock] Full player stats for ${playerId}:`, JSON.stringify(playerStats, null, 2));
         
         if (currentProgress < targetProgress) {
-            throw Errors.badRequest(
-                `Achievement requirements not met. Progress: ${currentProgress}/${targetProgress}`
-            );
+            const errorMsg = `Achievement "${achievement.name}" requirements not met. Your ${trackingKey}: ${currentProgress}/${targetProgress}`;
+            console.log(`[unlock] REJECTED: ${errorMsg}`);
+            throw Errors.badRequest(errorMsg);
         }
+        
+        console.log(`[unlock] APPROVED: Unlocking achievement ${achievementId} for ${playerId}`);
 
         // Upsert player achievement as unlocked
         const { error: upsertError } = await supabase

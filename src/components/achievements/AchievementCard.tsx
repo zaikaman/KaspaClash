@@ -131,6 +131,10 @@ export function AchievementCard({
         setIsClaiming(true);
         try {
             await onClaim(achievement.achievementId);
+        } catch (error) {
+            // Error is handled by the parent component (setError in page)
+            // Just log here for debugging
+            console.error('[AchievementCard] Claim error:', error);
         } finally {
             setIsClaiming(false);
         }
