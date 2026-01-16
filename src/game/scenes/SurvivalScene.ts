@@ -131,7 +131,7 @@ export class SurvivalScene extends Phaser.Scene {
         // Get first 5 opponents to preload (rest will be loaded dynamically)
         const firstOpponents = this.waves.slice(0, 5).map(w => w.characterId);
         const charactersToLoad = [this.playerCharacter.id, ...firstOpponents];
-        
+
         loadCharacterSprites(this, charactersToLoad);
         loadCommonAudio(this);
         loadCharacterAudio(this, charactersToLoad);
@@ -198,7 +198,7 @@ export class SurvivalScene extends Phaser.Scene {
      */
     private async preloadRemainingOpponents(): Promise<void> {
         const { loadAdditionalCharacter } = require("../utils/asset-loader");
-        
+
         // Load remaining opponents (after wave 5)
         for (let i = 5; i < this.waves.length; i++) {
             const opponentId = this.waves[i].characterId;
@@ -1124,6 +1124,14 @@ export class SurvivalScene extends Phaser.Scene {
                                     this.player2Sprite.setScale(p2IdleScale);
                                     this.player2Sprite.play(`${p2Char}_idle`);
                                 }
+
+                                // Fade out narrative text
+                                this.tweens.add({
+                                    targets: this.narrativeText,
+                                    alpha: 0,
+                                    duration: 300,
+                                });
+
                                 this.startSelectionPhase();
                             }
                         }
