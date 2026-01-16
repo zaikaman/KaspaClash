@@ -59,6 +59,22 @@ export async function POST(
 
         const supabase = createSupabaseAdminClient() as any;
 
+        // Ensure player exists in the players table (required for foreign key)
+        // Use upsert with onConflict to handle existing players
+        console.log(`[unlock] Ensuring player ${playerId} exists in players table...`);
+        const { error: playerUpsertError } = await supabase
+            .from('players')
+            .upsert(
+                { address: playerId },
+                { onConflict: 'address' }
+            );
+
+        if (playerUpsertError) {
+            console.error('[unlock] Error ensuring player exists:', playerUpsertError);
+            throw Errors.badRequest(`Failed to create player record: ${playerUpsertError.message || 'Database error'}`);
+        }
+        console.log(`[unlock] Player record ensured`);
+
         // Check if already unlocked
         const { data: existing } = await supabase
             .from('player_achievements')
@@ -93,6 +109,7 @@ export async function POST(
         console.log(`[unlock] APPROVED: Unlocking achievement ${achievementId} for ${playerId}`);
 
         // Upsert player achievement as unlocked
+        console.log(`[unlock] Upserting achievement record...`);
         const { error: upsertError } = await supabase
             .from('player_achievements')
             .upsert({
@@ -105,9 +122,11 @@ export async function POST(
             }, { onConflict: 'player_id,achievement_id' });
 
         if (upsertError) {
-            console.error('Error unlocking achievement:', upsertError);
-            throw Errors.badRequest('Failed to unlock achievement');
+            console.error('[unlock] Error unlocking achievement:', upsertError);
+            throw Errors.badRequest(`Failed to unlock achievement: ${upsertError.message || upsertError.code || 'Database error'}`);
         }
+        
+        console.log(`[unlock] Achievement record upserted successfully`);
 
         // Award currency
         let newBalance = 0;
