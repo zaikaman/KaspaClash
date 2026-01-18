@@ -131,16 +131,30 @@ export async function recordSurvivalRun(
 
         // NOTE: Play count is now deducted at start via /api/survival/start, not here
 
-        // Get new rank if it's a high score
+        // Get new rank if it's a high score (with network filtering)
         let newRank: number | null = null;
         if (isNewHighScore) {
-            const { data: leaderboard } = await supabase
+            // Detect network from player address
+            const network: NetworkType = record.player_id.startsWith("kaspatest:") ? "testnet" : "mainnet";
+            const addressFilter = getNetworkAddressFilter(network);
+
+            // Get player's updated stats
+            const { data: updatedStats } = await supabase
                 .from("survival_leaderboard")
-                .select("address, rank")
+                .select("best_score, best_waves")
                 .eq("address", record.player_id)
                 .single();
 
-            newRank = leaderboard?.rank || null;
+            if (updatedStats) {
+                // Count players with better scores on the same network
+                const { count } = await supabase
+                    .from("survival_leaderboard")
+                    .select("*", { count: "exact", head: true })
+                    .like("address", addressFilter)
+                    .or(`best_score.gt.${updatedStats.best_score},and(best_score.eq.${updatedStats.best_score},best_waves.gt.${updatedStats.best_waves})`);
+
+                newRank = (count ?? 0) + 1;
+            }
         }
 
         return {
@@ -208,7 +222,7 @@ export async function getSurvivalLeaderboard(
         prestigeMap.set(row.player_address, row.prestige_level || 0);
     });
 
-    const entries: SurvivalLeaderboardEntry[] = (data || []).map((row) => ({
+    const entries: SurvivalLeaderboardEntry[] = (data || []).map((row, index) => ({
         address: row.address,
         displayName: row.display_name,
         avatarUrl: row.avatar_url,
@@ -218,7 +232,8 @@ export async function getSurvivalLeaderboard(
         totalShardsEarned: row.total_shards_earned,
         victories: row.victories,
         lastRunAt: row.last_run_at,
-        rank: row.rank,
+        // When filtering by network, recalculate rank based on filtered results
+        rank: offset + index + 1,
         prestigeLevel: prestigeMap.get(row.address) || 0,
     }));
 
@@ -251,13 +266,30 @@ export async function getPlayerSurvivalStats(playerId: string): Promise<{
         p_player_id: playerId,
     });
 
+    // Calculate network-specific rank if player has stats
+    let rank: number | null = null;
+    if (stats) {
+        // Detect network from player address
+        const network: NetworkType = playerId.startsWith("kaspatest:") ? "testnet" : "mainnet";
+        const addressFilter = getNetworkAddressFilter(network);
+
+        // Count players with better scores on the same network
+        const { count } = await supabase
+            .from("survival_leaderboard")
+            .select("*", { count: "exact", head: true })
+            .like("address", addressFilter)
+            .or(`best_score.gt.${stats.best_score},and(best_score.eq.${stats.best_score},best_waves.gt.${stats.best_waves})`);
+
+        rank = (count ?? 0) + 1;
+    }
+
     return {
         bestWaves: stats?.best_waves || 0,
         bestScore: stats?.best_score || 0,
         totalRuns: stats?.total_runs || 0,
         totalShardsEarned: stats?.total_shards_earned || 0,
         victories: stats?.victories || 0,
-        rank: stats?.rank || null,
+        rank,
         playsRemaining: playsRemaining ?? 3,
     };
 }

@@ -4,6 +4,7 @@ import DecorativeLine from "@/components/landing/DecorativeLine";
 import MatchHistory from "@/components/player/MatchHistory";
 import ProfileHeaderClient from "@/components/player/ProfileHeaderClient";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getPlayerLeaderboardRank } from "@/lib/leaderboard/service";
 
 interface PlayerProfile {
     address: string;
@@ -40,13 +41,8 @@ async function getPlayerData(address: string): Promise<{
             return { profile: null, rank: null, prestige: null };
         }
 
-        // Get rank (count of players with higher rating)
-        const { count } = await supabase
-            .from("players")
-            .select("*", { count: "exact", head: true })
-            .gt("rating", player.rating);
-
-        const rank = (count ?? 0) + 1;
+        // Get rank with network filtering
+        const rank = await getPlayerLeaderboardRank(address, "rating");
 
         // Cast to unknown first since Supabase schema might not have avatar_url yet
         const playerData = player as unknown as Record<string, unknown>;

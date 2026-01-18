@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { SurvivalLeaderboardEntry } from "@/lib/survival/leaderboard-updater";
 import { TOTAL_WAVES } from "@/lib/survival/wave-generator";
+import { useWalletStore } from "@/stores/wallet-store";
 
 /**
  * Format a Kaspa address for display (truncate middle).
@@ -46,13 +47,21 @@ export default function SurvivalLeaderboardTable() {
     const [entries, setEntries] = useState<SurvivalLeaderboardEntry[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const network = useWalletStore((state) => state.network);
 
     useEffect(() => {
         async function fetchLeaderboard() {
             try {
                 setLoading(true);
                 setError(null);
-                const response = await fetch("/api/survival/leaderboard?limit=50");
+                // Build URL with network parameter if available
+                const params = new URLSearchParams({
+                    limit: "50",
+                });
+                if (network) {
+                    params.set("network", network);
+                }
+                const response = await fetch(`/api/survival/leaderboard?${params.toString()}`);
                 if (!response.ok) {
                     throw new Error("Failed to fetch survival leaderboard");
                 }
@@ -66,7 +75,7 @@ export default function SurvivalLeaderboardTable() {
             }
         }
         fetchLeaderboard();
-    }, []);
+    }, [network]);
 
     if (loading) {
         return (

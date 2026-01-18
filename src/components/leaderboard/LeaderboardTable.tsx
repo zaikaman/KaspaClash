@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { LeaderboardEntry, LeaderboardResponse } from "@/lib/leaderboard/service";
+import { useWalletStore } from "@/stores/wallet-store";
 
 /**
  * Format a Kaspa address for display (truncate middle).
@@ -39,13 +40,22 @@ export default function LeaderboardTable() {
     const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const network = useWalletStore((state) => state.network);
 
     useEffect(() => {
         async function fetchLeaderboard() {
             try {
                 setLoading(true);
                 setError(null);
-                const response = await fetch("/api/leaderboard?limit=50&sortBy=rating");
+                // Build URL with network parameter if available
+                const params = new URLSearchParams({
+                    limit: "50",
+                    sortBy: "rating",
+                });
+                if (network) {
+                    params.set("network", network);
+                }
+                const response = await fetch(`/api/leaderboard?${params.toString()}`);
                 if (!response.ok) {
                     throw new Error("Failed to fetch leaderboard");
                 }
@@ -59,7 +69,7 @@ export default function LeaderboardTable() {
             }
         }
         fetchLeaderboard();
-    }, []);
+    }, [network]);
 
     if (loading) {
         return (
