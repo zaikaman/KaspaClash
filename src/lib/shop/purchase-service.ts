@@ -109,7 +109,7 @@ async function waitForConfirmation(txId: string): Promise<{ confirmed: boolean; 
  * Process a shop purchase with Kaspa transaction verification
  * 
  * Flow:
- * 1. User sends 1 KAS to their own address (self-transfer)
+ * 1. User sends 1 KAS to Treasury Vault (payment)
  * 2. Wait for transaction confirmation
  * 3. Call backend API to complete purchase
  */
@@ -137,16 +137,25 @@ export async function processPurchaseWithKaspa(
             };
         }
 
+        const isTestnet = connectedAddress.startsWith("kaspatest:");
+        const vaultAddress = isTestnet
+            ? process.env.NEXT_PUBLIC_BETTING_VAULT_ADDRESS_TESTNET
+            : process.env.NEXT_PUBLIC_BETTING_VAULT_ADDRESS_MAINNET || process.env.NEXT_PUBLIC_BETTING_VAULT_ADDRESS;
+
+        if (!vaultAddress) {
+            throw new Error("Treasury vault address not configured");
+        }
+
         console.log(`[PurchaseService] Processing purchase: ${itemName} for ${price} shards`);
-        console.log(`[PurchaseService] Sending 1 KAS to own address for verification...`);
+        console.log(`[PurchaseService] Sending 1 KAS to Treasury Vault (${vaultAddress.slice(0, 12)}...)`);
 
         // Step 2: Build transaction payload
         const payload = buildPurchasePayload(cosmeticId, itemName);
 
-        // Step 3: Send 1 KAS to own address (self-transfer for verification)
+        // Step 3: Send 1 KAS to Treasury Vault
         let txId: string;
         try {
-            txId = await sendKaspa(connectedAddress, ONE_KAS_SOMPI, payload);
+            txId = await sendKaspa(vaultAddress, ONE_KAS_SOMPI, payload);
             console.log(`[PurchaseService] Transaction sent: ${txId}`);
         } catch (txError) {
             console.error('[PurchaseService] Transaction failed:', txError);

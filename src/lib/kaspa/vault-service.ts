@@ -45,7 +45,8 @@ const SOMPI_PER_KAS = BigInt(KASPA_CONSTANTS.SOMPI_PER_KAS);
 const DEFAULT_TX_FEE = BigInt(100000);
 
 // Maximum retries for transaction broadcast
-const MAX_BROADCAST_RETRIES = 3;
+// Increased to 5 to handle transient API/RPC failures
+const MAX_BROADCAST_RETRIES = 5;
 
 // Maximum inputs to avoid oversized transactions
 const MAX_INPUTS = 80;
@@ -336,9 +337,10 @@ export async function sendFromVault(
             lastError = error instanceof Error ? error : new Error(String(error));
             console.error(`[VaultService] Attempt ${attempt} failed:`, lastError.message);
 
-            // If not last attempt, wait before retry
+            // If not last attempt, wait before retry (with exponential backoff)
+            // Start at 3s, then 6s, 9s, 12s, 15s to allow UTXOs to refresh
             if (attempt < MAX_BROADCAST_RETRIES) {
-                const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+                const delay = Math.min(3000 * attempt, 15000);
                 console.log(`[VaultService] Retrying in ${delay}ms...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
             }
@@ -353,6 +355,326 @@ export async function sendFromVault(
         error: lastError?.message || "Unknown error after retries",
         amount: amountSompi,
         toAddress,
+    };
+}
+
+/**
+ * Payout target for batch transfers.
+ */
+export interface PayoutTarget {
+    toAddress: string;
+    amountSompi: bigint;
+    reason: string;
+}
+
+/**
+ * Result of a batch transfer.
+ */
+export interface BatchTransferResult {
+    success: boolean;
+    results: VaultTransferResult[];
+    totalSent: bigint;
+    failedCount: number;
+}
+
+/**
+ * Send multiple payouts from the vault using chained transactions.
+ * This uses the change output from each successful transaction as input for the next,
+ * avoiding the orphan transaction issue caused by stale UTXO data from the API.
+ */
+export async function sendBatchFromVault(
+    network: NetworkType,
+    payouts: PayoutTarget[]
+): Promise<BatchTransferResult> {
+    const config = getVaultConfig(network);
+    const isTestnet = network === "testnet";
+    const apiUrl = getApiBaseUrl(network);
+    const addrParser = Address({ prefix: isTestnet ? "kaspatest" : "kaspa" });
+
+    const results: VaultTransferResult[] = [];
+    let totalSent = BigInt(0);
+    let failedCount = 0;
+
+    console.log(`[VaultService] Starting batch transfer of ${payouts.length} payouts on ${network}`);
+
+    // Filter valid payouts (correct network prefix)
+    const validPayouts = payouts.filter(p => {
+        if (!p.toAddress.startsWith(NETWORK_CONFIG[network].prefix)) {
+            console.error(`[VaultService] Skipping invalid address prefix: ${p.toAddress}`);
+            results.push({
+                success: false,
+                error: `Invalid address prefix for ${network}`,
+                amount: p.amountSompi,
+                toAddress: p.toAddress,
+            });
+            failedCount++;
+            return false;
+        }
+        return true;
+    });
+
+    if (validPayouts.length === 0) {
+        return { success: false, results, totalSent, failedCount };
+    }
+
+    try {
+        // 1. Initial UTXO fetch
+        const privateKey = hexToBytes(config.privateKey);
+        const vaultDecoded = addrParser.decode(config.address);
+        let utxos = await getUtxos(apiUrl, config.address);
+
+        if (!utxos || utxos.length === 0) {
+            throw new Error("Vault has no UTXOs (empty balance)");
+        }
+
+        // Track virtual UTXOs (change outputs from our transactions)
+        // These represent unconfirmed change that we can spend immediately
+        interface VirtualUtxo {
+            transactionId: string;
+            index: number;
+            amount: bigint;
+            script: Uint8Array;
+            version: number;
+        }
+        let virtualChangeUtxo: VirtualUtxo | null = null;
+
+        // Pre-calculate vault script for change outputs
+        const vaultScript = OutScript.encode({
+            version: 0,
+            type: vaultDecoded.type,
+            payload: vaultDecoded.payload
+        });
+
+        // Process each payout
+        for (const payout of validPayouts) {
+            console.log(`[VaultService] Processing: ${sompiToKas(payout.amountSompi)} KAS to ${payout.toAddress.slice(-12)}`);
+            console.log(`[VaultService] Reason: ${payout.reason}`);
+
+            let success = false;
+            let lastError: Error | null = null;
+
+            for (let attempt = 1; attempt <= MAX_BROADCAST_RETRIES && !success; attempt++) {
+                try {
+                    console.log(`[VaultService] Attempt ${attempt}/${MAX_BROADCAST_RETRIES}`);
+
+                    // Calculate required amount
+                    const totalRequired = payout.amountSompi + DEFAULT_TX_FEE;
+
+                    // Build input list
+                    // If we have a virtual change UTXO from a previous TX, use it first
+                    const selectedUtxos: Array<{
+                        transactionId: Uint8Array;
+                        index: number;
+                        amount: bigint;
+                        script: Uint8Array;
+                        version: number;
+                    }> = [];
+                    let inputAmount = BigInt(0);
+
+                    // Add virtual change UTXO first if available
+                    if (virtualChangeUtxo) {
+                        selectedUtxos.push({
+                            transactionId: hexToBytes(virtualChangeUtxo.transactionId),
+                            index: virtualChangeUtxo.index,
+                            amount: virtualChangeUtxo.amount,
+                            script: virtualChangeUtxo.script,
+                            version: virtualChangeUtxo.version,
+                        });
+                        inputAmount += virtualChangeUtxo.amount;
+                        console.log(`[VaultService] Using virtual change UTXO: ${sompiToKas(virtualChangeUtxo.amount)} KAS`);
+                    }
+
+                    // Add confirmed UTXOs if needed (sort by amount descending)
+                    if (inputAmount < totalRequired) {
+                        utxos.sort((a: { utxoEntry: { amount: string } }, b: { utxoEntry: { amount: string } }) => {
+                            const amountA = BigInt(a.utxoEntry.amount);
+                            const amountB = BigInt(b.utxoEntry.amount);
+                            return amountA < amountB ? 1 : amountA > amountB ? -1 : 0;
+                        });
+
+                        for (const u of utxos) {
+                            if (inputAmount >= totalRequired) break;
+                            if (selectedUtxos.length >= MAX_INPUTS) break;
+
+                            // Skip UTXOs that we've already spent in previous transactions
+                            // (they're still in the API but we know they're gone)
+                            selectedUtxos.push({
+                                transactionId: hexToBytes(u.outpoint.transactionId),
+                                index: u.outpoint.index,
+                                amount: BigInt(u.utxoEntry.amount),
+                                script: hexToBytes(u.utxoEntry.scriptPublicKey.scriptPublicKey),
+                                version: u.utxoEntry.scriptPublicKey.version || 0,
+                            });
+                            inputAmount += BigInt(u.utxoEntry.amount);
+                        }
+                    }
+
+                    if (inputAmount < totalRequired) {
+                        throw new Error(`Insufficient funds: Have ${sompiToKas(inputAmount)} KAS, Need ${sompiToKas(totalRequired)} KAS`);
+                    }
+
+                    // Build inputs
+                    const inputs = selectedUtxos.map(u => ({
+                        utxo: {
+                            transactionId: u.transactionId,
+                            index: u.index,
+                            amount: u.amount,
+                            version: u.version,
+                            script: u.script
+                        },
+                        script: new Uint8Array(0),
+                        sequence: BigInt(0),
+                        sigOpCount: 1
+                    }));
+
+                    // Build outputs
+                    const recipientDecoded = addrParser.decode(payout.toAddress);
+                    const recipientScript = OutScript.encode({
+                        version: 0,
+                        type: recipientDecoded.type,
+                        payload: recipientDecoded.payload
+                    });
+
+                    const outputs = [{
+                        amount: payout.amountSompi,
+                        version: recipientScript.version,
+                        script: recipientScript.script
+                    }];
+
+                    // Calculate change
+                    const changeAmount = inputAmount - totalRequired;
+                    if (changeAmount > BigInt(0)) {
+                        outputs.push({
+                            amount: changeAmount,
+                            version: vaultScript.version,
+                            script: vaultScript.script
+                        });
+                    }
+
+                    // Create and sign transaction
+                    const tx = new Transaction({
+                        version: 0,
+                        inputs,
+                        outputs,
+                        lockTime: BigInt(0),
+                        subnetworkId: new Uint8Array(20),
+                        gas: BigInt(0),
+                        payload: new Uint8Array(0)
+                    });
+
+                    const signed = tx.sign(privateKey);
+                    if (!signed) throw new Error("Failed to sign transaction");
+
+                    // Submit transaction
+                    const rpcTx = tx.toRPCTransaction();
+                    // @ts-ignore
+                    delete rpcTx.mass;
+
+                    const result = await submitTransactionToApi(apiUrl, { transaction: rpcTx });
+                    const txId = result.transactionId;
+
+                    console.log(`[VaultService] ✓ Sent ${sompiToKas(payout.amountSompi)} KAS to ${payout.toAddress}. TX: ${txId}`);
+
+                    // SUCCESS! Update our virtual UTXO tracking
+                    // The change output (if any) is at index 1 (recipient is index 0)
+                    if (changeAmount > BigInt(0)) {
+                        virtualChangeUtxo = {
+                            transactionId: txId,
+                            index: 1, // Change is always second output
+                            amount: changeAmount,
+                            script: vaultScript.script,
+                            version: vaultScript.version,
+                        };
+                        console.log(`[VaultService] Tracking virtual change: ${sompiToKas(changeAmount)} KAS`);
+                    } else {
+                        virtualChangeUtxo = null;
+                    }
+
+                    // Mark used UTXOs as spent (remove from our local copy)
+                    // We only need to do this for non-virtual UTXOs
+                    const usedTxIds = new Set(selectedUtxos.slice(virtualChangeUtxo ? 1 : 0).map(u => {
+                        // Convert Uint8Array back to hex for comparison
+                        return Array.from(u.transactionId).map(b => b.toString(16).padStart(2, '0')).join('');
+                    }));
+                    utxos = utxos.filter((u: { outpoint: { transactionId: string } }) => !usedTxIds.has(u.outpoint.transactionId));
+
+                    results.push({
+                        success: true,
+                        txId,
+                        amount: payout.amountSompi,
+                        toAddress: payout.toAddress,
+                    });
+                    totalSent += payout.amountSompi;
+                    success = true;
+
+                } catch (error) {
+                    lastError = error instanceof Error ? error : new Error(String(error));
+                    console.error(`[VaultService] Attempt ${attempt} failed:`, lastError.message);
+
+                    // On orphan error, clear virtual UTXO and re-fetch from API
+                    if (lastError.message.includes("orphan")) {
+                        console.log(`[VaultService] Orphan detected, clearing virtual UTXO and re-fetching...`);
+                        virtualChangeUtxo = null;
+                        try {
+                            utxos = await getUtxos(apiUrl, config.address);
+                        } catch (e) {
+                            console.error(`[VaultService] Failed to re-fetch UTXOs:`, e);
+                        }
+                    }
+
+                    if (attempt < MAX_BROADCAST_RETRIES) {
+                        const delay = Math.min(3000 * attempt, 15000);
+                        console.log(`[VaultService] Retrying in ${delay}ms...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                    }
+                }
+            }
+
+            if (!success) {
+                console.error(`[VaultService] Failed payout to ${payout.toAddress}: ${lastError?.message}`);
+                results.push({
+                    success: false,
+                    error: lastError?.message || "Unknown error",
+                    amount: payout.amountSompi,
+                    toAddress: payout.toAddress,
+                });
+                failedCount++;
+
+                // Clear virtual UTXO on failure and re-fetch
+                virtualChangeUtxo = null;
+                try {
+                    utxos = await getUtxos(apiUrl, config.address);
+                } catch (e) {
+                    console.error(`[VaultService] Failed to re-fetch UTXOs after failure:`, e);
+                }
+            }
+
+            // Small delay between payouts for API rate limiting
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+    } catch (error) {
+        console.error(`[VaultService] Batch transfer failed:`, error);
+        // Mark all remaining as failed
+        for (const payout of validPayouts.slice(results.length)) {
+            results.push({
+                success: false,
+                error: error instanceof Error ? error.message : "Unknown error",
+                amount: payout.amountSompi,
+                toAddress: payout.toAddress,
+            });
+            failedCount++;
+        }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    console.log(`[VaultService] Batch complete: ${successCount}/${payouts.length} successful, ${sompiToKas(totalSent)} KAS sent`);
+
+    return {
+        success: failedCount === 0,
+        results,
+        totalSent,
+        failedCount,
     };
 }
 

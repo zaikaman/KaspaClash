@@ -102,6 +102,7 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 - **On-Chain Leaderboard:** Transparent ranking system powered by ELO ratings
 - **Match History:** All game results stored with blockchain verification
 - **Transaction Verification:** Real-time bet confirmation and payout tracking
+- **Treasury System:** Automated weekly KAS payouts to top leaderboard players
 
 ### 📹 Replay & Sharing
 - **High-Quality MP4 Export:** Convert any match replay into a sharable video file directly in the browser
@@ -735,6 +736,22 @@ Endless wave-based challenge mode:
 - **XP Earned:** 50 XP per wave survived
 - **Clash Shards:** 25 shards per wave + bonus for milestones
 - **Exclusive Cosmetics:** Unlockable only through survival achievements
+
+### Treasury System
+
+A decentralized automated reward system powered by Kaspa:
+
+#### Weekly Distribution
+Every **Monday at 00:00 UTC**, the treasury automatically distributes accumulated funds from betting fees and cosmetics buying fees to top players:
+
+- **40% to Top 10 ELO Players:** Reward for competitive excellence.
+- **40% to Top 10 Survival Players:** Reward for PvE mastery.
+- **20% Reserve:** Retained for future prize pools and development.
+
+#### Funding
+- The treasury is funded by a **0.1% fee** on all betting pools and 1 KAS for each cosmetics purchase.
+- Funds are stored in a secure vault address.
+- Distributions are executed on-chain via chained batch transactions for reliability.
 
 ---
 

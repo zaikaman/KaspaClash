@@ -14,11 +14,12 @@ import { getTopPlayers, type LeaderboardEntry } from "@/lib/leaderboard/service"
 import { getSurvivalLeaderboard, type SurvivalLeaderboardEntry } from "@/lib/survival/leaderboard-updater";
 import {
     getVaultBalance,
-    sendFromVault,
+    sendBatchFromVault,
     sompiToKas,
     getTxExplorerUrl,
     type VaultBalance,
     type VaultTransferResult,
+    type PayoutTarget,
 } from "@/lib/kaspa/vault-service";
 import { type NetworkType } from "@/types/constants";
 
@@ -81,10 +82,6 @@ export const DEFAULT_DISTRIBUTION_CONFIG: DistributionConfig = {
     topPlayersCount: 10,
     minDistributionBalance: BigInt(10_00000000), // 10 KAS minimum
 };
-
-// Delay between individual payouts to allow UTXOs to update (ms)
-// Need longer delay to avoid orphan transactions from stale UTXOs
-const PAYOUT_DELAY_MS = 5000;
 
 // =============================================================================
 // HELPER FUNCTIONS
@@ -381,73 +378,95 @@ export async function processWeeklyDistribution(
         distributionId = await createDistributionRecord(network, split);
         console.log(`[TreasuryService] Distribution ID: ${distributionId}`);
 
-        // Step 6: Process ELO payouts
-        console.log(`[TreasuryService] Processing ELO payouts...`);
+        // Step 6: Build payout targets for batch transfer
+        // Combine ELO and Survival payouts into a single batch to use chained transactions
+        const allPayoutTargets: PayoutTarget[] = [];
+        const payoutRecordMap = new Map<string, PayoutRecord>(); // Map address to PayoutRecord for tracking
+
+        // Add ELO payouts
+        console.log(`[TreasuryService] Preparing ELO payouts...`);
         for (const player of topEloPlayers) {
             if (split.perEloPlayerAmount <= 0n) continue;
 
-            const payout: PayoutRecord = {
+            const payoutRecord: PayoutRecord = {
                 playerAddress: player.address,
                 amount: split.perEloPlayerAmount,
                 leaderboardType: "elo",
                 rank: player.rank,
                 displayName: player.displayName,
             };
+            payoutRecordMap.set(`elo:${player.address}`, payoutRecord);
 
-            const result = await sendFromVault(
-                network,
-                player.address,
-                split.perEloPlayerAmount,
-                `ELO Distribution Rank #${player.rank}`
-            );
-
-            await recordPayout(distributionId, payout, result);
-
-            if (result.success) {
-                eloPayouts.push(payout);
-                console.log(`[TreasuryService] ELO payout #${player.rank}: ${sompiToKas(split.perEloPlayerAmount)} KAS to ${player.address} - TX: ${result.txId}`);
-            } else {
-                failedPayouts.push(payout);
-                console.error(`[TreasuryService] ELO payout #${player.rank} FAILED: ${result.error}`);
-            }
-
-            // Delay between payouts
-            await new Promise(resolve => setTimeout(resolve, PAYOUT_DELAY_MS));
+            allPayoutTargets.push({
+                toAddress: player.address,
+                amountSompi: split.perEloPlayerAmount,
+                reason: `ELO Distribution Rank #${player.rank}`,
+            });
         }
 
-        // Step 7: Process Survival payouts
-        console.log(`[TreasuryService] Processing Survival payouts...`);
+        // Add Survival payouts
+        console.log(`[TreasuryService] Preparing Survival payouts...`);
         for (const player of topSurvivalPlayers) {
             if (split.perSurvivalPlayerAmount <= 0n) continue;
 
-            const payout: PayoutRecord = {
+            const payoutRecord: PayoutRecord = {
                 playerAddress: player.address,
                 amount: split.perSurvivalPlayerAmount,
                 leaderboardType: "survival",
                 rank: player.rank,
                 displayName: player.displayName,
             };
+            payoutRecordMap.set(`survival:${player.address}`, payoutRecord);
 
-            const result = await sendFromVault(
-                network,
-                player.address,
-                split.perSurvivalPlayerAmount,
-                `Survival Distribution Rank #${player.rank}`
-            );
+            allPayoutTargets.push({
+                toAddress: player.address,
+                amountSompi: split.perSurvivalPlayerAmount,
+                reason: `Survival Distribution Rank #${player.rank}`,
+            });
+        }
 
-            await recordPayout(distributionId, payout, result);
+        console.log(`[TreasuryService] Processing ${allPayoutTargets.length} payouts via batch transfer...`);
+
+        // Step 7: Execute batch transfer with chained transactions
+        const batchResult = await sendBatchFromVault(network, allPayoutTargets);
+
+        // Step 8: Process results and record each payout
+        let eloIndex = 0;
+        let survivalIndex = 0;
+
+        for (let i = 0; i < batchResult.results.length; i++) {
+            const result = batchResult.results[i];
+            const target = allPayoutTargets[i];
+
+            // Determine if this is ELO or Survival payout based on position
+            const isEloPayout = i < topEloPlayers.length;
+            const mapKey = isEloPayout
+                ? `elo:${target.toAddress}`
+                : `survival:${target.toAddress}`;
+
+            const payoutRecord = payoutRecordMap.get(mapKey);
+            if (!payoutRecord) continue;
+
+            await recordPayout(distributionId, payoutRecord, result);
 
             if (result.success) {
-                survivalPayouts.push(payout);
-                console.log(`[TreasuryService] Survival payout #${player.rank}: ${sompiToKas(split.perSurvivalPlayerAmount)} KAS to ${player.address} - TX: ${result.txId}`);
+                if (isEloPayout) {
+                    eloPayouts.push(payoutRecord);
+                    console.log(`[TreasuryService] ELO payout #${payoutRecord.rank}: ${sompiToKas(payoutRecord.amount)} KAS to ${payoutRecord.playerAddress} - TX: ${result.txId}`);
+                } else {
+                    survivalPayouts.push(payoutRecord);
+                    console.log(`[TreasuryService] Survival payout #${payoutRecord.rank}: ${sompiToKas(payoutRecord.amount)} KAS to ${payoutRecord.playerAddress} - TX: ${result.txId}`);
+                }
             } else {
-                failedPayouts.push(payout);
-                console.error(`[TreasuryService] Survival payout #${player.rank} FAILED: ${result.error}`);
+                failedPayouts.push(payoutRecord);
+                if (isEloPayout) {
+                    console.error(`[TreasuryService] ELO payout #${payoutRecord.rank} FAILED: ${result.error}`);
+                } else {
+                    console.error(`[TreasuryService] Survival payout #${payoutRecord.rank} FAILED: ${result.error}`);
+                }
             }
-
-            // Delay between payouts
-            await new Promise(resolve => setTimeout(resolve, PAYOUT_DELAY_MS));
         }
+
 
         // Step 8: Finalize distribution
         const distributionSuccess = failedPayouts.length === 0;
