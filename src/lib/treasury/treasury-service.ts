@@ -6,7 +6,7 @@
  * - 40% to top 10 Survival mode players
  * - 20% remains in treasury as reserve
  * 
- * Runs every Monday at 00:00 UTC via Vercel cron job.
+ * Runs every Monday at 09:00 via cron job.
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -152,7 +152,7 @@ export async function getTopSurvivalPlayersForDistribution(
 }
 
 /**
- * Get the start of the current week (Monday at 00:00 UTC).
+ * Get the start of the current week (Monday at 09:00).
  */
 function getCurrentWeekStart(): Date {
     const now = new Date();
@@ -161,7 +161,7 @@ function getCurrentWeekStart(): Date {
 
     const weekStart = new Date(now);
     weekStart.setUTCDate(now.getUTCDate() - daysToSubtract);
-    weekStart.setUTCHours(0, 0, 0, 0);
+    weekStart.setUTCHours(9, 0, 0, 0);
 
     return weekStart;
 }
@@ -638,7 +638,7 @@ export async function getPlayerEarnings(
 }
 
 /**
- * Get next distribution date (next Monday at 00:00 UTC).
+ * Get next distribution date (next Monday at 09:00).
  */
 export function getNextDistributionDate(): Date {
     const now = new Date();
@@ -649,7 +649,7 @@ export function getNextDistributionDate(): Date {
 
     const nextMonday = new Date(now);
     nextMonday.setUTCDate(now.getUTCDate() + daysUntilMonday);
-    nextMonday.setUTCHours(0, 0, 0, 0);
+    nextMonday.setUTCHours(9, 0, 0, 0);
 
     return nextMonday;
 }
