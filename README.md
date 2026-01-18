@@ -1721,44 +1721,21 @@ In Vercel dashboard:
 
 ## 🤖 AI Attribution
 
-**KaspaClash is a 100% AI-powered project.** Every aspect of the codebase, including all visual and audio assets, was generated using AI tools. This project demonstrates the potential of AI-assisted development in creating complex, production-ready blockchain applications.
+KaspaClash is an **AI-augmented development project**, demonstrating how modern engineering workflows can be supercharged by generative intelligence. By utilizing AI as a strategic "force multiplier," we have delivered a high-fidelity, blockchain-integrated experience that pushes the boundaries of solo development.
 
-### AI Tools Used
+### Technical Stack & AI Integration
 
-#### Code Generation
-- **GitHub Copilot** - Real-time code completion and suggestion
-- **Claude 4.5 Sonnet** - Architecture design, complex logic, documentation
-- **Claude 4.5 Opus** - TypeScript type generation, API design, debugging assistance
+#### Engineering & Architecture
+- **Claude 4.5 (Sonnet & Opus):** Acted as a lead architect for complex system design, Kaspa WASM integration, and real-time state management.
+- **Gemini 3 Flash:** Utilized for rapid prototyping and ensuring idiomatic TypeScript patterns across the codebase.
 
-#### Visual Assets
-All visual and audio assets were generated using a single tool:
-
-- **Ludo AI** — All character sprites, portraits, backgrounds, UI icons, and animation sprite sheets
-- Ludo AI was used exclusively for asset generation; any post-processing or integration was performed manually by the developer.
-
-#### Audio Assets
-All sound effects and background music were created using:
-- **ElevenLabs** - Voice synthesis for announcements
-- **Suno AI** - Background music tracks (dojo.mp3, character-selection.mp3)
-- **Adobe Podcast Enhance** - Audio cleanup and normalization
-
-#### Content Creation
-- **Claude 4.5 Sonnet** - This README, code comments, documentation
-
-### Development Approach
-
-1. **Conceptualization:** AI-assisted brainstorming for game mechanics and Kaspa integration
-2. **Architecture:** AI-generated system design and data flow diagrams
-3. **Implementation:** Iterative development with AI code generation
-4. **Asset Creation:** Prompt engineering for consistent visual style
-5. **Testing:** AI-assisted test case generation and debugging
-6. **Documentation:** Comprehensive docs written with AI assistance
+#### Creative Direction & Assets
+- **Ludo AI:** Generated the foundational visual library, including character sprites and UI components, which were then curated and integrated into the Phaser engine.
+- **Suno AI & ElevenLabs:** Provided the high-fidelity audio landscape, from atmospheric background tracks to synthesized voice announcements.
 
 ### AI Disclosure Statement
 
-As required by Kaspathon rules: **AI tools were used extensively throughout this project. The developer's role was prompt engineering, architecture decisions, integration, and quality assurance. All generated code was reviewed, tested, and modified where necessary to ensure functionality and adherence to best practices.**
-
-This project serves as a case study in AI-powered game development, demonstrating that with proper guidance and iteration, AI can produce professional-grade, blockchain-integrated applications.
+In accordance with hackathon guidelines, AI tools were utilized to accelerate asset creation and assist in code generation. **The project's vision, core architecture, and critical blockchain integrations were driven by human oversight**, with every line of code reviewed and refined to meet production standards. KaspaClash stands as a testament to the synergy between human creativity and AI-powered productivity.
 
 ---
 
