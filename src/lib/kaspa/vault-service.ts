@@ -142,24 +142,21 @@ async function submitTransactionToApi(apiUrl: string, txJson: unknown) {
 
 /**
  * Get the current balance of the treasury vault.
+ * Calculates balance from UTXOs (same approach as payout-service.ts).
  */
 export async function getVaultBalance(network: NetworkType): Promise<VaultBalance> {
     const config = getVaultConfig(network);
+    const apiUrl = getApiBaseUrl(network);
 
     try {
-        const apiUrl = `${getApiBaseUrl(network)}/addresses/${config.address}/balance`;
+        // Get balance by summing UTXOs (same approach as payout-service.ts)
+        const utxos = await getUtxos(apiUrl, config.address);
 
-        const response = await fetch(apiUrl, {
-            headers: { "Accept": "application/json" },
-            cache: "no-store",
-        });
-
-        if (!response.ok) {
-            throw new Error(`Balance API returned ${response.status}`);
+        // Sum up all UTXO amounts
+        let balance = BigInt(0);
+        for (const utxo of utxos) {
+            balance += BigInt(utxo.utxoEntry.amount);
         }
-
-        const data = await response.json();
-        const balance = BigInt(data.balance || 0);
 
         return {
             balance,

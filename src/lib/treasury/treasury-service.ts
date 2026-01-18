@@ -82,8 +82,9 @@ export const DEFAULT_DISTRIBUTION_CONFIG: DistributionConfig = {
     minDistributionBalance: BigInt(10_00000000), // 10 KAS minimum
 };
 
-// Delay between individual payouts to avoid rate limiting (ms)
-const PAYOUT_DELAY_MS = 1000;
+// Delay between individual payouts to allow UTXOs to update (ms)
+// Need longer delay to avoid orphan transactions from stale UTXOs
+const PAYOUT_DELAY_MS = 5000;
 
 // =============================================================================
 // HELPER FUNCTIONS
@@ -121,11 +122,14 @@ export function calculateDistributionSplit(
 
 /**
  * Get top ELO players with their wallet addresses.
+ * Filters by network to only return players on the specified network.
  */
 export async function getTopEloPlayersForDistribution(
-    limit: number
+    limit: number,
+    network: NetworkType
 ): Promise<Array<{ address: string; displayName: string | null; rank: number; rating: number }>> {
-    const entries = await getTopPlayers(limit);
+    // Pass network to filter by address prefix
+    const entries = await getTopPlayers(limit, network);
 
     return entries.map((entry, index) => ({
         address: entry.address,
@@ -137,11 +141,14 @@ export async function getTopEloPlayersForDistribution(
 
 /**
  * Get top Survival players with their wallet addresses.
+ * Filters by network to only return players on the specified network.
  */
 export async function getTopSurvivalPlayersForDistribution(
-    limit: number
+    limit: number,
+    network: NetworkType
 ): Promise<Array<{ address: string; displayName: string | null; rank: number; score: number }>> {
-    const { entries } = await getSurvivalLeaderboard(limit, 0);
+    // Pass network to filter by address prefix
+    const { entries } = await getSurvivalLeaderboard(limit, 0, network);
 
     return entries.map((entry, index) => ({
         address: entry.address,
@@ -363,9 +370,9 @@ export async function processWeeklyDistribution(
         console.log(`  - Per ELO player: ${sompiToKas(split.perEloPlayerAmount)} KAS`);
         console.log(`  - Per Survival player: ${sompiToKas(split.perSurvivalPlayerAmount)} KAS`);
 
-        // Step 4: Get top players
-        const topEloPlayers = await getTopEloPlayersForDistribution(config.topPlayersCount);
-        const topSurvivalPlayers = await getTopSurvivalPlayersForDistribution(config.topPlayersCount);
+        // Step 4: Get top players (filtered by network)
+        const topEloPlayers = await getTopEloPlayersForDistribution(config.topPlayersCount, network);
+        const topSurvivalPlayers = await getTopSurvivalPlayersForDistribution(config.topPlayersCount, network);
 
         console.log(`[TreasuryService] Top ELO players: ${topEloPlayers.length}`);
         console.log(`[TreasuryService] Top Survival players: ${topSurvivalPlayers.length}`);
