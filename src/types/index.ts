@@ -252,3 +252,120 @@ export interface MatchResult {
   winnerAddress?: string;
   totalPayout?: string; // in sompi
 }
+
+// =============================================================================
+// TREASURY
+// =============================================================================
+
+/**
+ * Treasury deposit source types.
+ */
+export type TreasuryDepositSource = "betting" | "shop" | "stake" | "other";
+
+/**
+ * Treasury deposit status.
+ */
+export type TreasuryDepositStatus = "pending" | "confirmed" | "failed";
+
+/**
+ * A deposit to the treasury vault.
+ */
+export interface TreasuryDeposit {
+  /** Deposit identifier (UUID) */
+  id: string;
+  /** Player who made the deposit */
+  playerAddress: string;
+  /** Amount in sompi */
+  amount: bigint;
+  /** Kaspa transaction ID */
+  txId: string;
+  /** Source of the deposit */
+  source: TreasuryDepositSource;
+  /** Network (mainnet or testnet) */
+  network: "mainnet" | "testnet";
+  /** Deposit status */
+  status: TreasuryDepositStatus;
+  /** Block height when confirmed */
+  blockHeight?: number;
+  /** Deposit creation time */
+  createdAt: Date;
+  /** Confirmation time */
+  confirmedAt?: Date;
+}
+
+/**
+ * Treasury distribution status.
+ */
+export type TreasuryDistributionStatus = "pending" | "processing" | "completed" | "failed";
+
+/**
+ * A weekly treasury distribution event.
+ */
+export interface TreasuryDistribution {
+  /** Distribution identifier (UUID) */
+  id: string;
+  /** Week of the distribution (Monday date) */
+  distributionWeek: string;
+  /** Total amount distributed */
+  totalAmount: bigint;
+  /** Amount for ELO leaderboard (40%) */
+  eloPoolAmount: bigint;
+  /** Amount for Survival leaderboard (40%) */
+  survivalPoolAmount: bigint;
+  /** Amount kept in reserve (20%) */
+  reserveAmount: bigint;
+  /** Network (mainnet or testnet) */
+  network: "mainnet" | "testnet";
+  /** Distribution status */
+  status: TreasuryDistributionStatus;
+  /** Number of successful ELO payouts */
+  eloPayoutsCount: number;
+  /** Number of successful Survival payouts */
+  survivalPayoutsCount: number;
+  /** Number of failed payouts */
+  failedPayoutsCount: number;
+  /** Distribution creation time */
+  createdAt: Date;
+  /** When processing started */
+  startedAt?: Date;
+  /** When distribution completed */
+  completedAt?: Date;
+}
+
+/**
+ * Leaderboard type for distribution.
+ */
+export type LeaderboardType = "elo" | "survival";
+
+/**
+ * Payout status.
+ */
+export type PayoutStatus = "pending" | "sent" | "confirmed" | "failed";
+
+/**
+ * An individual payout from a distribution.
+ */
+export interface DistributionPayout {
+  /** Payout identifier (UUID) */
+  id: string;
+  /** Parent distribution ID */
+  distributionId: string;
+  /** Recipient player address */
+  playerAddress: string;
+  /** Amount in sompi */
+  amount: bigint;
+  /** Which leaderboard earned this payout */
+  leaderboardType: LeaderboardType;
+  /** Player's rank on the leaderboard */
+  rank: number;
+  /** Kaspa transaction ID */
+  txId?: string;
+  /** Payout status */
+  status: PayoutStatus;
+  /** Payout creation time */
+  createdAt: Date;
+  /** When transaction was sent */
+  sentAt?: Date;
+  /** When transaction was confirmed */
+  confirmedAt?: Date;
+}

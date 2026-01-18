@@ -169,6 +169,24 @@ CREATE TABLE public.daily_quests (
   CONSTRAINT daily_quests_pkey PRIMARY KEY (id),
   CONSTRAINT daily_quests_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address)
 );
+CREATE TABLE public.distribution_payouts (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  distribution_id uuid NOT NULL,
+  player_address text NOT NULL,
+  amount bigint NOT NULL CHECK (amount > 0),
+  leaderboard_type text NOT NULL CHECK (leaderboard_type = ANY (ARRAY['elo'::text, 'survival'::text])),
+  rank integer NOT NULL CHECK (rank >= 1 AND rank <= 10),
+  tx_id text,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'sent'::text, 'confirmed'::text, 'failed'::text])),
+  error_message text,
+  retry_count integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  sent_at timestamp with time zone,
+  confirmed_at timestamp with time zone,
+  CONSTRAINT distribution_payouts_pkey PRIMARY KEY (id),
+  CONSTRAINT distribution_payouts_distribution_id_fkey FOREIGN KEY (distribution_id) REFERENCES public.treasury_distributions(id),
+  CONSTRAINT distribution_payouts_player_address_fkey FOREIGN KEY (player_address) REFERENCES public.players(address)
+);
 CREATE TABLE public.matches (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   room_code text UNIQUE CHECK (room_code IS NULL OR room_code ~ '^[A-Z0-9]{6}$'::text),
@@ -403,6 +421,48 @@ CREATE TABLE public.survival_runs (
   CONSTRAINT survival_runs_pkey PRIMARY KEY (id),
   CONSTRAINT survival_runs_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address),
   CONSTRAINT survival_runs_character_id_fkey FOREIGN KEY (character_id) REFERENCES public.characters(id)
+);
+CREATE TABLE public.treasury_balance_snapshots (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  balance bigint NOT NULL CHECK (balance >= 0),
+  network text NOT NULL CHECK (network = ANY (ARRAY['mainnet'::text, 'testnet'::text])),
+  snapshot_type text NOT NULL CHECK (snapshot_type = ANY (ARRAY['daily'::text, 'pre_distribution'::text, 'post_distribution'::text, 'manual'::text])),
+  distribution_id uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT treasury_balance_snapshots_pkey PRIMARY KEY (id),
+  CONSTRAINT treasury_balance_snapshots_distribution_id_fkey FOREIGN KEY (distribution_id) REFERENCES public.treasury_distributions(id)
+);
+CREATE TABLE public.treasury_deposits (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  player_address text NOT NULL,
+  amount bigint NOT NULL CHECK (amount > 0),
+  tx_id text NOT NULL UNIQUE,
+  source text NOT NULL CHECK (source = ANY (ARRAY['betting'::text, 'shop'::text, 'stake'::text, 'other'::text])),
+  network text NOT NULL CHECK (network = ANY (ARRAY['mainnet'::text, 'testnet'::text])),
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'confirmed'::text, 'failed'::text])),
+  block_height bigint,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  confirmed_at timestamp with time zone,
+  CONSTRAINT treasury_deposits_pkey PRIMARY KEY (id),
+  CONSTRAINT treasury_deposits_player_address_fkey FOREIGN KEY (player_address) REFERENCES public.players(address)
+);
+CREATE TABLE public.treasury_distributions (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  distribution_week date NOT NULL,
+  total_amount bigint NOT NULL CHECK (total_amount >= 0),
+  elo_pool_amount bigint NOT NULL CHECK (elo_pool_amount >= 0),
+  survival_pool_amount bigint NOT NULL CHECK (survival_pool_amount >= 0),
+  reserve_amount bigint NOT NULL CHECK (reserve_amount >= 0),
+  network text NOT NULL CHECK (network = ANY (ARRAY['mainnet'::text, 'testnet'::text])),
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'processing'::text, 'completed'::text, 'failed'::text])),
+  elo_payouts_count integer NOT NULL DEFAULT 0,
+  survival_payouts_count integer NOT NULL DEFAULT 0,
+  failed_payouts_count integer NOT NULL DEFAULT 0,
+  error_message text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  started_at timestamp with time zone,
+  completed_at timestamp with time zone,
+  CONSTRAINT treasury_distributions_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.verification_badges (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),

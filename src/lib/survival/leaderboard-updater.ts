@@ -4,6 +4,8 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import type { NetworkType } from "@/types/constants";
+import { getNetworkAddressFilter } from "@/lib/utils/network-filter";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -168,13 +170,23 @@ export async function recordSurvivalRun(
  */
 export async function getSurvivalLeaderboard(
     limit: number = 100,
-    offset: number = 0
+    offset: number = 0,
+    network?: NetworkType
 ): Promise<{ entries: SurvivalLeaderboardEntry[]; total: number }> {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { data, error, count } = await supabase
+    // Build query with optional network filter
+    let query = supabase
         .from("survival_leaderboard")
-        .select("*", { count: "exact" })
+        .select("*", { count: "exact" });
+
+    // Filter by network if specified
+    if (network) {
+        const addressFilter = getNetworkAddressFilter(network);
+        query = query.like("address", addressFilter);
+    }
+
+    const { data, error, count } = await query
         .order("best_score", { ascending: false })
         .range(offset, offset + limit - 1);
 

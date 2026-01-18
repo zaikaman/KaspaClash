@@ -5,6 +5,9 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSurvivalLeaderboard } from "@/lib/survival/leaderboard-updater";
+import type { NetworkType } from "@/types/constants";
+
+const VALID_NETWORKS = ["mainnet", "testnet"] as const;
 
 export async function GET(request: NextRequest) {
     try {
@@ -27,13 +30,19 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        const { entries, total } = await getSurvivalLeaderboard(limit, offset);
+        // Parse network parameter
+        const networkParam = searchParams.get("network") as NetworkType | null;
+        const network: NetworkType | undefined =
+            networkParam && VALID_NETWORKS.includes(networkParam) ? networkParam : undefined;
+
+        const { entries, total } = await getSurvivalLeaderboard(limit, offset, network);
 
         return NextResponse.json({
             entries,
             total,
             limit,
             offset,
+            network,
             hasMore: offset + entries.length < total,
         });
     } catch (error) {

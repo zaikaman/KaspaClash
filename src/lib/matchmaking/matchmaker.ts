@@ -5,6 +5,7 @@
  */
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getNetworkAddressFilter, detectNetworkFromAddress } from "@/lib/utils/network-filter";
 
 /**
  * Player in queue representation.
@@ -167,6 +168,7 @@ function calculateRatingRange(joinedAt: Date): number {
 
 /**
  * Find a suitable opponent for a player.
+ * Only matches players on the same network (mainnet or testnet).
  */
 export async function findOpponent(
   playerAddress: string,
@@ -179,12 +181,17 @@ export async function findOpponent(
   const minRating = playerRating - ratingRange;
   const maxRating = playerRating + ratingRange;
 
-  // Find players within rating range who are searching
+  // Determine network from player address
+  const network = detectNetworkFromAddress(playerAddress);
+  const addressFilter = getNetworkAddressFilter(network);
+
+  // Find players within rating range who are searching ON THE SAME NETWORK
   const { data, error } = await supabase
     .from("matchmaking_queue")
     .select("address, rating, joined_at")
     .eq("status", "searching")
     .neq("address", playerAddress)
+    .like("address", addressFilter) // Only match same network
     .gte("rating", minRating)
     .lte("rating", maxRating)
     .order("joined_at", { ascending: true })
@@ -314,14 +321,19 @@ export async function attemptMatch(
   const minRating = player.rating - ratingRange;
   const maxRating = player.rating + ratingRange;
 
-  console.log(`[MATCHMAKING] ${shortAddr}: Looking for opponents with rating ${minRating}-${maxRating}`);
+  // Determine network from player address
+  const network = detectNetworkFromAddress(address);
+  const addressFilter = getNetworkAddressFilter(network);
 
-  // Step 2: Find potential opponents (just SELECT, no update yet)
+  console.log(`[MATCHMAKING] ${shortAddr}: Looking for ${network} opponents with rating ${minRating}-${maxRating}`);
+
+  // Step 2: Find potential opponents ON THE SAME NETWORK (just SELECT, no update yet)
   const { data: candidates, error: findError } = await supabase
     .from("matchmaking_queue")
     .select("address, rating, status")
     .eq("status", "searching")
     .neq("address", address)
+    .like("address", addressFilter) // Only match same network
     .gte("rating", minRating)
     .lte("rating", maxRating)
     .order("joined_at", { ascending: true })
@@ -333,7 +345,7 @@ export async function attemptMatch(
   }
 
   if (!candidates || candidates.length === 0) {
-    console.log(`[MATCHMAKING] ${shortAddr}: No opponents found in rating range`);
+    console.log(`[MATCHMAKING] ${shortAddr}: No ${network} opponents found in rating range`);
     return null;
   }
 

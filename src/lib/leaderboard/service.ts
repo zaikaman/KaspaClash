@@ -4,6 +4,8 @@
  */
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { NetworkType } from "@/types/constants";
+import { getNetworkAddressFilter } from "@/lib/utils/network-filter";
 
 // =============================================================================
 // TYPES
@@ -34,6 +36,8 @@ export interface LeaderboardOptions {
   offset?: number;
   /** Sort field (default: wins) */
   sortBy?: "wins" | "rating" | "winRate";
+  /** Network to filter by (optional - shows all if not specified) */
+  network?: NetworkType;
 }
 
 /**
@@ -55,7 +59,7 @@ export interface LeaderboardResponse {
 export async function getLeaderboard(
   options: LeaderboardOptions = {}
 ): Promise<LeaderboardResponse> {
-  const { limit = 50, offset = 0, sortBy = "wins" } = options;
+  const { limit = 50, offset = 0, sortBy = "wins", network } = options;
 
   // Clamp limit to max 100
   const clampedLimit = Math.min(Math.max(1, limit), 100);
@@ -67,10 +71,19 @@ export async function getLeaderboard(
   const orderColumn = sortBy === "rating" ? "rating" : "wins";
   const secondaryOrder = sortBy === "rating" ? "wins" : "rating";
 
-  // Query players with ordering
-  const { data, error, count } = await supabase
+  // Build query with optional network filter
+  let query = supabase
     .from("players")
-    .select("*", { count: "exact" })
+    .select("*", { count: "exact" });
+
+  // Filter by network if specified
+  if (network) {
+    const addressFilter = getNetworkAddressFilter(network);
+    query = query.like("address", addressFilter);
+  }
+
+  // Apply ordering and pagination
+  const { data, error, count } = await query
     .order(orderColumn, { ascending: false })
     .order(secondaryOrder, { ascending: false })
     .range(clampedOffset, clampedOffset + clampedLimit - 1);
@@ -132,12 +145,17 @@ export async function getLeaderboard(
 
 /**
  * Get a player's rank in the leaderboard.
+ * Automatically filters by the player's network based on address prefix.
  */
 export async function getPlayerLeaderboardRank(
   address: string,
   sortBy: "wins" | "rating" | "winRate" = "wins"
 ): Promise<number | null> {
   const supabase = await createSupabaseServerClient();
+
+  // Detect network from address
+  const network: NetworkType = address.startsWith("kaspatest:") ? "testnet" : "mainnet";
+  const addressFilter = getNetworkAddressFilter(network);
 
   // Get the player's stats
   const { data: player, error: playerError } = await supabase
@@ -150,8 +168,11 @@ export async function getPlayerLeaderboardRank(
     return null;
   }
 
-  // Count players with better stats
-  let countQuery = supabase.from("players").select("*", { count: "exact", head: true });
+  // Count players with better stats (on same network)
+  let countQuery = supabase
+    .from("players")
+    .select("*", { count: "exact", head: true })
+    .like("address", addressFilter);
 
   if (sortBy === "rating") {
     countQuery = countQuery.gt("rating", player.rating);
@@ -175,8 +196,8 @@ export async function getPlayerLeaderboardRank(
 /**
  * Get top N players for quick display.
  */
-export async function getTopPlayers(limit: number = 10): Promise<LeaderboardEntry[]> {
-  const result = await getLeaderboard({ limit, sortBy: "wins" });
+export async function getTopPlayers(limit: number = 10, network?: NetworkType): Promise<LeaderboardEntry[]> {
+  const result = await getLeaderboard({ limit, sortBy: "wins", network });
   return result.entries;
 }
 
