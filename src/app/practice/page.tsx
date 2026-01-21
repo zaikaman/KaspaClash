@@ -69,6 +69,21 @@ export default function PracticePage() {
         setGameState("menu");
     }, []);
 
+    // Fullscreen game view
+    if (gameState === "playing" && practiceConfig) {
+        return (
+            <div className="fixed inset-0 z-50 bg-black overflow-hidden">
+                <PracticeGameClient
+                    characterId={practiceConfig.characterId}
+                    aiDifficulty={practiceConfig.difficulty}
+                    matchFormat="best_of_3"
+                    onMatchEnd={handleMatchEnd}
+                    onExit={handleExit}
+                />
+            </div>
+        );
+    }
+
     return (
         <GameLayout>
             <div className="min-h-screen pt-6 sm:pt-10 pb-20 relative">
@@ -81,18 +96,6 @@ export default function PracticePage() {
                 <div className="container mx-auto px-4 sm:px-6 lg:px-12 xl:px-24 relative z-10">
                     {gameState === "menu" && (
                         <PracticeMenu onStart={handleStart} />
-                    )}
-
-                    {gameState === "playing" && practiceConfig && (
-                        <div className="w-full h-[500px] sm:h-[600px] md:h-[720px] lg:h-[800px] bg-black/50 border border-cyber-gray/30 rounded-2xl overflow-hidden">
-                            <PracticeGameClient
-                                characterId={practiceConfig.characterId}
-                                aiDifficulty={practiceConfig.difficulty}
-                                matchFormat="best_of_3"
-                                onMatchEnd={handleMatchEnd}
-                                onExit={handleExit}
-                            />
-                        </div>
                     )}
 
                     {gameState === "results" && matchResult && (
