@@ -97,7 +97,7 @@ export function PracticeGameClient({
     }, []);
 
     return (
-        <div className="relative w-full h-full min-h-[600px]">
+        <div className="relative w-full h-full">
             {/* Practice mode header */}
             <div className="absolute top-0 left-0 right-0 z-10 flex justify-between items-center p-4 bg-gradient-to-b from-black/80 to-transparent">
                 <div className="flex items-center gap-4">

@@ -211,7 +211,6 @@ export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
     const containerStyle: React.CSSProperties = {
       width: width ?? "100%",
       height: height ?? "100%",
-      minHeight: 400,
       position: "relative",
       overflow: "hidden",
     };
