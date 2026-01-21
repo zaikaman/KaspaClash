@@ -99,7 +99,7 @@ export function PracticeGameClient({
     return (
         <div className="relative w-full h-full">
             {/* Practice mode header */}
-            <div className="absolute top-0 left-0 right-0 z-10 hidden lg:flex justify-between items-center p-4 bg-gradient-to-b from-black/80 to-transparent">
+            <div className="absolute top-0 left-0 right-0 z-10 hidden xl:flex justify-between items-center p-4 bg-gradient-to-b from-black/80 to-transparent">
                 <div className="flex items-center gap-4">
                     <span className="text-2xl font-bold font-orbitron text-white tracking-wider drop-shadow-[0_0_10px_rgba(240,183,31,0.5)]">
                         KASPA<span className="text-cyber-gold">CLASH</span>

@@ -14,6 +14,7 @@ import { getCharacter, CHARACTER_ROSTER } from "@/data/characters";
 import type { MoveType, Character } from "@/types";
 import { generateSurvivalWaves, getWaveTierName, getWaveTierColor, type WaveConfig, TOTAL_WAVES } from "@/lib/survival/wave-generator";
 import { calculateSurvivalScore, getShardsForWave } from "@/lib/survival/score-calculator";
+import { isMobileDevice } from "@/utils/device";
 
 export interface SurvivalSceneConfig {
     playerCharacterId: string;
@@ -321,14 +322,17 @@ export class SurvivalScene extends Phaser.Scene {
         this.scale.on('resize', this.updateLayout, this);
     }
 
+
+
     /**
      * Update layout based on screen size.
      * Hides decorative text on mobile/small screens.
      */
     private updateLayout(): void {
-        const isMobile = window.innerWidth < 1024 || window.innerHeight < 600;
+        // Hide on mobile devices OR small screens
+        const shouldHide = isMobileDevice() || window.innerWidth < 1024 || window.innerHeight < 600;
 
-        if (this.modeText) this.modeText.setVisible(!isMobile);
+        if (this.modeText) this.modeText.setVisible(!shouldHide);
     }
 
     private createWaveIndicator(): void {

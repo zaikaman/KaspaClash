@@ -13,6 +13,7 @@ import { getAIThinkTime } from "@/lib/game/ai-difficulty";
 import { getCharacter, getRandomCharacter } from "@/data/characters";
 import type { MoveType, Character } from "@/types";
 import { GAME_CONSTANTS } from "@/types/constants";
+import { isMobileDevice } from "@/utils/device";
 
 /**
  * Practice scene configuration.
@@ -381,20 +382,22 @@ export class PracticeScene extends Phaser.Scene {
 
     // Initial layout check
     this.updateLayout();
-
     // Listen for resize events to handle rotation
     this.scale.on('resize', this.updateLayout, this);
   }
+
+
 
   /**
    * Update layout based on screen size.
    * Hides decorative text on mobile/small screens.
    */
   private updateLayout(): void {
-    const isMobile = window.innerWidth < 1024 || window.innerHeight < 600;
+    // Hide on mobile devices OR small screens
+    const shouldHide = isMobileDevice() || window.innerWidth < 1024 || window.innerHeight < 600;
 
-    if (this.modeText) this.modeText.setVisible(!isMobile);
-    if (this.aiInfoText) this.aiInfoText.setVisible(!isMobile);
+    if (this.modeText) this.modeText.setVisible(!shouldHide);
+    if (this.aiInfoText) this.aiInfoText.setVisible(!shouldHide);
   }
 
   // ===========================================================================
