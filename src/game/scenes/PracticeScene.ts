@@ -49,6 +49,10 @@ export class PracticeScene extends Phaser.Scene {
   private turnIndicatorText!: Phaser.GameObjects.Text;
   private narrativeText!: Phaser.GameObjects.Text;
 
+  // Decorative text
+  private modeText?: Phaser.GameObjects.Text;
+  private aiInfoText?: Phaser.GameObjects.Text;
+
   // Character sprites
   private player1Sprite!: Phaser.GameObjects.Sprite;
   private player2Sprite!: Phaser.GameObjects.Sprite;
@@ -362,22 +366,35 @@ export class PracticeScene extends Phaser.Scene {
     }
 
     // Practice mode indicator
-    const isMobile = window.innerWidth < 768;
+    this.modeText = this.add.text(GAME_DIMENSIONS.CENTER_X, 20, "PRACTICE MODE", {
+      fontFamily: "monospace",
+      fontSize: "12px",
+      color: "#888888",
+    }).setOrigin(0.5);
 
-    if (!isMobile) {
-      this.add.text(GAME_DIMENSIONS.CENTER_X, 20, "PRACTICE MODE", {
-        fontFamily: "monospace",
-        fontSize: "12px",
-        color: "#888888",
-      }).setOrigin(0.5);
+    // AI difficulty indicator
+    this.aiInfoText = this.add.text(GAME_DIMENSIONS.CENTER_X, 38, `AI: ${this.config.aiDifficulty.toUpperCase()}`, {
+      fontFamily: "monospace",
+      fontSize: "11px",
+      color: "#666666",
+    }).setOrigin(0.5);
 
-      // AI difficulty indicator
-      this.add.text(GAME_DIMENSIONS.CENTER_X, 38, `AI: ${this.config.aiDifficulty.toUpperCase()}`, {
-        fontFamily: "monospace",
-        fontSize: "11px",
-        color: "#666666",
-      }).setOrigin(0.5);
-    }
+    // Initial layout check
+    this.updateLayout();
+
+    // Listen for resize events to handle rotation
+    this.scale.on('resize', this.updateLayout, this);
+  }
+
+  /**
+   * Update layout based on screen size.
+   * Hides decorative text on mobile/small screens.
+   */
+  private updateLayout(): void {
+    const isMobile = window.innerWidth < 1024 || window.innerHeight < 600;
+
+    if (this.modeText) this.modeText.setVisible(!isMobile);
+    if (this.aiInfoText) this.aiInfoText.setVisible(!isMobile);
   }
 
   // ===========================================================================

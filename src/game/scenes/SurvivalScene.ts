@@ -59,6 +59,9 @@ export class SurvivalScene extends Phaser.Scene {
     private turnIndicatorText!: Phaser.GameObjects.Text;
     private narrativeText!: Phaser.GameObjects.Text;
 
+    // Decorative text
+    private modeText?: Phaser.GameObjects.Text;
+
     // Character sprites
     private player1Sprite!: Phaser.GameObjects.Sprite;
     private player2Sprite!: Phaser.GameObjects.Sprite;
@@ -304,14 +307,28 @@ export class SurvivalScene extends Phaser.Scene {
         }
 
         // Survival mode indicator
-        if (window.innerWidth >= 768) {
-            this.add.text(GAME_DIMENSIONS.CENTER_X, 20, "SURVIVAL MODE", {
-                fontFamily: "monospace",
-                fontSize: "14px",
-                color: "#ef4444",
-                fontStyle: "bold",
-            }).setOrigin(0.5);
-        }
+        this.modeText = this.add.text(GAME_DIMENSIONS.CENTER_X, 20, "SURVIVAL MODE", {
+            fontFamily: "monospace",
+            fontSize: "14px",
+            color: "#ef4444",
+            fontStyle: "bold",
+        }).setOrigin(0.5);
+
+        // Initial layout check
+        this.updateLayout();
+
+        // Listen for resize events to handle rotation
+        this.scale.on('resize', this.updateLayout, this);
+    }
+
+    /**
+     * Update layout based on screen size.
+     * Hides decorative text on mobile/small screens.
+     */
+    private updateLayout(): void {
+        const isMobile = window.innerWidth < 1024 || window.innerHeight < 600;
+
+        if (this.modeText) this.modeText.setVisible(!isMobile);
     }
 
     private createWaveIndicator(): void {
