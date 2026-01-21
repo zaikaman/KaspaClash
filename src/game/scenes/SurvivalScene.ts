@@ -304,12 +304,14 @@ export class SurvivalScene extends Phaser.Scene {
         }
 
         // Survival mode indicator
-        this.add.text(GAME_DIMENSIONS.CENTER_X, 20, "SURVIVAL MODE", {
-            fontFamily: "monospace",
-            fontSize: "14px",
-            color: "#ef4444",
-            fontStyle: "bold",
-        }).setOrigin(0.5);
+        if (window.innerWidth >= 768) {
+            this.add.text(GAME_DIMENSIONS.CENTER_X, 20, "SURVIVAL MODE", {
+                fontFamily: "monospace",
+                fontSize: "14px",
+                color: "#ef4444",
+                fontStyle: "bold",
+            }).setOrigin(0.5);
+        }
     }
 
     private createWaveIndicator(): void {

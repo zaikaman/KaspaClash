@@ -362,18 +362,22 @@ export class PracticeScene extends Phaser.Scene {
     }
 
     // Practice mode indicator
-    this.add.text(GAME_DIMENSIONS.CENTER_X, 20, "PRACTICE MODE", {
-      fontFamily: "monospace",
-      fontSize: "12px",
-      color: "#888888",
-    }).setOrigin(0.5);
+    const isMobile = window.innerWidth < 768;
 
-    // AI difficulty indicator
-    this.add.text(GAME_DIMENSIONS.CENTER_X, 38, `AI: ${this.config.aiDifficulty.toUpperCase()}`, {
-      fontFamily: "monospace",
-      fontSize: "11px",
-      color: "#666666",
-    }).setOrigin(0.5);
+    if (!isMobile) {
+      this.add.text(GAME_DIMENSIONS.CENTER_X, 20, "PRACTICE MODE", {
+        fontFamily: "monospace",
+        fontSize: "12px",
+        color: "#888888",
+      }).setOrigin(0.5);
+
+      // AI difficulty indicator
+      this.add.text(GAME_DIMENSIONS.CENTER_X, 38, `AI: ${this.config.aiDifficulty.toUpperCase()}`, {
+        fontFamily: "monospace",
+        fontSize: "11px",
+        color: "#666666",
+      }).setOrigin(0.5);
+    }
   }
 
   // ===========================================================================
