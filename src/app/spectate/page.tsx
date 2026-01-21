@@ -40,6 +40,98 @@ function truncateAddress(address: string): string {
     return `${address.slice(0, 10)}...${address.slice(-6)}`;
 }
 
+// Bot match interface
+interface BotMatch {
+    id: string;
+    bot1CharacterId: string;
+    bot2CharacterId: string;
+    bot1Name: string;
+    bot2Name: string;
+    createdAt: number;
+    status: string;
+}
+
+// Bot Match Card Component
+function BotMatchCard({ match }: { match: BotMatch }) {
+    const bot1Character = getCharacter(match.bot1CharacterId);
+    const bot2Character = getCharacter(match.bot2CharacterId);
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="group relative rounded-[20px] bg-black/40 border border-orange-500/40 p-6 pt-14 hover:border-orange-500 transition-all hover:bg-black/60 overflow-hidden"
+        >
+            {/* Bot Match Indicator */}
+            <div className="absolute top-4 right-4 flex items-center gap-2 z-10 bg-orange-500/20 px-3 py-1 rounded-full border border-orange-500/40 backdrop-blur-sm">
+                <span className="text-lg">🤖</span>
+                <span className="text-xs text-orange-400 font-orbitron uppercase tracking-wider font-bold">Bot Match</span>
+            </div>
+
+            {/* Match Info */}
+            <div className="flex items-center justify-between gap-4">
+                {/* Bot 1 */}
+                <div className="flex-1 text-center min-w-0">
+                    <div className="relative w-20 h-20 mx-auto mb-3">
+                        {bot1Character ? (
+                            <img
+                                src={bot1Character.portraitUrl}
+                                alt={bot1Character.name}
+                                className="w-full h-full object-cover rounded-lg border border-orange-500/30"
+                            />
+                        ) : (
+                            <div className="w-full h-full rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-center justify-center">
+                                <span className="text-orange-400 text-2xl">🤖</span>
+                            </div>
+                        )}
+                    </div>
+                    <p className="text-white font-orbitron text-sm truncate w-full px-2">{match.bot1Name}</p>
+                    <p className="text-orange-400 text-xs mt-1">BOT</p>
+                </div>
+
+                {/* VS */}
+                <div className="text-center px-2 shrink-0">
+                    <div className="text-3xl font-bold font-orbitron text-orange-400">
+                        VS
+                    </div>
+                    <p className="text-cyber-gray text-[10px] mt-2 uppercase tracking-wider bg-orange-500/10 px-2 py-1 rounded">
+                        Best of 3
+                    </p>
+                </div>
+
+                {/* Bot 2 */}
+                <div className="flex-1 text-center min-w-0">
+                    <div className="relative w-20 h-20 mx-auto mb-3">
+                        {bot2Character ? (
+                            <img
+                                src={bot2Character.portraitUrl}
+                                alt={bot2Character.name}
+                                className="w-full h-full object-cover rounded-lg border border-orange-500/30"
+                            />
+                        ) : (
+                            <div className="w-full h-full rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-center justify-center">
+                                <span className="text-orange-400 text-2xl">🤖</span>
+                            </div>
+                        )}
+                    </div>
+                    <p className="text-white font-orbitron text-sm truncate w-full px-2">{match.bot2Name}</p>
+                    <p className="text-orange-400 text-xs mt-1">BOT</p>
+                </div>
+            </div>
+
+            {/* Watch Button */}
+            <div className="mt-8">
+                <Link href={`/spectate/bot/${match.id}`} className="block">
+                    <Button className="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white border-0 font-orbitron hover:opacity-90 py-6 text-lg tracking-widest">
+                        <span className="mr-3">🤖</span>
+                        WATCH BOT BATTLE
+                    </Button>
+                </Link>
+            </div>
+        </motion.div>
+    );
+}
+
 function MatchCard({ match }: { match: LiveMatch }) {
     const player1Name = match.player1?.displayName || truncateAddress(match.player1Address);
     const player2Name = match.player2?.displayName || (match.player2Address ? truncateAddress(match.player2Address) : "???");
@@ -133,17 +225,36 @@ function MatchCard({ match }: { match: LiveMatch }) {
 
 export default function SpectatePage() {
     const [matches, setMatches] = useState<LiveMatch[]>([]);
+    const [botMatches, setBotMatches] = useState<BotMatch[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     const fetchMatches = useCallback(async () => {
         try {
+            // Fetch player matches
             const response = await fetch("/api/matches/live");
             if (!response.ok) {
                 throw new Error("Failed to fetch live matches");
             }
             const data = await response.json();
-            setMatches(data.matches || []);
+            const playerMatches = data.matches || [];
+            setMatches(playerMatches);
+
+            // If no player matches, fetch bot matches
+            if (playerMatches.length === 0) {
+                try {
+                    const botResponse = await fetch("/api/bot-games");
+                    if (botResponse.ok) {
+                        const botData = await botResponse.json();
+                        setBotMatches(botData.matches || []);
+                    }
+                } catch (botErr) {
+                    console.error("Error fetching bot matches:", botErr);
+                }
+            } else {
+                setBotMatches([]); // Clear bot matches when player matches exist
+            }
+
             setError(null);
         } catch (err) {
             console.error("Error fetching live matches:", err);
@@ -220,7 +331,7 @@ export default function SpectatePage() {
                                 Try Again
                             </Button>
                         </div>
-                    ) : matches.length === 0 ? (
+                    ) : matches.length === 0 && botMatches.length === 0 ? (
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -243,16 +354,51 @@ export default function SpectatePage() {
                             </Link>
                         </motion.div>
                     ) : (
-                        <motion.div
-                            variants={staggerContainer}
-                            initial="hidden"
-                            animate="visible"
-                            className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
-                        >
-                            {matches.map((match) => (
-                                <MatchCard key={match.id} match={match} />
-                            ))}
-                        </motion.div>
+                        <>
+                            {/* Player Matches */}
+                            {matches.length > 0 && (
+                                <motion.div
+                                    variants={staggerContainer}
+                                    initial="hidden"
+                                    animate="visible"
+                                    className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
+                                >
+                                    {matches.map((match) => (
+                                        <MatchCard key={match.id} match={match} />
+                                    ))}
+                                </motion.div>
+                            )}
+
+                            {/* Bot Matches Section */}
+                            {botMatches.length > 0 && (
+                                <>
+                                    {matches.length > 0 && (
+                                        <div className="mt-12 mb-8 flex items-center gap-4">
+                                            <div className="flex-1 h-px bg-orange-500/30" />
+                                            <h2 className="text-lg font-orbitron text-orange-400 flex items-center gap-2">
+                                                <span>🤖</span> BOT BATTLES
+                                            </h2>
+                                            <div className="flex-1 h-px bg-orange-500/30" />
+                                        </div>
+                                    )}
+                                    {matches.length === 0 && (
+                                        <div className="mb-8 text-center">
+                                            <p className="text-cyber-gray mb-4">No player matches available. Watch our bots battle!</p>
+                                        </div>
+                                    )}
+                                    <motion.div
+                                        variants={staggerContainer}
+                                        initial="hidden"
+                                        animate="visible"
+                                        className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
+                                    >
+                                        {botMatches.map((match) => (
+                                            <BotMatchCard key={match.id} match={match} />
+                                        ))}
+                                    </motion.div>
+                                </>
+                            )}
+                        </>
                     )}
 
                     <DecorativeLine className="mt-20" variant="left-gold-right-red" />
