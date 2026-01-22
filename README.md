@@ -42,7 +42,7 @@
 
 **KaspaClash** is a competitive 1v1 turn-based fighting game that demonstrates the true power of Kaspa's BlockDAG architecture through real-time gameplay mechanics. Players connect their Kaspa wallets to compete in skill-based matches, bet on ongoing fights, climb the leaderboard, and experience blockchain gaming without the traditional latency constraints.
 
-Built for the **Kaspathon 2026 hackathon** under the **Gaming & Interactive** track, KaspaClash leverages Kaspa's sub-second block times to create a seamless gaming experience where blockchain transactions feel instant—no waiting, no delays, just pure competitive action.
+Built for the **Kaspathon 2026 hackathon** under the **Gaming & Interactive** track, KaspaClash leverages Kaspa's sub-second block times to create a seamless gaming experience where **every move you make is a real on-chain transaction** confirmed in sub-seconds—no waiting, no delays, just pure competitive action.
 
 ### 🏆 Hackathon Category
 - **Primary Track:** Gaming & Interactive
@@ -62,7 +62,7 @@ Traditional blockchain games suffer from:
 ### The Solution: Kaspa's Speed
 KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 
-- ⚡ **Instant Confirmations:** ~1 second block times enable real-time gameplay
+- ⚡ **Instant Confirmations:** ~1 second block times enable real-time gameplay where **every single move is verified by a transaction**
 - 🎲 **Live Betting:** Spectators can place bets that confirm before the next round
 - 🔗 **On-Chain Everything:** All game state, matches, and transactions are blockchain-native
 - 🎨 **Seamless UX:** Players experience gaming-first design with blockchain in the background
@@ -73,7 +73,7 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 ## ✨ Key Features
 
 ### 🎮 Core Gameplay
-- **Turn-Based Combat System:** Strategic rock-paper-scissors style fighting with energy management
+- **Turn-Based Combat System:** Strategic rock-paper-scissors style fighting where **every move is a Kaspa transaction** confirmed in real-time
 - **20 Unique Characters:** Diverse roster of fighters with unique stats and abilities
 - **Multiple Game Modes:**
   - **Ranked Matchmaking:** ELO-based competitive queue
@@ -99,6 +99,7 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 
 ### 🔗 Blockchain Features
 - **Kaspa Wallet Integration:** Seamless connection via Kasware wallet
+- **True On-Chain Combat:** Every Punch, Kick, and Block is a confirmed blockchain transaction, showcasing Kaspa's unmatched speed
 - **Live Betting System:** Spectators can bet on match outcomes with instant confirmations
 - **Bot Betting:** Bet on automated bot matches running 24/7 with fixed 2x odds and 1% house fee
 - **On-Chain Leaderboard:** Transparent ranking system powered by ELO ratings
