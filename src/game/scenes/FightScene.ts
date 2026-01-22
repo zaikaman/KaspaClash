@@ -2102,6 +2102,131 @@ export class FightScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Handle match cancellation (e.g., both players disconnected).
+   * Shows cancellation overlay with refund information.
+   */
+  private handleMatchCancellation(payload: any): void {
+    console.log("[FightScene] Handling match cancellation:", payload);
+
+    // Transition to match end phase
+    this.phase = "match_end";
+
+    // Clear any active timers
+    if (this.timerEvent) {
+      this.timerEvent.remove();
+      this.timerEvent = undefined;
+    }
+
+    // Hide move selection UI
+    this.moveButtons.forEach((button) => button.setVisible(false));
+
+    // Build cancellation message
+    const refundStats = payload.refundStats || {};
+    const totalRefunded = refundStats.totalRefunded || 0;
+    const hasErrors = refundStats.errors && refundStats.errors.length > 0;
+
+    let message = payload.message || "Both players disconnected";
+    message += "\\n\\n";
+    
+    if (totalRefunded > 0) {
+      message += `Refunds processed: ${totalRefunded}`;
+      if (refundStats.stakesRefunded > 0) {
+        message += `\\n   Entry stakes: ${refundStats.stakesRefunded} refunded`;
+      }
+      if (refundStats.betsRefunded > 0) {
+        message += `\\n   Bets: ${refundStats.betsRefunded} refunded`;
+      }
+    } else {
+      message += "No refunds required";
+    }
+
+    if (hasErrors) {
+      message += "\\n\\nSome refunds failed - Contact support";
+    }
+
+    // Show cancellation overlay
+    this.showCancellationOverlay(message);
+  }
+
+  /**
+   * Show cancellation overlay with refund information.
+   */
+  private showCancellationOverlay(message: string): void {
+    // Create dark overlay
+    const overlay = this.add.rectangle(
+      GAME_DIMENSIONS.CENTER_X,
+      GAME_DIMENSIONS.CENTER_Y,
+      GAME_DIMENSIONS.WIDTH,
+      GAME_DIMENSIONS.HEIGHT,
+      0x000000,
+      0.85
+    );
+
+    // Create container
+    const container = this.add.container(GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.CENTER_Y);
+
+    // Background panel
+    const bg = this.add.rectangle(0, 0, 700, 400, 0x1a1a2e, 1);
+    bg.setStrokeStyle(3, 0xff6b35);
+    container.add(bg);
+
+    // Title
+    const title = this.add.text(0, -150, "MATCH CANCELLED", {
+      fontFamily: "Orbitron",
+      fontSize: "36px",
+      color: "#ff6b35",
+      fontStyle: "bold",
+    }).setOrigin(0.5);
+    container.add(title);
+
+    // Message
+    const messageText = this.add.text(0, -20, message, {
+      fontFamily: "Exo 2",
+      fontSize: "18px",
+      color: "#ffffff",
+      align: "center",
+      wordWrap: { width: 600 },
+    }).setOrigin(0.5);
+    container.add(messageText);
+
+    // Return button
+    const buttonBg = this.add.rectangle(0, 140, 250, 50, 0xff6b35, 1);
+    const buttonText = this.add.text(0, 140, "Return to Home", {
+      fontFamily: "Orbitron",
+      fontSize: "20px",
+      color: "#000000",
+      fontStyle: "bold",
+    }).setOrigin(0.5);
+    
+    buttonBg.setInteractive({ useHandCursor: true });
+    buttonBg.on("pointerover", () => buttonBg.setFillStyle(0xffaa00));
+    buttonBg.on("pointerout", () => buttonBg.setFillStyle(0xff6b35));
+    buttonBg.on("pointerdown", () => {
+      window.location.href = "/";
+    });
+
+    container.add([buttonBg, buttonText]);
+
+    // Animate in
+    overlay.setAlpha(0);
+    container.setScale(0.8).setAlpha(0);
+    
+    this.tweens.add({
+      targets: overlay,
+      alpha: 0.85,
+      duration: 300,
+    });
+    
+    this.tweens.add({
+      targets: container,
+      scale: 1,
+      alpha: 1,
+      duration: 400,
+      ease: "Back.easeOut",
+    });
+  }
+
   private showRematchButton(): void {
     const buttonWidth = 200;
     const buttonHeight = 50;
@@ -2418,9 +2543,23 @@ export class FightScene extends Phaser.Scene {
       }
     });
 
-    // Listen for match cancellation (both players rejected)
+    // Listen for match cancellation (both players rejected OR both disconnected)
     EventBus.on("game:matchCancelled", (data: unknown) => {
-      const payload = data as { matchId: string; reason: string; message: string; redirectTo: string };
+      const payload = data as { 
+        matchId: string; 
+        reason: string; 
+        message: string; 
+        redirectTo?: string;
+        refundsProcessed?: boolean;
+        refundStats?: {
+          totalRefunded: number;
+          stakesRefunded: number;
+          betsRefunded: number;
+          errors: string[];
+        };
+      };
+
+      console.log("[FightScene] Match cancelled:", payload);
 
       this.phase = "match_end";
 
@@ -2440,7 +2579,13 @@ export class FightScene extends Phaser.Scene {
         this.timerEvent = undefined;
       }
 
-      // Show cancellation message
+      // If this is a disconnect refund scenario, show detailed overlay
+      if (payload.refundsProcessed !== undefined) {
+        this.handleMatchCancellation(payload);
+        return;
+      }
+
+      // Otherwise, show simple cancellation message (transaction rejection)
       this.countdownText.setText("MATCH CANCELLED");
       this.countdownText.setFontSize(36);
       this.countdownText.setColor("#f97316");
@@ -2449,9 +2594,7 @@ export class FightScene extends Phaser.Scene {
       this.narrativeText.setText("Both players rejected transactions.\nRedirecting to matchmaking...");
       this.narrativeText.setAlpha(1);
 
-      // Disable all buttons
       // Disable all buttons - Not needed, UI handles this
-      // this.moveButtons.forEach(btn => btn.setAlpha(0.3).disableInteractive());
     });
 
     // Listen for opponent disconnect

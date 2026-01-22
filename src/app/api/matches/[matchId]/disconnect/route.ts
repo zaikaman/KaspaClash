@@ -190,29 +190,53 @@ export async function POST(
           })
           .eq("id", matchId);
 
-        // Refund stakes and bets (async, don't block response)
-        Promise.all([
-          import("@/lib/betting/payout-service").then(({ refundMatchStakes }) => {
-            return refundMatchStakes(matchId).catch(err => {
+        // Refund stakes and bets - WAIT for completion
+        const [stakesResult, betsResult] = await Promise.all([
+          import("@/lib/betting/payout-service").then(async ({ refundMatchStakes }) => {
+            try {
+              const result = await refundMatchStakes(matchId);
+              console.log(`[Disconnect API] Stakes refund result:`, result);
+              return result;
+            } catch (err) {
               console.error(`[Disconnect API] Error refunding stakes for ${matchId}:`, err);
-            });
+              return { success: false, refundedCount: 0, errors: [String(err)] };
+            }
           }),
-          import("@/lib/betting/payout-service").then(({ refundBettingPool }) => {
-            return refundBettingPool(matchId).catch(err => {
+          import("@/lib/betting/payout-service").then(async ({ refundBettingPool }) => {
+            try {
+              const result = await refundBettingPool(matchId);
+              console.log(`[Disconnect API] Betting pool refund result:`, result);
+              return result;
+            } catch (err) {
               console.error(`[Disconnect API] Error refunding betting pool for ${matchId}:`, err);
-            });
+              return { success: false, refundedCount: 0, errors: [String(err)] };
+            }
           }),
         ]);
 
-        // Broadcast match cancelled event
+        const totalRefunded = stakesResult.refundedCount + betsResult.refundedCount;
+        const refundErrors = [...stakesResult.errors, ...betsResult.errors];
+
+        console.log(`[Disconnect API] Total refunds: ${totalRefunded}, Errors: ${refundErrors.length}`);
+
+        // Broadcast match cancelled event with refund details
         const gameChannel = supabase.channel(`game:${matchId}`);
         await gameChannel.send({
           type: "broadcast",
           event: "match_cancelled",
           payload: {
+            matchId,
             reason: "both_players_disconnected",
+            message: "Match cancelled - Both players disconnected. Refunds processed.",
             cancelledAt: Date.now(),
             refundsProcessed: true,
+            refundStats: {
+              totalRefunded,
+              stakesRefunded: stakesResult.refundedCount,
+              betsRefunded: betsResult.refundedCount,
+              errors: refundErrors,
+            },
+            redirectTo: "/",
           },
         });
         await supabase.removeChannel(gameChannel);

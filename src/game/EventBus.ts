@@ -58,6 +58,7 @@ export interface GameEvents {
   "game:moveConfirmed": any;
   "game:roundResolved": any;
   "game:matchEnded": any;
+  "game:matchCancelled": any;
   "game:characterSelected": any;
   "game:matchStarting": any;
   "game:rejectionWaiting": { message: string };
