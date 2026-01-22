@@ -76,6 +76,39 @@ export function SpectatorClient({ match }: SpectatorClientProps) {
         onMatchEnded: (payload) => {
             console.log("[SpectatorClient] Match ended:", payload);
         },
+        onMatchCancelled: async (payload) => {
+            console.log("[SpectatorClient] Match cancelled:", payload);
+            
+            // Fetch user's bet information to show personalized refund message
+            try {
+                const walletStr = localStorage.getItem("kaspa_wallet");
+                if (walletStr) {
+                    const wallet = JSON.parse(walletStr);
+                    const betResponse = await fetch(`/api/betting/pool/${match.id}`);
+                    if (betResponse.ok) {
+                        const betData = await betResponse.json();
+                        const userBet = betData.data?.bets?.find(
+                            (b: any) => b.bettor_address === wallet.address
+                        );
+                        
+                        // Emit enhanced payload with user's bet info
+                        EventBus.emit("game:matchCancelled", {
+                            ...payload,
+                            userBet: userBet ? {
+                                amount: userBet.amount,
+                                prediction: userBet.predicted_winner,
+                            } : null,
+                        });
+                        return; // Don't emit twice
+                    }
+                }
+            } catch (error) {
+                console.error("[SpectatorClient] Error fetching bet info:", error);
+            }
+            
+            // Fallback: emit without bet info
+            EventBus.emit("game:matchCancelled", payload);
+        },
     });
 
     // Fetch current game state for reconnecting spectators

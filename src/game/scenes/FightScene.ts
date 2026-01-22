@@ -2125,34 +2125,42 @@ export class FightScene extends Phaser.Scene {
     const refundStats = payload.refundStats || {};
     const totalRefunded = refundStats.totalRefunded || 0;
     const hasErrors = refundStats.errors && refundStats.errors.length > 0;
+    const userBet = payload.userBet;
 
     let message = payload.message || "Both players disconnected";
     message += "\\n\\n";
     
+    // Show personalized bet refund info if user had a bet
+    if (userBet && userBet.amount > 0) {
+      message += `YOUR BET: ${userBet.amount} KAS refunded`;
+      message += `\\n(Predicted: ${userBet.prediction === "player1" ? "Player 1" : "Player 2"})`;
+      message += "\\n\\n";
+    }
+    
     if (totalRefunded > 0) {
-      message += `Refunds processed: ${totalRefunded}`;
+      message += `Total refunds: ${totalRefunded} transactions`;
       if (refundStats.stakesRefunded > 0) {
-        message += `\\n   Entry stakes: ${refundStats.stakesRefunded} refunded`;
+        message += `\\n• Entry stakes: ${refundStats.stakesRefunded} players`;
       }
       if (refundStats.betsRefunded > 0) {
-        message += `\\n   Bets: ${refundStats.betsRefunded} refunded`;
+        message += `\\n• Spectator bets: ${refundStats.betsRefunded} bettors`;
       }
     } else {
       message += "No refunds required";
     }
 
     if (hasErrors) {
-      message += "\\n\\nSome refunds failed - Contact support";
+      message += "\\n\\n⚠️ Some refunds failed - Contact support";
     }
 
     // Show cancellation overlay
-    this.showCancellationOverlay(message);
+    this.showCancellationOverlay(message, userBet);
   }
 
   /**
    * Show cancellation overlay with refund information.
    */
-  private showCancellationOverlay(message: string): void {
+  private showCancellationOverlay(message: string, userBet?: { amount: number; prediction: string }): void {
     // Create dark overlay
     const overlay = this.add.rectangle(
       GAME_DIMENSIONS.CENTER_X,
@@ -2166,8 +2174,9 @@ export class FightScene extends Phaser.Scene {
     // Create container
     const container = this.add.container(GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.CENTER_Y);
 
-    // Background panel
-    const bg = this.add.rectangle(0, 0, 700, 400, 0x1a1a2e, 1);
+    // Background panel - taller if user has a bet
+    const panelHeight = userBet ? 480 : 400;
+    const bg = this.add.rectangle(0, 0, 700, panelHeight, 0x1a1a2e, 1);
     bg.setStrokeStyle(3, 0xff6b35);
     container.add(bg);
 
@@ -2180,10 +2189,43 @@ export class FightScene extends Phaser.Scene {
     }).setOrigin(0.5);
     container.add(title);
 
+    // If user had a bet, show highlighted refund box
+    let messageYOffset = -20;
+    if (userBet && userBet.amount > 0) {
+      const refundBox = this.add.rectangle(0, -70, 600, 80, 0x22c55e, 0.15);
+      refundBox.setStrokeStyle(2, 0x22c55e);
+      container.add(refundBox);
+
+      const refundTitle = this.add.text(0, -95, "YOUR BET REFUNDED", {
+        fontFamily: "Orbitron",
+        fontSize: "16px",
+        color: "#22c55e",
+        fontStyle: "bold",
+      }).setOrigin(0.5);
+      container.add(refundTitle);
+
+      const refundAmount = this.add.text(0, -65, `${userBet.amount} KAS`, {
+        fontFamily: "Orbitron",
+        fontSize: "28px",
+        color: "#22c55e",
+        fontStyle: "bold",
+      }).setOrigin(0.5);
+      container.add(refundAmount);
+
+      const predictionText = this.add.text(0, -35, `Predicted: ${userBet.prediction === "player1" ? "Player 1" : "Player 2"}`, {
+        fontFamily: "Exo 2",
+        fontSize: "14px",
+        color: "#888888",
+      }).setOrigin(0.5);
+      container.add(predictionText);
+
+      messageYOffset = 40;
+    }
+
     // Message
-    const messageText = this.add.text(0, -20, message, {
+    const messageText = this.add.text(0, messageYOffset, message, {
       fontFamily: "Exo 2",
-      fontSize: "18px",
+      fontSize: "16px",
       color: "#ffffff",
       align: "center",
       wordWrap: { width: 600 },
@@ -2191,8 +2233,9 @@ export class FightScene extends Phaser.Scene {
     container.add(messageText);
 
     // Return button
-    const buttonBg = this.add.rectangle(0, 140, 250, 50, 0xff6b35, 1);
-    const buttonText = this.add.text(0, 140, "Return to Home", {
+    const buttonY = userBet ? 180 : 140;
+    const buttonBg = this.add.rectangle(0, buttonY, 250, 50, 0xff6b35, 1);
+    const buttonText = this.add.text(0, buttonY, "Return to Home", {
       fontFamily: "Orbitron",
       fontSize: "20px",
       color: "#000000",

@@ -45,6 +45,7 @@ export interface UseSpectatorChannelOptions {
     onMatchEnded?: (payload: MatchEndedPayload) => void;
     onCharacterSelected?: (payload: CharacterSelectedPayload) => void;
     onMatchStarting?: (payload: MatchStartingPayload) => void;
+    onMatchCancelled?: (payload: any) => void;
     onError?: (error: string) => void;
 }
 
@@ -71,6 +72,7 @@ export function useSpectatorChannel(options: UseSpectatorChannelOptions): UseSpe
         onMatchEnded,
         onCharacterSelected,
         onMatchStarting,
+        onMatchCancelled,
         onError,
     } = options;
 
@@ -171,6 +173,15 @@ export function useSpectatorChannel(options: UseSpectatorChannelOptions): UseSpe
         [onMatchStarting]
     );
 
+    const handleMatchCancelled = useCallback(
+        (payload: any) => {
+            console.log("[SpectatorChannel] match_cancelled:", payload);
+            EventBus.emit("game:matchCancelled", payload);
+            onMatchCancelled?.(payload);
+        },
+        [onMatchCancelled]
+    );
+
     // ===========================================================================
     // CHANNEL MANAGEMENT
     // ===========================================================================
@@ -211,6 +222,9 @@ export function useSpectatorChannel(options: UseSpectatorChannelOptions): UseSpe
                 })
                 .on("broadcast", { event: "match_starting" }, ({ payload }) => {
                     handleMatchStarting(payload as MatchStartingPayload);
+                })
+                .on("broadcast", { event: "match_cancelled" }, ({ payload }) => {
+                    handleMatchCancelled(payload);
                 });
 
             // Subscribe to the channel
@@ -253,6 +267,7 @@ export function useSpectatorChannel(options: UseSpectatorChannelOptions): UseSpe
         handleMatchEnded,
         handleCharacterSelected,
         handleMatchStarting,
+        handleMatchCancelled,
         onError,
     ]);
 
