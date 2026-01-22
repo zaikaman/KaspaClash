@@ -614,11 +614,43 @@ export class BotBattleScene extends Phaser.Scene {
             const p1RunScale = getAnimationScale(p1Char, "run");
             this.player1Sprite.setScale(p1RunScale);
             this.player1Sprite.play(`${p1Char}_run`);
+        } else if (p1IsStunned) {
+            // Stunned player stays in idle and shows stun effect
+            if (this.anims.exists(`${p1Char}_idle`)) {
+                const p1IdleScale = getAnimationScale(p1Char, "idle");
+                this.player1Sprite.setScale(p1IdleScale);
+                this.player1Sprite.play(`${p1Char}_idle`);
+            }
+            // Visual stun indicator - pulsing red tint
+            this.tweens.add({
+                targets: this.player1Sprite,
+                tint: 0xff6666,
+                yoyo: true,
+                repeat: 3,
+                duration: 200,
+                onComplete: () => this.player1Sprite.clearTint()
+            });
         }
         if (!p2IsStunned && this.anims.exists(`${p2Char}_run`)) {
             const p2RunScale = getAnimationScale(p2Char, "run");
             this.player2Sprite.setScale(p2RunScale);
             this.player2Sprite.play(`${p2Char}_run`);
+        } else if (p2IsStunned) {
+            // Stunned player stays in idle and shows stun effect
+            if (this.anims.exists(`${p2Char}_idle`)) {
+                const p2IdleScale = getAnimationScale(p2Char, "idle");
+                this.player2Sprite.setScale(p2IdleScale);
+                this.player2Sprite.play(`${p2Char}_idle`);
+            }
+            // Visual stun indicator - pulsing red tint
+            this.tweens.add({
+                targets: this.player2Sprite,
+                tint: 0xff6666,
+                yoyo: true,
+                repeat: 3,
+                duration: 200,
+                onComplete: () => this.player2Sprite.clearTint()
+            });
         }
 
         // Tween both characters toward targets (match FightScene timing: 600ms)
@@ -775,53 +807,102 @@ export class BotBattleScene extends Phaser.Scene {
                     );
 
                     // Handle round end with death animation
-                    if (turn.isRoundEnd && turn.roundWinner) {
-                        // Play death animation on loser
-                        const loserChar = turn.roundWinner === "player1" ? p2Char : p1Char;
-                        const loserSprite = turn.roundWinner === "player1" ? this.player2Sprite : this.player1Sprite;
+                    if (turn.isRoundEnd) {
+                        if (turn.roundWinner) {
+                            // Normal round end - someone won
+                            const loserChar = turn.roundWinner === "player1" ? p2Char : p1Char;
+                            const loserSprite = turn.roundWinner === "player1" ? this.player2Sprite : this.player1Sprite;
 
-                        if (this.anims.exists(`${loserChar}_dead`)) {
-                            loserSprite.setScale(getAnimationScale(loserChar, "dead"));
-                            loserSprite.play(`${loserChar}_dead`);
-                        }
+                            if (this.anims.exists(`${loserChar}_dead`)) {
+                                loserSprite.setScale(getAnimationScale(loserChar, "dead"));
+                                loserSprite.play(`${loserChar}_dead`);
+                            }
 
-                        // Update round score after death animation
-                        if (turn.roundWinner === "player1") this.bot1RoundsWon++;
-                        else this.bot2RoundsWon++;
+                            // Update round score after death animation
+                            if (turn.roundWinner === "player1") this.bot1RoundsWon++;
+                            else this.bot2RoundsWon++;
 
-                        // Wait for death animation (1.5s), then show round result
-                        await new Promise<void>((resolve) => {
-                            this.time.delayedCall(1500, () => {
-                                // Show round result text
-                                const winnerName = turn.roundWinner === "player1" ? this.config.bot1Name : this.config.bot2Name;
-                                this.narrativeText.setText(`${winnerName.toUpperCase()} WINS THE ROUND!`);
-                                this.narrativeText.setAlpha(1);
+                            // Wait for death animation (1.5s), then show round result
+                            await new Promise<void>((resolve) => {
+                                this.time.delayedCall(1500, () => {
+                                    // Show round result text
+                                    const winnerName = turn.roundWinner === "player1" ? this.config.bot1Name : this.config.bot2Name;
+                                    this.narrativeText.setText(`${winnerName.toUpperCase()} WINS THE ROUND!`);
+                                    this.narrativeText.setAlpha(1);
 
-                                // Reset HP/Energy bars for next round
-                                if (!turn.isMatchEnd) {
-                                    this.updateHealthBarDisplay("player1", this.config.bot1MaxHp, this.config.bot1MaxHp);
-                                    this.updateHealthBarDisplay("player2", this.config.bot2MaxHp, this.config.bot2MaxHp);
-                                    this.updateEnergyBarDisplay("player1", this.config.bot1MaxEnergy, this.config.bot1MaxEnergy);
-                                    this.updateEnergyBarDisplay("player2", this.config.bot2MaxEnergy, this.config.bot2MaxEnergy);
-                                    this.updateGuardMeterDisplay("player1", 0);
-                                    this.updateGuardMeterDisplay("player2", 0);
+                                    // Reset HP/Energy bars for next round
+                                    if (!turn.isMatchEnd) {
+                                        this.updateHealthBarDisplay("player1", this.config.bot1MaxHp, this.config.bot1MaxHp);
+                                        this.updateHealthBarDisplay("player2", this.config.bot2MaxHp, this.config.bot2MaxHp);
+                                        this.updateEnergyBarDisplay("player1", this.config.bot1MaxEnergy, this.config.bot1MaxEnergy);
+                                        this.updateEnergyBarDisplay("player2", this.config.bot2MaxEnergy, this.config.bot2MaxEnergy);
+                                        this.updateGuardMeterDisplay("player1", 0);
+                                        this.updateGuardMeterDisplay("player2", 0);
 
-                                    this.currentRound++;
-                                    this.roundScoreText.setText(
-                                        `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`
-                                    );
-                                }
-
-                                // Reset loser to idle after showing result
-                                this.time.delayedCall(1000, () => {
-                                    if (this.anims.exists(`${loserChar}_idle`)) {
-                                        loserSprite.setScale(getAnimationScale(loserChar, "idle"));
-                                        loserSprite.play(`${loserChar}_idle`);
+                                        this.currentRound++;
+                                        this.roundScoreText.setText(
+                                            `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`
+                                        );
                                     }
-                                    resolve();
+
+                                    // Reset loser to idle after showing result
+                                    this.time.delayedCall(1000, () => {
+                                        if (this.anims.exists(`${loserChar}_idle`)) {
+                                            loserSprite.setScale(getAnimationScale(loserChar, "idle"));
+                                            loserSprite.play(`${loserChar}_idle`);
+                                        }
+                                        resolve();
+                                    });
                                 });
                             });
-                        });
+                        } else {
+                            // DRAW - both players KO'd at the same time
+                            // Play death animation on both
+                            if (this.anims.exists(`${p1Char}_dead`)) {
+                                this.player1Sprite.setScale(getAnimationScale(p1Char, "dead"));
+                                this.player1Sprite.play(`${p1Char}_dead`);
+                            }
+                            if (this.anims.exists(`${p2Char}_dead`)) {
+                                this.player2Sprite.setScale(getAnimationScale(p2Char, "dead"));
+                                this.player2Sprite.play(`${p2Char}_dead`);
+                            }
+
+                            // Wait for death animation, then show DRAW
+                            await new Promise<void>((resolve) => {
+                                this.time.delayedCall(1500, () => {
+                                    this.narrativeText.setText("⚡ DOUBLE KO - DRAW! ⚡");
+                                    this.narrativeText.setAlpha(1);
+
+                                    // Reset HP/Energy bars for next round (no score change)
+                                    if (!turn.isMatchEnd) {
+                                        this.updateHealthBarDisplay("player1", this.config.bot1MaxHp, this.config.bot1MaxHp);
+                                        this.updateHealthBarDisplay("player2", this.config.bot2MaxHp, this.config.bot2MaxHp);
+                                        this.updateEnergyBarDisplay("player1", this.config.bot1MaxEnergy, this.config.bot1MaxEnergy);
+                                        this.updateEnergyBarDisplay("player2", this.config.bot2MaxEnergy, this.config.bot2MaxEnergy);
+                                        this.updateGuardMeterDisplay("player1", 0);
+                                        this.updateGuardMeterDisplay("player2", 0);
+
+                                        this.currentRound++;
+                                        this.roundScoreText.setText(
+                                            `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`
+                                        );
+                                    }
+
+                                    // Reset both to idle after showing result
+                                    this.time.delayedCall(1000, () => {
+                                        if (this.anims.exists(`${p1Char}_idle`)) {
+                                            this.player1Sprite.setScale(getAnimationScale(p1Char, "idle"));
+                                            this.player1Sprite.play(`${p1Char}_idle`);
+                                        }
+                                        if (this.anims.exists(`${p2Char}_idle`)) {
+                                            this.player2Sprite.setScale(getAnimationScale(p2Char, "idle"));
+                                            this.player2Sprite.play(`${p2Char}_idle`);
+                                        }
+                                        resolve();
+                                    });
+                                });
+                            });
+                        }
                     }
 
                     // Phase 4: Run back to original positions (match FightScene exactly)

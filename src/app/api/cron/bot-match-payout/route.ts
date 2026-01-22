@@ -113,7 +113,7 @@ async function processMatchPayout(
 }> {
     try {
         const result = await resolveBotMatchPayouts(matchId);
-        
+
         return {
             success: result.success,
             matchId: result.matchId,
@@ -164,12 +164,15 @@ export async function GET(request: NextRequest) {
         }
 
         if (!activeMatches || activeMatches.length === 0) {
+            console.log("[AutoPayout] No active matches to process");
             return NextResponse.json({
                 success: true,
                 message: "No active matches to process",
                 processed: 0,
             });
         }
+
+        console.log(`[AutoPayout] Found ${activeMatches.length} active matches to check`);
 
         const results: Array<{
             matchId: string;
@@ -182,8 +185,15 @@ export async function GET(request: NextRequest) {
         for (const row of activeMatches as BotMatchRow[]) {
             const match = rowToBotMatch(row);
 
+            // Debug: Log match timing info
+            const now = Date.now();
+            const elapsed = now - match.createdAt;
+            const maxDuration = match.totalTurns * match.turnDurationMs + 30000; // BETTING_WINDOW_MS
+            const finished = isMatchFinished(match);
+            console.log(`[AutoPayout] Match ${match.id.slice(0, 20)}... | elapsed: ${Math.floor(elapsed / 1000)}s | maxDuration: ${Math.floor(maxDuration / 1000)}s | finished: ${finished}`);
+
             // Check if match has finished based on elapsed time
-            if (isMatchFinished(match)) {
+            if (finished) {
                 console.log(`[AutoPayout] Processing finished match: ${match.id}`);
 
                 // Mark match as completed
@@ -212,7 +222,7 @@ export async function GET(request: NextRequest) {
             for (const pool of openPools) {
                 const matchRow = pool.bot_matches as BotMatchRow;
                 if (!matchRow) continue;
-                
+
                 const match = rowToBotMatch(matchRow);
 
                 // Lock the pool if betting window has closed
@@ -226,6 +236,8 @@ export async function GET(request: NextRequest) {
 
         const successCount = results.filter(r => r.success).length;
         const failCount = results.filter(r => !r.success).length;
+
+        console.log(`[AutoPayout] Completed: ${results.length} matches processed (${successCount} succeeded, ${failCount} failed)`);
 
         return NextResponse.json({
             success: true,

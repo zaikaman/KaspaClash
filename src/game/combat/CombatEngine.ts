@@ -401,11 +401,10 @@ export class CombatEngine {
             this.state.isRoundOver = true;
 
             if (this.state.player1.hp <= 0 && this.state.player2.hp <= 0) {
-                // Double KO - no one wins this round, but rare
-                // Give it to whoever has more HP percentage remaining (tie goes to p1)
-                const p1Percent = this.state.player1.hp / this.state.player1.maxHp;
-                const p2Percent = this.state.player2.hp / this.state.player2.maxHp;
-                this.state.roundWinner = p1Percent >= p2Percent ? "player1" : "player2";
+                // Double KO - DRAW! No one wins this round
+                // roundWinner stays null to indicate a draw
+                this.state.roundWinner = null;
+                // Don't award any rounds - the match will continue
             } else if (this.state.player1.hp <= 0) {
                 this.state.roundWinner = "player2";
                 this.state.player2.roundsWon++;
