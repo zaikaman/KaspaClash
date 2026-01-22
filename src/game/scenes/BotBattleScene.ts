@@ -40,6 +40,13 @@ export interface BotBattleSceneConfig {
     bot1RoundsWon: number;
     bot2RoundsWon: number;
     matchCreatedAt: number;       // Server timestamp when match was created
+    serverTime?: number;          // Server's current timestamp
+    elapsedMs?: number;           // Server-calculated elapsed time since match creation
+    bettingStatus?: {             // Server-calculated betting status
+        isOpen: boolean;
+        secondsRemaining: number;
+        reason?: string;
+    };
 }
 
 /**
@@ -100,6 +107,16 @@ export class BotBattleScene extends Phaser.Scene {
         // Find characters
         this.bot1Character = CHARACTER_ROSTER.find(c => c.id === data.bot1CharacterId) || CHARACTER_ROSTER[0];
         this.bot2Character = CHARACTER_ROSTER.find(c => c.id === data.bot2CharacterId) || CHARACTER_ROSTER[1];
+
+        // Log server sync info
+        if (data.serverTime && data.elapsedMs !== undefined) {
+            console.log('[BotBattleScene] Server sync:', {
+                serverTime: new Date(data.serverTime).toISOString(),
+                clientTime: new Date().toISOString(),
+                elapsedMs: data.elapsedMs,
+                bettingSecondsRemaining: data.bettingStatus?.secondsRemaining,
+            });
+        }
     }
 
     preload(): void {
@@ -145,8 +162,13 @@ export class BotBattleScene extends Phaser.Scene {
             this.time.delayedCall(500, () => {
                 this.startPlayback();
             });
+        } else if (this.config.bettingStatus && !this.config.bettingStatus.isOpen) {
+            // Betting window already closed, start immediately
+            this.time.delayedCall(500, () => {
+                this.startPlayback();
+            });
         } else {
-            // Show 30-second betting countdown before match starts
+            // Show server-synchronized betting countdown
             this.showBettingCountdown();
         }
 
@@ -643,18 +665,21 @@ export class BotBattleScene extends Phaser.Scene {
     // ==========================================================================
 
     private showBettingCountdown(): void {
-        const BETTING_DURATION = 30; // 30 seconds for betting
+        // Use server-provided betting status for accurate synchronization
+        const serverSecondsRemaining = this.config.bettingStatus?.secondsRemaining ?? 30;
+        
+        console.log('[BotBattleScene] Betting countdown starting with', serverSecondsRemaining, 'seconds (server-synced)');
 
         // Create betting countdown container
         const container = this.add.container(GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.CENTER_Y - 50);
 
         // Background
-        const bg = this.add.rectangle(0, 0, 450, 120, 0x000000, 0.85)
+        const bg = this.add.rectangle(0, 0, 450, 200, 0x000000, 0.85)
             .setStrokeStyle(3, 0xff6b35);
         container.add(bg);
 
         // "WAITING FOR BETS" title
-        const titleText = this.add.text(0, 0, "WAITING FOR BETS...", {
+        const titleText = this.add.text(0, -40, "WAITING FOR BETS...", {
             fontFamily: "Orbitron",
             fontSize: "32px",
             color: "#ffd700",
@@ -662,8 +687,17 @@ export class BotBattleScene extends Phaser.Scene {
         }).setOrigin(0.5);
         container.add(titleText);
 
+        // Countdown timer text (server-synchronized)
+        const timerText = this.add.text(0, 20, serverSecondsRemaining.toString(), {
+            fontFamily: "Orbitron",
+            fontSize: "64px",
+            color: "#ff6b35",
+            fontStyle: "bold",
+        }).setOrigin(0.5);
+        container.add(timerText);
+
         // Subtext
-        const subText = this.add.text(0, 35, "Match will start shortly", {
+        const subText = this.add.text(0, 70, "Match starts when timer reaches 0", {
             fontFamily: "Exo 2",
             fontSize: "16px",
             color: "#aaaaaa",
@@ -680,8 +714,31 @@ export class BotBattleScene extends Phaser.Scene {
             ease: "Sine.easeInOut",
         });
 
-        // After countdown duration, start the match
-        this.time.delayedCall(BETTING_DURATION * 1000, () => {
+        // Update countdown every second
+        let remainingSeconds = serverSecondsRemaining;
+        const countdownInterval = this.time.addEvent({
+            delay: 1000,
+            callback: () => {
+                remainingSeconds--;
+                if (remainingSeconds > 0) {
+                    timerText.setText(remainingSeconds.toString());
+                    
+                    // Change color as time runs out
+                    if (remainingSeconds <= 5) {
+                        timerText.setColor("#ff0000");
+                    } else if (remainingSeconds <= 10) {
+                        timerText.setColor("#ffaa00");
+                    }
+                } else {
+                    countdownInterval.destroy();
+                    timerText.setText("0");
+                }
+            },
+            repeat: remainingSeconds - 1,
+        });
+
+        // After server-provided duration, start the match
+        this.time.delayedCall(serverSecondsRemaining * 1000, () => {
             // Remove countdown UI
             container.destroy();
 

@@ -32,41 +32,59 @@ export async function GET(request: Request) {
                 // If match is finished, get the new active match instead
                 if (syncInfo.isFinished) {
                     const activeMatch = await ensureActiveBotMatch();
+                    const { getBettingStatus } = await import('@/lib/game/bot-match-service');
+                    const bettingStatus = getBettingStatus(activeMatch);
                     return NextResponse.json({
                         success: true,
                         match: activeMatch,
                         currentTurnIndex: getCurrentTurnIndex(activeMatch),
                         elapsedMs: Date.now() - activeMatch.createdAt,
                         isFinished: false,
+                        bettingStatus,
+                        serverTime: Date.now(),
                     });
                 }
+                const { getBettingStatus } = await import('@/lib/game/bot-match-service');
+                const bettingStatus = getBettingStatus(syncInfo.match);
                 return NextResponse.json({
                     success: true,
                     match: syncInfo.match,
                     currentTurnIndex: syncInfo.currentTurnIndex,
                     elapsedMs: syncInfo.elapsedMs,
                     isFinished: syncInfo.isFinished,
+                    bettingStatus,
+                    serverTime: Date.now(),
                 });
             }
             // Match not found, get current active match
             const activeMatch = await ensureActiveBotMatch();
+            const { getBettingStatus } = await import('@/lib/game/bot-match-service');
+            const bettingStatus = getBettingStatus(activeMatch);
             return NextResponse.json({
                 success: true,
                 match: activeMatch,
                 currentTurnIndex: getCurrentTurnIndex(activeMatch),
                 elapsedMs: Date.now() - activeMatch.createdAt,
                 isFinished: false,
+                bettingStatus,
+                serverTime: Date.now(),
             });
         }
 
         // Get the single active match
         const match = await ensureActiveBotMatch();
         const currentTurnIndex = getCurrentTurnIndex(match);
+        const { getBettingStatus } = await import('@/lib/game/bot-match-service');
+        const bettingStatus = getBettingStatus(match);
+        const elapsedMs = Date.now() - match.createdAt;
 
         return NextResponse.json({
             success: true,
             match,
             currentTurnIndex,
+            elapsedMs,
+            bettingStatus,
+            serverTime: Date.now(),
             count: 1,
         });
     } catch (error) {

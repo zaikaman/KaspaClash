@@ -310,7 +310,7 @@ export default function SpectatePage() {
                             Watch real-time matches powered by Kaspa's sub-second block times.
                         </motion.p>
                         <motion.div variants={fadeInUp} className="mt-6">
-                            <Link href="/bot-bet-history">
+                            <Link href="/bet-history">
                                 <Button className="bg-gradient-cyber text-white border-0 font-orbitron">
                                     <HugeiconsIcon icon={DiceFaces03Icon} className="w-5 h-5 mr-2" /> My Bet History
                                 </Button>

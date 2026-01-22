@@ -1,6 +1,10 @@
 /**
- * Bot Match Auto-Payout Cron Job
+ * Bot Match Auto-Payout Cron Job (FALLBACK)
  * POST /api/cron/bot-match-payout
+ * 
+ * IMPORTANT: This is now a FALLBACK mechanism only!
+ * Primary payout happens client-side when match ends (same as player matches).
+ * This cron catches edge cases where no clients were watching when match ended.
  * 
  * Automatically resolves bot match payouts when matches complete.
  * This ensures payouts happen even if no clients are watching.

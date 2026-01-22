@@ -14,7 +14,16 @@ import { BotBettingPanel } from "@/components/betting/BotBettingPanel";
 import type { BotMatch, BotTurnData } from "@/lib/game/bot-match-service";
 
 interface BotSpectatorClientProps {
-    match: BotMatch & { currentTurnIndex: number };
+    match: BotMatch & { 
+        currentTurnIndex: number;
+        serverTime?: number;
+        elapsedMs?: number;
+        bettingStatus?: {
+            isOpen: boolean;
+            secondsRemaining: number;
+            reason?: string;
+        };
+    };
 }
 
 export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
@@ -69,6 +78,9 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
                     bot1RoundsWon: currentMatch.bot1RoundsWon,
                     bot2RoundsWon: currentMatch.bot2RoundsWon,
                     matchCreatedAt: currentMatch.createdAt,
+                    serverTime: currentMatch.serverTime,
+                    elapsedMs: currentMatch.elapsedMs,
+                    bettingStatus: currentMatch.bettingStatus,
                 });
 
                 setGameReady(true);
@@ -97,10 +109,13 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
                             gameRef.current = null;
                         }
                         
-                        // Update to new match
+                        // Update to new match with server timing
                         setCurrentMatch({
                             ...data.match,
                             currentTurnIndex: data.currentTurnIndex || 0,
+                            serverTime: data.serverTime,
+                            elapsedMs: data.elapsedMs,
+                            bettingStatus: data.bettingStatus,
                         });
                         setGameReady(false);
                         

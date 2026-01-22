@@ -42,6 +42,9 @@ export default function BotSpectatePage() {
                         setMatch({
                             ...data.match,
                             currentTurnIndex: data.currentTurnIndex,
+                            serverTime: data.serverTime,
+                            elapsedMs: data.elapsedMs,
+                            bettingStatus: data.bettingStatus,
                         });
                     } else {
                         setError("Match not found");

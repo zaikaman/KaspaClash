@@ -200,9 +200,22 @@ export async function resolveBotMatchPayouts(matchId: string): Promise<BotPoolRe
         .eq("id", matchId)
         .single();
 
-    if (matchError || !matchData || !matchData.match_winner) {
-        console.log(`[BotPayoutService] Match ${matchId} not ready for payout`);
-        throw new Error(`Match not found or has no winner`);
+    console.log(`[BotPayoutService] Match data fetched:`, { 
+        matchId, 
+        found: !!matchData, 
+        winner: matchData?.match_winner, 
+        status: matchData?.status,
+        error: matchError?.message 
+    });
+
+    if (matchError || !matchData) {
+        console.log(`[BotPayoutService] Match ${matchId} not found in database`);
+        throw new Error(`Match not found: ${matchError?.message || 'No data returned'}`);
+    }
+
+    if (!matchData.match_winner) {
+        console.log(`[BotPayoutService] Match ${matchId} has no winner set (match_winner is null)`);
+        throw new Error(`Match has no winner set`);
     }
 
     // Convert winner format
@@ -262,6 +275,10 @@ export async function resolveBotMatchPayouts(matchId: string): Promise<BotPoolRe
     if (updatePoolError) {
         throw new Error(`Failed to resolve pool: ${updatePoolError.message}`);
     }
+
+    // Update our local pool object with the winner
+    pool.winner = winner;
+    pool.status = "resolved";
 
     // 4. Get all confirmed bets for this pool
     const { data: betsData, error: betsError } = await db

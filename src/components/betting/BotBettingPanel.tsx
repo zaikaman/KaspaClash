@@ -14,6 +14,7 @@ import { sendKaspa } from "@/lib/kaspa/wallet";
 import { kasToSompi } from "@/lib/betting/betting-service";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Coins01Icon, LockKeyIcon, Tick02Icon, Time03Icon, RoboticIcon } from "@hugeicons/core-free-icons";
+import { EventBus } from "@/game/EventBus";
 
 // House betting constants
 const HOUSE_ODDS = 2.0; // Fixed 2x payout
@@ -78,6 +79,39 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name }: BotBettingPanel
         const interval = setInterval(fetchBettingStatus, 1000); // Poll every 1s for countdown
         return () => clearInterval(interval);
     }, [fetchBettingStatus]);
+
+    // Listen for match end to trigger payout
+    useEffect(() => {
+        const handleMatchEnd = async (data: unknown) => {
+            const eventData = data as { matchId: string; winner: "player1" | "player2" };
+            if (eventData.matchId === matchId) {
+                console.log("[BotBettingPanel] Match ended, processing payouts for match:", matchId);
+                
+                // Add small delay to ensure database operations complete
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                try {
+                    // Trigger payout - same as player matches do it
+                    const response = await fetch(`/api/bot-betting/payout/${matchId}`, {
+                        method: 'POST',
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        console.log("[BotBettingPanel] Payouts processed successfully:", result);
+                    } else {
+                        console.error("[BotBettingPanel] Payout failed:", result.error);
+                    }
+                } catch (err) {
+                    console.error("[BotBettingPanel] Error processing payout:", err);
+                }
+            }
+        };
+
+        EventBus.on("bot_battle_match_end", handleMatchEnd);
+        return () => {
+            EventBus.off("bot_battle_match_end", handleMatchEnd);
+        };
+    }, [matchId]);
 
     // Calculate fee and total to send
     // Fee is 1% ON TOP of the bet, payout is 2x the bet amount
