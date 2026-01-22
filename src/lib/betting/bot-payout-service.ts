@@ -63,22 +63,19 @@ interface BotBetRow {
 // =============================================================================
 
 /**
- * Calculate payout for a winning bet (proportional to pool)
+ * Calculate payout for a winning bet (HOUSE MODEL - FIXED 2x ODDS)
+ * Winners receive exactly 2x their net bet amount (bet minus 1% fee)
  */
 function calculateBotBetPayout(
     bet: BotBetRow,
-    pool: BotBettingPoolRow
+    _pool: BotBettingPoolRow // Pool not needed for fixed odds, kept for interface compatibility
 ): bigint {
     const netAmount = BigInt(bet.net_amount);
-    const totalPool = BigInt(pool.total_pool);
-    const winningPool = bet.bet_on === "bot1"
-        ? BigInt(pool.bot1_total)
-        : BigInt(pool.bot2_total);
 
-    if (winningPool <= 0n) return 0n;
+    if (netAmount <= 0n) return 0n;
 
-    // Proportional payout: (betAmount / winningPool) * totalPool
-    return (netAmount * totalPool) / winningPool;
+    // Fixed 2x payout for house model
+    return netAmount * 2n;
 }
 
 /**
