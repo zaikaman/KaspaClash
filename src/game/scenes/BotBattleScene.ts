@@ -583,57 +583,196 @@ export class BotBattleScene extends Phaser.Scene {
         const p2Char = this.bot2Character.id;
         const p1OriginalX = CHARACTER_POSITIONS.PLAYER1.X;
         const p2OriginalX = CHARACTER_POSITIONS.PLAYER2.X;
-        const meetX = GAME_DIMENSIONS.CENTER_X;
+        const meetingPointX = GAME_DIMENSIONS.CENTER_X;
 
-        // Run to center - set proper scale first
-        this.player1Sprite.setScale(getCharacterScale(p1Char));
-        this.player2Sprite.setScale(getCharacterScale(p2Char));
-        if (this.anims.exists(`${p1Char}_run`)) this.player1Sprite.play(`${p1Char}_run`);
-        if (this.anims.exists(`${p2Char}_run`)) this.player2Sprite.play(`${p2Char}_run`);
+        // Calculate HP differences for damage display
+        const prevP1Health = this.currentTurnIndex > 0 ? 
+            this.config.turns[this.currentTurnIndex - 1].bot1Hp : this.config.bot1MaxHp;
+        const prevP2Health = this.currentTurnIndex > 0 ? 
+            this.config.turns[this.currentTurnIndex - 1].bot2Hp : this.config.bot2MaxHp;
+        const p1Damage = Math.max(0, prevP1Health - turn.bot1Hp);
+        const p2Damage = Math.max(0, prevP2Health - turn.bot2Hp);
 
-        this.tweens.add({ targets: this.player1Sprite, x: meetX - 50, duration: 400, ease: "Power2" });
+        // Check if either player is stunned (from move being "stunned")
+        const p1IsStunned = turn.bot1Move === "stunned";
+        const p2IsStunned = turn.bot2Move === "stunned";
+
+        // Determine target positions based on stun state (match FightScene exactly)
+        let p1TargetX = meetingPointX - 50;
+        let p2TargetX = meetingPointX + 50;
+
+        if (p1IsStunned) {
+            p1TargetX = p1OriginalX; // P1 stays in place
+            p2TargetX = p1OriginalX + 150; // P2 runs to P1
+        } else if (p2IsStunned) {
+            p2TargetX = p2OriginalX; // P2 stays in place
+            p1TargetX = p2OriginalX - 150; // P1 runs to P2
+        }
+
+        // Phase 1: Both characters run toward target with run scale (only if not stunned)
+        if (!p1IsStunned && this.anims.exists(`${p1Char}_run`)) {
+            const p1RunScale = getAnimationScale(p1Char, "run");
+            this.player1Sprite.setScale(p1RunScale);
+            this.player1Sprite.play(`${p1Char}_run`);
+        }
+        if (!p2IsStunned && this.anims.exists(`${p2Char}_run`)) {
+            const p2RunScale = getAnimationScale(p2Char, "run");
+            this.player2Sprite.setScale(p2RunScale);
+            this.player2Sprite.play(`${p2Char}_run`);
+        }
+
+        // Tween both characters toward targets (match FightScene timing: 600ms)
+        this.tweens.add({ 
+            targets: this.player1Sprite, 
+            x: p1TargetX, 
+            duration: p1IsStunned ? 0 : 600, 
+            ease: "Power2" 
+        });
+
         this.tweens.add({
             targets: this.player2Sprite,
-            x: meetX + 50,
-            duration: 400,
+            x: p2TargetX,
+            duration: p2IsStunned ? 0 : 600,
             ease: "Power2",
             onComplete: () => {
-                // Helper: P1 Attack animation
+                // Get moves for readability
+                const p1Move = turn.bot1Move;
+                const p2Move = turn.bot2Move;
+
+                // Helper: P1 Attack animation with damage display
                 const runP1Attack = (): Promise<void> => {
                     return new Promise((resolve) => {
-                        this.playMoveAnim("player1", turn.bot1Move);
-                        // Wait for animation to finish (approx 1.2s)
+                        if (p1IsStunned) {
+                            resolve(); // Skip if stunned
+                            return;
+                        }
+
+                        // Play P1 animation with proper scale
+                        const animKey = `${p1Char}_${p1Move}`;
+                        if (this.anims.exists(animKey) || p1Move === "block") {
+                            const scale = getAnimationScale(p1Char, p1Move);
+                            this.player1Sprite.setScale(scale);
+
+                            // Play Animation immediately
+                            if (this.anims.exists(animKey)) {
+                                this.player1Sprite.play(animKey);
+                            }
+
+                            // Play SFX with proper timing
+                            const sfxKey = getSFXKey(p1Char, p1Move);
+                            const delay = getSoundDelay(p1Char, p1Move);
+                            if (delay > 0) {
+                                this.time.delayedCall(delay, () => this.playSFX(sfxKey));
+                            } else {
+                                this.playSFX(sfxKey);
+                            }
+                        }
+
+                        // Show P2 damage with hit flash (match FightScene timing: 300ms)
+                        if (p2Damage > 0) {
+                            this.time.delayedCall(300, () => {
+                                this.showFloatingText(
+                                    `-${p2Damage}`, 
+                                    p2TargetX, 
+                                    CHARACTER_POSITIONS.PLAYER2.Y - 130, 
+                                    "#ff4444"
+                                );
+
+                                // Flash P2 on hit
+                                this.tweens.add({
+                                    targets: this.player2Sprite,
+                                    alpha: 0.5,
+                                    yoyo: true,
+                                    duration: 50,
+                                    repeat: 3
+                                });
+                            });
+                        }
+
+                        // Wait for animation to finish (1200ms like FightScene)
                         this.time.delayedCall(1200, () => resolve());
                     });
                 };
 
-                // Helper: P2 Attack animation
+                // Helper: P2 Attack animation with damage display
                 const runP2Attack = (): Promise<void> => {
                     return new Promise((resolve) => {
-                        this.playMoveAnim("player2", turn.bot2Move);
-                        // Wait for animation to finish (approx 1.2s)
+                        if (p2IsStunned) {
+                            resolve(); // Skip if stunned
+                            return;
+                        }
+
+                        // Play P2 animation with proper scale
+                        const animKey = `${p2Char}_${p2Move}`;
+                        if (this.anims.exists(animKey) || p2Move === "block") {
+                            const scale = getAnimationScale(p2Char, p2Move);
+                            this.player2Sprite.setScale(scale);
+
+                            // Play Animation immediately
+                            if (this.anims.exists(animKey)) {
+                                this.player2Sprite.play(animKey);
+                            }
+
+                            // Play SFX with proper timing
+                            const sfxKey = getSFXKey(p2Char, p2Move);
+                            const delay = getSoundDelay(p2Char, p2Move);
+                            if (delay > 0) {
+                                this.time.delayedCall(delay, () => this.playSFX(sfxKey));
+                            } else {
+                                this.playSFX(sfxKey);
+                            }
+                        }
+
+                        // Show P1 damage with hit flash (match FightScene timing: 300ms)
+                        if (p1Damage > 0) {
+                            this.time.delayedCall(300, () => {
+                                this.showFloatingText(
+                                    `-${p1Damage}`, 
+                                    p1TargetX, 
+                                    CHARACTER_POSITIONS.PLAYER1.Y - 130, 
+                                    "#ff4444"
+                                );
+
+                                // Flash P1 on hit
+                                this.tweens.add({
+                                    targets: this.player1Sprite,
+                                    alpha: 0.5,
+                                    yoyo: true,
+                                    duration: 50,
+                                    repeat: 3
+                                });
+                            });
+                        }
+
+                        // Wait for animation to finish
                         this.time.delayedCall(1200, () => resolve());
                     });
                 };
 
-                // Execute Sequence based on move types
-                // If one player blocks, both animate simultaneously
-                // Otherwise, P1 goes first then P2
-                const isConcurrent = turn.bot1Move === "block" || turn.bot2Move === "block";
+                // Execute Sequence - Match FightScene logic exactly
+                // Concurrent if either player is blocking
+                const isConcurrent = p1Move === "block" || p2Move === "block";
 
                 const executeSequence = async () => {
                     if (isConcurrent) {
-                        // Run both simultaneously
+                        // Run both simultaneously (when either is blocking)
                         await Promise.all([runP1Attack(), runP2Attack()]);
                     } else {
-                        // Sequential: P1 first, then P2
+                        // Sequential: P1 first, then P2 (normal attacks)
                         await runP1Attack();
                         await runP2Attack();
                     }
 
-                    // Show narrative after animations
-                    this.showNarrative(turn.narrative);
+                    // Use narrative from turn data (server-provided)
+                    const narrative = turn.narrative || "Both attacks clash!";
+                    this.narrativeText.setText(narrative);
+                    this.narrativeText.setAlpha(1);
+
+                    // Update UI/Health Bars
                     this.updateUIFromTurn(turn);
+                    this.roundScoreText.setText(
+                        `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`
+                    );
 
                     // Handle round end with death animation
                     if (turn.isRoundEnd && turn.roundWinner) {
@@ -642,7 +781,7 @@ export class BotBattleScene extends Phaser.Scene {
                         const loserSprite = turn.roundWinner === "player1" ? this.player2Sprite : this.player1Sprite;
 
                         if (this.anims.exists(`${loserChar}_dead`)) {
-                            loserSprite.setScale(getCharacterScale(loserChar));
+                            loserSprite.setScale(getAnimationScale(loserChar, "dead"));
                             loserSprite.play(`${loserChar}_dead`);
                         }
 
@@ -655,7 +794,8 @@ export class BotBattleScene extends Phaser.Scene {
                             this.time.delayedCall(1500, () => {
                                 // Show round result text
                                 const winnerName = turn.roundWinner === "player1" ? this.config.bot1Name : this.config.bot2Name;
-                                this.showNarrative(`${winnerName.toUpperCase()} WINS THE ROUND!`);
+                                this.narrativeText.setText(`${winnerName.toUpperCase()} WINS THE ROUND!`);
+                                this.narrativeText.setAlpha(1);
 
                                 // Reset HP/Energy bars for next round
                                 if (!turn.isMatchEnd) {
@@ -675,7 +815,7 @@ export class BotBattleScene extends Phaser.Scene {
                                 // Reset loser to idle after showing result
                                 this.time.delayedCall(1000, () => {
                                     if (this.anims.exists(`${loserChar}_idle`)) {
-                                        loserSprite.setScale(getCharacterScale(loserChar));
+                                        loserSprite.setScale(getAnimationScale(loserChar, "idle"));
                                         loserSprite.play(`${loserChar}_idle`);
                                     }
                                     resolve();
@@ -684,49 +824,56 @@ export class BotBattleScene extends Phaser.Scene {
                         });
                     }
 
-                    // Return to positions after brief pause
-                    this.time.delayedCall(300, () => {
-                        if (this.anims.exists(`${p1Char}_idle`)) {
-                            this.player1Sprite.setScale(getCharacterScale(p1Char));
-                            this.player1Sprite.play(`${p1Char}_idle`);
-                        }
-                        if (this.anims.exists(`${p2Char}_idle`)) {
-                            this.player2Sprite.setScale(getCharacterScale(p2Char));
-                            this.player2Sprite.play(`${p2Char}_idle`);
-                        }
+                    // Phase 4: Run back to original positions (match FightScene exactly)
+                    if (!p1IsStunned && this.anims.exists(`${p1Char}_run`)) {
+                        const p1RunScale = getAnimationScale(p1Char, "run");
+                        this.player1Sprite.setScale(p1RunScale);
+                        this.player1Sprite.play(`${p1Char}_run`);
+                    }
+                    if (!p2IsStunned && this.anims.exists(`${p2Char}_run`)) {
+                        const p2RunScale = getAnimationScale(p2Char, "run");
+                        this.player2Sprite.setScale(p2RunScale);
+                        this.player2Sprite.play(`${p2Char}_run`);
+                        this.player2Sprite.setFlipX(true); // Ensure facing correct way
+                    }
 
-                        // Run back
-                        if (this.anims.exists(`${p1Char}_run`)) {
-                            this.player1Sprite.setScale(getCharacterScale(p1Char));
-                            this.player1Sprite.play(`${p1Char}_run`);
-                        }
-                        if (this.anims.exists(`${p2Char}_run`)) {
-                            this.player2Sprite.setScale(getCharacterScale(p2Char));
-                            this.player2Sprite.play(`${p2Char}_run`);
-                        }
+                    // Tween back to original positions (match FightScene: 600ms)
+                    this.tweens.add({ 
+                        targets: this.player1Sprite, 
+                        x: p1OriginalX, 
+                        duration: p1IsStunned ? 0 : 600, 
+                        ease: "Power2" 
+                    });
 
-                        this.tweens.add({ targets: this.player1Sprite, x: p1OriginalX, duration: 300, ease: "Power1" });
-                        this.tweens.add({
-                            targets: this.player2Sprite,
-                            x: p2OriginalX,
-                            duration: 300,
-                            ease: "Power1",
-                            onComplete: () => {
-                                // Back to idle
-                                if (this.anims.exists(`${p1Char}_idle`)) {
-                                    this.player1Sprite.setScale(getCharacterScale(p1Char));
-                                    this.player1Sprite.play(`${p1Char}_idle`);
-                                }
-                                if (this.anims.exists(`${p2Char}_idle`)) {
-                                    this.player2Sprite.setScale(getCharacterScale(p2Char));
-                                    this.player2Sprite.play(`${p2Char}_idle`);
-                                }
-
-                                // Schedule next turn
-                                const delay = Math.max(100, this.config.turnDurationMs - 3500);
-                                this.time.delayedCall(delay, () => this.playNextTurn());
+                    this.tweens.add({
+                        targets: this.player2Sprite,
+                        x: p2OriginalX,
+                        duration: p2IsStunned ? 0 : 600,
+                        ease: "Power2",
+                        onComplete: () => {
+                            // Phase 5: Return to idle animations
+                            if (this.anims.exists(`${p1Char}_idle`)) {
+                                const p1IdleScale = getAnimationScale(p1Char, "idle");
+                                this.player1Sprite.setScale(p1IdleScale);
+                                this.player1Sprite.play(`${p1Char}_idle`);
                             }
-                        });
+                            if (this.anims.exists(`${p2Char}_idle`)) {
+                                const p2IdleScale = getAnimationScale(p2Char, "idle");
+                                this.player2Sprite.setScale(p2IdleScale);
+                                this.player2Sprite.play(`${p2Char}_idle`);
+                            }
+
+                            // Fade out narrative (match FightScene: 300ms)
+                            this.tweens.add({
+                                targets: this.narrativeText,
+                                alpha: 0,
+                                duration: 300,
+                            });
+
+                            // Schedule next turn
+                            const delay = Math.max(100, this.config.turnDurationMs - 3500);
+                            this.time.delayedCall(delay, () => this.playNextTurn());
+                        }
                     });
                 };
 
@@ -735,31 +882,27 @@ export class BotBattleScene extends Phaser.Scene {
         });
     }
 
-    private playMoveAnim(player: "player1" | "player2", move: MoveType): void {
-        const sprite = player === "player1" ? this.player1Sprite : this.player2Sprite;
-        const charId = player === "player1" ? this.bot1Character.id : this.bot2Character.id;
+    /**
+     * Show floating damage/healing text above a character.
+     * Matches FightScene's visual feedback system.
+     */
+    private showFloatingText(text: string, x: number, y: number, color: string): void {
+        const floatingText = this.add.text(x, y, text, {
+            fontFamily: "Orbitron",
+            fontSize: "24px",
+            color: color,
+            fontStyle: "bold",
+            stroke: "#000000",
+            strokeThickness: 4,
+        }).setOrigin(0.5);
 
-        if (move === "stunned") return;
-
-        const animKey = `${charId}_${move}`;
-        if (this.anims.exists(animKey)) {
-            sprite.setScale(getAnimationScale(charId, move));
-            sprite.play(animKey);
-
-            const sfxKey = getSFXKey(charId, move);
-            const delay = getSoundDelay(charId, move);
-            this.time.delayedCall(delay, () => this.playSFX(sfxKey));
-        }
-    }
-
-    private showNarrative(text: string): void {
-        this.narrativeText.setText(text);
-        this.narrativeText.setAlpha(1);
         this.tweens.add({
-            targets: this.narrativeText,
+            targets: floatingText,
+            y: y - 50,
             alpha: 0,
-            duration: 500,
-            delay: 2000,
+            duration: 1000,
+            ease: "Power2",
+            onComplete: () => floatingText.destroy(),
         });
     }
 

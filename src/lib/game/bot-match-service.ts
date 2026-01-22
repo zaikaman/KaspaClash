@@ -103,18 +103,34 @@ function getSeededRandomCharacter(random: () => number, exclude?: string): Chara
 }
 
 /**
- * Get a random affordable move using seeded RNG
+ * Get a random affordable move using seeded RNG with smart opponent-awareness
  */
 function getRandomMove(
     random: () => number,
     engine: CombatEngine,
-    player: "player1" | "player2"
+    player: "player1" | "player2",
+    opponentIsStunned: boolean = false
 ): MoveType {
     const moves: MoveType[] = ["punch", "kick", "block", "special"];
     const affordable = moves.filter(m => engine.canAffordMove(player, m));
 
     if (affordable.length === 0) return "punch";
 
+    // Smart AI: If opponent is stunned, prioritize high-damage moves
+    if (opponentIsStunned) {
+        // Try special first (highest damage)
+        if (affordable.includes("special")) {
+            return "special";
+        }
+        // Fallback to kick if can't afford special
+        if (affordable.includes("kick")) {
+            return "kick";
+        }
+        // Last resort: punch
+        return affordable[0];
+    }
+
+    // Normal random selection when opponent is not stunned
     const index = Math.floor(random() * affordable.length);
     return affordable[index];
 }
@@ -149,13 +165,15 @@ export function simulateBotMatch(matchId: string, bot1Id?: string, bot2Id?: stri
         turnNumber++;
         const state = engine.getState();
 
-        // Get random moves (or handle stun)
+        // Get smart moves based on opponent state
+        // If player is stunned, they can't act (will be treated as stunned in engine)
+        // If opponent is stunned, AI should prioritize special/kick for maximum damage
         const bot1Move = state.player1.isStunned
             ? "punch" // Will be treated as stunned in engine
-            : getRandomMove(random, engine, "player1");
+            : getRandomMove(random, engine, "player1", state.player2.isStunned);
         const bot2Move = state.player2.isStunned
             ? "punch"
-            : getRandomMove(random, engine, "player2");
+            : getRandomMove(random, engine, "player2", state.player1.isStunned);
 
         // Resolve turn
         const result = engine.resolveTurn(bot1Move, bot2Move);

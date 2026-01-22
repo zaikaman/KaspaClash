@@ -347,11 +347,44 @@ export async function sendKaspa(
 
   try {
     console.log(`Sending ${sompi} sompi to ${toAddress} with payload: ${payload}`);
-    const txId = await currentWallet.sendKaspa(toAddress, sompi, {
+    const txResult = await currentWallet.sendKaspa(toAddress, sompi, {
       priorityFee: 0,
       payload: payload,
     });
-    console.log("Transaction sent:", txId);
+    
+    console.log("Transaction result type:", typeof txResult);
+    console.log("Transaction result:", txResult);
+    
+    // Extract transaction ID - handle string, JSON string, or object responses
+    let txId: string;
+    
+    if (typeof txResult === 'string') {
+      // Check if it's a JSON string
+      try {
+        const parsed = JSON.parse(txResult);
+        if (parsed && typeof parsed === 'object' && 'id' in parsed) {
+          txId = parsed.id;
+        } else {
+          // It's just a plain transaction ID string
+          txId = txResult;
+        }
+      } catch {
+        // Not JSON, use as-is (plain transaction ID string)
+        txId = txResult;
+      }
+    } else if (txResult && typeof txResult === 'object' && 'id' in txResult) {
+      txId = (txResult as any).id;
+    } else {
+      console.error("Unexpected transaction result format:", txResult);
+      throw new Error("Invalid transaction response format");
+    }
+    
+    if (!txId || typeof txId !== 'string') {
+      console.error("Failed to extract valid transaction ID. Result:", txResult);
+      throw new Error("Invalid transaction ID");
+    }
+    
+    console.log("Transaction sent successfully. ID:", txId);
     return txId;
   } catch (error) {
     console.error("Send transaction error:", error);
