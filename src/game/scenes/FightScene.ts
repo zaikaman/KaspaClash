@@ -2600,9 +2600,15 @@ export class FightScene extends Phaser.Scene {
           betsRefunded: number;
           errors: string[];
         };
+        userBet?: {
+          amount: number;
+          prediction: string;
+        };
       };
 
       console.log("[FightScene] Match cancelled:", payload);
+      console.log("[FightScene] refundsProcessed:", payload.refundsProcessed);
+      console.log("[FightScene] refundsProcessed !== undefined:", payload.refundsProcessed !== undefined);
 
       this.phase = "match_end";
 
@@ -2624,18 +2630,26 @@ export class FightScene extends Phaser.Scene {
 
       // If this is a disconnect refund scenario, show detailed overlay
       if (payload.refundsProcessed !== undefined) {
+        console.log("[FightScene] Calling handleMatchCancellation");
         this.handleMatchCancellation(payload);
         return;
       }
 
       // Otherwise, show simple cancellation message (transaction rejection)
-      this.countdownText.setText("MATCH CANCELLED");
-      this.countdownText.setFontSize(36);
-      this.countdownText.setColor("#f97316");
-      this.countdownText.setAlpha(1);
+      console.log("[FightScene] Showing simple cancellation message");
+      
+      // Safety check: ensure text objects exist
+      if (this.countdownText && this.countdownText.active) {
+        this.countdownText.setText("MATCH CANCELLED");
+        this.countdownText.setFontSize(36);
+        this.countdownText.setColor("#f97316");
+        this.countdownText.setAlpha(1);
+      }
 
-      this.narrativeText.setText("Both players rejected transactions.\nRedirecting to matchmaking...");
-      this.narrativeText.setAlpha(1);
+      if (this.narrativeText && this.narrativeText.active) {
+        this.narrativeText.setText("Both players rejected transactions.\nRedirecting to matchmaking...");
+        this.narrativeText.setAlpha(1);
+      }
 
       // Disable all buttons - Not needed, UI handles this
     });

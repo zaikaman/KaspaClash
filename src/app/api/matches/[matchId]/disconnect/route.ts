@@ -173,13 +173,60 @@ export async function POST(
 
       const updatedMatch = updatedMatchData as unknown as MatchWithDisconnect | null;
 
-      // CHECK: If BOTH players are now disconnected, cancel the match and refund bets
+      // CHECK: If BOTH players are now disconnected for at least 30 seconds, cancel the match and refund bets
       const bothDisconnected = updatedMatch && 
         updatedMatch.player1_disconnected_at && 
         updatedMatch.player2_disconnected_at;
 
       if (bothDisconnected && updatedMatch.status === "in_progress") {
-        console.log(`[Disconnect API] Both players disconnected for match ${matchId}, cancelling match and refunding bets`);
+        // Calculate how long both have been disconnected
+        const player1DisconnectTime = new Date(updatedMatch.player1_disconnected_at!).getTime();
+        const player2DisconnectTime = new Date(updatedMatch.player2_disconnected_at!).getTime();
+        const nowTime = new Date(now).getTime();
+        
+        const player1DisconnectedDuration = nowTime - player1DisconnectTime;
+        const player2DisconnectedDuration = nowTime - player2DisconnectTime;
+        
+        const DISCONNECT_THRESHOLD_MS = 30 * 1000; // 30 seconds
+        
+        // Only cancel if BOTH players have been disconnected for at least 30 seconds
+        if (player1DisconnectedDuration < DISCONNECT_THRESHOLD_MS || player2DisconnectedDuration < DISCONNECT_THRESHOLD_MS) {
+          console.log(`[Disconnect API] Both players disconnected but not for 30s yet - P1: ${Math.floor(player1DisconnectedDuration / 1000)}s, P2: ${Math.floor(player2DisconnectedDuration / 1000)}s`);
+          
+          // Broadcast disconnect event but don't cancel yet
+          const gameChannel = supabase.channel(`game:${matchId}`);
+          await gameChannel.send({
+            type: "broadcast",
+            event: "player_disconnected",
+            payload: {
+              player: isPlayer1 ? "player1" : "player2",
+              address: body.address,
+              disconnectedAt: Date.now(),
+              timeoutSeconds: match.disconnect_timeout_seconds || 30,
+            },
+          });
+          await supabase.removeChannel(gameChannel);
+
+          const response: ApiSuccessResponse<DisconnectResponse> = {
+            success: true,
+            data: {
+              matchId,
+              playerAddress: body.address,
+              action: "disconnect",
+              matchStatus: updatedMatch?.status || match.status,
+              disconnectState: {
+                player1Disconnected: !!updatedMatch?.player1_disconnected_at,
+                player2Disconnected: !!updatedMatch?.player2_disconnected_at,
+                player1DisconnectedAt: updatedMatch?.player1_disconnected_at || null,
+                player2DisconnectedAt: updatedMatch?.player2_disconnected_at || null,
+              },
+            },
+          };
+
+          return NextResponse.json(response);
+        }
+        
+        console.log(`[Disconnect API] Both players disconnected for 30+ seconds for match ${matchId}, cancelling match and refunding bets`);
         
         // Update match status to cancelled
         await supabase

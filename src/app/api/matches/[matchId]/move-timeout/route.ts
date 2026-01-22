@@ -167,9 +167,9 @@ export async function POST(
         console.log(`[MoveTimeout] P1 has move: ${p1HasMove} (${round.player1_move}), P2 has move: ${p2HasMove} (${round.player2_move})`);
         console.log(`[MoveTimeout] Request from address: ${body.address}`);
 
-        // CASE 1: Neither player submitted - cancel match
+        // CASE 1: Neither player submitted - cancel match and refund
         if (!p1HasMove && !p2HasMove) {
-            console.log(`[MoveTimeout] *** CASE 1: Neither player submitted - cancelling match`);
+            console.log(`[MoveTimeout] *** CASE 1: Neither player submitted - cancelling match and refunding`);
             await supabase
                 .from("matches")
                 .update({
@@ -178,7 +178,36 @@ export async function POST(
                 })
                 .eq("id", matchId);
 
-            // Broadcast match_cancelled
+            // Refund stakes and bets - WAIT for completion
+            const [stakesResult, betsResult] = await Promise.all([
+                import("@/lib/betting/payout-service").then(async ({ refundMatchStakes }) => {
+                    try {
+                        const result = await refundMatchStakes(matchId);
+                        console.log(`[MoveTimeout] Stakes refund result:`, result);
+                        return result;
+                    } catch (err) {
+                        console.error(`[MoveTimeout] Error refunding stakes for ${matchId}:`, err);
+                        return { success: false, refundedCount: 0, errors: [String(err)] };
+                    }
+                }),
+                import("@/lib/betting/payout-service").then(async ({ refundBettingPool }) => {
+                    try {
+                        const result = await refundBettingPool(matchId);
+                        console.log(`[MoveTimeout] Betting pool refund result:`, result);
+                        return result;
+                    } catch (err) {
+                        console.error(`[MoveTimeout] Error refunding betting pool for ${matchId}:`, err);
+                        return { success: false, refundedCount: 0, errors: [String(err)] };
+                    }
+                }),
+            ]);
+
+            const totalRefunded = stakesResult.refundedCount + betsResult.refundedCount;
+            const refundErrors = [...stakesResult.errors, ...betsResult.errors];
+
+            console.log(`[MoveTimeout] Total refunds: ${totalRefunded}, Errors: ${refundErrors.length}`);
+
+            // Broadcast match_cancelled with refund details
             const gameChannel = supabase.channel(`game:${matchId}`);
             await gameChannel.send({
                 type: "broadcast",
@@ -186,7 +215,15 @@ export async function POST(
                 payload: {
                     matchId,
                     reason: "both_timeout",
-                    message: "Both players failed to submit moves in time. Match cancelled.",
+                    message: "Both players failed to submit moves. Refunds processed.",
+                    cancelledAt: Date.now(),
+                    refundsProcessed: true,
+                    refundStats: {
+                        totalRefunded,
+                        stakesRefunded: stakesResult.refundedCount,
+                        betsRefunded: betsResult.refundedCount,
+                        errors: refundErrors,
+                    },
                     redirectTo: "/matchmaking",
                 },
             });

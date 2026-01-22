@@ -176,7 +176,8 @@ export function useSpectatorChannel(options: UseSpectatorChannelOptions): UseSpe
     const handleMatchCancelled = useCallback(
         (payload: any) => {
             console.log("[SpectatorChannel] match_cancelled:", payload);
-            EventBus.emit("game:matchCancelled", payload);
+            // Don't emit here - let the onMatchCancelled callback handle it
+            // This allows SpectatorClient to fetch bet info first
             onMatchCancelled?.(payload);
         },
         [onMatchCancelled]
