@@ -76,8 +76,16 @@ export class CombatEngine {
     /**
      * Get current combat state (immutable copy).
      */
+    /**
+     * Get current combat state (immutable copy).
+     * IMPORTANT: Must deep copy nested player objects to prevent reference mutations.
+     */
     getState(): Readonly<CombatState> {
-        return { ...this.state };
+        return {
+            ...this.state,
+            player1: { ...this.state.player1 },
+            player2: { ...this.state.player2 }
+        };
     }
 
     /**

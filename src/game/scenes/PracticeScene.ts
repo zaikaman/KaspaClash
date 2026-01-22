@@ -82,6 +82,10 @@ export class PracticeScene extends Phaser.Scene {
   private settingsContainer!: Phaser.GameObjects.Container;
   private isSettingsOpen: boolean = false;
 
+  // Visibility sync for tab switching
+  private visibilityChangeHandler: (() => void) | null = null;
+  private wasPlayingBeforeHidden: boolean = false;
+
   constructor() {
     super({ key: "PracticeScene" });
   }
@@ -217,6 +221,51 @@ export class PracticeScene extends Phaser.Scene {
     // Handle scene shutdown - stop BGM
     this.events.once("shutdown", this.handleShutdown, this);
     this.events.once("destroy", this.handleShutdown, this);
+
+    // Setup visibility handler for tab switching
+    this.setupVisibilityHandler();
+  }
+
+  // ===========================================================================
+  // VISIBILITY SYNC (TAB SWITCHING)
+  // ===========================================================================
+
+  /**
+   * Setup visibility change handler for pause/resume on tab switching.
+   */
+  private setupVisibilityHandler(): void {
+    if (typeof document === "undefined") return;
+
+    this.visibilityChangeHandler = () => {
+      if (document.visibilityState === "hidden") {
+        // Tab hidden - pause timers
+        console.log("[PracticeScene] Tab hidden, pausing timers");
+        this.wasPlayingBeforeHidden = this.phase === "selecting";
+        if (this.timerEvent && !this.timerEvent.paused) {
+          this.timerEvent.paused = true;
+        }
+      } else if (document.visibilityState === "visible") {
+        // Tab visible - resume timers
+        console.log("[PracticeScene] Tab visible, resuming timers");
+        if (this.timerEvent && this.timerEvent.paused && this.wasPlayingBeforeHidden) {
+          this.timerEvent.paused = false;
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", this.visibilityChangeHandler);
+    this.events.once("shutdown", this.cleanupVisibilityHandler, this);
+    this.events.once("destroy", this.cleanupVisibilityHandler, this);
+  }
+
+  /**
+   * Clean up visibility change handler.
+   */
+  private cleanupVisibilityHandler(): void {
+    if (this.visibilityChangeHandler && typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", this.visibilityChangeHandler);
+      this.visibilityChangeHandler = null;
+    }
   }
 
   /**
@@ -1260,11 +1309,43 @@ export class PracticeScene extends Phaser.Scene {
       const p1RunScale = getAnimationScale(p1Char, 'run');
       this.player1Sprite.setScale(p1RunScale);
       this.player1Sprite.play(`${p1Char}_run`);
+    } else if (p1WasStunned) {
+      // Stunned player stays in idle and shows stun effect
+      if (this.anims.exists(`${p1Char}_idle`)) {
+        const p1IdleScale = getAnimationScale(p1Char, 'idle');
+        this.player1Sprite.setScale(p1IdleScale);
+        this.player1Sprite.play(`${p1Char}_idle`);
+      }
+      // Visual stun indicator - pulsing red tint
+      this.tweens.add({
+        targets: this.player1Sprite,
+        tint: 0xff6666,
+        yoyo: true,
+        repeat: 3,
+        duration: 200,
+        onComplete: () => this.player1Sprite.clearTint()
+      });
     }
     if (!p2WasStunned && this.anims.exists(`${p2Char}_run`)) {
       const p2RunScale = getAnimationScale(p2Char, 'run');
       this.player2Sprite.setScale(p2RunScale);
       this.player2Sprite.play(`${p2Char}_run`);
+    } else if (p2WasStunned) {
+      // Stunned player stays in idle and shows stun effect
+      if (this.anims.exists(`${p2Char}_idle`)) {
+        const p2IdleScale = getAnimationScale(p2Char, 'idle');
+        this.player2Sprite.setScale(p2IdleScale);
+        this.player2Sprite.play(`${p2Char}_idle`);
+      }
+      // Visual stun indicator - pulsing red tint
+      this.tweens.add({
+        targets: this.player2Sprite,
+        tint: 0xff6666,
+        yoyo: true,
+        repeat: 3,
+        duration: 200,
+        onComplete: () => this.player2Sprite.clearTint()
+      });
     }
 
     // Tween to target positions

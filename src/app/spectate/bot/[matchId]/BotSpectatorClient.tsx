@@ -68,6 +68,7 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
                     matchWinner: currentMatch.matchWinner,
                     bot1RoundsWon: currentMatch.bot1RoundsWon,
                     bot2RoundsWon: currentMatch.bot2RoundsWon,
+                    matchCreatedAt: currentMatch.createdAt,
                 });
 
                 setGameReady(true);

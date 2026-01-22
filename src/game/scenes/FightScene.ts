@@ -572,21 +572,27 @@ export class FightScene extends Phaser.Scene {
   }
 
   // ===========================================================================
-  // VISIBILITY HANDLING - Keep game in sync when tab switches
+  // VISIBILITY HANDLING - Treat tab switching as disconnect/reconnect
   // ===========================================================================
 
   /**
    * Set up document visibility change handler.
-   * This ensures the game state stays synchronized when the user switches tabs.
+   * When player hides tab, they are marked as disconnected on server.
+   * If both players disconnect, match is cancelled and bets refunded.
    */
   private setupVisibilityHandler(): void {
     // Only set up if we're in a browser environment
     if (typeof document === "undefined") return;
 
     this.visibilityChangeHandler = () => {
-      if (document.visibilityState === "visible") {
-        console.log("[FightScene] Tab became visible, resyncing state");
-        this.handleVisibilityResync();
+      if (document.visibilityState === "hidden") {
+        // Tab hidden - treat as disconnect
+        console.log("[FightScene] Tab hidden, treating as disconnect");
+        this.notifyServerDisconnect();
+      } else if (document.visibilityState === "visible") {
+        // Tab visible - treat as reconnect
+        console.log("[FightScene] Tab became visible, reconnecting");
+        this.notifyServerReconnect();
       }
     };
 
@@ -608,38 +614,123 @@ export class FightScene extends Phaser.Scene {
   }
 
   /**
-   * Handle resync when tab becomes visible.
-   * Recalculates timer based on server deadline and updates UI.
+   * Notify server that player has disconnected (tab hidden/minimized).
+   * Server will mark player as disconnected and potentially cancel match.
    */
-  private handleVisibilityResync(): void {
-    // If we're in selecting phase and have a deadline, resync the timer
-    if (this.phase === "selecting" && this.moveDeadlineAt > 0) {
-      const nowRemainingMs = this.moveDeadlineAt - Date.now();
-      const newTimer = Math.max(0, Math.floor(nowRemainingMs / 1000));
+  private async notifyServerDisconnect(): Promise<void> {
+    // Only players need to notify disconnect, not spectators
+    if (this.config.isSpectator) return;
 
-      console.log(`[FightScene] Resync timer: ${this.turnTimer}s -> ${newTimer}s (deadline: ${this.moveDeadlineAt})`);
+    try {
+      const response = await fetch(`/api/matches/${this.config.matchId}/disconnect`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          address: this.config.playerRole === "player1" 
+            ? this.config.player1Address 
+            : this.config.player2Address,
+          action: "disconnect",
+        }),
+      });
 
-      this.turnTimer = newTimer;
-
-      // Update display immediately
-      this.roundTimerText.setText(`${this.turnTimer}s`);
-      if (this.turnTimer <= 5) {
-        this.roundTimerText.setColor("#ff4444");
+      if (response.ok) {
+        const data = await response.json();
+        console.log("[FightScene] Disconnect notification sent:", data);
       } else {
-        this.roundTimerText.setColor("#40e0d0");
+        console.warn("[FightScene] Failed to send disconnect notification");
       }
-
-      // If timer has expired while tab was hidden, trigger expiration
-      if (this.turnTimer <= 0 && !this.selectedMove) {
-        console.log("[FightScene] Timer expired while tab was hidden, triggering expiration");
-        this.onTimerExpired();
-      }
+    } catch (error) {
+      console.error("[FightScene] Error notifying disconnect:", error);
     }
+  }
 
-    // If in resolving or round_end phase, ensure UI reflects current state
+  /**
+   * Notify server that player has reconnected (tab visible again).
+   * Server will clear disconnect status and sync game state.
+   */
+  private async notifyServerReconnect(): Promise<void> {
+    // Only players need to notify reconnect, not spectators
+    if (this.config.isSpectator) return;
+
+    try {
+      const response = await fetch(`/api/matches/${this.config.matchId}/disconnect`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          address: this.config.playerRole === "player1" 
+            ? this.config.player1Address 
+            : this.config.player2Address,
+          action: "reconnect",
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("[FightScene] Reconnect notification sent:", data);
+        
+        // Check if match was cancelled/completed while away
+        if (data.data?.matchStatus === "completed" || data.data?.matchStatus === "cancelled") {
+          console.log("[FightScene] Match ended while disconnected, fetching final state");
+          this.fetchFinalMatchState();
+        } else if (data.data?.gameState) {
+          // Sync with current game state from server
+          console.log("[FightScene] Syncing with server game state");
+          this.syncWithServerState(data.data.gameState);
+        }
+      } else {
+        console.warn("[FightScene] Failed to send reconnect notification");
+      }
+    } catch (error) {
+      console.error("[FightScene] Error notifying reconnect:", error);
+    }
+  }
+
+  /**
+   * Fetch final match state when match ended during disconnect.
+   */
+  private async fetchFinalMatchState(): Promise<void> {
+    try {
+      const response = await fetch(`/api/matches/${this.config.matchId}`);
+      if (!response.ok) return;
+
+      const data = await response.json();
+      if (data.status === "completed" || data.status === "cancelled") {
+        console.log("[FightScene] Match ended, triggering end screen");
+        EventBus.emit("game:matchEnded", {
+          winnerAddress: data.winnerAddress || null,
+          player1RoundsWon: data.player1RoundsWon || 0,
+          player2RoundsWon: data.player2RoundsWon || 0,
+          cancelled: data.status === "cancelled",
+        });
+      }
+    } catch (error) {
+      console.error("[FightScene] Error fetching final match state:", error);
+    }
+  }
+
+  /**
+   * Sync client state with server game state after reconnection.
+   */
+  private syncWithServerState(gameState: any): void {
+    // Update server state
     if (this.serverState) {
-      this.syncUIWithCombatState();
+      this.serverState.player1Health = gameState.player1Health;
+      this.serverState.player2Health = gameState.player2Health;
+      this.serverState.player1Energy = gameState.player1Energy;
+      this.serverState.player2Energy = gameState.player2Energy;
+      this.serverState.player1RoundsWon = gameState.player1RoundsWon;
+      this.serverState.player2RoundsWon = gameState.player2RoundsWon;
+      this.serverState.currentRound = gameState.currentRound;
     }
+
+    // Update UI
+    this.syncUIWithCombatState();
+
+    // Update round score
+    const roundsToWin = this.combatEngine ? this.combatEngine.getState().roundsToWin : 2;
+    this.roundScoreText.setText(
+      `Round ${gameState.currentRound}  •  ${gameState.player1RoundsWon} - ${gameState.player2RoundsWon}  (First to ${roundsToWin})`
+    );
   }
 
   // ===========================================================================
@@ -3027,11 +3118,43 @@ export class FightScene extends Phaser.Scene {
       const p1RunScale = getAnimationScale(p1Char, "run");
       this.player1Sprite.setScale(p1RunScale);
       this.player1Sprite.play(`${p1Char}_run`);
+    } else if (p1IsStunned) {
+      // Stunned player stays in idle and shows stun effect
+      if (this.anims.exists(`${p1Char}_idle`)) {
+        const p1IdleScale = getAnimationScale(p1Char, "idle");
+        this.player1Sprite.setScale(p1IdleScale);
+        this.player1Sprite.play(`${p1Char}_idle`);
+      }
+      // Visual stun indicator - pulsing red tint
+      this.tweens.add({
+        targets: this.player1Sprite,
+        tint: 0xff6666,
+        yoyo: true,
+        repeat: 3,
+        duration: 200,
+        onComplete: () => this.player1Sprite.clearTint()
+      });
     }
     if (!p2IsStunned && this.anims.exists(`${p2Char}_run`)) {
       const p2RunScale = getAnimationScale(p2Char, "run");
       this.player2Sprite.setScale(p2RunScale);
       this.player2Sprite.play(`${p2Char}_run`);
+    } else if (p2IsStunned) {
+      // Stunned player stays in idle and shows stun effect
+      if (this.anims.exists(`${p2Char}_idle`)) {
+        const p2IdleScale = getAnimationScale(p2Char, "idle");
+        this.player2Sprite.setScale(p2IdleScale);
+        this.player2Sprite.play(`${p2Char}_idle`);
+      }
+      // Visual stun indicator - pulsing red tint
+      this.tweens.add({
+        targets: this.player2Sprite,
+        tint: 0xff6666,
+        yoyo: true,
+        repeat: 3,
+        duration: 200,
+        onComplete: () => this.player2Sprite.clearTint()
+      });
     }
 
     // Tween both characters toward targets

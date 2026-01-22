@@ -164,6 +164,78 @@ export async function POST(
         );
       }
 
+      // Refetch to get updated state
+      const { data: updatedMatchData } = await supabase
+        .from("matches")
+        .select("*")
+        .eq("id", matchId)
+        .single();
+
+      const updatedMatch = updatedMatchData as unknown as MatchWithDisconnect | null;
+
+      // CHECK: If BOTH players are now disconnected, cancel the match and refund bets
+      const bothDisconnected = updatedMatch && 
+        updatedMatch.player1_disconnected_at && 
+        updatedMatch.player2_disconnected_at;
+
+      if (bothDisconnected && updatedMatch.status === "in_progress") {
+        console.log(`[Disconnect API] Both players disconnected for match ${matchId}, cancelling match and refunding bets`);
+        
+        // Update match status to cancelled
+        await supabase
+          .from("matches")
+          .update({
+            status: "cancelled",
+            completed_at: now,
+          })
+          .eq("id", matchId);
+
+        // Refund stakes and bets (async, don't block response)
+        Promise.all([
+          import("@/lib/betting/payout-service").then(({ refundMatchStakes }) => {
+            return refundMatchStakes(matchId).catch(err => {
+              console.error(`[Disconnect API] Error refunding stakes for ${matchId}:`, err);
+            });
+          }),
+          import("@/lib/betting/payout-service").then(({ refundBettingPool }) => {
+            return refundBettingPool(matchId).catch(err => {
+              console.error(`[Disconnect API] Error refunding betting pool for ${matchId}:`, err);
+            });
+          }),
+        ]);
+
+        // Broadcast match cancelled event
+        const gameChannel = supabase.channel(`game:${matchId}`);
+        await gameChannel.send({
+          type: "broadcast",
+          event: "match_cancelled",
+          payload: {
+            reason: "both_players_disconnected",
+            cancelledAt: Date.now(),
+            refundsProcessed: true,
+          },
+        });
+        await supabase.removeChannel(gameChannel);
+
+        const response: ApiSuccessResponse<DisconnectResponse> = {
+          success: true,
+          data: {
+            matchId,
+            playerAddress: body.address,
+            action: "disconnect",
+            matchStatus: "cancelled",
+            disconnectState: {
+              player1Disconnected: true,
+              player2Disconnected: true,
+              player1DisconnectedAt: updatedMatch.player1_disconnected_at,
+              player2DisconnectedAt: updatedMatch.player2_disconnected_at,
+            },
+          },
+        };
+
+        return NextResponse.json(response);
+      }
+
       // Broadcast disconnect event to the game channel
       const gameChannel = supabase.channel(`game:${matchId}`);
       await gameChannel.send({
@@ -177,15 +249,6 @@ export async function POST(
         },
       });
       await supabase.removeChannel(gameChannel);
-
-      // Refetch to get updated state
-      const { data: updatedMatchData } = await supabase
-        .from("matches")
-        .select("*")
-        .eq("id", matchId)
-        .single();
-
-      const updatedMatch = updatedMatchData as unknown as MatchWithDisconnect | null;
 
       const response: ApiSuccessResponse<DisconnectResponse> = {
         success: true,

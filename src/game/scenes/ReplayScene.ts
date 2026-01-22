@@ -99,6 +99,10 @@ export class ReplayScene extends Phaser.Scene {
   private speedMultiplier: number = 1;
   private muteAudio: boolean = false;
 
+  // Visibility sync for tab switching
+  private visibilityChangeHandler: (() => void) | null = null;
+  private replayStartTime: number = 0; // When replay started playing
+
   constructor() {
     super({ key: "ReplayScene" });
   }
@@ -216,7 +220,7 @@ export class ReplayScene extends Phaser.Scene {
 
     const player1Char = this.config?.player1Character || "dag-warrior";
     const player2Char = this.config?.player2Character || "dag-warrior";
-    
+
     preloadReplaySceneAssets(this, player1Char, player2Char);
   }
 
@@ -247,7 +251,7 @@ export class ReplayScene extends Phaser.Scene {
     }
 
     this.createBackground();
-    
+
     // Create animations only for the 2 characters in this replay
     const player1Char = this.config?.player1Character || "dag-warrior";
     const player2Char = this.config?.player2Character || "dag-warrior";
@@ -268,13 +272,155 @@ export class ReplayScene extends Phaser.Scene {
     this.events.once("shutdown", this.handleShutdown, this);
     this.events.once("destroy", this.handleShutdown, this);
 
+    // Setup visibility handler for tab switching
+    this.setupVisibilityHandler();
+
     // Start playback after a short delay (scaled by speed)
     this.time.delayedCall(1500, () => {
+      this.replayStartTime = Date.now();
       this.startReplay();
     });
 
     // Emit ready event
     EventBus.emit("scene:ready", this);
+  }
+
+  // ===========================================================================
+  // VISIBILITY SYNC (TAB SWITCHING)
+  // ===========================================================================
+
+  /**
+   * Setup visibility change handler to handle tab switching during replay.
+   */
+  private setupVisibilityHandler(): void {
+    if (typeof document === "undefined") return;
+
+    this.visibilityChangeHandler = () => {
+      if (document.visibilityState === "visible") {
+        console.log("[ReplayScene] Tab became visible, checking for resync");
+        this.handleVisibilityResync();
+      }
+    };
+
+    document.addEventListener("visibilitychange", this.visibilityChangeHandler);
+    this.events.once("shutdown", this.cleanupVisibilityHandler, this);
+    this.events.once("destroy", this.cleanupVisibilityHandler, this);
+  }
+
+  /**
+   * Clean up visibility change handler.
+   */
+  private cleanupVisibilityHandler(): void {
+    if (this.visibilityChangeHandler && typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", this.visibilityChangeHandler);
+      this.visibilityChangeHandler = null;
+    }
+  }
+
+  /**
+   * Handle resync when tab becomes visible during replay.
+   * Fast-forward through missed rounds based on elapsed time.
+   */
+  private handleVisibilityResync(): void {
+    if (!this.isPlaying || this.replayStartTime === 0) return;
+
+    // Average time per round (includes all animations)
+    const ROUND_DURATION_MS = 5000; // ~5 seconds per round
+    const elapsedTime = Date.now() - this.replayStartTime;
+    const expectedRoundIndex = Math.floor(elapsedTime / ROUND_DURATION_MS);
+    const roundsBehind = Math.max(0, expectedRoundIndex - this.currentRoundIndex);
+
+    if (roundsBehind > 0 && this.currentRoundIndex < this.config.rounds.length) {
+      console.log(`[ReplayScene] Behind by ${roundsBehind} rounds, fast-forwarding from ${this.currentRoundIndex} to ${expectedRoundIndex}`);
+      
+      // Stop current playback
+      this.isPlaying = false;
+      this.time.removeAllEvents();
+
+      // Fast-forward through missed rounds
+      this.fastForwardToRound(Math.min(expectedRoundIndex, this.config.rounds.length));
+
+      // Resume playback
+      this.isPlaying = true;
+      this.time.delayedCall(500, () => this.playNextRound());
+    }
+  }
+
+  /**
+   * Fast-forward to a specific round index without animations.
+   */
+  private fastForwardToRound(targetRoundIndex: number): void {
+    console.log(`[ReplayScene] Fast-forwarding to round ${targetRoundIndex}`);
+
+    // Reset engine to initial state
+    this.combatEngine = new CombatEngine(
+      this.config.player1Character,
+      this.config.player2Character,
+      "best_of_3"
+    );
+
+    // Process all rounds up to target
+    for (let i = 0; i < targetRoundIndex && i < this.config.rounds.length; i++) {
+      const round = this.config.rounds[i];
+      this.combatEngine.resolveTurn(round.player1Move, round.player2Move);
+      
+      // Track round wins
+      const state = this.combatEngine.getState();
+      if (state.isRoundOver) {
+        if (state.roundWinner === "player1") this.player1RoundsWon++;
+        else if (state.roundWinner === "player2") this.player2RoundsWon++;
+        
+        if (!state.isMatchOver) {
+          this.currentGameRound++;
+          this.combatEngine.startNewRound();
+        }
+      }
+    }
+
+    // Update to current state
+    const state = this.combatEngine.getState();
+    this.player1Health = state.player1.hp;
+    this.player2Health = state.player2.hp;
+    this.player1Energy = state.player1.energy;
+    this.player2Energy = state.player2.energy;
+    this.player1GuardMeterValue = state.player1.guardMeter;
+    this.player2GuardMeterValue = state.player2.guardMeter;
+    this.currentRoundIndex = targetRoundIndex;
+
+    // Update UI
+    this.updateHealthBarDisplay("player1", this.player1Health, this.player1MaxHealth);
+    this.updateHealthBarDisplay("player2", this.player2Health, this.player2MaxHealth);
+    this.updateEnergyBarDisplay("player1", this.player1Energy, this.player1MaxEnergy);
+    this.updateEnergyBarDisplay("player2", this.player2Energy, this.player2MaxEnergy);
+    this.updateGuardMeterDisplay("player1", this.player1GuardMeterValue);
+    this.updateGuardMeterDisplay("player2", this.player2GuardMeterValue);
+    this.roundScoreText.setText(
+      `Round ${this.currentGameRound}  •  ${this.player1RoundsWon} - ${this.player2RoundsWon}  (Best of 3)`
+    );
+
+    // Show catch-up notification
+    this.narrativeText.setText(`⚡ FAST-FORWARDING TO ROUND ${targetRoundIndex + 1} ⚡`);
+    this.narrativeText.setAlpha(1);
+    this.tweens.add({
+      targets: this.narrativeText,
+      alpha: 0,
+      delay: 1000,
+      duration: 500,
+    });
+
+    // Reset sprites to idle
+    const p1Char = this.config.player1Character;
+    const p2Char = this.config.player2Character;
+    if (this.anims.exists(`${p1Char}_idle`)) {
+      this.player1Sprite.setScale(getAnimationScale(p1Char, "idle"));
+      this.player1Sprite.play(`${p1Char}_idle`);
+    }
+    if (this.anims.exists(`${p2Char}_idle`)) {
+      this.player2Sprite.setScale(getAnimationScale(p2Char, "idle"));
+      this.player2Sprite.play(`${p2Char}_idle`);
+    }
+    this.player1Sprite.x = CHARACTER_POSITIONS.PLAYER1.X;
+    this.player2Sprite.x = CHARACTER_POSITIONS.PLAYER2.X;
   }
 
   /**
@@ -771,26 +917,72 @@ export class ReplayScene extends Phaser.Scene {
     const meetingPointX = GAME_DIMENSIONS.CENTER_X;
 
     // Phase 1: Run toward center
-    if (this.anims.exists(`${p1Char}_run`)) {
+    // Check if players are stunned based on their move
+    const p1IsStunned = round.player1Move === "stunned";
+    const p2IsStunned = round.player2Move === "stunned";
+
+    let p1TargetX = meetingPointX - 50;
+    let p2TargetX = meetingPointX + 50;
+
+    if (p1IsStunned) {
+      p1TargetX = p1OriginalX;
+      p2TargetX = p1OriginalX + 100; // Opponent runs to P1
+    } else if (p2IsStunned) {
+      p2TargetX = p2OriginalX;
+      p1TargetX = p2OriginalX - 100; // Opponent runs to P2
+    }
+
+    if (!p1IsStunned && this.anims.exists(`${p1Char}_run`)) {
       this.player1Sprite.setScale(this.getRunScale(p1Char));
       this.player1Sprite.play(`${p1Char}_run`);
+    } else if (p1IsStunned) {
+      // Stunned player stays in idle and shows stun effect
+      if (this.anims.exists(`${p1Char}_idle`)) {
+        this.player1Sprite.setScale(this.getIdleScale(p1Char));
+        this.player1Sprite.play(`${p1Char}_idle`);
+      }
+      // Visual stun indicator - pulsing red tint
+      this.tweens.add({
+        targets: this.player1Sprite,
+        tint: 0xff6666,
+        yoyo: true,
+        repeat: 3,
+        duration: 200,
+        onComplete: () => this.player1Sprite.clearTint()
+      });
     }
-    if (this.anims.exists(`${p2Char}_run`)) {
+
+    if (!p2IsStunned && this.anims.exists(`${p2Char}_run`)) {
       this.player2Sprite.setScale(this.getRunScale(p2Char));
       this.player2Sprite.play(`${p2Char}_run`);
+    } else if (p2IsStunned) {
+      // Stunned player stays in idle and shows stun effect
+      if (this.anims.exists(`${p2Char}_idle`)) {
+        this.player2Sprite.setScale(this.getIdleScale(p2Char));
+        this.player2Sprite.play(`${p2Char}_idle`);
+      }
+      // Visual stun indicator - pulsing red tint
+      this.tweens.add({
+        targets: this.player2Sprite,
+        tint: 0xff6666,
+        yoyo: true,
+        repeat: 3,
+        duration: 200,
+        onComplete: () => this.player2Sprite.clearTint()
+      });
     }
 
     this.tweens.add({
       targets: this.player1Sprite,
-      x: meetingPointX - 50,
-      duration: 600,
+      x: p1TargetX,
+      duration: p1IsStunned ? 0 : 600,
       ease: "Power2",
     });
 
     this.tweens.add({
       targets: this.player2Sprite,
-      x: meetingPointX + 50,
-      duration: 600,
+      x: p2TargetX,
+      duration: p2IsStunned ? 0 : 600,
       ease: "Power2",
       onComplete: () => {
         // Phase 2: Play attack animations SEQUENTIALLY (like FightScene)
@@ -806,6 +998,11 @@ export class ReplayScene extends Phaser.Scene {
         // Sequential Animation Logic using Promises (matching FightScene)
         const runP1Attack = () => {
           return new Promise<void>((resolve) => {
+            if (p1IsStunned) {
+              resolve();
+              return;
+            }
+
             // Play P1 animation
             const animKey = `${p1Char}_${p1Move}`;
             if (this.anims.exists(animKey)) {
@@ -827,7 +1024,7 @@ export class ReplayScene extends Phaser.Scene {
               this.time.delayedCall(300, () => {
                 this.showFloatingText(
                   `-${p2ActualDamage}`,
-                  meetingPointX + 50,
+                  p1IsStunned ? meetingPointX : p2TargetX - (p2IsStunned ? 0 : 50), // Adjust text pos if target didn't move
                   CHARACTER_POSITIONS.PLAYER2.Y - 130,
                   "#ff4444"
                 );
@@ -852,6 +1049,11 @@ export class ReplayScene extends Phaser.Scene {
 
         const runP2Attack = () => {
           return new Promise<void>((resolve) => {
+            if (p2IsStunned) {
+              resolve();
+              return;
+            }
+
             // Play P2 animation
             const animKey = `${p2Char}_${p2Move}`;
             if (this.anims.exists(animKey)) {
@@ -873,7 +1075,7 @@ export class ReplayScene extends Phaser.Scene {
               this.time.delayedCall(300, () => {
                 this.showFloatingText(
                   `-${p1ActualDamage}`,
-                  meetingPointX - 50,
+                  p2IsStunned ? meetingPointX : p1TargetX + (p1IsStunned ? 0 : 50),
                   CHARACTER_POSITIONS.PLAYER1.Y - 130,
                   "#ff4444"
                 );

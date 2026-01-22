@@ -4,6 +4,11 @@
  * The match is fully simulated server-side using CombatEngine.
  * This scene just animates the pre-computed turn sequence.
  * Spectators joining mid-match start from the correct turn based on elapsed time.
+ * 
+ * TAB SWITCHING / VISIBILITY SYNC:
+ * When users minimize or switch tabs, Phaser pauses but the server-side match continues.
+ * Upon returning, the scene detects visibility change, calculates missed turns,
+ * fast-forwards game state without animation, and resumes playback from current turn.
  */
 
 import Phaser from "phaser";
@@ -34,6 +39,7 @@ export interface BotBattleSceneConfig {
     matchWinner: "player1" | "player2" | null;
     bot1RoundsWon: number;
     bot2RoundsWon: number;
+    matchCreatedAt: number;       // Server timestamp when match was created
 }
 
 /**
@@ -70,6 +76,11 @@ export class BotBattleScene extends Phaser.Scene {
     private bgmVolume: number = 0.3;
     private sfxVolume: number = 0.5;
 
+    // Visibility sync
+    private visibilityChangeHandler: (() => void) | null = null;
+    private matchStartTime: number = 0; // When the match actually started (server time)
+    private readonly BETTING_WINDOW_MS = 30000; // 30 seconds betting period before match starts
+
     constructor() {
         super({ key: "BotBattleScene" });
     }
@@ -81,6 +92,10 @@ export class BotBattleScene extends Phaser.Scene {
         this.bot1RoundsWon = 0;
         this.bot2RoundsWon = 0;
         this.currentRound = 1;
+
+        // Calculate when this match's gameplay started (after betting window)
+        // Server created the match at matchCreatedAt, gameplay starts 30s later
+        this.matchStartTime = data.matchCreatedAt + this.BETTING_WINDOW_MS;
 
         // Find characters
         this.bot1Character = CHARACTER_ROSTER.find(c => c.id === data.bot1CharacterId) || CHARACTER_ROSTER[0];
@@ -120,6 +135,9 @@ export class BotBattleScene extends Phaser.Scene {
         // Handle shutdown
         this.events.once("shutdown", this.handleShutdown, this);
         this.events.once("destroy", this.handleShutdown, this);
+
+        // Setup visibility handler for tab switching
+        this.setupVisibilityHandler();
 
         // If joining mid-match (not at turn 0), skip betting countdown
         if (this.currentTurnIndex > 0) {
@@ -172,6 +190,158 @@ export class BotBattleScene extends Phaser.Scene {
     }
 
     // ==========================================================================
+    // VISIBILITY SYNC (TAB SWITCHING)
+    // ==========================================================================
+
+    /**
+     * Setup visibility change handler to sync when user returns to tab.
+     * When users minimize or switch tabs, Phaser pauses but the server-side
+     * match continues. This ensures we fast-forward to the current turn.
+     */
+    private setupVisibilityHandler(): void {
+        if (typeof document === "undefined") return;
+
+        this.visibilityChangeHandler = () => {
+            if (document.visibilityState === "visible") {
+                console.log("[BotBattleScene] Tab became visible, checking for resync");
+                this.handleVisibilityResync();
+            }
+        };
+
+        document.addEventListener("visibilitychange", this.visibilityChangeHandler);
+        this.events.once("shutdown", this.cleanupVisibilityHandler, this);
+        this.events.once("destroy", this.cleanupVisibilityHandler, this);
+    }
+
+    /**
+     * Clean up visibility change handler.
+     */
+    private cleanupVisibilityHandler(): void {
+        if (this.visibilityChangeHandler && typeof document !== "undefined") {
+            document.removeEventListener("visibilitychange", this.visibilityChangeHandler);
+            this.visibilityChangeHandler = null;
+        }
+    }
+
+    /**
+     * Handle resync when tab becomes visible.
+     * Calculate the current server turn and fast-forward if needed.
+     */
+    private handleVisibilityResync(): void {
+        // Calculate what turn we SHOULD be at based on elapsed time
+        // This matches the server's getCurrentTurnIndex logic exactly
+        const now = Date.now();
+        
+        // Check if we're still in betting window
+        if (now < this.matchStartTime) {
+            console.log("[BotBattleScene] Still in betting window, no resync needed");
+            return;
+        }
+        
+        // Calculate elapsed time since gameplay started (after betting window)
+        const gameElapsed = now - this.matchStartTime;
+        const expectedTurnIndex = Math.floor(gameElapsed / this.config.turnDurationMs);
+        
+        // Clamp to valid range
+        const clampedExpectedTurn = Math.min(expectedTurnIndex, this.config.totalTurns - 1);
+        
+        // How many turns did we miss while tab was hidden?
+        const turnsBehind = Math.max(0, clampedExpectedTurn - this.currentTurnIndex);
+
+        if (turnsBehind > 0) {
+            console.log(`[BotBattleScene] Behind by ${turnsBehind} turns, fast-forwarding from ${this.currentTurnIndex} to ${clampedExpectedTurn}`);
+            
+            // Stop current playback
+            const wasPlaying = this.isPlaying;
+            this.isPlaying = false;
+
+            // Cancel all scheduled turn animations
+            this.time.removeAllEvents();
+
+            // Fast-forward through missed turns
+            this.fastForwardVisibilityGap(clampedExpectedTurn);
+
+            // Resume playback if we were playing
+            if (wasPlaying && this.currentTurnIndex < this.config.turns.length) {
+                this.isPlaying = true;
+                // Small delay before resuming to show updated state
+                this.time.delayedCall(500, () => this.playNextTurn());
+            } else if (this.currentTurnIndex >= this.config.turns.length) {
+                // Match ended while we were away
+                this.showMatchEnd();
+            }
+        } else {
+            console.log(`[BotBattleScene] No resync needed (current: ${this.currentTurnIndex}, expected: ${clampedExpectedTurn})`);
+        }
+    }
+
+    /**
+     * Fast-forward through turns that happened while tab was hidden.
+     * Updates game state and UI without animations.
+     */
+    private fastForwardVisibilityGap(targetTurnIndex: number): void {
+        const startTurn = this.currentTurnIndex;
+        const endTurn = Math.min(targetTurnIndex, this.config.turns.length);
+
+        console.log(`[BotBattleScene] Fast-forwarding from turn ${startTurn} to ${endTurn}`);
+
+        // Process each missed turn
+        for (let i = startTurn; i < endTurn; i++) {
+            const turn = this.config.turns[i];
+
+            // Track round wins
+            if (turn.isRoundEnd && turn.roundWinner) {
+                if (turn.roundWinner === "player1") this.bot1RoundsWon++;
+                else this.bot2RoundsWon++;
+
+                if (!turn.isMatchEnd) {
+                    this.currentRound++;
+                }
+            }
+
+            this.currentTurnIndex++;
+        }
+
+        // Update UI to reflect current state
+        if (this.currentTurnIndex > 0 && this.currentTurnIndex <= this.config.turns.length) {
+            const currentTurn = this.config.turns[this.currentTurnIndex - 1];
+            this.updateUIFromTurn(currentTurn);
+            this.roundScoreText.setText(
+                `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`
+            );
+
+            // Show notification that we caught up
+            this.narrativeText.setText(`⚡ CATCHING UP TO TURN ${this.currentTurnIndex} ⚡`);
+            this.narrativeText.setAlpha(1);
+            this.tweens.add({
+                targets: this.narrativeText,
+                alpha: 0,
+                delay: 1000,
+                duration: 500,
+            });
+        }
+
+        // Ensure characters are in idle state
+        const p1Char = this.bot1Character.id;
+        const p2Char = this.bot2Character.id;
+        
+        if (this.anims.exists(`${p1Char}_idle`)) {
+            const p1IdleScale = getAnimationScale(p1Char, "idle");
+            this.player1Sprite.setScale(p1IdleScale);
+            this.player1Sprite.play(`${p1Char}_idle`);
+        }
+        if (this.anims.exists(`${p2Char}_idle`)) {
+            const p2IdleScale = getAnimationScale(p2Char, "idle");
+            this.player2Sprite.setScale(p2IdleScale);
+            this.player2Sprite.play(`${p2Char}_idle`);
+        }
+
+        // Reset sprite positions to original
+        this.player1Sprite.x = CHARACTER_POSITIONS.PLAYER1.X;
+        this.player2Sprite.x = CHARACTER_POSITIONS.PLAYER2.X;
+    }
+
+    // ==========================================================================
     // AUDIO
     // ==========================================================================
 
@@ -202,6 +372,7 @@ export class BotBattleScene extends Phaser.Scene {
     private handleShutdown(): void {
         const bgm = this.sound.get("bgm_fight");
         if (bgm && bgm.isPlaying) bgm.stop();
+        this.cleanupVisibilityHandler();
     }
 
     // ==========================================================================
@@ -840,10 +1011,12 @@ export class BotBattleScene extends Phaser.Scene {
                                         this.updateGuardMeterDisplay("player2", 0);
 
                                         this.currentRound++;
-                                        this.roundScoreText.setText(
-                                            `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`
-                                        );
                                     }
+
+                                    // Always update score text
+                                    this.roundScoreText.setText(
+                                        `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`
+                                    );
 
                                     // Reset loser to idle after showing result
                                     this.time.delayedCall(1000, () => {
