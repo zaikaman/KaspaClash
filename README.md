@@ -81,6 +81,7 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
   - **Practice Mode:** Offline AI training
   - **Survival Mode:** Endless wave-based challenge with escalating difficulty
   - **Spectator Mode:** Watch live matches with real-time betting
+  - **Bot Battles:** 24/7 automated bot-vs-bot matches with betting support
 
 ### 🏆 Progression & Rewards
 - **Battle Pass System:** Progress through 50 tiers by earning XP from matches and quests
@@ -99,9 +100,11 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 ### 🔗 Blockchain Features
 - **Kaspa Wallet Integration:** Seamless connection via Kasware wallet
 - **Live Betting System:** Spectators can bet on match outcomes with instant confirmations
+- **Bot Betting:** Bet on automated bot matches running 24/7 with fixed 2x odds and 1% house fee
 - **On-Chain Leaderboard:** Transparent ranking system powered by ELO ratings
 - **Match History:** All game results stored with blockchain verification
 - **Transaction Verification:** Real-time bet confirmation and payout tracking
+- **Automated Payouts:** Instant KAS payouts to winners via scheduled cron jobs
 - **Treasury System:** Automated weekly KAS payouts to top leaderboard players
 
 ### 📹 Replay & Sharing
@@ -220,6 +223,14 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 2. **Place Bet:** Spectator sends KAS to vault → API records bet with tx_id → Pool updated
 3. **Lock Pool:** Match reaches final round → Pool locked → No more bets accepted
 4. **Resolve:** Match ends → Payouts calculated using odds → Winners receive funds
+
+#### Bot Betting Flow
+1. **Match Creation:** Server generates bot vs bot match with pre-computed turns
+2. **Betting Window:** 30-second window opens before match starts
+3. **Place Bet:** Users bet on Bot 1 or Bot 2 (Fixed 2x Odds)
+4. **House Fee:** 1% service fee deducted from bet amount
+5. **Auto-Resolution:** Match plays out, winner determined automatically
+6. **Instant Payout:** The system automatically triggers batch payouts from vault to winners
 
 #### Chat Flow
 1. **Send Message:** Player enters message or clicks quick chat
@@ -1559,6 +1570,46 @@ CREATE TABLE bets (
   pool_id UUID REFERENCES betting_pools(id),
   bettor_address TEXT REFERENCES players(address),
   bet_on TEXT NOT NULL,                  -- player1 | player2
+  amount BIGINT NOT NULL,                -- Amount in sompi
+  fee_paid BIGINT DEFAULT 0,
+  net_amount BIGINT NOT NULL,
+  tx_id TEXT UNIQUE NOT NULL,            -- Kaspa transaction ID
+  payout_amount BIGINT,
+  payout_tx_id TEXT,
+  status TEXT DEFAULT 'pending',          -- pending | confirmed | won | lost | refunded
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  confirmed_at TIMESTAMPTZ,
+  paid_at TIMESTAMPTZ
+);
+```
+
+#### `bot_betting_pools`
+```sql
+CREATE TABLE bot_betting_pools (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  bot_match_id TEXT UNIQUE NOT NULL,
+  bot1_character_id TEXT NOT NULL,
+  bot2_character_id TEXT NOT NULL,
+  bot1_total BIGINT DEFAULT 0,
+  bot2_total BIGINT DEFAULT 0,
+  total_pool BIGINT DEFAULT 0,
+  total_fees BIGINT DEFAULT 0,
+  status TEXT DEFAULT 'open',            -- open | locked | resolved | refunded
+  winner TEXT,                           -- bot1 | bot2
+  betting_closes_at_turn INTEGER DEFAULT 3,
+  match_created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ
+);
+```
+
+#### `bot_bets`
+```sql
+CREATE TABLE bot_bets (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  pool_id UUID REFERENCES bot_betting_pools(id),
+  bettor_address TEXT REFERENCES players(address),
+  bet_on TEXT NOT NULL,                  -- bot1 | bot2
   amount BIGINT NOT NULL,                -- Amount in sompi
   fee_paid BIGINT DEFAULT 0,
   net_amount BIGINT NOT NULL,
