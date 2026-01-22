@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { getCharacter } from "@/data/characters";
 import { useWallet } from "@/hooks/useWallet";
+import { NETWORK_CONFIG } from "@/types/constants";
 import Link from "next/link";
 
 interface BotBetHistoryItem {
@@ -60,8 +61,13 @@ export default function BotBetHistoryPage() {
     const [page, setPage] = useState(0);
     const [hasMore, setHasMore] = useState(false);
     
-    const { address, isConnected } = useWallet();
+    const { address, isConnected, network } = useWallet();
     const ITEMS_PER_PAGE = 10;
+
+    // Get explorer URL based on network
+    const explorerUrl = network === "testnet" 
+        ? NETWORK_CONFIG.testnet.explorerUrl 
+        : NETWORK_CONFIG.mainnet.explorerUrl;
 
     useEffect(() => {
         if (!isConnected || !address) {
@@ -390,7 +396,7 @@ export default function BotBetHistoryPage() {
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-cyber-gray text-sm">TX:</span>
                                                         <a
-                                                            href={`https://explorer.kaspa.org/txs/${bet.txId}`}
+                                                            href={`${explorerUrl}/txs/${bet.txId}`}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             className="text-blue-400 hover:text-blue-300 text-xs font-mono"
@@ -404,7 +410,7 @@ export default function BotBetHistoryPage() {
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-cyber-gray text-sm">Payout TX:</span>
                                                         <a
-                                                            href={`https://explorer.kaspa.org/txs/${bet.payoutTxId}`}
+                                                            href={`${explorerUrl}/txs/${bet.payoutTxId}`}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             className="text-green-400 hover:text-green-300 text-xs font-mono"

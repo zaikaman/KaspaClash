@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
         const supabase = await createSupabaseServerClient();
         const db = supabase as any;
 
-        // Get bets with pool and match information
+        // Get bets with pool information (without joining to matches)
         const { data: betsData, error: betsError } = await db
             .from("bot_bets")
             .select(`
@@ -63,15 +63,12 @@ export async function GET(request: NextRequest) {
                 paid_at,
                 tx_id,
                 payout_tx_id,
+                pool_id,
                 bot_betting_pools!inner (
                     bot_match_id,
                     winner,
-                    bot_matches!inner (
-                        bot1_name,
-                        bot2_name,
-                        bot1_character_id,
-                        bot2_character_id
-                    )
+                    bot1_character_id,
+                    bot2_character_id
                 )
             `)
             .eq("bettor_address", address)
@@ -94,18 +91,37 @@ export async function GET(request: NextRequest) {
 
         const total = count || 0;
 
+        // Get unique match IDs to fetch match details
+        const matchIds = [...new Set((betsData || []).map((bet: any) => bet.bot_betting_pools?.bot_match_id).filter(Boolean))];
+        
+        // Fetch match details separately
+        const matchDetailsMap = new Map<string, any>();
+        if (matchIds.length > 0) {
+            const { data: matchesData } = await db
+                .from("bot_matches")
+                .select("id, bot1_name, bot2_name, bot1_character_id, bot2_character_id")
+                .in("id", matchIds);
+
+            if (matchesData) {
+                matchesData.forEach((match: any) => {
+                    matchDetailsMap.set(match.id, match);
+                });
+            }
+        }
+
         // Transform data
         const history: BotBetHistoryItem[] = (betsData || []).map((bet: any) => {
             const pool = bet.bot_betting_pools;
-            const match = pool?.bot_matches;
+            const matchId = pool?.bot_match_id || "";
+            const match = matchDetailsMap.get(matchId);
 
             return {
                 id: bet.id,
-                matchId: pool?.bot_match_id || "",
+                matchId,
                 bot1Name: match?.bot1_name || "Unknown",
                 bot2Name: match?.bot2_name || "Unknown",
-                bot1CharacterId: match?.bot1_character_id || "",
-                bot2CharacterId: match?.bot2_character_id || "",
+                bot1CharacterId: match?.bot1_character_id || pool?.bot1_character_id || "",
+                bot2CharacterId: match?.bot2_character_id || pool?.bot2_character_id || "",
                 betOn: bet.bet_on,
                 amount: bet.amount?.toString() || "0",
                 feeAmount: bet.fee_paid?.toString() || "0",
