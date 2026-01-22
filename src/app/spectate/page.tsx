@@ -225,7 +225,7 @@ function MatchCard({ match }: { match: LiveMatch }) {
 
 export default function SpectatePage() {
     const [matches, setMatches] = useState<LiveMatch[]>([]);
-    const [botMatches, setBotMatches] = useState<BotMatch[]>([]);
+    const [botMatch, setBotMatch] = useState<BotMatch | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -240,19 +240,17 @@ export default function SpectatePage() {
             const playerMatches = data.matches || [];
             setMatches(playerMatches);
 
-            // If no player matches, fetch bot matches
-            if (playerMatches.length === 0) {
-                try {
-                    const botResponse = await fetch("/api/bot-games");
-                    if (botResponse.ok) {
-                        const botData = await botResponse.json();
-                        setBotMatches(botData.matches || []);
-                    }
-                } catch (botErr) {
-                    console.error("Error fetching bot matches:", botErr);
+            // Always fetch the single active bot match (for betting room)
+            try {
+                const botResponse = await fetch("/api/bot-games");
+                if (botResponse.ok) {
+                    const botData = await botResponse.json();
+                    // API now returns single match instead of array
+                    setBotMatch(botData.match || null);
                 }
-            } else {
-                setBotMatches([]); // Clear bot matches when player matches exist
+            } catch (botErr) {
+                console.error("Error fetching bot match:", botErr);
+                setBotMatch(null);
             }
 
             setError(null);
@@ -312,6 +310,13 @@ export default function SpectatePage() {
                         <motion.p variants={fadeInUp} className="text-cyber-gray text-lg font-montserrat">
                             Watch real-time matches powered by Kaspa's sub-second block times.
                         </motion.p>
+                        <motion.div variants={fadeInUp} className="mt-6">
+                            <Link href="/bot-bet-history">
+                                <Button className="bg-gradient-cyber text-white border-0 font-orbitron">
+                                    🎲 My Bet History
+                                </Button>
+                            </Link>
+                        </motion.div>
                     </motion.div>
 
                     {/* Content */}
@@ -331,7 +336,7 @@ export default function SpectatePage() {
                                 Try Again
                             </Button>
                         </div>
-                    ) : matches.length === 0 && botMatches.length === 0 ? (
+                    ) : matches.length === 0 && !botMatch ? (
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -369,32 +374,31 @@ export default function SpectatePage() {
                                 </motion.div>
                             )}
 
-                            {/* Bot Matches Section */}
-                            {botMatches.length > 0 && (
+                            {/* Single Bot Match Room */}
+                            {botMatch && (
                                 <>
                                     {matches.length > 0 && (
                                         <div className="mt-12 mb-8 flex items-center gap-4">
                                             <div className="flex-1 h-px bg-orange-500/30" />
                                             <h2 className="text-lg font-orbitron text-orange-400 flex items-center gap-2">
-                                                <span>🤖</span> BOT BATTLES
+                                                <span>🤖</span> BOT BATTLE ROOM • BETTING AVAILABLE
                                             </h2>
                                             <div className="flex-1 h-px bg-orange-500/30" />
                                         </div>
                                     )}
                                     {matches.length === 0 && (
                                         <div className="mb-8 text-center">
-                                            <p className="text-cyber-gray mb-4">No player matches available. Watch our bots battle!</p>
+                                            <h2 className="text-2xl font-bold text-orange-400 font-orbitron mb-2">🤖 24/7 BOT BATTLE ROOM</h2>
+                                            <p className="text-cyber-gray">Watch continuous bot battles and place bets on the outcomes!</p>
                                         </div>
                                     )}
                                     <motion.div
                                         variants={staggerContainer}
                                         initial="hidden"
                                         animate="visible"
-                                        className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
+                                        className="max-w-2xl mx-auto"
                                     >
-                                        {botMatches.map((match) => (
-                                            <BotMatchCard key={match.id} match={match} />
-                                        ))}
+                                        <BotMatchCard match={botMatch} />
                                     </motion.div>
                                 </>
                             )}

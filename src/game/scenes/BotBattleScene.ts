@@ -166,7 +166,7 @@ export class BotBattleScene extends Phaser.Scene {
             const currentTurn = this.config.turns[targetTurnIndex - 1];
             this.updateUIFromTurn(currentTurn);
             this.roundScoreText.setText(
-                `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 3)`
+                `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`
             );
         }
     }
@@ -292,7 +292,7 @@ export class BotBattleScene extends Phaser.Scene {
         this.roundScoreText = this.add.text(
             GAME_DIMENSIONS.CENTER_X,
             60,
-            `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 3)`,
+            `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`,
             { fontFamily: "Orbitron", fontSize: "24px", color: "#ffffff" }
         ).setOrigin(0.5);
 
@@ -702,7 +702,7 @@ export class BotBattleScene extends Phaser.Scene {
 
                                     this.currentRound++;
                                     this.roundScoreText.setText(
-                                        `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 3)`
+                                        `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`
                                     );
                                 }
 

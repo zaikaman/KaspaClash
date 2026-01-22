@@ -37,8 +37,8 @@ export async function POST(
     try {
         const { matchId } = await params;
 
-        // Get bot match
-        const match = getBotMatch(matchId);
+        // Get bot match from database
+        const match = await getBotMatch(matchId);
         if (!match) {
             return NextResponse.json(
                 { success: false, error: "Bot match not found" },

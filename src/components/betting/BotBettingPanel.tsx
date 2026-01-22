@@ -1,6 +1,7 @@
 /**
- * BotBettingPanel Component
- * UI for placing bets on bot matches
+ * BotBettingPanel Component - HOUSE MODEL
+ * Simplified betting with fixed 2x odds and 1% fee
+ * Players bet against the house, not each other
  */
 
 "use client";
@@ -10,14 +11,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { useWallet } from "@/hooks/useWallet";
 import { sendKaspa } from "@/lib/kaspa/wallet";
-import {
-    kasToSompi,
-    sompiToKas,
-    formatOdds,
-    MIN_BET_SOMPI,
-} from "@/lib/betting/betting-service";
+import { kasToSompi } from "@/lib/betting/betting-service";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Coins01Icon, LockKeyIcon, Tick02Icon, Time03Icon } from "@hugeicons/core-free-icons";
+
+// House betting constants
+const HOUSE_ODDS = 2.0; // Fixed 2x payout
+const HOUSE_FEE_PERCENT = 1; // 1% fee
 
 // Quick bet amounts in KAS
 const QUICK_BETS = [1, 5, 10, 25, 50];
@@ -28,37 +28,20 @@ interface BotBettingPanelProps {
     bot2Name: string;
 }
 
-interface BettingPoolState {
-    isLoading: boolean;
+interface BettingStatus {
     isOpen: boolean;
-    turnsRemaining: number;
     secondsRemaining: number;
-    closesAtTurn: number;
-    currentTurn: number;
-    bot1Odds: number;
-    bot2Odds: number;
-    bot1Percentage: number;
-    bot2Percentage: number;
-    totalPool: bigint;
-    lockReason?: string;
+    reason?: string;
 }
 
 export function BotBettingPanel({ matchId, bot1Name, bot2Name }: BotBettingPanelProps) {
     const { address, isConnected } = useWallet();
 
-    const [poolState, setPoolState] = useState<BettingPoolState>({
-        isLoading: true,
+    const [bettingStatus, setBettingStatus] = useState<BettingStatus>({
         isOpen: true,
-        turnsRemaining: 3,
         secondsRemaining: 30,
-        closesAtTurn: 3,
-        currentTurn: 0,
-        bot1Odds: 2.0,
-        bot2Odds: 2.0,
-        bot1Percentage: 50,
-        bot2Percentage: 50,
-        totalPool: BigInt(0),
     });
+    const [isLoading, setIsLoading] = useState(true);
 
     const [selectedBot, setSelectedBot] = useState<'bot1' | 'bot2' | null>(null);
     const [betAmount, setBetAmount] = useState<string>("1");
@@ -66,48 +49,42 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name }: BotBettingPanel
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
 
-    // Fetch pool data
-    const fetchPoolData = useCallback(async () => {
+    // Fetch betting status
+    const fetchBettingStatus = useCallback(async () => {
         try {
             const response = await fetch(`/api/bot-betting/pool/${encodeURIComponent(matchId)}`);
             if (response.ok) {
                 const data = await response.json();
                 if (data.success) {
-                    setPoolState({
-                        isLoading: false,
+                    setBettingStatus({
                         isOpen: data.bettingStatus.isOpen,
-                        turnsRemaining: data.bettingStatus.turnsRemaining,
                         secondsRemaining: data.bettingStatus.secondsRemaining ?? 0,
-                        closesAtTurn: data.bettingStatus.closesAtTurn,
-                        currentTurn: data.bettingStatus.currentTurn,
-                        bot1Odds: data.odds.bot1Odds,
-                        bot2Odds: data.odds.bot2Odds,
-                        bot1Percentage: data.odds.bot1Percentage,
-                        bot2Percentage: data.odds.bot2Percentage,
-                        totalPool: BigInt(data.pool.totalPool),
-                        lockReason: data.bettingStatus.reason,
+                        reason: data.bettingStatus.reason,
                     });
+                    setIsLoading(false);
                 }
+            } else {
+                setIsLoading(false);
             }
         } catch (err) {
-            console.error("Failed to fetch betting pool:", err);
-            setPoolState(prev => ({ ...prev, isLoading: false }));
+            console.error("Failed to fetch betting status:", err);
+            setIsLoading(false);
         }
     }, [matchId]);
 
     // Initial fetch and polling
     useEffect(() => {
-        fetchPoolData();
-        const interval = setInterval(fetchPoolData, 2000); // Poll every 2s
+        fetchBettingStatus();
+        const interval = setInterval(fetchBettingStatus, 1000); // Poll every 1s for countdown
         return () => clearInterval(interval);
-    }, [fetchPoolData]);
+    }, [fetchBettingStatus]);
 
-    // Calculate potential winnings
-    const potentialPayout = selectedBot ? (() => {
-        const amount = parseFloat(betAmount) || 0;
-        const odds = selectedBot === 'bot1' ? poolState.bot1Odds : poolState.bot2Odds;
-        return amount * odds;
-    })() : 0;
+    // Calculate fee and total to send
+    // Fee is 1% ON TOP of the bet, payout is 2x the bet amount
+    const betAmountNum = parseFloat(betAmount) || 0;
+    const fee = betAmountNum * (HOUSE_FEE_PERCENT / 100);
+    const totalToSend = betAmountNum + fee;
+    const potentialPayout = betAmountNum * HOUSE_ODDS; // 2x the bet, not the fee
 
     // Vault address
     const isTestnet = address?.startsWith("kaspatest:");
@@ -117,6 +94,12 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name }: BotBettingPanel
 
     // Handle placing bet
     const handlePlaceBet = useCallback(async () => {
+        // Check if betting is still open
+        if (!bettingStatus.isOpen || bettingStatus.secondsRemaining <= 0) {
+            setError("Betting is closed for this match");
+            return;
+        }
+
         if (!selectedBot || !betAmount || !isConnected || !address) {
             setError("Please select a bot and enter amount");
             return;
@@ -133,17 +116,21 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name }: BotBettingPanel
             return;
         }
 
+        // Calculate total to send (bet + 1% fee)
+        const feeAmount = amount * (HOUSE_FEE_PERCENT / 100);
+        const totalAmount = amount + feeAmount;
+
         setIsPlacing(true);
         setError(null);
         setSuccess(null);
 
         try {
-            // Send KAS to vault
-            const sompiAmount = Number(kasToSompi(amount));
+            // Send bet + fee to vault
+            const sompiAmount = Number(kasToSompi(totalAmount));
             const txId = await sendKaspa(
                 vaultAddress,
                 sompiAmount,
-                `botbet:${matchId}:${selectedBot}`
+                `botbet:${matchId}:${selectedBot}:${amount}`
             );
 
             // Record bet
@@ -165,9 +152,13 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name }: BotBettingPanel
                 setSuccess(`Bet placed! TX: ${txId.slice(0, 12)}...`);
                 setBetAmount("1");
                 setSelectedBot(null);
-                fetchPoolData();
             } else {
-                setError(result.error || "Failed to record bet");
+                // Better error messages
+                if (result.error === "Bot match not found") {
+                    setError("This match is no longer accepting bets");
+                } else {
+                    setError(result.error || "Failed to record bet");
+                }
             }
         } catch (err) {
             console.error("Error placing bet:", err);
@@ -175,31 +166,34 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name }: BotBettingPanel
         } finally {
             setIsPlacing(false);
         }
-    }, [selectedBot, betAmount, matchId, isConnected, address, vaultAddress, fetchPoolData]);
+    }, [selectedBot, betAmount, matchId, isConnected, address, vaultAddress, bettingStatus]);
 
     // Loading state
-    if (poolState.isLoading) {
+    if (isLoading) {
         return (
             <div className="bg-black/60 backdrop-blur-sm rounded-xl border border-orange-500/30 p-4">
                 <div className="text-center text-cyber-gray">
                     <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                    Loading betting pool...
+                    Loading...
                 </div>
             </div>
         );
     }
 
-    // Pool closed
-    if (!poolState.isOpen) {
+    // Betting closed - check both isOpen AND secondsRemaining as safeguard
+    if (!bettingStatus.isOpen || bettingStatus.secondsRemaining <= 0) {
         return (
-            <div className="bg-black/60 backdrop-blur-sm rounded-xl border border-red-500/30 p-4">
+            <div className="bg-black/60 backdrop-blur-sm rounded-xl border border-gray-600/30 p-4">
                 <div className="text-center">
                     <div className="text-red-400 font-orbitron text-sm mb-2 flex items-center justify-center gap-2">
                         <HugeiconsIcon icon={LockKeyIcon} className="w-4 h-4" /> BETTING CLOSED
                     </div>
-                    {poolState.lockReason && (
-                        <div className="text-xs text-gray-400">{poolState.lockReason}</div>
+                    {bettingStatus.reason && (
+                        <div className="text-xs text-gray-400">{bettingStatus.reason}</div>
                     )}
+                    <div className="mt-3 text-xs text-gray-500">
+                        Wait for the next match to place bets
+                    </div>
                 </div>
             </div>
         );
@@ -218,15 +212,23 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name }: BotBettingPanel
                 </h3>
                 <div className="flex items-center gap-2">
                     <HugeiconsIcon icon={Time03Icon} className="w-4 h-4 text-orange-400" />
-                    <span className={`text-xs font-mono ${poolState.secondsRemaining <= 5 ? 'text-red-400' : poolState.secondsRemaining <= 10 ? 'text-yellow-400' : 'text-gray-400'}`}>
-                        {poolState.secondsRemaining}s remaining
+                    <span className={`text-xs font-mono font-bold ${bettingStatus.secondsRemaining <= 5 ? 'text-red-400' : bettingStatus.secondsRemaining <= 10 ? 'text-yellow-400' : 'text-green-400'}`}>
+                        {bettingStatus.secondsRemaining}s
                     </span>
                 </div>
             </div>
 
-            {/* Odds Display */}
+            {/* House Model Badge */}
+            <div className="mb-4 p-2 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 rounded-lg border border-yellow-500/30">
+                <div className="text-center">
+                    <div className="text-yellow-400 font-orbitron text-lg font-bold">2x PAYOUT</div>
+                    <div className="text-xs text-gray-400">Fixed odds • 1% fee • Win double your bet!</div>
+                </div>
+            </div>
+
+            {/* Bot Selection */}
             <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-4">
-                {/* Bot 1 Odds */}
+                {/* Bot 1 */}
                 <button
                     onClick={() => setSelectedBot('bot1')}
                     className={`relative p-2 sm:p-3 rounded-lg border-2 transition-all ${selectedBot === 'bot1'
@@ -236,12 +238,12 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name }: BotBettingPanel
                 >
                     <div className="text-xs text-gray-400 mb-1 truncate">🤖 {bot1Name}</div>
                     <div className="text-lg sm:text-xl font-bold text-orange-400 font-orbitron">
-                        {formatOdds(poolState.bot1Odds)}
+                        2.00x
                     </div>
-                    <div className="text-xs text-gray-500">{poolState.bot1Percentage}%</div>
+                    <div className="text-xs text-gray-500">Win double!</div>
                 </button>
 
-                {/* Bot 2 Odds */}
+                {/* Bot 2 */}
                 <button
                     onClick={() => setSelectedBot('bot2')}
                     className={`relative p-2 sm:p-3 rounded-lg border-2 transition-all ${selectedBot === 'bot2'
@@ -251,18 +253,10 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name }: BotBettingPanel
                 >
                     <div className="text-xs text-gray-400 mb-1 truncate">🤖 {bot2Name}</div>
                     <div className="text-lg sm:text-xl font-bold text-cyan-400 font-orbitron">
-                        {formatOdds(poolState.bot2Odds)}
+                        2.00x
                     </div>
-                    <div className="text-xs text-gray-500">{poolState.bot2Percentage}%</div>
+                    <div className="text-xs text-gray-500">Win double!</div>
                 </button>
-            </div>
-
-            {/* Pool Distribution Bar */}
-            <div className="h-2 bg-gray-800 rounded-full mb-4 overflow-hidden">
-                <div
-                    className="h-full bg-gradient-to-r from-orange-500 to-cyan-500 transition-all duration-500"
-                    style={{ width: `${poolState.bot1Percentage}%` }}
-                />
             </div>
 
             {/* Bet Amount */}
@@ -294,11 +288,24 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name }: BotBettingPanel
             </div>
 
             {/* Potential Winnings */}
-            {selectedBot && potentialPayout > 0 && (
-                <div className="bg-gray-800/50 rounded-lg p-3 mb-4">
-                    <div className="text-xs text-gray-400 mb-1">Potential Payout</div>
-                    <div className="text-lg font-bold text-green-400 font-orbitron">
-                        {potentialPayout.toFixed(2)} KAS
+            {selectedBot && betAmountNum > 0 && (
+                <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-lg p-3 mb-4 border border-green-500/30">
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <div className="text-xs text-gray-400 mb-1">If you win</div>
+                            <div className="text-xl font-bold text-green-400 font-orbitron">
+                                {potentialPayout.toFixed(2)} KAS
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <div className="text-xs text-gray-500">You send</div>
+                            <div className="text-xs text-orange-400 font-mono">
+                                {totalToSend.toFixed(2)} KAS
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                                ({betAmountNum} + {fee.toFixed(2)} fee)
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
@@ -348,7 +355,7 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name }: BotBettingPanel
             </Button>
 
             <div className="text-center text-xs text-gray-500 mt-2">
-                0.1% fee applies
+                House betting • Fixed 2x payout • 1% fee
             </div>
         </motion.div>
     );

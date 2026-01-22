@@ -8,6 +8,7 @@
 import { CombatEngine } from "@/game/combat";
 import { CHARACTER_ROSTER } from "@/data/characters";
 import type { Character, MoveType } from "@/types";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /**
  * Pre-computed turn data
@@ -219,107 +220,298 @@ export function generateBotMatch(): BotMatch {
     return simulateBotMatch(matchId);
 }
 
-// In-memory store for active bot matches
-let activeBotMatches: BotMatch[] = [];
-
 /**
  * Get current turn index based on elapsed time (24/7 operation)
  */
 export function getCurrentTurnIndex(match: BotMatch): number {
+    const BETTING_WINDOW_MS = 30000; // 30 seconds betting period
     const elapsed = Date.now() - match.createdAt;
-    const turnIndex = Math.floor(elapsed / match.turnDurationMs);
-    return Math.min(turnIndex, match.totalTurns - 1);
+    
+    // Match doesn't start until after betting window
+    if (elapsed < BETTING_WINDOW_MS) {
+        return 0; // Still in betting phase, no turns have started yet
+    }
+    
+    // Calculate turn index starting from after betting window
+    const gameElapsed = elapsed - BETTING_WINDOW_MS;
+    const turnIndex = Math.floor(gameElapsed / match.turnDurationMs);
+    
+    // Clamp to valid range
+    const currentTurn = Math.min(turnIndex, match.totalTurns - 1);
+    
+    // If we've passed the last turn, the match is finished
+    if (turnIndex >= match.totalTurns) {
+        return match.totalTurns - 1; // Return last turn index
+    }
+    
+    return Math.max(0, currentTurn);
 }
 
 /**
- * Get all active bot matches
+ * Check if a match has finished based on elapsed time
  */
-export function getActiveBotMatches(): BotMatch[] {
-    return activeBotMatches;
+export function isMatchFinished(match: BotMatch): boolean {
+    const BETTING_WINDOW_MS = 30000; // 30 seconds
+    const elapsed = Date.now() - match.createdAt;
+    const maxDuration = match.totalTurns * match.turnDurationMs + BETTING_WINDOW_MS;
+    return elapsed >= maxDuration || match.status === 'completed';
 }
 
 /**
- * Get a specific bot match by ID
+ * Get all active bot matches from database
  */
-export function getBotMatch(matchId: string): BotMatch | undefined {
-    return activeBotMatches.find(m => m.id === matchId);
+export async function getActiveBotMatches(): Promise<BotMatch[]> {
+    const supabase = await createSupabaseServerClient();
+    
+    // Type assertion needed until migration is applied and types regenerated
+    const { data, error } = await (supabase as any)
+        .from('bot_matches')
+        .select('*')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+    if (error) {
+        console.error('[getActiveBotMatches] Database error:', error);
+        return [];
+    }
+
+    return (data || []).map((dbMatch: any) => ({
+        id: dbMatch.id,
+        bot1CharacterId: dbMatch.bot1_character_id,
+        bot2CharacterId: dbMatch.bot2_character_id,
+        bot1Name: dbMatch.bot1_name,
+        bot2Name: dbMatch.bot2_name,
+        seed: dbMatch.seed,
+        createdAt: new Date(dbMatch.created_at).getTime(),
+        status: dbMatch.status as "active" | "completed",
+        turns: dbMatch.turns as BotTurnData[],
+        totalTurns: dbMatch.total_turns,
+        matchWinner: dbMatch.match_winner as "player1" | "player2" | null,
+        bot1RoundsWon: dbMatch.bot1_rounds_won,
+        bot2RoundsWon: dbMatch.bot2_rounds_won,
+        turnDurationMs: dbMatch.turn_duration_ms,
+        bot1MaxHp: dbMatch.bot1_max_hp,
+        bot2MaxHp: dbMatch.bot2_max_hp,
+        bot1MaxEnergy: dbMatch.bot1_max_energy,
+        bot2MaxEnergy: dbMatch.bot2_max_energy,
+        bettingClosesAtTurn: dbMatch.betting_closes_at_turn,
+    }));
 }
 
 /**
- * Add a new bot match
+ * Get a specific bot match by ID from database
  */
-export function addBotMatch(match: BotMatch): void {
-    activeBotMatches.push(match);
+export async function getBotMatch(matchId: string): Promise<BotMatch | null> {
+    const supabase = await createSupabaseServerClient();
+    
+    // Type assertion needed until migration is applied and types regenerated
+    const { data, error } = await (supabase as any)
+        .from('bot_matches')
+        .select('*')
+        .eq('id', matchId)
+        .single();
 
-    // Keep only last 10 matches
-    if (activeBotMatches.length > 10) {
-        activeBotMatches = activeBotMatches.slice(-10);
+    if (error || !data) {
+        return null;
+    }
+
+    const dbMatch: any = data;
+    return {
+        id: dbMatch.id,
+        bot1CharacterId: dbMatch.bot1_character_id,
+        bot2CharacterId: dbMatch.bot2_character_id,
+        bot1Name: dbMatch.bot1_name,
+        bot2Name: dbMatch.bot2_name,
+        seed: dbMatch.seed,
+        createdAt: new Date(dbMatch.created_at).getTime(),
+        status: dbMatch.status as "active" | "completed",
+        turns: dbMatch.turns as BotTurnData[],
+        totalTurns: dbMatch.total_turns,
+        matchWinner: dbMatch.match_winner as "player1" | "player2" | null,
+        bot1RoundsWon: dbMatch.bot1_rounds_won,
+        bot2RoundsWon: dbMatch.bot2_rounds_won,
+        turnDurationMs: dbMatch.turn_duration_ms,
+        bot1MaxHp: dbMatch.bot1_max_hp,
+        bot2MaxHp: dbMatch.bot2_max_hp,
+        bot1MaxEnergy: dbMatch.bot1_max_energy,
+        bot2MaxEnergy: dbMatch.bot2_max_energy,
+        bettingClosesAtTurn: dbMatch.betting_closes_at_turn,
+    };
+}
+
+/**
+ * Add a new bot match to database
+ */
+export async function addBotMatch(match: BotMatch): Promise<void> {
+    const supabase = await createSupabaseServerClient();
+    
+    // Type assertion needed until migration is applied and types regenerated
+    const { error } = await (supabase as any)
+        .from('bot_matches')
+        .insert({
+            id: match.id,
+            bot1_character_id: match.bot1CharacterId,
+            bot2_character_id: match.bot2CharacterId,
+            bot1_name: match.bot1Name,
+            bot2_name: match.bot2Name,
+            seed: match.seed,
+            status: match.status,
+            turns: match.turns,
+            total_turns: match.totalTurns,
+            match_winner: match.matchWinner,
+            bot1_rounds_won: match.bot1RoundsWon,
+            bot2_rounds_won: match.bot2RoundsWon,
+            turn_duration_ms: match.turnDurationMs,
+            bot1_max_hp: match.bot1MaxHp,
+            bot2_max_hp: match.bot2MaxHp,
+            bot1_max_energy: match.bot1MaxEnergy,
+            bot2_max_energy: match.bot2MaxEnergy,
+            betting_closes_at_turn: match.bettingClosesAtTurn,
+        });
+
+    if (error) {
+        console.error('[addBotMatch] Database error:', error);
+        throw new Error('Failed to add bot match to database');
     }
 }
 
 /**
- * Remove a bot match
+ * Remove a bot match from database
  */
-export function removeBotMatch(matchId: string): void {
-    activeBotMatches = activeBotMatches.filter(m => m.id !== matchId);
+export async function removeBotMatch(matchId: string): Promise<void> {
+    const supabase = await createSupabaseServerClient();
+    
+    // Type assertion needed until migration is applied and types regenerated
+    const { error } = await (supabase as any)
+        .from('bot_matches')
+        .delete()
+        .eq('id', matchId);
+
+    if (error) {
+        console.error('[removeBotMatch] Database error:', error);
+    }
 }
 
 /**
- * Ensure there's always at least one active bot match.
- * Creates a new match if the current one has finished playing.
+ * Mark a bot match as completed in database
  */
-export function ensureActiveBotMatch(): BotMatch {
-    // Clean up finished matches
+export async function markBotMatchCompleted(matchId: string): Promise<void> {
+    const supabase = await createSupabaseServerClient();
+    
+    // Type assertion needed until migration is applied and types regenerated
+    const { error } = await (supabase as any)
+        .from('bot_matches')
+        .update({ status: 'completed' })
+        .eq('id', matchId);
+
+    if (error) {
+        console.error('[markBotMatchCompleted] Database error:', error);
+    }
+}
+
+/**
+ * Ensure there's always exactly one active bot match (single room system).
+ * Creates a new match only when the current one has finished playing.
+ */
+export async function ensureActiveBotMatch(): Promise<BotMatch> {
+    const supabase = await createSupabaseServerClient();
     const now = Date.now();
-    activeBotMatches = activeBotMatches.filter(m => {
-        const maxDuration = m.totalTurns * m.turnDurationMs;
-        const elapsed = now - m.createdAt;
-        // Keep matches that haven't finished playing yet, plus a 10s buffer
-        return elapsed < maxDuration + 10000;
-    });
+    const BETTING_WINDOW_MS = 30000; // 30 seconds
 
-    // Check for a match that's still playing
-    const playingMatch = activeBotMatches.find(m => {
-        const elapsed = now - m.createdAt;
-        const maxDuration = m.totalTurns * m.turnDurationMs;
-        return elapsed < maxDuration;
-    });
+    // Clean up old matches (older than 24 hours)
+    await (supabase as any)
+        .from('bot_matches')
+        .delete()
+        .lt('created_at', new Date(now - 24 * 60 * 60 * 1000).toISOString());
 
-    if (playingMatch) {
-        return playingMatch;
+    // Find the most recent active match
+    const { data: matches } = await (supabase as any)
+        .from('bot_matches')
+        .select('*')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+    if (matches && matches.length > 0) {
+        const dbMatch = matches[0];
+        const createdAt = new Date(dbMatch.created_at).getTime();
+        
+        const match: BotMatch = {
+            id: dbMatch.id,
+            bot1CharacterId: dbMatch.bot1_character_id,
+            bot2CharacterId: dbMatch.bot2_character_id,
+            bot1Name: dbMatch.bot1_name,
+            bot2Name: dbMatch.bot2_name,
+            seed: dbMatch.seed,
+            createdAt,
+            status: dbMatch.status as "active" | "completed",
+            turns: dbMatch.turns as BotTurnData[],
+            totalTurns: dbMatch.total_turns,
+            matchWinner: dbMatch.match_winner as "player1" | "player2" | null,
+            bot1RoundsWon: dbMatch.bot1_rounds_won,
+            bot2RoundsWon: dbMatch.bot2_rounds_won,
+            turnDurationMs: dbMatch.turn_duration_ms,
+            bot1MaxHp: dbMatch.bot1_max_hp,
+            bot2MaxHp: dbMatch.bot2_max_hp,
+            bot1MaxEnergy: dbMatch.bot1_max_energy,
+            bot2MaxEnergy: dbMatch.bot2_max_energy,
+            bettingClosesAtTurn: dbMatch.betting_closes_at_turn,
+        };
+        
+        // If match has finished, mark it as completed and create a new one
+        if (isMatchFinished(match)) {
+            await markBotMatchCompleted(dbMatch.id);
+            // Create new match immediately
+            const newMatch = generateBotMatch();
+            await addBotMatch(newMatch);
+            return newMatch;
+        }
+        
+        // Return the currently active match
+        return match;
     }
 
-    // Generate new match
+    // No active matches exist, create the first one
     const newMatch = generateBotMatch();
-    addBotMatch(newMatch);
+    await addBotMatch(newMatch);
     return newMatch;
 }
-
 /**
- * Cleanup old matches
+ * Cleanup old matches from database
  */
-export function cleanupOldMatches(): void {
-    const oneHourAgo = Date.now() - (60 * 60 * 1000);
-    activeBotMatches = activeBotMatches.filter(m => m.createdAt > oneHourAgo);
+export async function cleanupOldMatches(): Promise<void> {
+    const supabase = await createSupabaseServerClient();
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    
+    // Type assertion needed until migration is applied and types regenerated
+    await (supabase as any)
+        .from('bot_matches')
+        .delete()
+        .lt('created_at', oneDayAgo);
 }
 
 /**
  * Get sync info for spectators joining mid-match
  */
-export function getMatchSyncInfo(matchId: string): {
+export async function getMatchSyncInfo(matchId: string): Promise<{
     match: BotMatch;
     currentTurnIndex: number;
     elapsedMs: number;
     isFinished: boolean;
-} | null {
-    const match = getBotMatch(matchId);
+} | null> {
+    const match = await getBotMatch(matchId);
     if (!match) return null;
 
     const now = Date.now();
     const elapsedMs = now - match.createdAt;
     const currentTurnIndex = getCurrentTurnIndex(match);
-    const maxDuration = match.totalTurns * match.turnDurationMs;
-    const isFinished = elapsedMs >= maxDuration;
+    const isFinished = isMatchFinished(match);
+
+    // If match is finished but not marked as completed, mark it now
+    if (isFinished && match.status === 'active') {
+        await markBotMatchCompleted(matchId);
+    }
 
     return {
         match,
@@ -374,17 +566,20 @@ export function getBettingStatus(match: BotMatch): {
     const turnsRemaining = Math.max(0, closesAtTurn - currentTurn);
 
     const elapsed = Date.now() - match.createdAt;
-    const secondsRemaining = Math.max(0, Math.ceil((BETTING_WINDOW_MS - elapsed) / 1000));
+    let secondsRemaining = Math.max(0, Math.ceil((BETTING_WINDOW_MS - elapsed) / 1000));
 
     let isOpen = secondsRemaining > 0;
     let reason: string | undefined;
 
     // Check if match is finished
-    const maxDuration = match.totalTurns * match.turnDurationMs + BETTING_WINDOW_MS;
-    if (elapsed >= maxDuration) {
+    if (elapsed >= match.totalTurns * match.turnDurationMs + BETTING_WINDOW_MS) {
         isOpen = false;
+        secondsRemaining = 0;
         reason = "Match has ended";
-    } else if (secondsRemaining === 0) {
+    } 
+    // Check if betting window has closed
+    else if (secondsRemaining === 0) {
+        isOpen = false;
         reason = "Betting period ended";
     }
 

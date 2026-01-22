@@ -21,7 +21,9 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [gameReady, setGameReady] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [currentMatch, setCurrentMatch] = useState(match);
     const gameRef = useRef<Phaser.Game | null>(null);
+    const isLoadingNewMatch = useRef(false);
 
     useEffect(() => {
         let isMounted = true;
@@ -50,22 +52,22 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
 
                 // Start scene with pre-computed match data
                 gameRef.current.scene.start("BotBattleScene", {
-                    matchId: match.id,
-                    bot1CharacterId: match.bot1CharacterId,
-                    bot2CharacterId: match.bot2CharacterId,
-                    bot1Name: match.bot1Name,
-                    bot2Name: match.bot2Name,
-                    turns: match.turns,
-                    totalTurns: match.totalTurns,
-                    startTurnIndex: match.currentTurnIndex,
-                    turnDurationMs: match.turnDurationMs,
-                    bot1MaxHp: match.bot1MaxHp,
-                    bot2MaxHp: match.bot2MaxHp,
-                    bot1MaxEnergy: match.bot1MaxEnergy,
-                    bot2MaxEnergy: match.bot2MaxEnergy,
-                    matchWinner: match.matchWinner,
-                    bot1RoundsWon: match.bot1RoundsWon,
-                    bot2RoundsWon: match.bot2RoundsWon,
+                    matchId: currentMatch.id,
+                    bot1CharacterId: currentMatch.bot1CharacterId,
+                    bot2CharacterId: currentMatch.bot2CharacterId,
+                    bot1Name: currentMatch.bot1Name,
+                    bot2Name: currentMatch.bot2Name,
+                    turns: currentMatch.turns,
+                    totalTurns: currentMatch.totalTurns,
+                    startTurnIndex: currentMatch.currentTurnIndex,
+                    turnDurationMs: currentMatch.turnDurationMs,
+                    bot1MaxHp: currentMatch.bot1MaxHp,
+                    bot2MaxHp: currentMatch.bot2MaxHp,
+                    bot1MaxEnergy: currentMatch.bot1MaxEnergy,
+                    bot2MaxEnergy: currentMatch.bot2MaxEnergy,
+                    matchWinner: currentMatch.matchWinner,
+                    bot1RoundsWon: currentMatch.bot1RoundsWon,
+                    bot2RoundsWon: currentMatch.bot2RoundsWon,
                 });
 
                 setGameReady(true);
@@ -77,10 +79,41 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
 
         initGame();
 
-        // Listen for new match request
-        const handleNewMatchRequest = () => {
-            // Redirect to spectate page to get a new match
-            window.location.href = "/spectate";
+        // Listen for match end and load next match in the same room
+        const handleNewMatchRequest = async () => {
+            if (isLoadingNewMatch.current) return;
+            isLoadingNewMatch.current = true;
+
+            try {
+                // Fetch the new active match
+                const response = await fetch("/api/bot-games");
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.match) {
+                        // Destroy current game
+                        if (gameRef.current) {
+                            gameRef.current.destroy(true);
+                            gameRef.current = null;
+                        }
+                        
+                        // Update to new match
+                        setCurrentMatch({
+                            ...data.match,
+                            currentTurnIndex: data.currentTurnIndex || 0,
+                        });
+                        setGameReady(false);
+                        
+                        // Reinitialize game with new match
+                        setTimeout(() => {
+                            isLoadingNewMatch.current = false;
+                            initGame();
+                        }, 1000);
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to load next match:", err);
+                isLoadingNewMatch.current = false;
+            }
         };
         EventBus.on("bot_battle_request_new_match", handleNewMatchRequest);
 
@@ -92,11 +125,11 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
                 gameRef.current = null;
             }
         };
-    }, [match]);
+    }, [currentMatch]);
 
     // Calculate progress for UI
-    const progress = match.totalTurns > 0
-        ? Math.min(100, (match.currentTurnIndex / match.totalTurns) * 100)
+    const progress = currentMatch.totalTurns > 0
+        ? Math.min(100, (currentMatch.currentTurnIndex / currentMatch.totalTurns) * 100)
         : 0;
 
     return (
@@ -121,7 +154,7 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
 
                     {/* Progress indicator */}
                     <div className="hidden sm:flex items-center gap-2">
-                        <span className="text-gray-400 text-xs font-mono">Turn {match.currentTurnIndex}/{match.totalTurns}</span>
+                        <span className="text-gray-400 text-xs font-mono">Turn {currentMatch.currentTurnIndex}/{currentMatch.totalTurns}</span>
                         <div className="w-24 h-2 bg-gray-700 rounded-full overflow-hidden">
                             <div
                                 className="h-full bg-orange-500 transition-all"
@@ -132,9 +165,9 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
                 </div>
 
                 <div className="text-white font-orbitron text-sm">
-                    <span className="text-orange-400">{match.bot1Name}</span>
+                    <span className="text-orange-400">{currentMatch.bot1Name}</span>
                     <span className="mx-2 text-gray-500">vs</span>
-                    <span className="text-orange-400">{match.bot2Name}</span>
+                    <span className="text-orange-400">{currentMatch.bot2Name}</span>
                 </div>
             </motion.div>
 
@@ -164,8 +197,8 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
                                     <div className="text-center">
                                         <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                                         <p className="text-orange-400 font-orbitron">
-                                            {match.currentTurnIndex > 0
-                                                ? `Catching up to turn ${match.currentTurnIndex}...`
+                                            {currentMatch.currentTurnIndex > 0
+                                                ? `Catching up to turn ${currentMatch.currentTurnIndex}...`
                                                 : "Loading bot battle..."}
                                         </p>
                                     </div>
@@ -183,9 +216,9 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
                     className="w-full lg:w-[380px] shrink-0"
                 >
                     <BotBettingPanel
-                        matchId={match.id}
-                        bot1Name={match.bot1Name}
-                        bot2Name={match.bot2Name}
+                        matchId={currentMatch.id}
+                        bot1Name={currentMatch.bot1Name}
+                        bot2Name={currentMatch.bot2Name}
                     />
                 </motion.div>
             </div>
@@ -199,11 +232,11 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
             >
                 <div className="max-w-4xl mx-auto flex items-center justify-between text-sm">
                     <p className="text-cyber-gray">
-                        <span className="text-orange-400">🤖</span> Pre-computed bot battle running 24/7 •
-                        Moves are purely random • You joined at turn {match.currentTurnIndex}
+                        <span className="text-orange-400">🤖</span> 24/7 Bot Battle Room • New match starts automatically •
+                        You joined at turn {currentMatch.currentTurnIndex}
                     </p>
                     <p className="text-cyber-gray font-mono text-xs">
-                        Match: {match.id.slice(0, 20)}...
+                        Match: {currentMatch.id.slice(0, 20)}...
                     </p>
                 </div>
             </motion.div>

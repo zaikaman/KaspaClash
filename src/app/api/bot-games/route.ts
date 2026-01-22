@@ -16,19 +16,30 @@ import {
 
 /**
  * GET /api/bot-games
- * Returns active bot matches with sync info
+ * Returns the single active bot match with sync info
  */
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const matchId = searchParams.get("matchId");
 
-        cleanupOldMatches();
+        await cleanupOldMatches();
 
         // Get specific match with sync info
         if (matchId) {
-            const syncInfo = getMatchSyncInfo(matchId);
+            const syncInfo = await getMatchSyncInfo(matchId);
             if (syncInfo) {
+                // If match is finished, get the new active match instead
+                if (syncInfo.isFinished) {
+                    const activeMatch = await ensureActiveBotMatch();
+                    return NextResponse.json({
+                        success: true,
+                        match: activeMatch,
+                        currentTurnIndex: getCurrentTurnIndex(activeMatch),
+                        elapsedMs: Date.now() - activeMatch.createdAt,
+                        isFinished: false,
+                    });
+                }
                 return NextResponse.json({
                     success: true,
                     match: syncInfo.match,
@@ -37,26 +48,26 @@ export async function GET(request: Request) {
                     isFinished: syncInfo.isFinished,
                 });
             }
-            return NextResponse.json(
-                { success: false, error: "Match not found" },
-                { status: 404 }
-            );
+            // Match not found, get current active match
+            const activeMatch = await ensureActiveBotMatch();
+            return NextResponse.json({
+                success: true,
+                match: activeMatch,
+                currentTurnIndex: getCurrentTurnIndex(activeMatch),
+                elapsedMs: Date.now() - activeMatch.createdAt,
+                isFinished: false,
+            });
         }
 
-        // Ensure there's an active match and get all
-        ensureActiveBotMatch();
-        const matches = getActiveBotMatches();
-
-        // Add current turn info to each match
-        const matchesWithSync = matches.map(m => ({
-            ...m,
-            currentTurnIndex: getCurrentTurnIndex(m),
-        }));
+        // Get the single active match
+        const match = await ensureActiveBotMatch();
+        const currentTurnIndex = getCurrentTurnIndex(match);
 
         return NextResponse.json({
             success: true,
-            matches: matchesWithSync,
-            count: matchesWithSync.length,
+            match,
+            currentTurnIndex,
+            count: 1,
         });
     } catch (error) {
         console.error("Error fetching bot games:", error);
@@ -74,7 +85,7 @@ export async function GET(request: Request) {
 export async function POST() {
     try {
         const match = generateBotMatch();
-        addBotMatch(match);
+        await addBotMatch(match);
 
         return NextResponse.json({
             success: true,

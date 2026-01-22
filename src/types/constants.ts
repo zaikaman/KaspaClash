@@ -107,13 +107,13 @@ export const GAME_CONSTANTS = {
   CHARACTER_SELECT_TIME_LIMIT: 30,
 
   /** Rounds needed to win in best_of_3 */
-  ROUNDS_TO_WIN_BEST_OF_3: 2,
+  ROUNDS_TO_WIN_BEST_OF_3: 3,
 
   /** Rounds needed to win in best_of_5 */
   ROUNDS_TO_WIN_BEST_OF_5: 3,
 
   /** Maximum rounds in best_of_3 */
-  MAX_ROUNDS_BEST_OF_3: 3,
+  MAX_ROUNDS_BEST_OF_3: 5,
 
   /** Maximum rounds in best_of_5 */
   MAX_ROUNDS_BEST_OF_5: 5,
