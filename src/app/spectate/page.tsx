@@ -7,6 +7,8 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { getCharacter } from "@/data/characters";
 import { motion } from "framer-motion";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { RoboticIcon, DiceFaces03Icon, EyeIcon, GameController02Icon } from "@hugeicons/core-free-icons";
 
 interface LiveMatch {
     id: string;
@@ -64,7 +66,7 @@ function BotMatchCard({ match }: { match: BotMatch }) {
         >
             {/* Bot Match Indicator */}
             <div className="absolute top-4 right-4 flex items-center gap-2 z-10 bg-orange-500/20 px-3 py-1 rounded-full border border-orange-500/40 backdrop-blur-sm">
-                <span className="text-lg">🤖</span>
+                <HugeiconsIcon icon={RoboticIcon} className="w-5 h-5 text-orange-400" />
                 <span className="text-xs text-orange-400 font-orbitron uppercase tracking-wider font-bold">Bot Match</span>
             </div>
 
@@ -81,7 +83,7 @@ function BotMatchCard({ match }: { match: BotMatch }) {
                             />
                         ) : (
                             <div className="w-full h-full rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-center justify-center">
-                                <span className="text-orange-400 text-2xl">🤖</span>
+                                <HugeiconsIcon icon={RoboticIcon} className="text-orange-400 w-8 h-8" />
                             </div>
                         )}
                     </div>
@@ -123,7 +125,7 @@ function BotMatchCard({ match }: { match: BotMatch }) {
             <div className="mt-8">
                 <Link href={`/spectate/bot/${match.id}`} className="block">
                     <Button className="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white border-0 font-orbitron hover:opacity-90 py-6 text-lg tracking-widest">
-                        <span className="mr-3">🤖</span>
+                        <HugeiconsIcon icon={RoboticIcon} className="w-5 h-5 mr-3" />
                         WATCH BOT BATTLE
                     </Button>
                 </Link>
@@ -211,10 +213,7 @@ function MatchCard({ match }: { match: LiveMatch }) {
             <div className="mt-8">
                 <Link href={`/spectate/${match.id}`} className="block">
                     <Button className="w-full bg-gradient-cyber text-white border-0 font-orbitron hover:opacity-90 py-6 text-lg tracking-widest">
-                        <svg className="w-5 h-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
+                        <HugeiconsIcon icon={EyeIcon} className="w-5 h-5 mr-3" />
                         WATCH LIVE
                     </Button>
                 </Link>
@@ -313,7 +312,7 @@ export default function SpectatePage() {
                         <motion.div variants={fadeInUp} className="mt-6">
                             <Link href="/bot-bet-history">
                                 <Button className="bg-gradient-cyber text-white border-0 font-orbitron">
-                                    🎲 My Bet History
+                                    <HugeiconsIcon icon={DiceFaces03Icon} className="w-5 h-5 mr-2" /> My Bet History
                                 </Button>
                             </Link>
                         </motion.div>
@@ -343,10 +342,7 @@ export default function SpectatePage() {
                             className="text-center py-20"
                         >
                             <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-cyber-gold/10 border border-cyber-gold/30 flex items-center justify-center">
-                                <svg className="w-12 h-12 text-cyber-gold/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                </svg>
+                                <HugeiconsIcon icon={GameController02Icon} className="w-12 h-12 text-cyber-gold/50" />
                             </div>
                             <h2 className="text-2xl font-bold text-white font-orbitron mb-4">NO LIVE MATCHES</h2>
                             <p className="text-cyber-gray text-lg mb-8 max-w-md mx-auto">
@@ -381,14 +377,16 @@ export default function SpectatePage() {
                                         <div className="mt-12 mb-8 flex items-center gap-4">
                                             <div className="flex-1 h-px bg-orange-500/30" />
                                             <h2 className="text-lg font-orbitron text-orange-400 flex items-center gap-2">
-                                                <span>🤖</span> BOT BATTLE ROOM • BETTING AVAILABLE
+                                                <HugeiconsIcon icon={RoboticIcon} className="w-5 h-5" /> BOT BATTLE ROOM • BETTING AVAILABLE
                                             </h2>
                                             <div className="flex-1 h-px bg-orange-500/30" />
                                         </div>
                                     )}
                                     {matches.length === 0 && (
                                         <div className="mb-8 text-center">
-                                            <h2 className="text-2xl font-bold text-orange-400 font-orbitron mb-2">🤖 24/7 BOT BATTLE ROOM</h2>
+                                            <h2 className="text-2xl font-bold text-orange-400 font-orbitron mb-2 flex items-center justify-center gap-2">
+                                                <HugeiconsIcon icon={RoboticIcon} className="w-8 h-8" /> 24/7 BOT BATTLE ROOM
+                                            </h2>
                                             <p className="text-cyber-gray">Watch continuous bot battles and place bets on the outcomes!</p>
                                         </div>
                                     )}

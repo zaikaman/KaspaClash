@@ -177,7 +177,7 @@ export default function BotBetHistoryPage() {
                             </Button>
                         </Link>
                         <h1 className="text-4xl md:text-5xl font-orbitron font-bold text-orange-400">
-                            🤖 Bot Bet History
+                            Bot Bet History
                         </h1>
                     </div>
                     <DecorativeLine className="h-1" />

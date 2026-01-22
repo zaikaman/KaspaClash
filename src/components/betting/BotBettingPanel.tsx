@@ -13,7 +13,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { sendKaspa } from "@/lib/kaspa/wallet";
 import { kasToSompi } from "@/lib/betting/betting-service";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Coins01Icon, LockKeyIcon, Tick02Icon, Time03Icon } from "@hugeicons/core-free-icons";
+import { Coins01Icon, LockKeyIcon, Tick02Icon, Time03Icon, RoboticIcon } from "@hugeicons/core-free-icons";
 
 // House betting constants
 const HOUSE_ODDS = 2.0; // Fixed 2x payout
@@ -239,7 +239,9 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name }: BotBettingPanel
                         : 'border-gray-700 bg-gray-800/50 hover:border-orange-400/50'
                         }`}
                 >
-                    <div className="text-xs text-gray-400 mb-1 truncate">🤖 {bot1Name}</div>
+                    <div className="text-xs text-gray-400 mb-1 truncate flex items-center justify-center gap-1">
+                        <HugeiconsIcon icon={RoboticIcon} className="w-3 h-3" /> {bot1Name}
+                    </div>
                     <div className="text-lg sm:text-xl font-bold text-orange-400 font-orbitron">
                         2.00x
                     </div>
@@ -254,7 +256,9 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name }: BotBettingPanel
                         : 'border-gray-700 bg-gray-800/50 hover:border-cyan-400/50'
                         }`}
                 >
-                    <div className="text-xs text-gray-400 mb-1 truncate">🤖 {bot2Name}</div>
+                    <div className="text-xs text-gray-400 mb-1 truncate flex items-center justify-center gap-1">
+                        <HugeiconsIcon icon={RoboticIcon} className="w-3 h-3" /> {bot2Name}
+                    </div>
                     <div className="text-lg sm:text-xl font-bold text-cyan-400 font-orbitron">
                         2.00x
                     </div>

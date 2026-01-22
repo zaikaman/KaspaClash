@@ -232,7 +232,7 @@ export class BotBattleScene extends Phaser.Scene {
     private createBotBadge(): void {
         const badge = this.add.container(GAME_DIMENSIONS.CENTER_X, 120);
         const bg = this.add.rectangle(0, 0, 240, 40, 0x000000, 0.8).setStrokeStyle(2, 0xff6b35);
-        const text = this.add.text(0, 0, "🤖 BOT BATTLE (LIVE)", {
+        const text = this.add.text(0, 0, "BOT BATTLE (LIVE)", {
             fontFamily: "Orbitron",
             fontSize: "18px",
             color: "#ff6b35",
@@ -483,7 +483,7 @@ export class BotBattleScene extends Phaser.Scene {
         container.add(bg);
 
         // "WAITING FOR BETS" title
-        const titleText = this.add.text(0, 0, "🎮 WAITING FOR BETS... 🎮", {
+        const titleText = this.add.text(0, 0, "WAITING FOR BETS...", {
             fontFamily: "Orbitron",
             fontSize: "32px",
             color: "#ffd700",
@@ -586,9 +586,9 @@ export class BotBattleScene extends Phaser.Scene {
         const meetingPointX = GAME_DIMENSIONS.CENTER_X;
 
         // Calculate HP differences for damage display
-        const prevP1Health = this.currentTurnIndex > 0 ? 
+        const prevP1Health = this.currentTurnIndex > 0 ?
             this.config.turns[this.currentTurnIndex - 1].bot1Hp : this.config.bot1MaxHp;
-        const prevP2Health = this.currentTurnIndex > 0 ? 
+        const prevP2Health = this.currentTurnIndex > 0 ?
             this.config.turns[this.currentTurnIndex - 1].bot2Hp : this.config.bot2MaxHp;
         const p1Damage = Math.max(0, prevP1Health - turn.bot1Hp);
         const p2Damage = Math.max(0, prevP2Health - turn.bot2Hp);
@@ -622,11 +622,11 @@ export class BotBattleScene extends Phaser.Scene {
         }
 
         // Tween both characters toward targets (match FightScene timing: 600ms)
-        this.tweens.add({ 
-            targets: this.player1Sprite, 
-            x: p1TargetX, 
-            duration: p1IsStunned ? 0 : 600, 
-            ease: "Power2" 
+        this.tweens.add({
+            targets: this.player1Sprite,
+            x: p1TargetX,
+            duration: p1IsStunned ? 0 : 600,
+            ease: "Power2"
         });
 
         this.tweens.add({
@@ -672,9 +672,9 @@ export class BotBattleScene extends Phaser.Scene {
                         if (p2Damage > 0) {
                             this.time.delayedCall(300, () => {
                                 this.showFloatingText(
-                                    `-${p2Damage}`, 
-                                    p2TargetX, 
-                                    CHARACTER_POSITIONS.PLAYER2.Y - 130, 
+                                    `-${p2Damage}`,
+                                    p2TargetX,
+                                    CHARACTER_POSITIONS.PLAYER2.Y - 130,
                                     "#ff4444"
                                 );
 
@@ -727,9 +727,9 @@ export class BotBattleScene extends Phaser.Scene {
                         if (p1Damage > 0) {
                             this.time.delayedCall(300, () => {
                                 this.showFloatingText(
-                                    `-${p1Damage}`, 
-                                    p1TargetX, 
-                                    CHARACTER_POSITIONS.PLAYER1.Y - 130, 
+                                    `-${p1Damage}`,
+                                    p1TargetX,
+                                    CHARACTER_POSITIONS.PLAYER1.Y - 130,
                                     "#ff4444"
                                 );
 
@@ -838,11 +838,11 @@ export class BotBattleScene extends Phaser.Scene {
                     }
 
                     // Tween back to original positions (match FightScene: 600ms)
-                    this.tweens.add({ 
-                        targets: this.player1Sprite, 
-                        x: p1OriginalX, 
-                        duration: p1IsStunned ? 0 : 600, 
-                        ease: "Power2" 
+                    this.tweens.add({
+                        targets: this.player1Sprite,
+                        x: p1OriginalX,
+                        duration: p1IsStunned ? 0 : 600,
+                        ease: "Power2"
                     });
 
                     this.tweens.add({

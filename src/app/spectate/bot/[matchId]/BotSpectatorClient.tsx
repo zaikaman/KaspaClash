@@ -148,7 +148,6 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
 
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-orange-500/20 border border-orange-500/40">
-                        <span className="text-orange-400 text-lg">🤖</span>
                         <span className="text-orange-400 font-orbitron text-sm font-bold">LIVE BOT MATCH</span>
                     </div>
 
