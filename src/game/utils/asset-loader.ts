@@ -7,7 +7,7 @@
  */
 
 import Phaser from "phaser";
-import { CHAR_SPRITE_CONFIG } from "../config/sprite-config";
+import { CHAR_SPRITE_CONFIG, getSFXKey } from "../config/sprite-config";
 
 // Track which assets have been loaded globally
 const loadedAssets = {
@@ -122,7 +122,7 @@ export function loadCharacterSprites(scene: Phaser.Scene, characterIds: string[]
     // Skip if already loaded
     if (loadedAssets.characters.has(charId)) {
       // Verify textures still exist (in case of scene restart)
-      const allLoaded = ANIMATION_TYPES.every(anim => 
+      const allLoaded = ANIMATION_TYPES.every(anim =>
         isTextureLoaded(scene, `char_${charId}_${anim}`)
       );
       if (allLoaded) return;
@@ -190,21 +190,34 @@ export function loadCharacterAudio(scene: Phaser.Scene, characterIds: string[]):
   const uniqueCharacters = [...new Set(characterIds)];
   const sfxTypes = ["punch", "kick", "block", "special"];
 
-  // Load base character SFX that are used as fallbacks
+  // 1. Identify ALL required sound keys for these characters
+  // This resolves aliases (e.g. Bastion Hulk using Nano Brawler's punch)
+  const requiredSoundKeys = new Set<string>();
+
+  uniqueCharacters.forEach(charId => {
+    sfxTypes.forEach(type => {
+      const key = getSFXKey(charId, type);
+      requiredSoundKeys.add(key);
+    });
+  });
+
+  // 2. Load base character SFX if they are required
   AUDIO_ASSETS.baseCharSfx.forEach((charId) => {
     sfxTypes.forEach((sfxType) => {
       const key = `sfx_${charId}_${sfxType}`;
-      if (!isAudioLoaded(scene, key)) {
-        scene.load.audio(key, `/assets/audio/${charId}-${sfxType}.mp3`);
-        loadedAssets.audio.add(key);
+      // Load if explicitly required OR if this is a base char in the match (fallback logic)
+      if (requiredSoundKeys.has(key) || (uniqueCharacters.includes(charId) && !isAudioLoaded(scene, key))) {
+        if (!isAudioLoaded(scene, key)) {
+          scene.load.audio(key, `/assets/audio/${charId}-${sfxType}.mp3`);
+          loadedAssets.audio.add(key);
+        }
       }
     });
   });
 
-  // Load additional character-specific SFX only if those characters are in the match
+  // 3. Load additional character-specific SFX if they are required
   AUDIO_ASSETS.additionalSfx.forEach(({ key, path }) => {
-    const charId = key.split("_")[1]; // e.g., "sfx_nano-brawler_punch" -> "nano-brawler"
-    if (uniqueCharacters.includes(charId) && !isAudioLoaded(scene, key)) {
+    if (requiredSoundKeys.has(key) && !isAudioLoaded(scene, key)) {
       scene.load.audio(key, path);
       loadedAssets.audio.add(key);
     }
@@ -331,10 +344,10 @@ export function preloadSurvivalSceneAssets(
 ): void {
   loadBackground(scene, "survival-bg", "/assets/survival.webp");
   loadUIAssets(scene);
-  
+
   // Load player and first few opponents
   loadCharacterSprites(scene, [playerCharacter, ...firstOpponents]);
-  
+
   loadCommonAudio(scene);
   loadCharacterAudio(scene, [playerCharacter, ...firstOpponents]);
 }
