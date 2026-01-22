@@ -10,6 +10,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { EventBus } from "@/game/EventBus";
+import { BotBettingPanel } from "@/components/betting/BotBettingPanel";
 import type { BotMatch, BotTurnData } from "@/lib/game/bot-match-service";
 
 interface BotSpectatorClientProps {
@@ -137,39 +138,56 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
                 </div>
             </motion.div>
 
-            {/* Game Container */}
-            <div className="flex-1 flex items-center justify-center p-4">
-                {error ? (
-                    <div className="text-center">
-                        <p className="text-red-500 mb-4">{error}</p>
-                        <Link href="/spectate">
-                            <Button className="bg-gradient-cyber text-white border-0 font-orbitron">
-                                Back to Spectate
-                            </Button>
-                        </Link>
-                    </div>
-                ) : (
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: 0.2 }}
-                        ref={containerRef}
-                        className="w-full max-w-[1280px] aspect-video bg-black rounded-lg overflow-hidden border-2 border-orange-500/30 shadow-lg shadow-orange-500/10"
-                    >
-                        {!gameReady && (
-                            <div className="flex items-center justify-center h-full">
-                                <div className="text-center">
-                                    <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                                    <p className="text-orange-400 font-orbitron">
-                                        {match.currentTurnIndex > 0
-                                            ? `Catching up to turn ${match.currentTurnIndex}...`
-                                            : "Loading bot battle..."}
-                                    </p>
+            {/* Main Content - Game + Betting Panel */}
+            <div className="flex-1 flex flex-col lg:flex-row items-start justify-center gap-4 p-4">
+                {/* Game Container */}
+                <div className="flex-1 flex items-center justify-center w-full">
+                    {error ? (
+                        <div className="text-center">
+                            <p className="text-red-500 mb-4">{error}</p>
+                            <Link href="/spectate">
+                                <Button className="bg-gradient-cyber text-white border-0 font-orbitron">
+                                    Back to Spectate
+                                </Button>
+                            </Link>
+                        </div>
+                    ) : (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: 0.2 }}
+                            ref={containerRef}
+                            className="w-full max-w-[1280px] aspect-video bg-black rounded-lg overflow-hidden border-2 border-orange-500/30 shadow-lg shadow-orange-500/10"
+                        >
+                            {!gameReady && (
+                                <div className="flex items-center justify-center h-full">
+                                    <div className="text-center">
+                                        <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                                        <p className="text-orange-400 font-orbitron">
+                                            {match.currentTurnIndex > 0
+                                                ? `Catching up to turn ${match.currentTurnIndex}...`
+                                                : "Loading bot battle..."}
+                                        </p>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
-                    </motion.div>
-                )}
+                            )}
+                        </motion.div>
+                    )}
+                </div>
+
+                {/* Betting Panel */}
+                <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="w-full lg:w-[380px] shrink-0"
+                >
+                    <BotBettingPanel
+                        matchId={match.id}
+                        bot1Name={match.bot1Name}
+                        bot2Name={match.bot2Name}
+                    />
+                </motion.div>
             </div>
 
             {/* Info Footer */}

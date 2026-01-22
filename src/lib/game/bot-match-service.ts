@@ -54,6 +54,8 @@ export interface BotMatch {
     bot2MaxHp: number;
     bot1MaxEnergy: number;
     bot2MaxEnergy: number;
+    // Betting fields
+    bettingClosesAtTurn: number;
 }
 
 // Turn duration in milliseconds
@@ -205,6 +207,7 @@ export function simulateBotMatch(matchId: string, bot1Id?: string, bot2Id?: stri
         bot2MaxHp: initialState.player2.maxHp,
         bot1MaxEnergy: initialState.player1.maxEnergy,
         bot2MaxEnergy: initialState.player2.maxEnergy,
+        bettingClosesAtTurn: 3, // Betting closes after 3 turns
     };
 }
 
@@ -323,5 +326,74 @@ export function getMatchSyncInfo(matchId: string): {
         currentTurnIndex,
         elapsedMs,
         isFinished,
+    };
+}
+
+// =============================================================================
+// BETTING HELPERS
+// =============================================================================
+
+/**
+ * Check if betting is still open for a match
+ */
+export function isBettingOpen(match: BotMatch): boolean {
+    const currentTurn = getCurrentTurnIndex(match);
+
+    // Betting window is 30 seconds from match creation
+    const BETTING_WINDOW_MS = 30000; // 30 seconds
+    const elapsed = Date.now() - match.createdAt;
+
+    // Betting closes after 30 seconds
+    if (elapsed >= BETTING_WINDOW_MS) {
+        return false;
+    }
+
+    // Betting closes if match is finished
+    const maxDuration = match.totalTurns * match.turnDurationMs + BETTING_WINDOW_MS;
+    if (elapsed >= maxDuration) {
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Get betting status info for UI
+ */
+export function getBettingStatus(match: BotMatch): {
+    isOpen: boolean;
+    currentTurn: number;
+    closesAtTurn: number;
+    turnsRemaining: number;
+    secondsRemaining: number;
+    reason?: string;
+} {
+    const BETTING_WINDOW_MS = 30000; // 30 seconds
+    const currentTurn = getCurrentTurnIndex(match);
+    const closesAtTurn = match.bettingClosesAtTurn;
+    const turnsRemaining = Math.max(0, closesAtTurn - currentTurn);
+
+    const elapsed = Date.now() - match.createdAt;
+    const secondsRemaining = Math.max(0, Math.ceil((BETTING_WINDOW_MS - elapsed) / 1000));
+
+    let isOpen = secondsRemaining > 0;
+    let reason: string | undefined;
+
+    // Check if match is finished
+    const maxDuration = match.totalTurns * match.turnDurationMs + BETTING_WINDOW_MS;
+    if (elapsed >= maxDuration) {
+        isOpen = false;
+        reason = "Match has ended";
+    } else if (secondsRemaining === 0) {
+        reason = "Betting period ended";
+    }
+
+    return {
+        isOpen,
+        currentTurn,
+        closesAtTurn,
+        turnsRemaining,
+        secondsRemaining,
+        reason,
     };
 }

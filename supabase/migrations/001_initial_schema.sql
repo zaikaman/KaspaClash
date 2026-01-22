@@ -111,6 +111,44 @@ CREATE TABLE public.blockchain_anchors (
   CONSTRAINT blockchain_anchors_pkey PRIMARY KEY (id),
   CONSTRAINT blockchain_anchors_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address)
 );
+CREATE TABLE public.bot_bets (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  pool_id uuid NOT NULL,
+  bettor_address text NOT NULL,
+  bet_on text NOT NULL CHECK (bet_on = ANY (ARRAY['bot1'::text, 'bot2'::text])),
+  amount bigint NOT NULL CHECK (amount >= 100000000),
+  fee_paid bigint NOT NULL DEFAULT 0,
+  net_amount bigint NOT NULL DEFAULT 0,
+  tx_id text NOT NULL UNIQUE,
+  payout_amount bigint,
+  payout_tx_id text,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'confirmed'::text, 'won'::text, 'lost'::text, 'refunded'::text])),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  confirmed_at timestamp with time zone,
+  paid_at timestamp with time zone,
+  CONSTRAINT bot_bets_pkey PRIMARY KEY (id),
+  CONSTRAINT bot_bets_pool_fkey FOREIGN KEY (pool_id) REFERENCES public.bot_betting_pools(id),
+  CONSTRAINT bot_bets_bettor_fkey FOREIGN KEY (bettor_address) REFERENCES public.players(address)
+);
+CREATE TABLE public.bot_betting_pools (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  bot_match_id text NOT NULL UNIQUE,
+  bot1_character_id text NOT NULL,
+  bot2_character_id text NOT NULL,
+  bot1_total bigint NOT NULL DEFAULT 0 CHECK (bot1_total >= 0),
+  bot2_total bigint NOT NULL DEFAULT 0 CHECK (bot2_total >= 0),
+  total_pool bigint NOT NULL DEFAULT 0 CHECK (total_pool >= 0),
+  total_fees bigint NOT NULL DEFAULT 0 CHECK (total_fees >= 0),
+  status text NOT NULL DEFAULT 'open'::text CHECK (status = ANY (ARRAY['open'::text, 'locked'::text, 'resolved'::text, 'refunded'::text])),
+  winner text CHECK (winner IS NULL OR (winner = ANY (ARRAY['bot1'::text, 'bot2'::text]))),
+  betting_closes_at_turn integer NOT NULL DEFAULT 3 CHECK (betting_closes_at_turn > 0),
+  match_created_at timestamp with time zone NOT NULL DEFAULT now(),
+  locked_at timestamp with time zone,
+  resolved_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT bot_betting_pools_pkey PRIMARY KEY (id)
+);
 CREATE TABLE public.characters (
   id text NOT NULL,
   name text NOT NULL,

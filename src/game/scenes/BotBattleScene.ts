@@ -121,10 +121,16 @@ export class BotBattleScene extends Phaser.Scene {
         this.events.once("shutdown", this.handleShutdown, this);
         this.events.once("destroy", this.handleShutdown, this);
 
-        // Start playback after short delay
-        this.time.delayedCall(1500, () => {
-            this.startPlayback();
-        });
+        // If joining mid-match (not at turn 0), skip betting countdown
+        if (this.currentTurnIndex > 0) {
+            // Start playback immediately for late joiners
+            this.time.delayedCall(500, () => {
+                this.startPlayback();
+            });
+        } else {
+            // Show 30-second betting countdown before match starts
+            this.showBettingCountdown();
+        }
 
         EventBus.emit("bot_battle_scene_ready", {
             matchId: this.config.matchId,
@@ -160,7 +166,7 @@ export class BotBattleScene extends Phaser.Scene {
             const currentTurn = this.config.turns[targetTurnIndex - 1];
             this.updateUIFromTurn(currentTurn);
             this.roundScoreText.setText(
-                `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`
+                `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 3)`
             );
         }
     }
@@ -286,7 +292,7 @@ export class BotBattleScene extends Phaser.Scene {
         this.roundScoreText = this.add.text(
             GAME_DIMENSIONS.CENTER_X,
             60,
-            `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`,
+            `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 3)`,
             { fontFamily: "Orbitron", fontSize: "24px", color: "#ffffff" }
         ).setOrigin(0.5);
 
@@ -462,6 +468,125 @@ export class BotBattleScene extends Phaser.Scene {
     }
 
     // ==========================================================================
+    // BETTING COUNTDOWN
+    // ==========================================================================
+
+    private showBettingCountdown(): void {
+        const BETTING_DURATION = 30; // 30 seconds for betting
+
+        // Create betting countdown container
+        const container = this.add.container(GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.CENTER_Y - 50);
+
+        // Background
+        const bg = this.add.rectangle(0, 0, 450, 180, 0x000000, 0.85)
+            .setStrokeStyle(3, 0xff6b35);
+        container.add(bg);
+
+        // "PLACE YOUR BETS!" title
+        const titleText = this.add.text(0, -55, "💰 PLACE YOUR BETS! 💰", {
+            fontFamily: "Orbitron",
+            fontSize: "28px",
+            color: "#ffd700",
+            fontStyle: "bold",
+        }).setOrigin(0.5);
+        container.add(titleText);
+
+        // Countdown text
+        const countdownText = this.add.text(0, 5, `${BETTING_DURATION}`, {
+            fontFamily: "Orbitron",
+            fontSize: "64px",
+            color: "#ffffff",
+            fontStyle: "bold",
+        }).setOrigin(0.5);
+        container.add(countdownText);
+
+        // "seconds" label
+        const secondsLabel = this.add.text(0, 55, "seconds until match starts", {
+            fontFamily: "Exo 2",
+            fontSize: "16px",
+            color: "#aaaaaa",
+        }).setOrigin(0.5);
+        container.add(secondsLabel);
+
+        // Pulse animation on title
+        this.tweens.add({
+            targets: titleText,
+            scale: 1.05,
+            yoyo: true,
+            repeat: -1,
+            duration: 500,
+            ease: "Sine.easeInOut",
+        });
+
+        // Countdown logic
+        let remaining = BETTING_DURATION;
+        const countdownTimer = this.time.addEvent({
+            delay: 1000,
+            repeat: BETTING_DURATION - 1,
+            callback: () => {
+                remaining--;
+                countdownText.setText(`${remaining}`);
+
+                // Change color when low
+                if (remaining <= 5) {
+                    countdownText.setColor("#ff4444");
+                    // Flash effect
+                    this.tweens.add({
+                        targets: countdownText,
+                        scale: 1.2,
+                        yoyo: true,
+                        duration: 100,
+                    });
+                } else if (remaining <= 10) {
+                    countdownText.setColor("#ffaa00");
+                }
+            },
+        });
+
+        // After countdown, start the match
+        this.time.delayedCall(BETTING_DURATION * 1000, () => {
+            // Remove countdown UI
+            container.destroy();
+
+            // Show "FIGHT!" text briefly
+            const fightText = this.add.text(
+                GAME_DIMENSIONS.CENTER_X,
+                GAME_DIMENSIONS.CENTER_Y,
+                "FIGHT!",
+                {
+                    fontFamily: "Orbitron",
+                    fontSize: "72px",
+                    color: "#ff6b35",
+                    fontStyle: "bold",
+                    stroke: "#000000",
+                    strokeThickness: 6,
+                }
+            ).setOrigin(0.5).setAlpha(0);
+
+            this.tweens.add({
+                targets: fightText,
+                alpha: 1,
+                scale: { from: 0.5, to: 1.2 },
+                duration: 300,
+                ease: "Back.easeOut",
+                onComplete: () => {
+                    this.time.delayedCall(800, () => {
+                        this.tweens.add({
+                            targets: fightText,
+                            alpha: 0,
+                            duration: 200,
+                            onComplete: () => {
+                                fightText.destroy();
+                                this.startPlayback();
+                            }
+                        });
+                    });
+                }
+            });
+        });
+    }
+
+    // ==========================================================================
     // PLAYBACK
     // ==========================================================================
 
@@ -507,53 +632,139 @@ export class BotBattleScene extends Phaser.Scene {
             duration: 400,
             ease: "Power2",
             onComplete: () => {
-                // Play attack anims
-                this.playMoveAnim("player1", turn.bot1Move);
-                this.time.delayedCall(150, () => this.playMoveAnim("player2", turn.bot2Move));
+                // Helper: P1 Attack animation
+                const runP1Attack = (): Promise<void> => {
+                    return new Promise((resolve) => {
+                        this.playMoveAnim("player1", turn.bot1Move);
+                        // Wait for animation to finish (approx 1.2s)
+                        this.time.delayedCall(1200, () => resolve());
+                    });
+                };
 
-                // Show narrative
-                this.time.delayedCall(400, () => {
+                // Helper: P2 Attack animation
+                const runP2Attack = (): Promise<void> => {
+                    return new Promise((resolve) => {
+                        this.playMoveAnim("player2", turn.bot2Move);
+                        // Wait for animation to finish (approx 1.2s)
+                        this.time.delayedCall(1200, () => resolve());
+                    });
+                };
+
+                // Execute Sequence based on move types
+                // If one player blocks, both animate simultaneously
+                // Otherwise, P1 goes first then P2
+                const isConcurrent = turn.bot1Move === "block" || turn.bot2Move === "block";
+
+                const executeSequence = async () => {
+                    if (isConcurrent) {
+                        // Run both simultaneously
+                        await Promise.all([runP1Attack(), runP2Attack()]);
+                    } else {
+                        // Sequential: P1 first, then P2
+                        await runP1Attack();
+                        await runP2Attack();
+                    }
+
+                    // Show narrative after animations
                     this.showNarrative(turn.narrative);
                     this.updateUIFromTurn(turn);
 
-                    // Handle round end
+                    // Handle round end with death animation
                     if (turn.isRoundEnd && turn.roundWinner) {
+                        // Play death animation on loser
+                        const loserChar = turn.roundWinner === "player1" ? p2Char : p1Char;
+                        const loserSprite = turn.roundWinner === "player1" ? this.player2Sprite : this.player1Sprite;
+
+                        if (this.anims.exists(`${loserChar}_dead`)) {
+                            loserSprite.setScale(getCharacterScale(loserChar));
+                            loserSprite.play(`${loserChar}_dead`);
+                        }
+
+                        // Update round score after death animation
                         if (turn.roundWinner === "player1") this.bot1RoundsWon++;
                         else this.bot2RoundsWon++;
 
-                        if (!turn.isMatchEnd) {
-                            this.currentRound++;
-                            this.roundScoreText.setText(
-                                `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`
-                            );
-                        }
-                    }
-                });
+                        // Wait for death animation (1.5s), then show round result
+                        await new Promise<void>((resolve) => {
+                            this.time.delayedCall(1500, () => {
+                                // Show round result text
+                                const winnerName = turn.roundWinner === "player1" ? this.config.bot1Name : this.config.bot2Name;
+                                this.showNarrative(`${winnerName.toUpperCase()} WINS THE ROUND!`);
 
-                // Return to positions - wait for 36 frames at 24fps = 1.5s (1500ms)
-                this.time.delayedCall(1500, () => {
-                    if (this.anims.exists(`${p1Char}_idle`)) {
-                        this.player1Sprite.setScale(getCharacterScale(p1Char));
-                        this.player1Sprite.play(`${p1Char}_idle`);
-                    }
-                    if (this.anims.exists(`${p2Char}_idle`)) {
-                        this.player2Sprite.setScale(getCharacterScale(p2Char));
-                        this.player2Sprite.play(`${p2Char}_idle`);
+                                // Reset HP/Energy bars for next round
+                                if (!turn.isMatchEnd) {
+                                    this.updateHealthBarDisplay("player1", this.config.bot1MaxHp, this.config.bot1MaxHp);
+                                    this.updateHealthBarDisplay("player2", this.config.bot2MaxHp, this.config.bot2MaxHp);
+                                    this.updateEnergyBarDisplay("player1", this.config.bot1MaxEnergy, this.config.bot1MaxEnergy);
+                                    this.updateEnergyBarDisplay("player2", this.config.bot2MaxEnergy, this.config.bot2MaxEnergy);
+                                    this.updateGuardMeterDisplay("player1", 0);
+                                    this.updateGuardMeterDisplay("player2", 0);
+
+                                    this.currentRound++;
+                                    this.roundScoreText.setText(
+                                        `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 3)`
+                                    );
+                                }
+
+                                // Reset loser to idle after showing result
+                                this.time.delayedCall(1000, () => {
+                                    if (this.anims.exists(`${loserChar}_idle`)) {
+                                        loserSprite.setScale(getCharacterScale(loserChar));
+                                        loserSprite.play(`${loserChar}_idle`);
+                                    }
+                                    resolve();
+                                });
+                            });
+                        });
                     }
 
-                    this.tweens.add({ targets: this.player1Sprite, x: p1OriginalX, duration: 300, ease: "Power1" });
-                    this.tweens.add({
-                        targets: this.player2Sprite,
-                        x: p2OriginalX,
-                        duration: 300,
-                        ease: "Power1",
-                        onComplete: () => {
-                            // Schedule next turn based on turn duration
-                            const delay = Math.max(100, this.config.turnDurationMs - 2200);
-                            this.time.delayedCall(delay, () => this.playNextTurn());
+                    // Return to positions after brief pause
+                    this.time.delayedCall(300, () => {
+                        if (this.anims.exists(`${p1Char}_idle`)) {
+                            this.player1Sprite.setScale(getCharacterScale(p1Char));
+                            this.player1Sprite.play(`${p1Char}_idle`);
                         }
+                        if (this.anims.exists(`${p2Char}_idle`)) {
+                            this.player2Sprite.setScale(getCharacterScale(p2Char));
+                            this.player2Sprite.play(`${p2Char}_idle`);
+                        }
+
+                        // Run back
+                        if (this.anims.exists(`${p1Char}_run`)) {
+                            this.player1Sprite.setScale(getCharacterScale(p1Char));
+                            this.player1Sprite.play(`${p1Char}_run`);
+                        }
+                        if (this.anims.exists(`${p2Char}_run`)) {
+                            this.player2Sprite.setScale(getCharacterScale(p2Char));
+                            this.player2Sprite.play(`${p2Char}_run`);
+                        }
+
+                        this.tweens.add({ targets: this.player1Sprite, x: p1OriginalX, duration: 300, ease: "Power1" });
+                        this.tweens.add({
+                            targets: this.player2Sprite,
+                            x: p2OriginalX,
+                            duration: 300,
+                            ease: "Power1",
+                            onComplete: () => {
+                                // Back to idle
+                                if (this.anims.exists(`${p1Char}_idle`)) {
+                                    this.player1Sprite.setScale(getCharacterScale(p1Char));
+                                    this.player1Sprite.play(`${p1Char}_idle`);
+                                }
+                                if (this.anims.exists(`${p2Char}_idle`)) {
+                                    this.player2Sprite.setScale(getCharacterScale(p2Char));
+                                    this.player2Sprite.play(`${p2Char}_idle`);
+                                }
+
+                                // Schedule next turn
+                                const delay = Math.max(100, this.config.turnDurationMs - 3500);
+                                this.time.delayedCall(delay, () => this.playNextTurn());
+                            }
+                        });
                     });
-                });
+                };
+
+                executeSequence();
             }
         });
     }
