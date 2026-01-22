@@ -127,11 +127,14 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name }: BotBettingPanel
         try {
             // Send bet + fee to vault
             const sompiAmount = Number(kasToSompi(totalAmount));
-            const txId = await sendKaspa(
+            const txResult = await sendKaspa(
                 vaultAddress,
                 sompiAmount,
                 `botbet:${matchId}:${selectedBot}:${amount}`
             );
+
+            // Extract transaction ID (handle both string and object responses)
+            const txId = typeof txResult === 'string' ? txResult : (txResult as any)?.id || JSON.stringify(txResult);
 
             // Record bet
             const response = await fetch('/api/bot-betting/place', {

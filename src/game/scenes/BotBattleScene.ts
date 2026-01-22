@@ -478,35 +478,26 @@ export class BotBattleScene extends Phaser.Scene {
         const container = this.add.container(GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.CENTER_Y - 50);
 
         // Background
-        const bg = this.add.rectangle(0, 0, 450, 180, 0x000000, 0.85)
+        const bg = this.add.rectangle(0, 0, 450, 120, 0x000000, 0.85)
             .setStrokeStyle(3, 0xff6b35);
         container.add(bg);
 
-        // "PLACE YOUR BETS!" title
-        const titleText = this.add.text(0, -55, "💰 PLACE YOUR BETS! 💰", {
+        // "WAITING FOR BETS" title
+        const titleText = this.add.text(0, 0, "🎮 WAITING FOR BETS... 🎮", {
             fontFamily: "Orbitron",
-            fontSize: "28px",
+            fontSize: "32px",
             color: "#ffd700",
             fontStyle: "bold",
         }).setOrigin(0.5);
         container.add(titleText);
 
-        // Countdown text
-        const countdownText = this.add.text(0, 5, `${BETTING_DURATION}`, {
-            fontFamily: "Orbitron",
-            fontSize: "64px",
-            color: "#ffffff",
-            fontStyle: "bold",
-        }).setOrigin(0.5);
-        container.add(countdownText);
-
-        // "seconds" label
-        const secondsLabel = this.add.text(0, 55, "seconds until match starts", {
+        // Subtext
+        const subText = this.add.text(0, 35, "Match will start shortly", {
             fontFamily: "Exo 2",
             fontSize: "16px",
             color: "#aaaaaa",
         }).setOrigin(0.5);
-        container.add(secondsLabel);
+        container.add(subText);
 
         // Pulse animation on title
         this.tweens.add({
@@ -514,36 +505,11 @@ export class BotBattleScene extends Phaser.Scene {
             scale: 1.05,
             yoyo: true,
             repeat: -1,
-            duration: 500,
+            duration: 800,
             ease: "Sine.easeInOut",
         });
 
-        // Countdown logic
-        let remaining = BETTING_DURATION;
-        const countdownTimer = this.time.addEvent({
-            delay: 1000,
-            repeat: BETTING_DURATION - 1,
-            callback: () => {
-                remaining--;
-                countdownText.setText(`${remaining}`);
-
-                // Change color when low
-                if (remaining <= 5) {
-                    countdownText.setColor("#ff4444");
-                    // Flash effect
-                    this.tweens.add({
-                        targets: countdownText,
-                        scale: 1.2,
-                        yoyo: true,
-                        duration: 100,
-                    });
-                } else if (remaining <= 10) {
-                    countdownText.setColor("#ffaa00");
-                }
-            },
-        });
-
-        // After countdown, start the match
+        // After countdown duration, start the match
         this.time.delayedCall(BETTING_DURATION * 1000, () => {
             // Remove countdown UI
             container.destroy();
