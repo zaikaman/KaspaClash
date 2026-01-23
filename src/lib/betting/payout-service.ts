@@ -14,6 +14,7 @@ import {
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
     sendBatchFromVault,
+    consolidateVaultUtxos,
     type PayoutTarget,
     type BatchTransferResult
 } from "@/lib/kaspa/vault-service";
@@ -103,6 +104,20 @@ export async function processPoolPayouts(
     const firstBettorAddress = payoutList[0].bettorAddress;
     const isTestnet = firstBettorAddress.startsWith("kaspatest:");
     const network: NetworkType = isTestnet ? "testnet" : "mainnet";
+
+    // Consolidate UTXOs before sending if we have too many
+    // This helps prevent UTXO fragmentation in the vault wallet
+    try {
+        const consolidationResult = await consolidateVaultUtxos(network);
+        if (consolidationResult.consolidated) {
+            console.log(`[PayoutService] ✓ Consolidated ${consolidationResult.utxoCount} UTXOs before payout. TX: ${consolidationResult.txId}`);
+            // Wait for the consolidation transaction to propagate through the network
+            await new Promise(resolve => setTimeout(resolve, 20000));
+        }
+    } catch (error) {
+        console.error(`[PayoutService] Failed to consolidate UTXOs (non-fatal):`, error);
+        // Continue with payouts even if consolidation fails
+    }
 
     // Build batch targets
     const targets: PayoutTarget[] = payoutList.map(p => ({

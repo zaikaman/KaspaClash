@@ -679,6 +679,154 @@ export async function sendBatchFromVault(
 }
 
 // =============================================================================
+// UTXO CONSOLIDATION
+// =============================================================================
+
+/**
+ * Consolidate multiple small UTXOs into a single UTXO.
+ * This helps prevent UTXO fragmentation in the vault wallet.
+ * 
+ * @param network - The network to operate on
+ * @param minUtxosToConsolidate - Minimum number of UTXOs before consolidation (default: 2)
+ * @returns Result of the consolidation operation
+ */
+export async function consolidateVaultUtxos(
+    network: NetworkType,
+    minUtxosToConsolidate: number = 2
+): Promise<{
+    success: boolean;
+    consolidated: boolean;
+    utxoCount: number;
+    txId?: string;
+    error?: string;
+}> {
+    const config = getVaultConfig(network);
+    const isTestnet = network === "testnet";
+    const apiUrl = getApiBaseUrl(network);
+
+    console.log(`[VaultService] Checking UTXOs for consolidation on ${network}`);
+
+    try {
+        // 1. Fetch UTXOs
+        const utxos = await getUtxos(apiUrl, config.address);
+
+        if (!utxos || utxos.length === 0) {
+            console.log(`[VaultService] No UTXOs to consolidate`);
+            return {
+                success: true,
+                consolidated: false,
+                utxoCount: 0,
+            };
+        }
+
+        console.log(`[VaultService] Found ${utxos.length} UTXOs`);
+
+        // 2. Check if consolidation is needed
+        if (utxos.length < minUtxosToConsolidate) {
+            console.log(`[VaultService] UTXO count (${utxos.length}) below threshold (${minUtxosToConsolidate}), skipping consolidation`);
+            return {
+                success: true,
+                consolidated: false,
+                utxoCount: utxos.length,
+            };
+        }
+
+        console.log(`[VaultService] Consolidating ${utxos.length} UTXOs into one`);
+
+        // 3. Prepare keys and address
+        const privateKey = hexToBytes(config.privateKey);
+        const addrParser = Address({ prefix: isTestnet ? "kaspatest" : "kaspa" });
+        const vaultDecoded = addrParser.decode(config.address);
+
+        // 4. Calculate total amount and select UTXOs (up to MAX_INPUTS)
+        const selectedUtxos = utxos.slice(0, MAX_INPUTS);
+        let totalAmount = BigInt(0);
+
+        for (const u of selectedUtxos) {
+            totalAmount += BigInt(u.utxoEntry.amount);
+        }
+
+        // 5. Subtract transaction fee
+        const outputAmount = totalAmount - DEFAULT_TX_FEE;
+
+        if (outputAmount <= BigInt(0)) {
+            throw new Error(`Insufficient funds to cover transaction fee`);
+        }
+
+        // 6. Construct Inputs
+        const inputs = selectedUtxos.map((u: {
+            outpoint: { transactionId: string; index: number };
+            utxoEntry: { amount: string; scriptPublicKey: { version?: number; scriptPublicKey: string } };
+        }) => ({
+            utxo: {
+                transactionId: hexToBytes(u.outpoint.transactionId),
+                index: u.outpoint.index,
+                amount: BigInt(u.utxoEntry.amount),
+                version: u.utxoEntry.scriptPublicKey.version || 0,
+                script: hexToBytes(u.utxoEntry.scriptPublicKey.scriptPublicKey)
+            },
+            script: new Uint8Array(0),
+            sequence: BigInt(0),
+            sigOpCount: 1
+        }));
+
+        // 7. Construct Output (send consolidated amount back to vault)
+        const vaultScript = OutScript.encode({
+            version: 0,
+            type: vaultDecoded.type,
+            payload: vaultDecoded.payload
+        });
+
+        const outputs = [{
+            amount: outputAmount,
+            version: vaultScript.version,
+            script: vaultScript.script
+        }];
+
+        // 8. Create Transaction
+        const tx = new Transaction({
+            version: 0,
+            inputs,
+            outputs,
+            lockTime: BigInt(0),
+            subnetworkId: new Uint8Array(20),
+            gas: BigInt(0),
+            payload: new Uint8Array(0)
+        });
+
+        // 9. Sign
+        const signed = tx.sign(privateKey);
+        if (!signed) throw new Error("Failed to sign consolidation transaction");
+
+        // 10. Submit
+        const rpcTx = tx.toRPCTransaction();
+        // @ts-ignore
+        delete rpcTx.mass;
+
+        const result = await submitTransactionToApi(apiUrl, { transaction: rpcTx });
+        const txId = result.transactionId;
+
+        console.log(`[VaultService] ✓ Consolidated ${selectedUtxos.length} UTXOs into 1. Output: ${sompiToKas(outputAmount)} KAS. TX: ${txId}`);
+
+        return {
+            success: true,
+            consolidated: true,
+            utxoCount: utxos.length,
+            txId,
+        };
+
+    } catch (error) {
+        console.error(`[VaultService] Failed to consolidate UTXOs:`, error);
+        return {
+            success: false,
+            consolidated: false,
+            utxoCount: 0,
+            error: error instanceof Error ? error.message : "Unknown error",
+        };
+    }
+}
+
+// =============================================================================
 // UTILITY FUNCTIONS
 // =============================================================================
 
