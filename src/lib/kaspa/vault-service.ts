@@ -337,6 +337,24 @@ export async function sendFromVault(
             lastError = error instanceof Error ? error : new Error(String(error));
             console.error(`[VaultService] Attempt ${attempt} failed:`, lastError.message);
 
+            // Check if transaction was already accepted (this means it actually succeeded)
+            if (lastError.message.includes("already accepted by the consensus")) {
+                console.log(`[VaultService] ✓ Transaction was already accepted - treating as success`);
+                
+                // Extract txId from the error message
+                const txIdMatch = lastError.message.match(/transaction ([a-f0-9]+)/);
+                const txId = txIdMatch ? txIdMatch[1] : "unknown";
+                
+                console.log(`[VaultService] ✓ Sent ${sompiToKas(amountSompi)} KAS to ${toAddress}. TX: ${txId}`);
+
+                return {
+                    success: true,
+                    txId,
+                    amount: amountSompi,
+                    toAddress,
+                };
+            }
+
             // If not last attempt, wait before retry (with exponential backoff)
             // Start at 3s, then 6s, 9s, 12s, 15s to allow UTXOs to refresh
             if (attempt < MAX_BROADCAST_RETRIES) {
@@ -452,6 +470,8 @@ export async function sendBatchFromVault(
 
             let success = false;
             let lastError: Error | null = null;
+            let lastInputAmount = BigInt(0);
+            let lastTotalRequired = BigInt(0);
 
             for (let attempt = 1; attempt <= MAX_BROADCAST_RETRIES && !success; attempt++) {
                 try {
@@ -459,6 +479,7 @@ export async function sendBatchFromVault(
 
                     // Calculate required amount
                     const totalRequired = payout.amountSompi + DEFAULT_TX_FEE;
+                    lastTotalRequired = totalRequired;
 
                     // Build input list
                     // If we have a virtual change UTXO from a previous TX, use it first
@@ -512,6 +533,9 @@ export async function sendBatchFromVault(
                     if (inputAmount < totalRequired) {
                         throw new Error(`Insufficient funds: Have ${sompiToKas(inputAmount)} KAS, Need ${sompiToKas(totalRequired)} KAS`);
                     }
+
+                    // Store for potential use in error handler
+                    lastInputAmount = inputAmount;
 
                     // Build inputs
                     const inputs = selectedUtxos.map(u => ({
@@ -610,6 +634,44 @@ export async function sendBatchFromVault(
                 } catch (error) {
                     lastError = error instanceof Error ? error : new Error(String(error));
                     console.error(`[VaultService] Attempt ${attempt} failed:`, lastError.message);
+
+                    // Check if transaction was already accepted (this means it actually succeeded)
+                    if (lastError.message.includes("already accepted by the consensus")) {
+                        console.log(`[VaultService] ✓ Transaction was already accepted - treating as success`);
+                        
+                        // Extract txId from the error message
+                        const txIdMatch = lastError.message.match(/transaction ([a-f0-9]+)/);
+                        const txId = txIdMatch ? txIdMatch[1] : "unknown";
+                        
+                        console.log(`[VaultService] ✓ Sent ${sompiToKas(payout.amountSompi)} KAS to ${payout.toAddress}. TX: ${txId}`);
+
+                        // Recalculate change amount from stored values
+                        const changeAmount = lastInputAmount - lastTotalRequired;
+
+                        // Update virtual UTXO tracking
+                        if (changeAmount > BigInt(0)) {
+                            virtualChangeUtxo = {
+                                transactionId: txId,
+                                index: 1,
+                                amount: changeAmount,
+                                script: vaultScript.script,
+                                version: vaultScript.version,
+                            };
+                            console.log(`[VaultService] Tracking virtual change: ${sompiToKas(changeAmount)} KAS`);
+                        } else {
+                            virtualChangeUtxo = null;
+                        }
+
+                        results.push({
+                            success: true,
+                            txId,
+                            amount: payout.amountSompi,
+                            toAddress: payout.toAddress,
+                        });
+                        totalSent += payout.amountSompi;
+                        success = true;
+                        break; // Exit retry loop
+                    }
 
                     // On orphan error, clear virtual UTXO and re-fetch from API
                     if (lastError.message.includes("orphan")) {

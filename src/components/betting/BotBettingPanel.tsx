@@ -38,7 +38,7 @@ interface BettingStatus {
 }
 
 export function BotBettingPanel({ matchId, bot1Name, bot2Name, onBettingStatusChange }: BotBettingPanelProps) {
-    const { address, isConnected } = useWallet();
+    const { address, isConnected, balance } = useWallet();
 
     const [bettingStatus, setBettingStatus] = useState<BettingStatus>({
         isOpen: true,
@@ -255,6 +255,15 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name, onBettingStatusCh
                     <ClashShardsIcon className="w-4 h-4 sm:w-5 sm:h-5" /> BOT BETTING
                 </h3>
                 <div className="flex items-center gap-2">
+                    {isConnected && balance && (
+                        <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-cyber-gold/10 border border-cyber-gold/30">
+                            <svg className="w-3 h-3 text-cyber-gold" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z"/>
+                                <path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd"/>
+                            </svg>
+                            <span className="text-cyber-gold font-orbitron text-xs font-bold">{balance}</span>
+                        </div>
+                    )}
                     <HugeiconsIcon icon={Time03Icon} className="w-4 h-4 text-orange-400" />
                     <span className={`text-xs font-mono font-bold ${bettingStatus.secondsRemaining <= 5 ? 'text-red-400' : bettingStatus.secondsRemaining <= 10 ? 'text-yellow-400' : 'text-green-400'}`}>
                         {bettingStatus.secondsRemaining}s

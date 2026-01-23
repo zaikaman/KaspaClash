@@ -12,6 +12,9 @@ import { Button } from "@/components/ui/button";
 import { EventBus } from "@/game/EventBus";
 import { BotBettingPanel } from "@/components/betting/BotBettingPanel";
 import { SpectatorChat } from "@/components/spectate/SpectatorChat";
+import { WinningNotification } from "@/components/betting/WinningNotification";
+import { useWallet } from "@/hooks/useWallet";
+import { sompiToKas } from "@/lib/betting/betting-service";
 import type { BotMatch, BotTurnData } from "@/lib/game/bot-match-service";
 
 interface BotSpectatorClientProps {
@@ -28,6 +31,7 @@ interface BotSpectatorClientProps {
 }
 
 export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
+    const { address, refreshBalance } = useWallet();
     const containerRef = useRef<HTMLDivElement>(null);
     const [gameReady, setGameReady] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -36,6 +40,24 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
     const isLoadingNewMatch = useRef(false);
     // Track betting open state for layout (default true to show panel initially)
     const [isBettingPanelVisible, setIsBettingPanelVisible] = useState(true);
+    // Winning notification state
+    const [winningNotification, setWinningNotification] = useState<{
+        show: boolean;
+        amount: number;
+        prediction: "bot1" | "bot2";
+        winnerName: string;
+    } | null>(null);
+
+    // Real-time balance polling
+    useEffect(() => {
+        if (address && refreshBalance) {
+            // Initial fetch
+            refreshBalance();
+            // Poll every 10 seconds
+            const interval = setInterval(refreshBalance, 10000);
+            return () => clearInterval(interval);
+        }
+    }, [address, refreshBalance]);
 
     useEffect(() => {
         let isMounted = true;
@@ -95,6 +117,76 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
 
         initGame();
 
+        // Listen for match end to check if user won
+        const handleMatchEnd = async (data: unknown) => {
+            const eventData = data as { matchId: string; winner: "player1" | "player2" };
+            console.log("[BotSpectatorClient] Match ended event received:", eventData);
+            console.log("[BotSpectatorClient] Current match ID:", currentMatch.id);
+            console.log("[BotSpectatorClient] User address:", address);
+            
+            if (eventData.matchId === currentMatch.id && address) {
+                console.log("[BotSpectatorClient] Match ended, checking if user won bet");
+
+                try {
+                    // Fetch user's bet for this match with address parameter
+                    const url = `/api/bot-betting/pool/${currentMatch.id}?address=${encodeURIComponent(address)}`;
+                    console.log("[BotSpectatorClient] Fetching bet data from:", url);
+                    
+                    const response = await fetch(url);
+                    console.log("[BotSpectatorClient] Response status:", response.status);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log("[BotSpectatorClient] Bet data received:", data);
+                        
+                        const userBet = data.userBet; // Changed from data.data?.bets?.find
+                        console.log("[BotSpectatorClient] User bet found:", userBet);
+
+                        if (userBet) {
+                            // Map winner from player1/player2 to bot1/bot2
+                            const winnerBot = eventData.winner === "player1" ? "bot1" : "bot2";
+                            console.log("[BotSpectatorClient] Winner bot:", winnerBot);
+                            console.log("[BotSpectatorClient] User bet on:", userBet.bet_on);
+                            
+                            // Check if user's prediction matches the winner
+                            if (userBet.bet_on === winnerBot) {
+                                console.log("[BotSpectatorClient] USER WON! Showing notification");
+                                
+                                // User won! Show celebration immediately
+                                const winnerName = eventData.winner === "player1" ? currentMatch.bot1Name : currentMatch.bot2Name;
+                                // Calculate payout: 2x the net bet amount
+                                const netAmount = BigInt(userBet.net_amount || userBet.amount);
+                                const payoutAmount = netAmount * 2n;
+                                
+                                console.log("[BotSpectatorClient] Payout amount:", sompiToKas(payoutAmount), "KAS");
+                                
+                                setWinningNotification({
+                                    show: true,
+                                    amount: sompiToKas(payoutAmount),
+                                    prediction: userBet.bet_on as "bot1" | "bot2",
+                                    winnerName,
+                                });
+                            } else {
+                                console.log("[BotSpectatorClient] User lost - no notification");
+                            }
+                        } else {
+                            console.log("[BotSpectatorClient] No bet found for this user");
+                        }
+                    } else {
+                        console.error("[BotSpectatorClient] Failed to fetch bet data");
+                    }
+                } catch (err) {
+                    console.error("[BotSpectatorClient] Error checking win status:", err);
+                }
+            } else {
+                if (!address) console.log("[BotSpectatorClient] No wallet address");
+                if (eventData.matchId !== currentMatch.id) {
+                    console.log("[BotSpectatorClient] Match ID mismatch:", eventData.matchId, "vs", currentMatch.id);
+                }
+            }
+        };
+        EventBus.on("bot_battle_match_end", handleMatchEnd);
+
         // Listen for match end and load next match in the same room
         const handleNewMatchRequest = async () => {
             if (isLoadingNewMatch.current) return;
@@ -138,6 +230,7 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
 
         return () => {
             isMounted = false;
+            EventBus.off("bot_battle_match_end", handleMatchEnd);
             EventBus.off("bot_battle_request_new_match", handleNewMatchRequest);
             if (gameRef.current) {
                 gameRef.current.destroy(true);
@@ -251,7 +344,7 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
                         isBotMatch={true}
                         player1Name={currentMatch.bot1Name}
                         player2Name={currentMatch.bot2Name}
-                        className={isBettingPanelVisible ? "h-[330px] shrink-0" : "h-[780px] shrink-0"}
+                        className={isBettingPanelVisible ? "h-[300px] shrink-0" : "h-[780px] shrink-0"}
                     />
                 </motion.div>
             </div>
@@ -273,6 +366,17 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
                     </p>
                 </div>
             </motion.div>
+
+            {/* Winning Notification */}
+            {winningNotification && (
+                <WinningNotification
+                    show={winningNotification.show}
+                    amount={winningNotification.amount}
+                    prediction={winningNotification.prediction}
+                    winnerName={winningNotification.winnerName}
+                    onClose={() => setWinningNotification(null)}
+                />
+            )}
         </div>
     );
 }

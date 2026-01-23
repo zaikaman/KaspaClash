@@ -13,6 +13,9 @@ import { useMatchStore, useMatchActions } from "@/stores/match-store";
 import { EventBus } from "@/game/EventBus";
 import { BettingPanel } from "@/components/betting/BettingPanel";
 import { SpectatorChat } from "@/components/spectate/SpectatorChat";
+import { WinningNotification } from "@/components/betting/WinningNotification";
+import { useWallet } from "@/hooks/useWallet";
+import { sompiToKas } from "@/lib/betting/betting-service";
 import type { Match } from "@/types";
 
 // Dynamically import PhaserGame to avoid SSR issues
@@ -58,10 +61,29 @@ function getInitialScene(match: SpectatorClientProps["match"]): "CharacterSelect
  * Spectator client component.
  */
 export function SpectatorClient({ match }: SpectatorClientProps) {
+    const { address, refreshBalance } = useWallet();
     const matchActions = useMatchActions();
     const [gameReady, setGameReady] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const matchIdRef = useRef(match.id);
+    // Winning notification state
+    const [winningNotification, setWinningNotification] = useState<{
+        show: boolean;
+        amount: number;
+        prediction: "player1" | "player2";
+        winnerName: string;
+    } | null>(null);
+
+    // Real-time balance polling
+    useEffect(() => {
+        if (address && refreshBalance) {
+            // Initial fetch
+            refreshBalance();
+            // Poll every 10 seconds
+            const interval = setInterval(refreshBalance, 10000);
+            return () => clearInterval(interval);
+        }
+    }, [address, refreshBalance]);
 
     // Keep ref in sync
     useEffect(() => {
@@ -74,8 +96,48 @@ export function SpectatorClient({ match }: SpectatorClientProps) {
     // Set up spectator channel subscription (read-only)
     const { state: channelState } = useSpectatorChannel({
         matchId: match.id,
-        onMatchEnded: (payload) => {
+        onMatchEnded: async (payload) => {
             console.log("[SpectatorClient] Match ended:", payload);
+
+            // Check if user won their bet
+            if (address) {
+                try {
+                    // Fetch user's bet for this match
+                    const response = await fetch(`/api/betting/pool/${match.id}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        const userBet = data.data?.bets?.find(
+                            (b: any) => b.bettor_address === address
+                        );
+
+                        if (userBet) {
+                            const winnerRole = payload.winnerAddress === match.player1Address ? "player1" : "player2";
+                            
+                            // Check if user's prediction matches the winner
+                            if (userBet.bet_on === winnerRole) {
+                                // User won! Show celebration immediately
+                                const winnerName = winnerRole === "player1" 
+                                    ? (match.player1?.display_name || "Player 1")
+                                    : (match.player2?.display_name || "Player 2");
+                                
+                                // Calculate expected payout from pool data
+                                const payoutAmount = userBet.payout_amount 
+                                    ? BigInt(userBet.payout_amount)
+                                    : BigInt(userBet.amount || 0); // Fallback to bet amount
+                                
+                                setWinningNotification({
+                                    show: true,
+                                    amount: sompiToKas(payoutAmount),
+                                    prediction: userBet.bet_on as "player1" | "player2",
+                                    winnerName,
+                                });
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.error("[SpectatorClient] Error checking win status:", err);
+                }
+            }
         },
         onMatchCancelled: async (payload) => {
             console.log("[SpectatorClient] Match cancelled:", payload);
@@ -299,6 +361,17 @@ export function SpectatorClient({ match }: SpectatorClientProps) {
                     </div>
                 </div>
             </div>
+
+            {/* Winning Notification */}
+            {winningNotification && (
+                <WinningNotification
+                    show={winningNotification.show}
+                    amount={winningNotification.amount}
+                    prediction={winningNotification.prediction}
+                    winnerName={winningNotification.winnerName}
+                    onClose={() => setWinningNotification(null)}
+                />
+            )}
         </div>
     );
 }

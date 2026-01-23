@@ -27,6 +27,7 @@ export function GameHeader() {
         isConnecting,
         connect,
         disconnect,
+        refreshBalance,
     } = useWallet();
 
     // Fetch currency when connected
@@ -56,10 +57,18 @@ export function GameHeader() {
         if (isConnected && address) {
             fetchCurrency();
             // Poll for currency updates every 30 seconds
-            const interval = setInterval(fetchCurrency, 30000);
-            return () => clearInterval(interval);
+            const currencyInterval = setInterval(fetchCurrency, 30000);
+            
+            // Poll for balance updates every 10 seconds
+            refreshBalance();
+            const balanceInterval = setInterval(refreshBalance, 10000);
+            
+            return () => {
+                clearInterval(currencyInterval);
+                clearInterval(balanceInterval);
+            };
         }
-    }, [isConnected, address, fetchCurrency]);
+    }, [isConnected, address, fetchCurrency, refreshBalance]);
 
     const handleConnect = async () => {
         try {
