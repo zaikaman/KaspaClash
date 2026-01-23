@@ -27,6 +27,7 @@ interface BotBettingPanelProps {
     matchId: string;
     bot1Name: string;
     bot2Name: string;
+    onBettingStatusChange?: (isOpen: boolean) => void;
 }
 
 interface BettingStatus {
@@ -35,7 +36,7 @@ interface BettingStatus {
     reason?: string;
 }
 
-export function BotBettingPanel({ matchId, bot1Name, bot2Name }: BotBettingPanelProps) {
+export function BotBettingPanel({ matchId, bot1Name, bot2Name, onBettingStatusChange }: BotBettingPanelProps) {
     const { address, isConnected } = useWallet();
 
     const [bettingStatus, setBettingStatus] = useState<BettingStatus>({
@@ -62,6 +63,11 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name }: BotBettingPanel
                         secondsRemaining: data.bettingStatus.secondsRemaining ?? 0,
                         reason: data.bettingStatus.reason,
                     });
+
+                    if (onBettingStatusChange) {
+                        onBettingStatusChange(data.bettingStatus.isOpen && (data.bettingStatus.secondsRemaining ?? 0) > 0);
+                    }
+
                     setIsLoading(false);
                 }
             } else {
@@ -86,10 +92,10 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name }: BotBettingPanel
             const eventData = data as { matchId: string; winner: "player1" | "player2" };
             if (eventData.matchId === matchId) {
                 console.log("[BotBettingPanel] Match ended, processing payouts for match:", matchId);
-                
+
                 // Add small delay to ensure database operations complete
                 await new Promise(resolve => setTimeout(resolve, 1000));
-                
+
                 try {
                     // Trigger payout - same as player matches do it
                     const response = await fetch(`/api/bot-betting/payout/${matchId}`, {

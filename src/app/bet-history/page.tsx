@@ -315,7 +315,7 @@ export default function BetHistoryPage() {
                                                     ? 'bg-purple-500/20 text-purple-400 border border-purple-500/40'
                                                     : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40'
                                             }`}>
-                                                {bet.matchType === 'bot' ? '🤖 BOT MATCH' : '👥 PLAYER MATCH'}
+                                                {bet.matchType === 'bot' ? 'BOT MATCH' : 'PLAYER MATCH'}
                                             </span>
                                         </div>
 

@@ -12,6 +12,7 @@ import { useSpectatorChannel } from "@/hooks/useSpectatorChannel";
 import { useMatchStore, useMatchActions } from "@/stores/match-store";
 import { EventBus } from "@/game/EventBus";
 import { BettingPanel } from "@/components/betting/BettingPanel";
+import { SpectatorChat } from "@/components/spectate/SpectatorChat";
 import type { Match } from "@/types";
 
 // Dynamically import PhaserGame to avoid SSR issues
@@ -78,7 +79,7 @@ export function SpectatorClient({ match }: SpectatorClientProps) {
         },
         onMatchCancelled: async (payload) => {
             console.log("[SpectatorClient] Match cancelled:", payload);
-            
+
             // Fetch user's bet information to show personalized refund message
             let userBet = null;
             try {
@@ -93,7 +94,7 @@ export function SpectatorClient({ match }: SpectatorClientProps) {
                         const foundBet = betData.data?.bets?.find(
                             (b: any) => b.bettor_address === wallet.address
                         );
-                        
+
                         if (foundBet) {
                             userBet = {
                                 amount: foundBet.amount,
@@ -108,7 +109,7 @@ export function SpectatorClient({ match }: SpectatorClientProps) {
             } catch (error) {
                 console.error("[SpectatorClient] Error fetching bet info:", error);
             }
-            
+
             // Always emit with or without bet info
             const enhancedPayload = {
                 ...payload,
@@ -285,6 +286,17 @@ export function SpectatorClient({ match }: SpectatorClientProps) {
                         player1Name={match.player1?.display_name || match.player1Address.slice(0, 12) + "..."}
                         player2Name={match.player2?.display_name || (match.player2Address?.slice(0, 12) + "...") || "Player 2"}
                     />
+
+                    {/* Spectator Chat */}
+                    <div className="mt-4">
+                        <SpectatorChat
+                            matchId={match.id}
+                            matchStartTime={match.createdAt ? new Date(match.createdAt).getTime() : undefined}
+                            isBotMatch={false}
+                            player1Name={match.player1?.display_name || "Player 1"}
+                            player2Name={match.player2?.display_name || "Player 2"}
+                        />
+                    </div>
                 </div>
             </div>
         </div>

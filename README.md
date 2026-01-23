@@ -120,6 +120,15 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 - **Collapsible UI:** Unobtrusive chat panel with Floating Action Button (FAB) design
 - **Spectator Isolation:** Secure channel separation ensures private player strategy
 
+### 🎭 Live Spectator Chat
+- **Real-Time Sync:** Instant message delivery to all spectators via Supabase Realtime
+- **Dual Contexts:** Distinct commentary logic for **Bot Matches** (tech-themed) vs **Player Matches** (strategy-themed)
+- **Automated Engagement:** Sophisticated fake message generator creates lively chat environments with:
+- **Context Awareness:** Reacts to specific game events (big hits, blocks, crits) in real-time
+- **Dynamic Personas:** 40+ realistic usernames with varying typing styles
+- **Smart Variety:** 200+ unique message templates to prevent repetition
+- **Premium UI:** Glassmorphic design with dynamic layout adjustment (compact during betting, full-height during match)
+
 ### 🎨 User Experience
 - **Responsive Design:** Optimized for desktop, tablet, and mobile
 - **Real-Time Updates:** Supabase Realtime for instant game state synchronization

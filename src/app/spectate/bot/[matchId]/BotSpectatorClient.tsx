@@ -11,10 +11,11 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { EventBus } from "@/game/EventBus";
 import { BotBettingPanel } from "@/components/betting/BotBettingPanel";
+import { SpectatorChat } from "@/components/spectate/SpectatorChat";
 import type { BotMatch, BotTurnData } from "@/lib/game/bot-match-service";
 
 interface BotSpectatorClientProps {
-    match: BotMatch & { 
+    match: BotMatch & {
         currentTurnIndex: number;
         serverTime?: number;
         elapsedMs?: number;
@@ -33,6 +34,8 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
     const [currentMatch, setCurrentMatch] = useState(match);
     const gameRef = useRef<Phaser.Game | null>(null);
     const isLoadingNewMatch = useRef(false);
+    // Track betting open state for layout (default true to show panel initially)
+    const [isBettingPanelVisible, setIsBettingPanelVisible] = useState(true);
 
     useEffect(() => {
         let isMounted = true;
@@ -108,7 +111,7 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
                             gameRef.current.destroy(true);
                             gameRef.current = null;
                         }
-                        
+
                         // Update to new match with server timing
                         setCurrentMatch({
                             ...data.match,
@@ -118,7 +121,7 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
                             bettingStatus: data.bettingStatus,
                         });
                         setGameReady(false);
-                        
+
                         // Reinitialize game with new match
                         setTimeout(() => {
                             isLoadingNewMatch.current = false;
@@ -187,7 +190,8 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
             </motion.div>
 
             {/* Main Content - Game + Betting Panel */}
-            <div className="flex-1 flex flex-col lg:flex-row items-start justify-center gap-4 p-4">
+            {/* Main Content - Game + Betting Panel */}
+            <div className="flex-1 flex flex-col lg:flex-row items-stretch justify-center gap-4 p-4 min-h-0">
                 {/* Game Container */}
                 <div className="flex-1 flex items-center justify-center w-full">
                     {error ? (
@@ -228,12 +232,26 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.3 }}
-                    className="w-full lg:w-[380px] shrink-0"
+                    className="w-full lg:w-[380px] shrink-0 flex flex-col gap-4 min-h-0"
                 >
-                    <BotBettingPanel
+                    <div className={isBettingPanelVisible ? "block shrink-0" : "hidden"}>
+                        <BotBettingPanel
+                            matchId={currentMatch.id}
+                            bot1Name={currentMatch.bot1Name}
+                            bot2Name={currentMatch.bot2Name}
+                            onBettingStatusChange={setIsBettingPanelVisible}
+                        />
+                    </div>
+
+                    {/* Spectator Chat using flex-1 to fill remaining vertical space */}
+                    <SpectatorChat
                         matchId={currentMatch.id}
-                        bot1Name={currentMatch.bot1Name}
-                        bot2Name={currentMatch.bot2Name}
+                        matchStartTime={currentMatch.createdAt ? new Date(currentMatch.createdAt).getTime() : undefined}
+                        turns={currentMatch.turns}
+                        isBotMatch={true}
+                        player1Name={currentMatch.bot1Name}
+                        player2Name={currentMatch.bot2Name}
+                        className={isBettingPanelVisible ? "h-[330px] shrink-0" : "h-[780px] shrink-0"}
                     />
                 </motion.div>
             </div>
@@ -247,7 +265,7 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
             >
                 <div className="max-w-4xl mx-auto flex items-center justify-between text-sm">
                     <p className="text-cyber-gray">
-                        <span className="text-orange-400">🤖</span> 24/7 Bot Battle Room • New match starts automatically •
+                        <span className="text-orange-400"></span> 24/7 Bot Battle Room • New match starts automatically •
                         You joined at turn {currentMatch.currentTurnIndex}
                     </p>
                     <p className="text-cyber-gray font-mono text-xs">

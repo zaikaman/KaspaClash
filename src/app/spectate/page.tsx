@@ -125,7 +125,6 @@ function BotMatchCard({ match }: { match: BotMatch }) {
             <div className="mt-8">
                 <Link href={`/spectate/bot/${match.id}`} className="block">
                     <Button className="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white border-0 font-orbitron hover:opacity-90 py-6 text-lg tracking-widest">
-                        <HugeiconsIcon icon={RoboticIcon} className="w-5 h-5 mr-3" />
                         WATCH BOT BATTLE
                     </Button>
                 </Link>
@@ -385,7 +384,7 @@ export default function SpectatePage() {
                                     {matches.length === 0 && (
                                         <div className="mb-8 text-center">
                                             <h2 className="text-2xl font-bold text-orange-400 font-orbitron mb-2 flex items-center justify-center gap-2">
-                                                <HugeiconsIcon icon={RoboticIcon} className="w-8 h-8" /> 24/7 BOT BATTLE ROOM
+                                                24/7 BOT BATTLE ROOM
                                             </h2>
                                             <p className="text-cyber-gray">Watch continuous bot battles and place bets on the outcomes!</p>
                                         </div>
