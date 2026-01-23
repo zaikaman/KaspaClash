@@ -14,7 +14,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
     Calendar01Icon,
     FlashIcon,
-    Coins01Icon,
     FireIcon,
     SparklesIcon,
     Tick02Icon,

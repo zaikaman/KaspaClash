@@ -10,11 +10,11 @@ import { cn } from "@/lib/utils";
 import { QuestClaimButton } from "./QuestClaimButton";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-    Coins01Icon,
     Tick02Icon,
     Target01Icon,
     FlashIcon,
 } from "@hugeicons/core-free-icons";
+import { ClashShardsIcon } from "@/components/currency/ClashShardsIcon";
 import type { DailyQuest, QuestDifficulty } from "@/types/quest";
 
 interface QuestCardProps {
@@ -196,8 +196,7 @@ export function QuestCard({
                             </span>
                         </div>
                         <div className="flex items-center gap-1.5">
-                            <HugeiconsIcon
-                                icon={Coins01Icon}
+                            <ClashShardsIcon
                                 className="h-4 w-4 text-cyber-gold"
                             />
                             <span className="text-sm font-bold text-cyber-gold font-orbitron">

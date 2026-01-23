@@ -13,7 +13,8 @@ import { useWallet } from "@/hooks/useWallet";
 import { sendKaspa } from "@/lib/kaspa/wallet";
 import { kasToSompi } from "@/lib/betting/betting-service";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Coins01Icon, LockKeyIcon, Tick02Icon, Time03Icon, RoboticIcon } from "@hugeicons/core-free-icons";
+import { LockKeyIcon, Tick02Icon, Time03Icon, RoboticIcon } from "@hugeicons/core-free-icons";
+import { ClashShardsIcon } from "@/components/currency/ClashShardsIcon";
 import { EventBus } from "@/game/EventBus";
 
 // House betting constants
@@ -251,7 +252,7 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name, onBettingStatusCh
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-orange-400 font-orbitron text-xs sm:text-sm font-bold tracking-wider flex items-center gap-2">
-                    <HugeiconsIcon icon={Coins01Icon} className="w-4 h-4 sm:w-5 sm:h-5" /> BOT BETTING
+                    <ClashShardsIcon className="w-4 h-4 sm:w-5 sm:h-5" /> BOT BETTING
                 </h3>
                 <div className="flex items-center gap-2">
                     <HugeiconsIcon icon={Time03Icon} className="w-4 h-4 text-orange-400" />

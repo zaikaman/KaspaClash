@@ -12,10 +12,10 @@ import {
     Target02Icon,
     ChartLineData01Icon,
     SquareIcon,
-    Coins01Icon,
     ChampionIcon,
     Sword01Icon,
 } from "@hugeicons/core-free-icons";
+import { ClashShardsIcon } from "@/components/currency/ClashShardsIcon";
 
 interface SurvivalMenuProps {
     onStart: (characterId: string) => void;
@@ -179,7 +179,7 @@ export default function SurvivalMenu({ onStart }: SurvivalMenuProps) {
                             <span>Final boss: <span className="text-yellow-400">Mirror match</span> against yourself</span>
                         </div>
                         <div className="flex items-center gap-3 text-cyber-gray">
-                            <HugeiconsIcon icon={Coins01Icon} className="w-5 h-5 text-cyan-400" />
+                            <ClashShardsIcon className="w-5 h-5 text-cyan-400" />
                             <span>Earn up to <span className="text-cyan-400 font-bold">{getMaxPossibleShards()} shards</span> per run</span>
                         </div>
                         <div className="flex items-center gap-3 text-cyber-gray">

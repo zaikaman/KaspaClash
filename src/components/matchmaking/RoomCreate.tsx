@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Copy01Icon, Tick02Icon, Loading03Icon, Coins01Icon } from "@hugeicons/core-free-icons";
+import { Copy01Icon, Tick02Icon, Loading03Icon } from "@hugeicons/core-free-icons";
+import { ClashShardsIcon } from "@/components/currency/ClashShardsIcon";
 import { useWallet } from "@/hooks/useWallet";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -185,7 +186,7 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
           {createdStakeAmount && (
             <div className="bg-cyber-gold/10 border border-cyber-gold/30 rounded-lg p-3 text-center">
               <div className="flex items-center justify-center gap-2 text-cyber-gold font-orbitron">
-                <HugeiconsIcon icon={Coins01Icon} className="h-5 w-5" />
+                <ClashShardsIcon className="h-5 w-5" />
                 <span className="text-lg font-bold">{createdStakeAmount} KAS</span>
                 <span className="text-sm text-cyber-gray">stake per player</span>
               </div>
@@ -244,7 +245,7 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
               }`}
           >
             <div className="flex items-center gap-2 sm:gap-3">
-              <HugeiconsIcon icon={Coins01Icon} className={`h-5 w-5 sm:h-6 sm:w-6 ${enableStake ? "text-cyber-gold" : "text-gray-400"}`} />
+              <ClashShardsIcon className={`h-5 w-5 sm:h-6 sm:w-6 ${enableStake ? "text-cyber-gold" : "text-gray-400"}`} />
               <div className="text-left">
                 <div className={`text-sm sm:text-base font-semibold ${enableStake ? "text-cyber-gold" : "text-gray-300"}`}>
                   Add Stakes

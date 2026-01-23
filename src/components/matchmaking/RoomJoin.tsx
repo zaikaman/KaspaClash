@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Loading03Icon, Coins01Icon } from "@hugeicons/core-free-icons";
+import { Loading03Icon } from "@hugeicons/core-free-icons";
+import { ClashShardsIcon } from "@/components/currency/ClashShardsIcon";
 import { useWallet } from "@/hooks/useWallet";
 
 interface RoomJoinProps {
@@ -116,7 +117,7 @@ export default function RoomJoin({ onJoined, onCancel }: RoomJoinProps) {
         {stakePreview && (
           <div className="bg-cyber-gold/10 border border-cyber-gold/30 rounded-lg p-3 text-center">
             <div className="flex items-center justify-center gap-2 text-cyber-gold font-orbitron">
-              <HugeiconsIcon icon={Coins01Icon} className="h-5 w-5" />
+              <ClashShardsIcon className="h-5 w-5" />
               <span className="text-lg font-bold">{stakePreview} KAS</span>
               <span className="text-sm text-cyber-gray">stake required</span>
             </div>

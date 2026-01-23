@@ -10,11 +10,11 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/progression/currency-utils";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-    Coins01Icon,
     Tick02Icon,
     SparklesIcon,
     SearchAreaIcon,
 } from "@hugeicons/core-free-icons";
+import { ClashShardsIcon } from "@/components/currency/ClashShardsIcon";
 import type { CosmeticItem, CosmeticCategory } from "@/types/cosmetic";
 
 interface ShopGridProps {
@@ -176,7 +176,7 @@ function CosmeticCard({
                     </div>
                 ) : (
                     <div className="flex items-center gap-1">
-                        <HugeiconsIcon icon={Coins01Icon} className="h-3.5 w-3.5 text-cyber-gold" />
+                        <ClashShardsIcon className="h-3.5 w-3.5 text-cyber-gold" />
                         <span className="text-sm font-bold font-orbitron text-cyber-gold">
                             {formatCurrency(item.price)}
                         </span>

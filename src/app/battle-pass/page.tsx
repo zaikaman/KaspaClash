@@ -21,8 +21,8 @@ import { calculateTierProgress } from "@/lib/progression/xp-calculator";
 import { getTierRewards, calculateSeasonTotalRewards as getTotalRewards } from "@/lib/progression/tier-rewards";
 import { getPrestigeTierInfo, getPrestigeBonusDisplay, PRESTIGE_REQUIRED_TIER, MAX_PRESTIGE_LEVEL } from "@/lib/progression/prestige-calculator";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { ClashShardsIcon } from "@/components/currency/ClashShardsIcon";
 import {
-    Coins01Icon,
     ChampionIcon,
     Globe02Icon,
     Alert02Icon,
@@ -366,7 +366,7 @@ export default function BattlePassPage() {
                             <SeasonStatsCard
                                 label="Shards Earned"
                                 value={formatCurrency(rewardsSummary.totalShards)}
-                                icon={<HugeiconsIcon icon={Coins01Icon} className="h-6 w-6 text-cyber-gold" />}
+                                icon={<ClashShardsIcon className="h-6 w-6 text-cyber-gold" />}
                                 color="kaspa"
                             />
                             <SeasonStatsCard

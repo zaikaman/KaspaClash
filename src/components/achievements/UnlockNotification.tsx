@@ -12,11 +12,11 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
     Tick02Icon,
     SparklesIcon,
-    Coins01Icon,
     Medal01Icon,
     Cancel01Icon,
     Award01Icon,
 } from "@hugeicons/core-free-icons";
+import { ClashShardsIcon } from "@/components/currency/ClashShardsIcon";
 import type { Achievement, AchievementTier } from "@/types/achievement";
 
 interface UnlockNotificationProps {
@@ -184,7 +184,7 @@ export function UnlockNotification({
                             </div>
                             {currencyAwarded > 0 && (
                                 <div className="flex items-center gap-1.5">
-                                    <HugeiconsIcon icon={Coins01Icon} className="h-4 w-4 text-cyber-gold" />
+                                    <ClashShardsIcon className="h-4 w-4 text-cyber-gold" />
                                     <span className="text-sm font-bold text-cyber-gold font-orbitron">
                                         +{currencyAwarded}
                                     </span>

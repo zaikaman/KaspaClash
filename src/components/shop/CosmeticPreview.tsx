@@ -11,11 +11,11 @@ import { formatCurrency } from "@/lib/progression/currency-utils";
 import { Button } from "@/components/ui/button";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-    Coins01Icon,
     Cancel01Icon,
     Tick02Icon,
     SparklesIcon,
 } from "@hugeicons/core-free-icons";
+import { ClashShardsIcon } from "@/components/currency/ClashShardsIcon";
 import type { CosmeticItem } from "@/types/cosmetic";
 
 interface CosmeticPreviewProps {
@@ -210,7 +210,7 @@ export function CosmeticPreview({
                         {/* Price */}
                         {!isOwned && (
                             <div className="flex items-center gap-2">
-                                <HugeiconsIcon icon={Coins01Icon} className="h-5 w-5 text-cyber-gold" />
+                                <ClashShardsIcon className="h-5 w-5 text-cyber-gold" />
                                 <span className="text-xl font-bold font-orbitron text-cyber-gold">
                                     {formatCurrency(item.price)}
                                 </span>
@@ -242,7 +242,7 @@ export function CosmeticPreview({
                                     "text-cyber-black font-bold"
                                 )}
                             >
-                                <HugeiconsIcon icon={Coins01Icon} className="h-4 w-4" />
+                                <ClashShardsIcon className="h-4 w-4" />
                                 {canAfford ? "Purchase" : "Insufficient Shards"}
                             </Button>
                         )}

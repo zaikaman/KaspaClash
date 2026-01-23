@@ -8,8 +8,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/progression/currency-utils";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Coins01Icon } from "@hugeicons/core-free-icons";
+import { ClashShardsIcon } from "./ClashShardsIcon";
 
 interface ClashShardsDisplayProps {
     balance: number;
@@ -55,8 +54,7 @@ export function ClashShardsDisplay({
                     className
                 )}
             >
-                <HugeiconsIcon
-                    icon={Coins01Icon}
+                <ClashShardsIcon
                     className={cn(
                         "h-4 w-4 text-cyber-gold",
                         isAnimating && "animate-bounce"
@@ -108,8 +106,7 @@ export function ClashShardsDisplay({
                         isAnimating && "animate-pulse"
                     )}
                 >
-                    <HugeiconsIcon
-                        icon={Coins01Icon}
+                    <ClashShardsIcon
                         className="h-6 w-6 text-cyber-gold"
                     />
                 </div>

@@ -12,8 +12,8 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
     Tick02Icon,
     Loading03Icon,
-    Coins01Icon,
 } from "@hugeicons/core-free-icons";
+import { ClashShardsIcon } from "@/components/currency/ClashShardsIcon";
 
 interface QuestClaimButtonProps {
     questId: string;
@@ -91,7 +91,7 @@ export function QuestClaimButton({
             {/* Default State */}
             {!isLoading && !showSuccess && (
                 <span className="flex items-center gap-1.5">
-                    <HugeiconsIcon icon={Coins01Icon} className="h-4 w-4" />
+                    <ClashShardsIcon className="h-4 w-4" />
                     <span className="font-semibold">
                         {disabled ? "Complete First" : "Claim"}
                     </span>

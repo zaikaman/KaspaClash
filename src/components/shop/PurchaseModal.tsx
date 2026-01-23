@@ -11,12 +11,12 @@ import { formatCurrency } from "@/lib/progression/currency-utils";
 import { Button } from "@/components/ui/button";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-    Coins01Icon,
     Tick02Icon,
     Cancel01Icon,
     Loading03Icon,
     Alert02Icon,
 } from "@hugeicons/core-free-icons";
+import { ClashShardsIcon } from "@/components/currency/ClashShardsIcon";
 import type { CosmeticItem } from "@/types/cosmetic";
 
 interface PurchaseModalProps {
@@ -142,7 +142,7 @@ export function PurchaseModal({
                                 <div className="flex justify-between items-center">
                                     <span className="text-muted-foreground">Price</span>
                                     <div className="flex items-center gap-1.5">
-                                        <HugeiconsIcon icon={Coins01Icon} className="h-4 w-4 text-cyber-gold" />
+                                        <ClashShardsIcon className="h-4 w-4 text-cyber-gold" />
                                         <span className="font-bold font-orbitron text-cyber-gold">
                                             {formatCurrency(item.price)}
                                         </span>
@@ -198,7 +198,7 @@ export function PurchaseModal({
                                         "text-cyber-black font-bold"
                                     )}
                                 >
-                                    <HugeiconsIcon icon={Coins01Icon} className="h-4 w-4" />
+                                    <ClashShardsIcon className="h-4 w-4" />
                                     Purchase
                                 </Button>
                             </div>

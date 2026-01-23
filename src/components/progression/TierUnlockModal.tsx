@@ -18,8 +18,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { ClashShardsIcon } from "@/components/currency/ClashShardsIcon";
 import {
-    Coins01Icon,
     ArrowRight02Icon,
     ChampionIcon,
     StarIcon,
@@ -101,7 +101,7 @@ function RewardDisplay({ reward }: { reward: TierReward }) {
             return (
                 <div className="flex items-center gap-3 p-3 rounded-xl bg-background/40 border border-border/50 backdrop-blur-sm group hover:border-kaspa/50 transition-colors">
                     <div className="h-10 w-10 rounded-lg bg-kaspa/10 flex items-center justify-center border border-kaspa/20 group-hover:bg-kaspa/20 transition-colors">
-                        <HugeiconsIcon icon={Coins01Icon} className="h-5 w-5 text-kaspa" />
+                        <ClashShardsIcon className="h-5 w-5 text-kaspa" />
                     </div>
                     <div className="flex flex-col">
                         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Clash Shards</span>
@@ -376,7 +376,7 @@ export function TierUnlockModal({
                             <div className="flex items-center justify-center gap-6 text-sm">
                                 {totalRewards.currency > 0 && (
                                     <div className="flex items-center gap-1.5 p-1.5 px-2 rounded-md bg-kaspa/10 text-kaspa">
-                                        <HugeiconsIcon icon={Coins01Icon} className="h-4 w-4" />
+                                        <ClashShardsIcon className="h-4 w-4" />
                                         <span className="font-bold font-mono">
                                             +{formatCurrency(totalRewards.currency)}
                                         </span>

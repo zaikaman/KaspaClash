@@ -13,11 +13,11 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
     LockKeyIcon,
     Tick02Icon,
-    Coins01Icon,
     SparklesIcon,
     Gif01Icon,
     ChampionIcon,
 } from "@hugeicons/core-free-icons";
+import { ClashShardsIcon } from "@/components/currency/ClashShardsIcon";
 import type { TierReward } from "@/types/progression";
 import { TierCardSkeleton } from "@/components/ui/Skeleton";
 
@@ -76,7 +76,7 @@ function getTierStyle(tier: number): {
 function RewardIcon({ type }: { type: TierReward["type"] }) {
     switch (type) {
         case "currency":
-            return <HugeiconsIcon icon={Coins01Icon} className="h-4 w-4 text-cyber-gold" />;
+            return <ClashShardsIcon className="h-4 w-4 text-cyber-gold" />;
         case "cosmetic":
             return <HugeiconsIcon icon={SparklesIcon} className="h-4 w-4 text-kaspa" />;
         case "achievement_badge":
@@ -168,7 +168,7 @@ function TierCard({
                 {/* Currency Reward */}
                 {currencyReward && currencyReward.currencyAmount && (
                     <div className="flex items-center gap-1">
-                        <HugeiconsIcon icon={Coins01Icon} className="h-3 w-3 text-cyber-gold" />
+                        <ClashShardsIcon className="h-3 w-3 text-cyber-gold" />
                         <span className="text-xs font-bold text-cyber-gold font-orbitron">
                             {formatCurrency(currencyReward.currencyAmount)}
                         </span>
@@ -302,7 +302,7 @@ export function BattlePassTiers({
                     <span>Locked</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                    <HugeiconsIcon icon={Coins01Icon} className="h-3 w-3 text-cyber-gold" />
+                    <ClashShardsIcon className="h-3 w-3 text-cyber-gold" />
                     <span>Clash Shards</span>
                 </div>
                 <div className="flex items-center gap-1.5">

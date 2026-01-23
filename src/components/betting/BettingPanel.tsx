@@ -19,7 +19,8 @@ import {
     MIN_BET_SOMPI,
 } from "@/lib/betting/betting-service";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Coins01Icon, LockKeyIcon, Tick02Icon } from "@hugeicons/core-free-icons";
+import { LockKeyIcon, Tick02Icon } from "@hugeicons/core-free-icons";
+import { ClashShardsIcon } from "@/components/currency/ClashShardsIcon";
 
 // =============================================================================
 // CONSTANTS
@@ -166,7 +167,7 @@ export function BettingPanel({ matchId, player1Name, player2Name }: BettingPanel
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
                 <h3 className="text-cyber-gold font-orbitron text-xs sm:text-sm font-bold tracking-wider flex items-center gap-2">
-                    <HugeiconsIcon icon={Coins01Icon} className="w-4 h-4 sm:w-5 sm:h-5" /> LIVE BETTING
+                    <ClashShardsIcon className="w-4 h-4 sm:w-5 sm:h-5" /> LIVE BETTING
                 </h3>
                 <span className="text-xs text-gray-400">
                     Pool: {poolState.pool?.totalPoolKas.toFixed(2)} KAS

@@ -21,8 +21,8 @@ import {
     Target01Icon,
     Tick02Icon,
     SparklesIcon,
-    Coins01Icon,
 } from "@hugeicons/core-free-icons";
+import { ClashShardsIcon } from "@/components/currency/ClashShardsIcon";
 import type { DailyQuest } from "@/types/quest";
 
 export default function QuestsPage() {
@@ -279,7 +279,7 @@ export default function QuestsPage() {
                                             <span>+{claimSuccess.xp} XP</span>
                                         </div>
                                         <div className="flex items-center gap-1 text-cyber-gold">
-                                            <HugeiconsIcon icon={Coins01Icon} className="h-3 w-3" />
+                                            <ClashShardsIcon className="h-3 w-3" />
                                             <span>+{claimSuccess.shards} Shards</span>
                                         </div>
                                     </div>

@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Coins01Icon, Tick02Icon, Loading03Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import { Tick02Icon, Loading03Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import { ClashShardsIcon } from "@/components/currency/ClashShardsIcon";
 import { useWallet } from "@/hooks/useWallet";
 import { sendKaspa } from "@/lib/kaspa/wallet";
 import { getSupabaseClient } from "@/lib/supabase/client";
@@ -198,7 +199,7 @@ export default function StakeDeposit({
         <Card className="w-full max-w-md bg-black/80 border-cyber-gold/30 backdrop-blur-sm">
             <CardHeader className="text-center pb-4">
                 <CardTitle className="text-2xl font-orbitron text-cyber-gold flex items-center justify-center gap-2">
-                    <HugeiconsIcon icon={Coins01Icon} className="h-6 w-6" />
+                    <ClashShardsIcon className="h-6 w-6" />
                     STAKE DEPOSIT
                 </CardTitle>
             </CardHeader>
@@ -323,7 +324,7 @@ export default function StakeDeposit({
                             </>
                         ) : (
                             <>
-                                <HugeiconsIcon icon={Coins01Icon} className="mr-2 h-5 w-5" />
+                                <ClashShardsIcon className="mr-2 h-5 w-5" />
                                 Deposit {stakeKas} KAS
                             </>
                         )}
