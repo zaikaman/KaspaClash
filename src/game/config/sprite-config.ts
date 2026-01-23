@@ -615,7 +615,7 @@ export const DEFAULT_SOUND_DELAYS: Record<string, Record<string, number>> = {
   },
   "bastion-hulk": {
     "punch": 150,
-    "special": 400.
+    "special": 400
   },
 };
 
@@ -663,7 +663,7 @@ export const SFX_KEY_OVERRIDES: Record<string, Record<string, string>> = {
     "special": "sfx_aeon-guard_special"
   },
   "bastion-hulk": {
-    "punch": "sfx_nano-brawler_punch",
+    "punch": "sfx_bastion-hulk_punch",
     "special": "sfx_bastion-hulk_special"
   }
 };

@@ -253,26 +253,26 @@ export class BotBattleScene extends Phaser.Scene {
         // Calculate what turn we SHOULD be at based on elapsed time
         // This matches the server's getCurrentTurnIndex logic exactly
         const now = Date.now();
-        
+
         // Check if we're still in betting window
         if (now < this.matchStartTime) {
             console.log("[BotBattleScene] Still in betting window, no resync needed");
             return;
         }
-        
+
         // Calculate elapsed time since gameplay started (after betting window)
         const gameElapsed = now - this.matchStartTime;
         const expectedTurnIndex = Math.floor(gameElapsed / this.config.turnDurationMs);
-        
+
         // Clamp to valid range
         const clampedExpectedTurn = Math.min(expectedTurnIndex, this.config.totalTurns - 1);
-        
+
         // How many turns did we miss while tab was hidden?
         const turnsBehind = Math.max(0, clampedExpectedTurn - this.currentTurnIndex);
 
         if (turnsBehind > 0) {
             console.log(`[BotBattleScene] Behind by ${turnsBehind} turns, fast-forwarding from ${this.currentTurnIndex} to ${clampedExpectedTurn}`);
-            
+
             // Stop current playback
             const wasPlaying = this.isPlaying;
             this.isPlaying = false;
@@ -346,7 +346,7 @@ export class BotBattleScene extends Phaser.Scene {
         // Ensure characters are in idle state
         const p1Char = this.bot1Character.id;
         const p2Char = this.bot2Character.id;
-        
+
         if (this.anims.exists(`${p1Char}_idle`)) {
             const p1IdleScale = getAnimationScale(p1Char, "idle");
             this.player1Sprite.setScale(p1IdleScale);
@@ -667,7 +667,7 @@ export class BotBattleScene extends Phaser.Scene {
     private showBettingCountdown(): void {
         // Use server-provided betting status for accurate synchronization
         const serverSecondsRemaining = this.config.bettingStatus?.secondsRemaining ?? 30;
-        
+
         console.log('[BotBattleScene] Betting countdown starting with', serverSecondsRemaining, 'seconds (server-synced)');
 
         // Create betting countdown container
@@ -722,7 +722,7 @@ export class BotBattleScene extends Phaser.Scene {
                 remainingSeconds--;
                 if (remainingSeconds > 0) {
                     timerText.setText(remainingSeconds.toString());
-                    
+
                     // Change color as time runs out
                     if (remainingSeconds <= 5) {
                         timerText.setColor("#ff0000");

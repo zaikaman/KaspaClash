@@ -56,6 +56,7 @@ const AUDIO_ASSETS = {
     { key: "sfx_void-reaper_special", path: "/assets/audio/void-reaper-special.mp3" },
     { key: "sfx_aeon-guard_special", path: "/assets/audio/aeon-guard-special.mp3" },
     { key: "sfx_bastion-hulk_special", path: "/assets/audio/bastion-hulk-special.mp3" },
+    { key: "sfx_bastion-hulk_punch", path: "/assets/audio/bastion-hulk-punch.MP3" },
   ],
 };
 
