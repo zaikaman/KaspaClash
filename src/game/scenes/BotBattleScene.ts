@@ -502,7 +502,7 @@ export class BotBattleScene extends Phaser.Scene {
                 stroke: "#000000",
                 strokeThickness: 4,
             }
-        ).setOrigin(0.5).setAlpha(0);
+        ).setOrigin(0.5).setAlpha(0).setDepth(100);
 
         // Draw initial bars
         this.updateHealthBarDisplay("player1", this.config.bot1MaxHp, this.config.bot1MaxHp);
