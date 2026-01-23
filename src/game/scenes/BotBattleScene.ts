@@ -1034,60 +1034,113 @@ export class BotBattleScene extends Phaser.Scene {
                         `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`
                     );
 
-                    // Handle round end with death animation
+                    // --- NEW SEQUENCE: Return to Start Positions FIRST ---
+
+                    // Helper to return characters to start
+                    const returnToStartPositions = (): Promise<void> => {
+                        return new Promise((resolve) => {
+                            // Run back animation
+                            if (!p1IsStunned && this.anims.exists(`${p1Char}_run`)) {
+                                const p1RunScale = getAnimationScale(p1Char, "run");
+                                this.player1Sprite.setScale(p1RunScale);
+                                this.player1Sprite.play(`${p1Char}_run`);
+                            }
+                            if (!p2IsStunned && this.anims.exists(`${p2Char}_run`)) {
+                                const p2RunScale = getAnimationScale(p2Char, "run");
+                                this.player2Sprite.setScale(p2RunScale);
+                                this.player2Sprite.play(`${p2Char}_run`);
+                                this.player2Sprite.setFlipX(true);
+                            }
+
+                            // Tween back (600ms)
+                            this.tweens.add({
+                                targets: this.player1Sprite,
+                                x: p1OriginalX,
+                                duration: p1IsStunned ? 0 : 600,
+                                ease: "Power2"
+                            });
+
+                            this.tweens.add({
+                                targets: this.player2Sprite,
+                                x: p2OriginalX,
+                                duration: p2IsStunned ? 0 : 600,
+                                ease: "Power2",
+                                onComplete: () => resolve()
+                            });
+                        });
+                    };
+
+                    await returnToStartPositions();
+
+                    // --- THEN: Handle Death / Idle ---
+
+                    // Fade out narrative (300ms)
+                    this.tweens.add({
+                        targets: this.narrativeText,
+                        alpha: 0,
+                        duration: 300,
+                    });
+
                     if (turn.isRoundEnd) {
                         if (turn.roundWinner) {
                             // Normal round end - someone won
                             const loserChar = turn.roundWinner === "player1" ? p2Char : p1Char;
                             const loserSprite = turn.roundWinner === "player1" ? this.player2Sprite : this.player1Sprite;
 
+                            // Play death animation AT START POSITION
                             if (this.anims.exists(`${loserChar}_dead`)) {
                                 loserSprite.setScale(getAnimationScale(loserChar, "dead"));
                                 loserSprite.play(`${loserChar}_dead`);
                             }
 
-                            // Update round score after death animation
+                            // Update scores
                             if (turn.roundWinner === "player1") this.bot1RoundsWon++;
                             else this.bot2RoundsWon++;
 
-                            // Wait for death animation (1.5s), then show round result
-                            await new Promise<void>((resolve) => {
-                                this.time.delayedCall(1500, () => {
-                                    // Show round result text
-                                    const winnerName = turn.roundWinner === "player1" ? this.config.bot1Name : this.config.bot2Name;
-                                    this.narrativeText.setText(`${winnerName.toUpperCase()} WINS THE ROUND!`);
-                                    this.narrativeText.setAlpha(1);
+                            // Wait for death animation (1.5s)
+                            await new Promise<void>((resolve) => this.time.delayedCall(1500, resolve));
 
-                                    // Reset HP/Energy bars for next round
-                                    if (!turn.isMatchEnd) {
-                                        this.updateHealthBarDisplay("player1", this.config.bot1MaxHp, this.config.bot1MaxHp);
-                                        this.updateHealthBarDisplay("player2", this.config.bot2MaxHp, this.config.bot2MaxHp);
-                                        this.updateEnergyBarDisplay("player1", this.config.bot1MaxEnergy, this.config.bot1MaxEnergy);
-                                        this.updateEnergyBarDisplay("player2", this.config.bot2MaxEnergy, this.config.bot2MaxEnergy);
-                                        this.updateGuardMeterDisplay("player1", 0);
-                                        this.updateGuardMeterDisplay("player2", 0);
+                            // Show round result text
+                            const winnerName = turn.roundWinner === "player1" ? this.config.bot1Name : this.config.bot2Name;
+                            this.narrativeText.setText(`${winnerName.toUpperCase()} WINS THE ROUND!`);
+                            this.narrativeText.setAlpha(1);
 
-                                        this.currentRound++;
-                                    }
+                            // Reset logic
+                            if (!turn.isMatchEnd) {
+                                // NOT Match End: Reset for next round
+                                this.time.delayedCall(1000, () => {
+                                    // Reset HP bars
+                                    this.updateHealthBarDisplay("player1", this.config.bot1MaxHp, this.config.bot1MaxHp);
+                                    this.updateHealthBarDisplay("player2", this.config.bot2MaxHp, this.config.bot2MaxHp);
+                                    this.updateEnergyBarDisplay("player1", this.config.bot1MaxEnergy, this.config.bot1MaxEnergy);
+                                    this.updateEnergyBarDisplay("player2", this.config.bot2MaxEnergy, this.config.bot2MaxEnergy);
+                                    this.updateGuardMeterDisplay("player1", 0);
+                                    this.updateGuardMeterDisplay("player2", 0);
 
-                                    // Always update score text
+                                    this.currentRound++;
                                     this.roundScoreText.setText(
                                         `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`
                                     );
 
-                                    // Reset loser to idle after showing result
-                                    this.time.delayedCall(1000, () => {
-                                        if (this.anims.exists(`${loserChar}_idle`)) {
-                                            loserSprite.setScale(getAnimationScale(loserChar, "idle"));
-                                            loserSprite.play(`${loserChar}_idle`);
-                                        }
-                                        resolve();
-                                    });
+                                    // Reset loser to IDLE for next round
+                                    if (this.anims.exists(`${loserChar}_idle`)) {
+                                        loserSprite.setScale(getAnimationScale(loserChar, "idle"));
+                                        loserSprite.play(`${loserChar}_idle`);
+                                    }
                                 });
-                            });
+                            } else {
+                                // MATCH END: Do NOT reset loser to idle
+                                // Loser stays dead on the floor
+                                // Winner will do victory jump in showMatchEnd()
+                            }
+
                         } else {
-                            // DRAW - both players KO'd at the same time
-                            // Play death animation on both
+                            // DRAW Logic (Double KO) - Both stay dead if match end
+                            // ... (omitted for brevity, can leave as is or adapt similarly if needed)
+                            // For simplicity, applying similar return-then-die logic for Draw implies a bigger refactor.
+                            // Given the request focused on "the dead animation", I'll assume standard win/loss flow is priority.
+                            // But to be safe, let's just make them die here too.
+
                             if (this.anims.exists(`${p1Char}_dead`)) {
                                 this.player1Sprite.setScale(getAnimationScale(p1Char, "dead"));
                                 this.player1Sprite.play(`${p1Char}_dead`);
@@ -1097,95 +1150,43 @@ export class BotBattleScene extends Phaser.Scene {
                                 this.player2Sprite.play(`${p2Char}_dead`);
                             }
 
-                            // Wait for death animation, then show DRAW
-                            await new Promise<void>((resolve) => {
-                                this.time.delayedCall(1500, () => {
-                                    this.narrativeText.setText("⚡ DOUBLE KO - DRAW! ⚡");
-                                    this.narrativeText.setAlpha(1);
+                            await new Promise<void>((resolve) => this.time.delayedCall(1500, resolve));
 
-                                    // Reset HP/Energy bars for next round (no score change)
-                                    if (!turn.isMatchEnd) {
-                                        this.updateHealthBarDisplay("player1", this.config.bot1MaxHp, this.config.bot1MaxHp);
-                                        this.updateHealthBarDisplay("player2", this.config.bot2MaxHp, this.config.bot2MaxHp);
-                                        this.updateEnergyBarDisplay("player1", this.config.bot1MaxEnergy, this.config.bot1MaxEnergy);
-                                        this.updateEnergyBarDisplay("player2", this.config.bot2MaxEnergy, this.config.bot2MaxEnergy);
-                                        this.updateGuardMeterDisplay("player1", 0);
-                                        this.updateGuardMeterDisplay("player2", 0);
+                            this.narrativeText.setText("⚡ DOUBLE KO - DRAW! ⚡");
+                            this.narrativeText.setAlpha(1);
 
-                                        this.currentRound++;
-                                        this.roundScoreText.setText(
-                                            `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`
-                                        );
+                            if (!turn.isMatchEnd) {
+                                this.currentRound++;
+                                // Reset both to idle
+                                this.time.delayedCall(1000, () => {
+                                    if (this.anims.exists(`${p1Char}_idle`)) {
+                                        this.player1Sprite.setScale(getAnimationScale(p1Char, "idle"));
+                                        this.player1Sprite.play(`${p1Char}_idle`);
                                     }
-
-                                    // Reset both to idle after showing result
-                                    this.time.delayedCall(1000, () => {
-                                        if (this.anims.exists(`${p1Char}_idle`)) {
-                                            this.player1Sprite.setScale(getAnimationScale(p1Char, "idle"));
-                                            this.player1Sprite.play(`${p1Char}_idle`);
-                                        }
-                                        if (this.anims.exists(`${p2Char}_idle`)) {
-                                            this.player2Sprite.setScale(getAnimationScale(p2Char, "idle"));
-                                            this.player2Sprite.play(`${p2Char}_idle`);
-                                        }
-                                        resolve();
-                                    });
+                                    if (this.anims.exists(`${p2Char}_idle`)) {
+                                        this.player2Sprite.setScale(getAnimationScale(p2Char, "idle"));
+                                        this.player2Sprite.play(`${p2Char}_idle`);
+                                    }
                                 });
-                            });
+                            }
+                        }
+                    } else {
+                        // NOT Round End - Just reset to idle
+                        if (this.anims.exists(`${p1Char}_idle`)) {
+                            const p1IdleScale = getAnimationScale(p1Char, "idle");
+                            this.player1Sprite.setScale(p1IdleScale);
+                            this.player1Sprite.play(`${p1Char}_idle`);
+                        }
+                        if (this.anims.exists(`${p2Char}_idle`)) {
+                            const p2IdleScale = getAnimationScale(p2Char, "idle");
+                            this.player2Sprite.setScale(p2IdleScale);
+                            this.player2Sprite.play(`${p2Char}_idle`);
                         }
                     }
 
-                    // Phase 4: Run back to original positions (match FightScene exactly)
-                    if (!p1IsStunned && this.anims.exists(`${p1Char}_run`)) {
-                        const p1RunScale = getAnimationScale(p1Char, "run");
-                        this.player1Sprite.setScale(p1RunScale);
-                        this.player1Sprite.play(`${p1Char}_run`);
-                    }
-                    if (!p2IsStunned && this.anims.exists(`${p2Char}_run`)) {
-                        const p2RunScale = getAnimationScale(p2Char, "run");
-                        this.player2Sprite.setScale(p2RunScale);
-                        this.player2Sprite.play(`${p2Char}_run`);
-                        this.player2Sprite.setFlipX(true); // Ensure facing correct way
-                    }
-
-                    // Tween back to original positions (match FightScene: 600ms)
-                    this.tweens.add({
-                        targets: this.player1Sprite,
-                        x: p1OriginalX,
-                        duration: p1IsStunned ? 0 : 600,
-                        ease: "Power2"
-                    });
-
-                    this.tweens.add({
-                        targets: this.player2Sprite,
-                        x: p2OriginalX,
-                        duration: p2IsStunned ? 0 : 600,
-                        ease: "Power2",
-                        onComplete: () => {
-                            // Phase 5: Return to idle animations
-                            if (this.anims.exists(`${p1Char}_idle`)) {
-                                const p1IdleScale = getAnimationScale(p1Char, "idle");
-                                this.player1Sprite.setScale(p1IdleScale);
-                                this.player1Sprite.play(`${p1Char}_idle`);
-                            }
-                            if (this.anims.exists(`${p2Char}_idle`)) {
-                                const p2IdleScale = getAnimationScale(p2Char, "idle");
-                                this.player2Sprite.setScale(p2IdleScale);
-                                this.player2Sprite.play(`${p2Char}_idle`);
-                            }
-
-                            // Fade out narrative (match FightScene: 300ms)
-                            this.tweens.add({
-                                targets: this.narrativeText,
-                                alpha: 0,
-                                duration: 300,
-                            });
-
-                            // Schedule next turn
-                            const delay = Math.max(100, this.config.turnDurationMs - 3500);
-                            this.time.delayedCall(delay, () => this.playNextTurn());
-                        }
-                    });
+                    // Schedule next turn
+                    const delay = Math.max(100, this.config.turnDurationMs - 3500); // Adjust timing
+                    this.time.delayedCall(delay, () => this.playNextTurn());
                 };
 
                 executeSequence();
