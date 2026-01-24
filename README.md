@@ -38,6 +38,7 @@
 
 ---
 
+<a id="overview"></a>
 ## 🎯 Overview
 
 **KaspaClash** is a competitive 1v1 turn-based fighting game that demonstrates the true power of Kaspa's BlockDAG architecture through real-time gameplay mechanics. Players connect their Kaspa wallets to compete in skill-based matches, bet on ongoing fights, climb the leaderboard, and experience blockchain gaming without the traditional latency constraints.
@@ -50,6 +51,7 @@ Built for the **Kaspathon 2026 hackathon** under the **Gaming & Interactive** tr
 
 ---
 
+<a id="why-kaspaclash"></a>
 ## 💡 Why KaspaClash?
 
 ### The Problem
@@ -70,6 +72,7 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 
 ---
 
+<a id="key-features"></a>
 ## ✨ Key Features
 
 ### 🎮 Core Gameplay
@@ -77,7 +80,7 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 - **20 Unique Characters:** Diverse roster of fighters with unique stats and abilities
 - **Multiple Game Modes:**
   - **Ranked Matchmaking:** ELO-based competitive queue with a **30-second failover to Smart Bots** to ensure near-instant entry into combat.
-  - **Private Rooms:** 6-character room codes for custom matches
+  - **Private Rooms:** 6-character room codes for custom matches with **P2P Wagering** (Challenge your friends with real KAS stakes).
   - **Practice Mode:** Train against the Smart Bot AI in an offline environment.
   - **Survival Mode:** Endless wave-based challenge with escalating difficulty
   - **Spectator Mode:** Watch live matches with real-time betting
@@ -138,6 +141,7 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 
 ---
 
+<a id="technology-stack"></a>
 ## 🛠 Technology Stack
 
 ### Frontend
@@ -167,6 +171,7 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 
 ---
 
+<a id="game-architecture"></a>
 ## 🏗 Game Architecture
 
 ### System Overview
@@ -250,6 +255,7 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 
 ---
 
+<a id="getting-started"></a>
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -332,6 +338,7 @@ Navigate to [http://localhost:3000](http://localhost:3000)
 
 ---
 
+<a id="project-structure"></a>
 ## 📁 Project Structure
 
 ```
@@ -638,6 +645,7 @@ KaspaClash/
 
 ---
 
+<a id="progression-system"></a>
 ## 🏆 Progression System
 
 ### Battle Pass (50 Tiers)
@@ -776,6 +784,7 @@ Every **Monday at 00:00 UTC**, the treasury automatically distributes accumulate
 
 ---
 
+<a id="game-mechanics"></a>
 ## 🎲 Game Mechanics
 
 ### Combat System
@@ -866,6 +875,7 @@ To ensure a seamless experience and zero waiting time, KaspaClash features a sop
 
 ---
 
+<a id="kaspa-integration"></a>
 ## 🔗 Kaspa Integration
 
 ### Wallet Connection
@@ -935,6 +945,7 @@ While game state is managed in Supabase for performance, key events are **option
 
 ---
 
+<a id="api-documentation"></a>
 ## 📡 API Documentation
 
 ### Authentication
@@ -1390,6 +1401,7 @@ Fetch survival mode rankings.
 
 ---
 
+<a id="database-schema"></a>
 ## 🗄 Database Schema
 
 ### Core Tables
@@ -1655,6 +1667,7 @@ KaspaClash uses Supabase Realtime for live updates:
 
 ---
 
+<a id="development-guide"></a>
 ## 🛠 Development Guide
 
 ### Local Development Workflow
@@ -1728,6 +1741,7 @@ Requires two browser sessions:
 
 ---
 
+<a id="deployment"></a>
 ## 🚢 Deployment
 
 ### Vercel Deployment (Recommended)
@@ -1789,6 +1803,7 @@ In Vercel dashboard:
 
 ---
 
+<a id="ai-attribution"></a>
 ## 🤖 AI Attribution
 
 KaspaClash is an **AI-augmented development project**, demonstrating how modern engineering workflows can be supercharged by generative intelligence. By utilizing AI as a strategic "force multiplier," we have delivered a high-fidelity, blockchain-integrated experience that pushes the boundaries of solo development.
@@ -1809,6 +1824,7 @@ In accordance with hackathon guidelines, AI tools were utilized to accelerate as
 
 ---
 
+<a id="contributing"></a>
 ## 🤝 Contributing
 
 Contributions are welcome! KaspaClash is open source under the MIT License.
@@ -1860,6 +1876,7 @@ git push origin feature/amazing-feature
 
 ---
 
+<a id="license"></a>
 ## 📄 License
 
 **MIT License**
