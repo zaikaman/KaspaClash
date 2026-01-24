@@ -25,7 +25,8 @@ export interface PurchaseResult {
     purchaseId?: string;
     newBalance?: number;
     txId?: string;
-    nftTxId?: string; // NFT mint transaction ID
+    nftTxId?: string;    // Reveal transaction ID
+    commitTxId?: string; // Commit transaction ID
     error?: string;
     errorCode?: 'INSUFFICIENT_FUNDS' | 'ALREADY_OWNED' | 'ITEM_NOT_FOUND' | 'WALLET_ERROR' | 'TRANSACTION_FAILED' | 'CONFIRMATION_TIMEOUT' | 'SYSTEM_ERROR';
 }
@@ -115,12 +116,14 @@ async function waitForConfirmation(txId: string): Promise<{ confirmed: boolean; 
  * 3. Call backend API to complete purchase
  */
 export async function processPurchaseWithKaspa(
-    request: PurchaseRequest
+    request: PurchaseRequest,
+    onProgress?: (step: string) => void
 ): Promise<PurchaseResult> {
     const { playerId, cosmeticId, itemName, price } = request;
 
     try {
         // Step 1: Verify wallet connection
+        onProgress?.("Verifying wallet...");
         if (!isWalletConnected()) {
             return {
                 success: false,
@@ -154,6 +157,7 @@ export async function processPurchaseWithKaspa(
         const payload = buildPurchasePayload(cosmeticId, itemName);
 
         // Step 3: Send 1 KAS to Treasury Vault
+        onProgress?.("Confirm payment in wallet...");
         let txId: string;
         try {
             txId = await sendKaspa(vaultAddress, ONE_KAS_SOMPI, payload);
@@ -168,6 +172,7 @@ export async function processPurchaseWithKaspa(
         }
 
         // Step 4: Wait for transaction confirmation
+        onProgress?.("Waiting for payment confirmation...");
         console.log('[PurchaseService] Waiting for transaction confirmation...');
         const confirmation = await waitForConfirmation(txId);
 
@@ -181,6 +186,7 @@ export async function processPurchaseWithKaspa(
         }
 
         // Step 5: Call backend to complete purchase (record in database)
+        onProgress?.("Minting NFT (Commit phase)...");
         console.log('[PurchaseService] Transaction confirmed! Completing purchase...');
         const response = await fetch('/api/shop/purchase', {
             method: 'POST',
@@ -191,6 +197,11 @@ export async function processPurchaseWithKaspa(
                 txId, // Include transaction ID for verification
             }),
         });
+
+        // Small interval to change progress text for the reveal
+        setTimeout(() => {
+            onProgress?.("Minting NFT (Reveal phase)...");
+        }, 5000);
 
         const result = await response.json();
 
@@ -212,7 +223,8 @@ export async function processPurchaseWithKaspa(
             purchaseId: result.purchaseId,
             newBalance: result.newBalance,
             txId,
-            nftTxId: result.nftTxId, // Include NFT transaction ID
+            nftTxId: result.nftTxId,
+            commitTxId: result.commitTxId,
         };
     } catch (error) {
         console.error('[PurchaseService] Purchase error:', error);

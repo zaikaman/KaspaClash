@@ -34,7 +34,8 @@ export interface CosmeticNFTMetadata {
 
 export interface NFTMintResult {
     success: boolean;
-    txId?: string;
+    txId?: string;       // Reveal transaction ID (final)
+    commitTxId?: string; // Commit transaction ID
     metadata?: CosmeticNFTMetadata;
     error?: string;
 }
@@ -347,6 +348,7 @@ export async function mintCosmeticNFT(
         return {
             success: true,
             txId: revealHash,
+            commitTxId: commitHash,
             metadata,
         };
 

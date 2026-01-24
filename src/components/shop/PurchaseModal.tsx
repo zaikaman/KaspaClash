@@ -24,7 +24,7 @@ interface PurchaseModalProps {
     onClose: () => void;
     item: CosmeticItem | null;
     currentBalance: number;
-    onConfirm: () => Promise<void>;
+    onConfirm: (onProgress?: (state: string) => void) => Promise<{ commitTxId?: string; nftTxId?: string }>;
 }
 
 type PurchaseState = "confirm" | "processing" | "success" | "error";
@@ -51,13 +51,17 @@ export function PurchaseModal({
     onConfirm,
 }: PurchaseModalProps) {
     const [state, setState] = React.useState<PurchaseState>("confirm");
+    const [processingStep, setProcessingStep] = React.useState<string>("Processing purchase...");
     const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+    const [txHashes, setTxHashes] = React.useState<{ commit?: string; reveal?: string }>({});
 
     // Reset state when modal opens
     React.useEffect(() => {
         if (isOpen) {
             setState("confirm");
+            setProcessingStep("Processing purchase...");
             setErrorMessage(null);
+            setTxHashes({});
         }
     }, [isOpen]);
 
@@ -69,16 +73,30 @@ export function PurchaseModal({
     const handleConfirm = async () => {
         setState("processing");
         try {
-            await onConfirm();
+            const result = await onConfirm((step) => {
+                setProcessingStep(step);
+            });
+            
+            setTxHashes({
+                commit: result.commitTxId,
+                reveal: result.nftTxId
+            });
+            
             setState("success");
-            // Auto-close after success
-            setTimeout(() => {
-                onClose();
-            }, 2000);
         } catch (err) {
             setState("error");
             setErrorMessage(err instanceof Error ? err.message : "Purchase failed");
         }
+    };
+
+    // Explorer link helper
+    const getExplorerLink = (txId: string) => {
+        const isTestnet = window.location.hostname.includes('testnet') || true; // Default to true for now or detect from address
+        // We can check the player address format if we had it, but for KCLASH we know it's testnet-10 for now
+        const baseUrl = isTestnet 
+            ? "https://explorer-tn10.kaspa.org/txs/" 
+            : "https://explorer.kaspa.org/txs/";
+        return `${baseUrl}${txId}`;
     };
 
     return (
@@ -212,22 +230,62 @@ export function PurchaseModal({
                                 icon={Loading03Icon}
                                 className="h-12 w-12 text-cyber-gold animate-spin mx-auto mb-4"
                             />
-                            <p className="text-lg font-medium text-foreground">Processing purchase...</p>
+                            <p className="text-lg font-medium text-foreground">{processingStep}</p>
+                            <p className="text-sm text-muted-foreground mt-2 px-6">
+                                Please do not close this window. Blockchain transactions can take up to 30 seconds.
+                            </p>
                         </div>
                     )}
 
                     {/* Success State */}
                     {state === "success" && (
-                        <div className="py-12 text-center">
+                        <div className="py-8 text-center">
                             <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center mx-auto mb-4 animate-bounce">
                                 <HugeiconsIcon icon={Tick02Icon} className="h-8 w-8 text-emerald-400" />
                             </div>
                             <h3 className="text-xl font-bold font-orbitron text-emerald-400 mb-2">
                                 PURCHASE SUCCESSFUL!
                             </h3>
-                            <p className="text-muted-foreground">
+                            <p className="text-muted-foreground mb-6">
                                 {item.name} has been added to your inventory.
                             </p>
+
+                            {/* Transaction Links */}
+                            <div className="space-y-2 mb-6 px-4">
+                                {txHashes.commit && (
+                                    <div className="flex justify-between items-center text-xs p-2 rounded bg-white/5">
+                                        <span className="text-muted-foreground uppercase tracking-wider">Commit TX</span>
+                                        <a 
+                                            href={getExplorerLink(txHashes.commit)} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="text-cyber-gold hover:underline flex items-center gap-1"
+                                        >
+                                            View {txHashes.commit.substring(0, 8)}...
+                                        </a>
+                                    </div>
+                                )}
+                                {txHashes.reveal && (
+                                    <div className="flex justify-between items-center text-xs p-2 rounded bg-white/5">
+                                        <span className="text-muted-foreground uppercase tracking-wider">Reveal (NFT) TX</span>
+                                        <a 
+                                            href={getExplorerLink(txHashes.reveal)} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="text-cyber-gold hover:underline flex items-center gap-1"
+                                        >
+                                            View {txHashes.reveal.substring(0, 8)}...
+                                        </a>
+                                    </div>
+                                )}
+                            </div>
+
+                            <Button 
+                                className="w-full bg-white/10 hover:bg-white/20 text-white" 
+                                onClick={onClose}
+                            >
+                                Nice!
+                            </Button>
                         </div>
                     )}
 

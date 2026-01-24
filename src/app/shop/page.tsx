@@ -162,8 +162,8 @@ export default function ShopPage() {
     };
 
     // Handle purchase confirmation with Kaspa transaction
-    const handlePurchaseConfirm = async () => {
-        if (!purchaseItem || !walletAddress) return;
+    const handlePurchaseConfirm = async (onProgress?: (step: string) => void) => {
+        if (!purchaseItem || !walletAddress) return { nftTxId: undefined, commitTxId: undefined };
 
         // Use the Kaspa transaction purchase flow
         // This will: 1) Send 1 KAS to user's own address, 2) Wait for confirmation, 3) Complete purchase
@@ -172,7 +172,7 @@ export default function ShopPage() {
             cosmeticId: purchaseItem.id,
             itemName: purchaseItem.name,
             price: purchaseItem.price,
-        });
+        }, onProgress);
 
         if (!result.success) {
             throw new Error(result.error || "Purchase failed");
@@ -186,6 +186,11 @@ export default function ShopPage() {
         
         // Refresh inventory to fetch updated data from database
         await fetchInventory();
+
+        return {
+            nftTxId: result.nftTxId,
+            commitTxId: result.commitTxId
+        };
     };
 
     // Filter items by category for display

@@ -17,7 +17,8 @@ export interface PurchaseResult {
     success: boolean;
     purchaseId?: string;
     newBalance?: number;
-    nftTxId?: string; // NFT mint transaction ID
+    nftTxId?: string;       // Reveal transaction ID (final)
+    commitTxId?: string;    // Commit transaction ID
     error?: string;
     errorCode?: 'INSUFFICIENT_FUNDS' | 'ALREADY_OWNED' | 'ITEM_NOT_FOUND' | 'SYSTEM_ERROR';
 }
@@ -218,6 +219,7 @@ export async function processPurchase(
                     player_id: playerId,
                     cosmetic_id: cosmeticId,
                     mint_tx_id: nftResult.txId,
+                    commit_tx_id: nftResult.commitTxId, // Add this if column exists, else it won't hurt
                     network: network,
                     metadata: nftResult.metadata,
                     minted_at: new Date().toISOString(),
@@ -238,6 +240,7 @@ export async function processPurchase(
             purchaseId: purchase?.id,
             newBalance,
             nftTxId: nftResult.txId,
+            commitTxId: nftResult.commitTxId,
         };
     } catch (error) {
         console.error('Purchase processing error:', error);
