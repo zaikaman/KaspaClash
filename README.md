@@ -76,9 +76,9 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 - **Turn-Based Combat System:** Strategic rock-paper-scissors style fighting where **every move is a Kaspa transaction** confirmed in real-time
 - **20 Unique Characters:** Diverse roster of fighters with unique stats and abilities
 - **Multiple Game Modes:**
-  - **Ranked Matchmaking:** ELO-based competitive queue
+  - **Ranked Matchmaking:** ELO-based competitive queue with a **30-second failover to Smart Bots** to ensure near-instant entry into combat.
   - **Private Rooms:** 6-character room codes for custom matches
-  - **Practice Mode:** Offline AI training
+  - **Practice Mode:** Train against the Smart Bot AI in an offline environment.
   - **Survival Mode:** Endless wave-based challenge with escalating difficulty
   - **Spectator Mode:** Watch live matches with real-time betting
   - **Bot Battles:** 24/7 automated bot-vs-bot matches with betting support
@@ -220,8 +220,8 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 
 #### Match Flow
 1. **Queue Join:** Player connects wallet → API validates → Supabase stores queue entry
-2. **Matchmaking:** Server matches players by ELO → Creates match record → Notifies via Realtime
-3. **Character Select:** Both players choose fighters → Broadcast selections → Lock when both ready
+2. **Matchmaking:** Server matches players by ELO. If no human opponent is found within **30 seconds**, the system automatically pairs the player with a **Smart Bot** to minimize wait times.
+3. **Character Select:** Both players choose fighters → Broadcast selections → Lock when both ready (Bots select instantly)
 4. **Combat Rounds:** 
    - Client submits moves via API
    - Server validates + resolves combat using deterministic engine
@@ -854,6 +854,15 @@ Special  Stunned    Hit        Shatter    Both Hit
 - **Double KO:** If both players reach 0 HP simultaneously, player with higher HP percentage wins
 - **Timeout:** If move not submitted within 20 seconds, the match is cancelled
 - **Disconnect:** If player disconnects for 30+ seconds, opponent wins by forfeit
+
+### Smart Bot Opponent
+
+To ensure a seamless experience and zero waiting time, KaspaClash features a sophisticated AI decision engine:
+
+- **Intelligent Decision Making:** The bot analyzes current health, energy, guard meters, and move history to choose the optimal strategy.
+- **Realistic Matchmaking:** Bots are assigned names and ratings (±100 ELO of the player) to simulate a real competitive environment.
+- **Failover Logic:** If you remain in the matchmaking queue for more than **30 seconds** without a human match, the system automatically transitions you into a bot match.
+- **On-Chain Consistency:** Bot matches follow the same rules as PvP matches, with server-side settlement ensuring fair gameplay.
 
 ---
 
