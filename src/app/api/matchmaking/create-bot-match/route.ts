@@ -25,7 +25,6 @@ export async function POST(request: NextRequest) {
                 address: player2Address,
                 display_name: player2Name,
                 rating: 1000 + Math.floor(Math.random() * 500), // Random rating 1000-1500
-                is_bot: true, // Mark as bot
             }, {
                 onConflict: "address",
                 ignoreDuplicates: true,
