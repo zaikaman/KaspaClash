@@ -9,6 +9,7 @@ import { CombatEngine } from "@/game/combat";
 import { CHARACTER_ROSTER } from "@/data/characters";
 import type { Character, MoveType } from "@/types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { SmartBotOpponent } from "./smart-bot-opponent";
 
 /**
  * Pre-computed turn data
@@ -103,36 +104,47 @@ function getSeededRandomCharacter(random: () => number, exclude?: string): Chara
 }
 
 /**
- * Get a random affordable move using seeded RNG with smart opponent-awareness
+ * Get a smart move using SmartBotOpponent AI
  */
-function getRandomMove(
-    random: () => number,
+function getSmartMove(
+    bot: SmartBotOpponent,
     engine: CombatEngine,
-    player: "player1" | "player2",
-    opponentIsStunned: boolean = false
+    botPlayer: "player1" | "player2",
+    opponentPlayer: "player1" | "player2"
 ): MoveType {
-    const moves: MoveType[] = ["punch", "kick", "block", "special"];
-    const affordable = moves.filter(m => engine.canAffordMove(player, m));
+    const state = engine.getState();
+    const botState = state[botPlayer];
+    const opponentState = state[opponentPlayer];
 
-    if (affordable.length === 0) return "punch";
+    // Update bot context with current game state
+    bot.updateContext({
+        botHealth: botState.hp,
+        botMaxHealth: botState.maxHp,
+        botEnergy: botState.energy,
+        botMaxEnergy: botState.maxEnergy,
+        botGuardMeter: botState.guardMeter,
+        botIsStunned: botState.isStunned || false,
+        botIsStaggered: botState.isStaggered || false,
+        opponentHealth: opponentState.hp,
+        opponentMaxHealth: opponentState.maxHp,
+        opponentEnergy: opponentState.energy,
+        opponentMaxEnergy: opponentState.maxEnergy,
+        opponentGuardMeter: opponentState.guardMeter,
+        opponentIsStunned: opponentState.isStunned || false,
+        opponentIsStaggered: opponentState.isStaggered || false,
+        roundNumber: state.currentRound,
+        turnNumber: state.currentTurn,
+        botRoundsWon: botState.roundsWon,
+        opponentRoundsWon: opponentState.roundsWon,
+    });
 
-    // Smart AI: If opponent is stunned, prioritize high-damage moves
-    if (opponentIsStunned) {
-        // Try special first (highest damage)
-        if (affordable.includes("special")) {
-            return "special";
-        }
-        // Fallback to kick if can't afford special
-        if (affordable.includes("kick")) {
-            return "kick";
-        }
-        // Last resort: punch
-        return affordable[0];
-    }
-
-    // Normal random selection when opponent is not stunned
-    const index = Math.floor(random() * affordable.length);
-    return affordable[index];
+    // Get AI decision
+    const decision = bot.decide();
+    
+    // Record the move for pattern tracking
+    bot.recordBotMove(decision.move);
+    
+    return decision.move;
 }
 
 /**
@@ -155,6 +167,10 @@ export function simulateBotMatch(matchId: string, bot1Id?: string, bot2Id?: stri
     const engine = new CombatEngine(bot1.id, bot2.id, "best_of_3");
     const initialState = engine.getState();
 
+    // Create SmartBotOpponent instances for both bots
+    const smartBot1 = new SmartBotOpponent(bot1.name);
+    const smartBot2 = new SmartBotOpponent(bot2.name);
+
     // Pre-compute all turns
     const turns: BotTurnData[] = [];
     let turnNumber = 0;
@@ -165,15 +181,23 @@ export function simulateBotMatch(matchId: string, bot1Id?: string, bot2Id?: stri
         turnNumber++;
         const state = engine.getState();
 
-        // Get smart moves based on opponent state
+        // Get smart moves from AI
         // If player is stunned, they can't act (will be treated as stunned in engine)
-        // If opponent is stunned, AI should prioritize special/kick for maximum damage
         const bot1Move = state.player1.isStunned
             ? "punch" // Will be treated as stunned in engine
-            : getRandomMove(random, engine, "player1", state.player2.isStunned);
+            : getSmartMove(smartBot1, engine, "player1", "player2");
+            
         const bot2Move = state.player2.isStunned
             ? "punch"
-            : getRandomMove(random, engine, "player2", state.player1.isStunned);
+            : getSmartMove(smartBot2, engine, "player2", "player1");
+
+        // Record opponent moves for pattern recognition
+        if (!state.player1.isStunned) {
+            smartBot1.recordOpponentMove(bot2Move);
+        }
+        if (!state.player2.isStunned) {
+            smartBot2.recordOpponentMove(bot1Move);
+        }
 
         // Resolve turn
         const result = engine.resolveTurn(bot1Move, bot2Move);

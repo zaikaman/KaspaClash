@@ -1,11 +1,15 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useMatchmakingQueue } from "@/hooks/useMatchmakingQueue";
 import { useWallet } from "@/hooks/useWallet";
 import { useRouter } from "next/navigation";
+import { generateBotName } from "@/lib/game/smart-bot-opponent";
+
+/** Timeout in seconds before matching with bot */
+const BOT_MATCH_TIMEOUT_SECONDS = 30;
 
 export default function MatchmakingQueue() {
     const router = useRouter();
@@ -24,6 +28,7 @@ export default function MatchmakingQueue() {
     } = useMatchmakingQueue();
 
     const [hasStarted, setHasStarted] = useState(false);
+    const [isCreatingBotMatch, setIsCreatingBotMatch] = useState(false);
 
     // Automatically join queue when component mounts if wallet is connected
     useEffect(() => {
@@ -33,12 +38,58 @@ export default function MatchmakingQueue() {
         }
     }, [isConnected, isInQueue, hasStarted, isJoining, joinQueue]);
 
-    // Navigate to match when matched
+    // Navigate to match when matched with real player
     useEffect(() => {
         if (matchResult) {
             router.push(`/match/${matchResult.matchId}`);
         }
     }, [matchResult, router]);
+
+    // Monitor wait time - after 30 seconds, create fake bot match
+    useEffect(() => {
+        if (isInQueue && waitTimeSeconds >= BOT_MATCH_TIMEOUT_SECONDS && !isCreatingBotMatch) {
+            setIsCreatingBotMatch(true);
+            
+            const createBotMatch = async () => {
+                try {
+                    // Generate bot name and address
+                    const botName = generateBotName();
+                    const botAddress = `bot_${Math.random().toString(36).substring(2, 15)}`;
+                    
+                    // Create a fake match entry that looks real
+                    const response = await fetch("/api/matchmaking/create-bot-match", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            player1Address: address,
+                            player2Address: botAddress,
+                            player2Name: botName,
+                        }),
+                    });
+                    
+                    if (response.ok) {
+                        const { matchId } = await response.json();
+                        // Leave queue
+                        await leaveQueue();
+                        // Navigate to match (same flow as real match)
+                        router.push(`/match/${matchId}`);
+                    } else {
+                        console.error("Failed to create bot match");
+                        setIsCreatingBotMatch(false);
+                    }
+                } catch (error) {
+                    console.error("Error creating bot match:", error);
+                    setIsCreatingBotMatch(false);
+                }
+            };
+            
+            createBotMatch();
+        }
+    }, [isInQueue, waitTimeSeconds, isCreatingBotMatch, address, leaveQueue, router]);
+
+
+
+
 
     // If wallet not connected, show connect message
     if (!isConnected) {
@@ -75,6 +126,7 @@ export default function MatchmakingQueue() {
                     <Button
                         onClick={() => {
                             setHasStarted(false);
+                            setQueuePhase("searching");
                             joinQueue();
                         }}
                         className="bg-gradient-cyber text-white border-0 font-orbitron"
@@ -86,7 +138,7 @@ export default function MatchmakingQueue() {
         );
     }
 
-    // Show matching state
+    // Show matching state (real player found)
     if (isMatching) {
         return (
             <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto relative">
@@ -108,6 +160,9 @@ export default function MatchmakingQueue() {
         );
     }
 
+
+
+    // Default: Show searching state
     return (
         <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto relative">
             {/* Radar/Pulse Effect Container */}

@@ -1,46 +1,45 @@
 /**
- * PracticeScene - Offline practice mode against AI
- * Mirrors FightScene UI/UX exactly, but with local AI instead of network play
+ * QuickMatchBotScene - Bot match from quick match queue
+ * Mirrors PracticeScene but uses SmartBotOpponent and looks like a real match
+ * This scene is launched when a player waits 30+ seconds with no opponent
  */
 
 import Phaser from "phaser";
 import { EventBus } from "@/game/EventBus";
 import { GAME_DIMENSIONS, CHARACTER_POSITIONS, UI_POSITIONS } from "@/game/config";
-import { CHAR_SPRITE_CONFIG, TANK_CHARACTERS, getCharacterScale, getAnimationScale, getCharacterYOffset, getSoundDelay, getSFXKey } from "@/game/config/sprite-config";
-import { CombatEngine, BASE_MOVE_STATS } from "@/game/combat";
+import { getCharacterScale, getAnimationScale, getCharacterYOffset, getSoundDelay, getSFXKey } from "@/game/config/sprite-config";
+import { CombatEngine, BASE_MOVE_STATS, COMBAT_CONSTANTS } from "@/game/combat";
 import { SmartBotOpponent } from "@/lib/game/smart-bot-opponent";
-import { getAIThinkTime } from "@/lib/game/ai-difficulty";
-
-// For backward compatibility with difficulty settings
-export type AIDifficulty = "easy" | "medium" | "hard";
 import { getCharacter, getRandomCharacter } from "@/data/characters";
 import type { MoveType, Character } from "@/types";
-import { GAME_CONSTANTS } from "@/types/constants";
 import { isMobileDevice } from "@/utils/device";
 
 /**
- * Practice scene configuration.
+ * QuickMatchBot scene configuration.
  */
-export interface PracticeSceneConfig {
+export interface QuickMatchBotSceneConfig {
   playerCharacterId: string;
-  aiDifficulty: AIDifficulty;
+  botCharacterId: string;
+  botName: string;
+  botAddress: string;
+  playerAddress: string;
   matchFormat?: "best_of_3" | "best_of_5";
 }
 
 /**
- * PracticeScene - Mirrors FightScene UI/UX for offline AI battles.
+ * QuickMatchBotScene - Bot match that looks like a real quick match.
  */
-export class PracticeScene extends Phaser.Scene {
+export class QuickMatchBotScene extends Phaser.Scene {
   // Configuration
-  private config!: PracticeSceneConfig;
+  private config!: QuickMatchBotSceneConfig;
   private playerCharacter!: Character;
-  private aiCharacter!: Character;
-  private ai!: SmartBotOpponent;
+  private botCharacter!: Character;
+  private bot!: SmartBotOpponent;
 
-  // Combat Engine (same as FightScene)
+  // Combat Engine
   private combatEngine!: CombatEngine;
 
-  // UI Elements (mirroring FightScene exactly)
+  // UI Elements
   private player1HealthBar!: Phaser.GameObjects.Graphics;
   private player2HealthBar!: Phaser.GameObjects.Graphics;
   private player1EnergyBar!: Phaser.GameObjects.Graphics;
@@ -52,16 +51,14 @@ export class PracticeScene extends Phaser.Scene {
   private countdownText!: Phaser.GameObjects.Text;
   private turnIndicatorText!: Phaser.GameObjects.Text;
   private narrativeText!: Phaser.GameObjects.Text;
-
-  // Decorative text
-  private modeText?: Phaser.GameObjects.Text;
-  private aiInfoText?: Phaser.GameObjects.Text;
+  private player1NameText?: Phaser.GameObjects.Text;
+  private player2NameText?: Phaser.GameObjects.Text;
 
   // Character sprites
   private player1Sprite!: Phaser.GameObjects.Sprite;
   private player2Sprite!: Phaser.GameObjects.Sprite;
 
-  // Move buttons (same structure as FightScene)
+  // Move buttons
   private moveButtons: Map<MoveType, Phaser.GameObjects.Container> = new Map();
   private selectedMove: MoveType | null = null;
 
@@ -69,7 +66,7 @@ export class PracticeScene extends Phaser.Scene {
   private turnTimer: number = 15;
   private timerEvent?: Phaser.Time.TimerEvent;
 
-  // State (same phases as FightScene)
+  // State
   private phase: "countdown" | "selecting" | "resolving" | "round_end" | "match_end" = "countdown";
 
   // Match result overlay
@@ -78,25 +75,23 @@ export class PracticeScene extends Phaser.Scene {
   // Audio settings
   private bgmVolume: number = 0.3;
   private sfxVolume: number = 0.5;
-  private bgmSlider?: Phaser.GameObjects.Container;
-  private sfxSlider?: Phaser.GameObjects.Container;
 
   // Settings menu
   private settingsContainer!: Phaser.GameObjects.Container;
   private isSettingsOpen: boolean = false;
 
-  // Visibility sync for tab switching
+  // Visibility sync
   private visibilityChangeHandler: (() => void) | null = null;
   private wasPlayingBeforeHidden: boolean = false;
 
   constructor() {
-    super({ key: "PracticeScene" });
+    super({ key: "QuickMatchBotScene" });
   }
 
   /**
    * Initialize scene with configuration.
    */
-  init(data: PracticeSceneConfig): void {
+  init(data: QuickMatchBotSceneConfig): void {
     this.config = data;
     this.resetFullState();
   }
@@ -107,15 +102,10 @@ export class PracticeScene extends Phaser.Scene {
   private resetFullState(): void {
     // Get characters
     this.playerCharacter = getCharacter(this.config.playerCharacterId) ?? getRandomCharacter();
-    this.aiCharacter = getRandomCharacter();
+    this.botCharacter = getCharacter(this.config.botCharacterId) ?? getRandomCharacter();
 
-    // Ensure AI doesn't pick same character as player
-    while (this.aiCharacter.id === this.playerCharacter.id) {
-      this.aiCharacter = getRandomCharacter();
-    }
-
-    // Create AI opponent
-    this.ai = new SmartBotOpponent(`AI_${this.aiCharacter.name}`);
+    // Create SmartBotOpponent
+    this.bot = new SmartBotOpponent(this.config.botName);
 
     // Reset state
     this.selectedMove = null;
@@ -126,7 +116,6 @@ export class PracticeScene extends Phaser.Scene {
 
   /**
    * Preload assets.
-   * OPTIMIZED: Only loads the player and AI character, not all 20!
    */
   preload(): void {
     const {
@@ -137,24 +126,24 @@ export class PracticeScene extends Phaser.Scene {
       loadCharacterAudio,
     } = require("../utils/asset-loader");
 
-    // Load dojo background (unique to practice mode)
-    loadBackground(this, "arena-bg", "/assets/dojo.webp");
+    // Load arena background (same as regular matches)
+    loadBackground(this, "arena-bg", "/assets/arena.webp");
 
     // Load UI assets
     loadUIAssets(this);
 
-    // Load only the player and AI character - not all 20!
+    // Load only the player and bot characters
     const playerChar = this.config?.playerCharacterId || "dag-warrior";
-    const aiChar = this.aiCharacter?.id || "dag-warrior";
-    loadCharacterSprites(this, [playerChar, aiChar]);
+    const botChar = this.config?.botCharacterId || "dag-warrior";
+    loadCharacterSprites(this, [playerChar, botChar]);
 
     // Load audio
     loadCommonAudio(this);
-    loadCharacterAudio(this, [playerChar, aiChar]);
+    loadCharacterAudio(this, [playerChar, botChar]);
 
-    // Load dojo-specific BGM
-    if (!this.cache.audio.exists("bgm_dojo")) {
-      this.load.audio("bgm_dojo", "/assets/audio/dojo.mp3");
+    // Load arena BGM
+    if (!this.cache.audio.exists("bgm_arena")) {
+      this.load.audio("bgm_arena", "/assets/audio/arena.mp3");
     }
   }
 
@@ -164,19 +153,19 @@ export class PracticeScene extends Phaser.Scene {
   create(): void {
     const { createCharacterAnimations } = require("../utils/asset-loader");
 
-    // Load audio settings from localStorage
+    // Load audio settings
     this.loadAudioSettings();
 
-    // Initialize combat engine (same as FightScene)
+    // Initialize combat engine
     const matchFormat = this.config.matchFormat === "best_of_5" ? "best_of_5" : "best_of_3";
     this.combatEngine = new CombatEngine(
       this.playerCharacter.id,
-      this.aiCharacter.id,
+      this.botCharacter.id,
       matchFormat
     );
 
-    // Create animations only for the 2 characters in this match
-    createCharacterAnimations(this, [this.playerCharacter.id, this.aiCharacter.id]);
+    // Create animations
+    createCharacterAnimations(this, [this.playerCharacter.id, this.botCharacter.id]);
 
     // Background
     this.createBackground();
@@ -184,7 +173,7 @@ export class PracticeScene extends Phaser.Scene {
     // Character sprites
     this.createCharacterSprites();
 
-    // UI Elements (mirroring FightScene)
+    // UI Elements
     this.createHealthBars();
     this.createEnergyBars();
     this.createGuardMeters();
@@ -195,7 +184,7 @@ export class PracticeScene extends Phaser.Scene {
     this.createTurnIndicator();
     this.createCountdownOverlay();
 
-    // UI - Settings
+    // Settings
     this.settingsContainer = this.add.container(0, 0);
     this.createSettingsButton();
     this.createSettingsMenu();
@@ -203,53 +192,46 @@ export class PracticeScene extends Phaser.Scene {
     // Setup event listeners
     this.setupEventListeners();
 
-    // Sync UI with initial state
+    // Sync UI
     this.syncUIWithCombatState();
 
     // Start the round
     this.startRound();
 
-    EventBus.emit("practice_scene_ready");
+    EventBus.emit("quickmatch_bot_scene_ready");
 
-    // Play BGM - keep playing even when tab loses focus
+    // Play BGM
     this.sound.pauseOnBlur = false;
-    if (this.sound.get("bgm_dojo")) {
-      if (!this.sound.get("bgm_dojo").isPlaying) {
-        this.sound.play("bgm_dojo", { loop: true, volume: this.bgmVolume });
+    if (this.sound.get("bgm_arena")) {
+      if (!this.sound.get("bgm_arena").isPlaying) {
+        this.sound.play("bgm_arena", { loop: true, volume: this.bgmVolume });
       }
     } else {
-      this.sound.play("bgm_dojo", { loop: true, volume: this.bgmVolume });
+      this.sound.play("bgm_arena", { loop: true, volume: this.bgmVolume });
     }
 
-    // Handle scene shutdown - stop BGM
+    // Handle shutdown
     this.events.once("shutdown", this.handleShutdown, this);
     this.events.once("destroy", this.handleShutdown, this);
 
-    // Setup visibility handler for tab switching
+    // Setup visibility handler
     this.setupVisibilityHandler();
   }
 
   // ===========================================================================
-  // VISIBILITY SYNC (TAB SWITCHING)
+  // VISIBILITY SYNC
   // ===========================================================================
 
-  /**
-   * Setup visibility change handler for pause/resume on tab switching.
-   */
   private setupVisibilityHandler(): void {
     if (typeof document === "undefined") return;
 
     this.visibilityChangeHandler = () => {
       if (document.visibilityState === "hidden") {
-        // Tab hidden - pause timers
-        console.log("[PracticeScene] Tab hidden, pausing timers");
         this.wasPlayingBeforeHidden = this.phase === "selecting";
         if (this.timerEvent && !this.timerEvent.paused) {
           this.timerEvent.paused = true;
         }
       } else if (document.visibilityState === "visible") {
-        // Tab visible - resume timers
-        console.log("[PracticeScene] Tab visible, resuming timers");
         if (this.timerEvent && this.timerEvent.paused && this.wasPlayingBeforeHidden) {
           this.timerEvent.paused = false;
         }
@@ -261,9 +243,6 @@ export class PracticeScene extends Phaser.Scene {
     this.events.once("destroy", this.cleanupVisibilityHandler, this);
   }
 
-  /**
-   * Clean up visibility change handler.
-   */
   private cleanupVisibilityHandler(): void {
     if (this.visibilityChangeHandler && typeof document !== "undefined") {
       document.removeEventListener("visibilitychange", this.visibilityChangeHandler);
@@ -271,18 +250,10 @@ export class PracticeScene extends Phaser.Scene {
     }
   }
 
-  /**
-   * Helper to play SFX with duration cap (5s max) and configurable volume
-   */
   private playSFX(key: string): void {
-    if (this.game.sound.locked) {
-      // Audio might be locked by browser policies, can't force it
-      return;
-    }
-
+    if (this.game.sound.locked) return;
     try {
       this.sound.play(key, { volume: this.sfxVolume });
-      // Stop after 5 seconds max (enough for countdown)
       this.time.delayedCall(5000, () => {
         const sound = this.sound.get(key);
         if (sound && sound.isPlaying) {
@@ -294,9 +265,6 @@ export class PracticeScene extends Phaser.Scene {
     }
   }
 
-  /**
-   * Load audio settings from localStorage.
-   */
   private loadAudioSettings(): void {
     try {
       const savedBgm = localStorage.getItem("kaspaclash_bgm_volume");
@@ -308,9 +276,6 @@ export class PracticeScene extends Phaser.Scene {
     }
   }
 
-  /**
-   * Save audio settings to localStorage.
-   */
   private saveAudioSettings(): void {
     try {
       localStorage.setItem("kaspaclash_bgm_volume", this.bgmVolume.toString());
@@ -320,89 +285,25 @@ export class PracticeScene extends Phaser.Scene {
     }
   }
 
-  /**
-   * Apply BGM volume to currently playing background music.
-   */
   private applyBgmVolume(): void {
-    const bgm = this.sound.get("bgm_dojo");
+    const bgm = this.sound.get("bgm_arena");
     if (bgm && "setVolume" in bgm) {
       (bgm as Phaser.Sound.WebAudioSound).setVolume(this.bgmVolume);
     }
   }
 
-  /**
-   * Handle scene shutdown - stop BGM.
-   */
   private handleShutdown(): void {
-    const bgm = this.sound.get("bgm_dojo");
+    const bgm = this.sound.get("bgm_arena");
     if (bgm && bgm.isPlaying) {
       bgm.stop();
     }
   }
 
-  /**
-   * Create character animations.
-   * Dynamically generates animations for all loaded character spritesheets.
-   */
-  private createAnimations(): void {
-    // All 20 characters
-    const allCharacters = [
-      "aeon-guard", "bastion-hulk", "block-bruiser", "chrono-drifter",
-      "cyber-ninja", "cyber-paladin", "dag-warrior", "gene-smasher",
-      "hash-hunter", "heavy-loader", "kitsune-09", "nano-brawler",
-      "neon-wraith", "prism-duelist", "razor-bot-7", "scrap-goliath",
-      "sonic-striker", "technomancer", "viperblade", "void-reaper"
-    ];
-    const animationTypes = ["idle", "run", "punch", "kick", "block", "special", "dead"];
-
-    allCharacters.forEach((charId) => {
-      animationTypes.forEach((animType) => {
-        const textureKey = `char_${charId}_${animType}`;
-        const animKey = `${charId}_${animType}`;
-
-        if (this.textures.exists(textureKey) && !this.anims.exists(animKey)) {
-          // Get frame count from texture
-          const frameCount = this.textures.get(textureKey).frameTotal - 1; // -1 for __BASE frame
-          const endFrame = Math.max(0, frameCount - 1);
-
-          this.anims.create({
-            key: animKey,
-            frames: this.anims.generateFrameNumbers(textureKey, { start: 0, end: endFrame }),
-            frameRate: 24,
-            repeat: animType === "idle" || animType === "run" ? -1 : 0,
-          });
-        }
-      });
-
-      // Fallback animations (hurt, victory, defeat -> map to idle)
-      const idleKey = `char_${charId}_idle`;
-      ['hurt', 'victory', 'defeat'].forEach(key => {
-        const fallbackAnimKey = `${charId}_${key}`;
-        if (!this.anims.exists(fallbackAnimKey) && this.textures.exists(idleKey)) {
-          const frameCount = this.textures.get(idleKey).frameTotal - 1;
-          const endFrame = Math.max(0, frameCount - 1);
-
-          this.anims.create({
-            key: fallbackAnimKey,
-            frames: this.anims.generateFrameNumbers(idleKey, { start: 0, end: endFrame }),
-            frameRate: 24,
-            repeat: 0,
-          });
-        }
-      });
-    });
-  }
-
-  /**
-   * Update loop.
-   */
   update(_time: number, _delta: number): void {
     if (this.phase === "selecting" && this.roundTimerText) {
       this.roundTimerText.setText(`${Math.ceil(this.turnTimer)}`);
     }
   }
-
-
 
   // ===========================================================================
   // BACKGROUND
@@ -417,39 +318,6 @@ export class PracticeScene extends Phaser.Scene {
       graphics.fillGradientStyle(0x0a0a0a, 0x0a0a0a, 0x1a1a2e, 0x1a1a2e, 1);
       graphics.fillRect(0, 0, GAME_DIMENSIONS.WIDTH, GAME_DIMENSIONS.HEIGHT);
     }
-
-    // Practice mode indicator
-    this.modeText = this.add.text(GAME_DIMENSIONS.CENTER_X, 20, "PRACTICE MODE", {
-      fontFamily: "monospace",
-      fontSize: "12px",
-      color: "#888888",
-    }).setOrigin(0.5);
-
-    // AI difficulty indicator
-    this.aiInfoText = this.add.text(GAME_DIMENSIONS.CENTER_X, 38, `AI: ${this.config.aiDifficulty.toUpperCase()}`, {
-      fontFamily: "monospace",
-      fontSize: "11px",
-      color: "#666666",
-    }).setOrigin(0.5);
-
-    // Initial layout check
-    this.updateLayout();
-    // Listen for resize events to handle rotation
-    this.scale.on('resize', this.updateLayout, this);
-  }
-
-
-
-  /**
-   * Update layout based on screen size.
-   * Hides decorative text on mobile/small screens.
-   */
-  private updateLayout(): void {
-    // Hide on mobile devices OR small screens
-    const shouldHide = isMobileDevice() || window.innerWidth < 1024 || window.innerHeight < 600;
-
-    if (this.modeText) this.modeText.setVisible(!shouldHide);
-    if (this.aiInfoText) this.aiInfoText.setVisible(!shouldHide);
   }
 
   // ===========================================================================
@@ -458,10 +326,7 @@ export class PracticeScene extends Phaser.Scene {
 
   private createCharacterSprites(): void {
     const p1Char = this.playerCharacter.id;
-    const p2Char = this.aiCharacter.id;
-
-    // Using getCharacterScale from sprite-config.ts which calculates:
-    // scale = targetHeight / idleFrameHeight (280px regular, 336px tanks)
+    const p2Char = this.botCharacter.id;
 
     // Player 1 sprite (left side)
     const p1TextureKey = `char_${p1Char}_idle`;
@@ -481,7 +346,7 @@ export class PracticeScene extends Phaser.Scene {
       this.player1Sprite.play(`${p1Char}_idle`);
     }
 
-    // Player 2 sprite (right side, flipped)
+    // Player 2 sprite (right side - bot)
     const p2TextureKey = `char_${p2Char}_idle`;
     const p2BaseYOffset = 50;
     const p2ConfigOffset = getCharacterYOffset(p2Char, "idle");
@@ -500,7 +365,7 @@ export class PracticeScene extends Phaser.Scene {
       this.player2Sprite.play(`${p2Char}_idle`);
     }
 
-    // Add identifier above the local player
+    // Add player indicator
     this.createPlayerIndicator();
   }
 
@@ -538,14 +403,13 @@ export class PracticeScene extends Phaser.Scene {
   }
 
   // ===========================================================================
-  // HEALTH BARS (same as FightScene)
+  // HEALTH BARS
   // ===========================================================================
 
   private createHealthBars(): void {
     const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
     const barHeight = 25;
 
-    // Player 1 Health Bar
     this.createHealthBar(
       UI_POSITIONS.HEALTH_BAR.PLAYER1.X,
       UI_POSITIONS.HEALTH_BAR.PLAYER1.Y,
@@ -554,7 +418,6 @@ export class PracticeScene extends Phaser.Scene {
       "player1"
     );
 
-    // Player 2 Health Bar  
     this.createHealthBar(
       UI_POSITIONS.HEALTH_BAR.PLAYER2.X,
       UI_POSITIONS.HEALTH_BAR.PLAYER2.Y,
@@ -563,20 +426,21 @@ export class PracticeScene extends Phaser.Scene {
       "player2"
     );
 
-    // Player labels
+    // Player labels - show "YOU" vs bot name
     const state = this.combatEngine.getState();
 
-    this.add.text(
+    this.player1NameText = this.add.text(
       UI_POSITIONS.HEALTH_BAR.PLAYER1.X,
       UI_POSITIONS.HEALTH_BAR.PLAYER1.Y - 18,
-      `YOU: ${state.player1.characterId.toUpperCase()} (${state.player1.maxHp} HP)`,
+      `YOU (${state.player1.maxHp} HP)`,
       { fontFamily: "monospace", fontSize: "12px", color: "#22c55e", fontStyle: "bold" }
     );
 
-    this.add.text(
+    // Bot name looks like a real player
+    this.player2NameText = this.add.text(
       UI_POSITIONS.HEALTH_BAR.PLAYER2.X + barWidth,
       UI_POSITIONS.HEALTH_BAR.PLAYER2.Y - 18,
-      `AI: ${state.player2.characterId.toUpperCase()} (${state.player2.maxHp} HP)`,
+      `${this.config.botName} (${state.player2.maxHp} HP)`,
       { fontFamily: "monospace", fontSize: "12px", color: "#40e0d0" }
     ).setOrigin(1, 0);
   }
@@ -599,7 +463,7 @@ export class PracticeScene extends Phaser.Scene {
   }
 
   // ===========================================================================
-  // ENERGY BARS (same as FightScene)
+  // ENERGY BARS
   // ===========================================================================
 
   private createEnergyBars(): void {
@@ -642,7 +506,7 @@ export class PracticeScene extends Phaser.Scene {
   }
 
   // ===========================================================================
-  // GUARD METERS (same as FightScene)
+  // GUARD METERS
   // ===========================================================================
 
   private createGuardMeters(): void {
@@ -650,7 +514,6 @@ export class PracticeScene extends Phaser.Scene {
     const barHeight = 6;
     const yOffset = 45;
 
-    // Player 1 Guard Meter
     this.createGuardMeter(
       UI_POSITIONS.HEALTH_BAR.PLAYER1.X,
       UI_POSITIONS.HEALTH_BAR.PLAYER1.Y + yOffset,
@@ -659,7 +522,6 @@ export class PracticeScene extends Phaser.Scene {
       "player1"
     );
 
-    // Player 2 Guard Meter
     this.createGuardMeter(
       UI_POSITIONS.HEALTH_BAR.PLAYER2.X,
       UI_POSITIONS.HEALTH_BAR.PLAYER2.Y + yOffset,
@@ -670,11 +532,7 @@ export class PracticeScene extends Phaser.Scene {
   }
 
   private createGuardMeter(
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    player: "player1" | "player2"
+    x: number, y: number, width: number, height: number, player: "player1" | "player2"
   ): void {
     const bg = this.add.graphics();
     bg.fillStyle(0x111111, 1);
@@ -689,7 +547,7 @@ export class PracticeScene extends Phaser.Scene {
   }
 
   // ===========================================================================
-  // ROUND TIMER (same as FightScene)
+  // ROUND TIMER
   // ===========================================================================
 
   private createRoundTimer(): void {
@@ -708,7 +566,7 @@ export class PracticeScene extends Phaser.Scene {
   }
 
   // ===========================================================================
-  // ROUND SCORE (same as FightScene)
+  // ROUND SCORE
   // ===========================================================================
 
   private createRoundScore(): void {
@@ -722,19 +580,18 @@ export class PracticeScene extends Phaser.Scene {
   }
 
   // ===========================================================================
-  // MOVE BUTTONS (same as FightScene)
+  // MOVE BUTTONS
   // ===========================================================================
 
   private createMoveButtons(): void {
     const moves: MoveType[] = ["punch", "kick", "block", "special"];
-    const buttonWidth = 140; // Narrower, taller card style
+    const buttonWidth = 140;
     const buttonHeight = 160;
     const spacing = 20;
     const totalWidth = moves.length * buttonWidth + (moves.length - 1) * spacing;
     const startX = (GAME_DIMENSIONS.WIDTH - totalWidth) / 2 + buttonWidth / 2;
     const y = GAME_DIMENSIONS.HEIGHT - 100;
 
-    // Label
     this.add.text(
       GAME_DIMENSIONS.CENTER_X,
       y - 95,
@@ -754,14 +611,12 @@ export class PracticeScene extends Phaser.Scene {
   ): Phaser.GameObjects.Container {
     const container = this.add.container(x, y);
 
-    // Colors based on move type
     let color = 0xffffff;
-    if (move === "punch") color = 0xef4444;      // Red
-    if (move === "kick") color = 0x06b6d4;       // Cyan
-    if (move === "block") color = 0x22c55e;      // Green
-    if (move === "special") color = 0xa855f7;    // Purple
+    if (move === "punch") color = 0xef4444;
+    if (move === "kick") color = 0x06b6d4;
+    if (move === "block") color = 0x22c55e;
+    if (move === "special") color = 0xa855f7;
 
-    // Background (Card style)
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1a2e, 0.9);
     bg.fillRoundedRect(-width / 2, -height / 2, width, height, 12);
@@ -769,19 +624,16 @@ export class PracticeScene extends Phaser.Scene {
     bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 12);
     container.add(bg);
 
-    // Inner Glow (simulated with alpha rect)
     const glow = this.add.graphics();
     glow.fillStyle(color, 0.1);
     glow.fillRoundedRect(-width / 2 + 5, -height / 2 + 5, width - 10, height - 10, 8);
     container.add(glow);
 
-    // Icon
     const iconKey = `move_${move}`;
     const icon = this.add.image(0, -20, iconKey);
     icon.setDisplaySize(64, 64);
     container.add(icon);
 
-    // Move Name
     const nameText = this.add.text(0, 25, move.toUpperCase(), {
       fontFamily: "monospace",
       fontSize: "16px",
@@ -790,7 +642,6 @@ export class PracticeScene extends Phaser.Scene {
     }).setOrigin(0.5);
     container.add(nameText);
 
-    // Energy Cost
     const cost = BASE_MOVE_STATS[move].energyCost;
     const costColor = cost === 0 ? "#22c55e" : "#3b82f6";
     const costText = this.add.text(0, 48, `${cost} Energy`, {
@@ -800,7 +651,6 @@ export class PracticeScene extends Phaser.Scene {
     }).setOrigin(0.5);
     container.add(costText);
 
-    // Advantage Text
     let advantage = "";
     if (move === "punch") advantage = "Beats Special";
     if (move === "kick") advantage = "Beats Punch";
@@ -815,11 +665,9 @@ export class PracticeScene extends Phaser.Scene {
     }).setOrigin(0.5);
     container.add(advText);
 
-    // Interactive
     const hitArea = new Phaser.Geom.Rectangle(-width / 2, -height / 2, width, height);
     container.setInteractive(hitArea, Phaser.Geom.Rectangle.Contains);
 
-    // Hover effects
     container.on("pointerover", () => {
       if (this.phase === "selecting" && this.combatEngine.canAffordMove("player1", move)) {
         this.sound.play("sfx_hover", { volume: 0.5 });
@@ -867,16 +715,16 @@ export class PracticeScene extends Phaser.Scene {
     return container;
   }
 
-  /* getMoveInfoText removed */
+  // ===========================================================================
+  // TURN FLOW
+  // ===========================================================================
 
   private selectMove(move: MoveType): void {
-    // Check if affordable
     if (!this.combatEngine.canAffordMove("player1", move)) {
       this.showFloatingText("Not enough energy!", GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.HEIGHT - 150, "#ff4444");
       return;
     }
 
-    // Deselect previous
     if (this.selectedMove) {
       this.updateButtonState(this.selectedMove, false);
     }
@@ -884,23 +732,20 @@ export class PracticeScene extends Phaser.Scene {
     this.selectedMove = move;
     this.updateButtonState(move, true);
 
-    // Update turn indicator
-    this.turnIndicatorText.setText("AI is thinking...");
+    this.turnIndicatorText.setText(`${this.config.botName} is thinking...`);
     this.turnIndicatorText.setColor("#f97316");
 
-    // Disable buttons while AI thinks
     this.moveButtons.forEach(btn => btn.setAlpha(0.4).disableInteractive());
 
-    // Stop timer
     if (this.timerEvent) {
       this.timerEvent.destroy();
       this.timerEvent = undefined;
     }
 
-    // AI makes decision after "thinking" delay
-    const thinkTime = getAIThinkTime(this.config.aiDifficulty);
+    // Bot "thinks" for a realistic delay (1-3 seconds)
+    const thinkTime = 1000 + Math.random() * 2000;
     this.time.delayedCall(thinkTime, () => {
-      this.aiMakeDecision();
+      this.botMakeDecision();
     });
   }
 
@@ -912,7 +757,6 @@ export class PracticeScene extends Phaser.Scene {
       if (!button) return;
 
       if (move === selectedMove && isSelected) {
-        // Selected state
         this.tweens.add({
           targets: button,
           alpha: 1,
@@ -923,7 +767,6 @@ export class PracticeScene extends Phaser.Scene {
           ease: "Back.easeOut",
         });
 
-        // Highlight effect
         const bg = button.list[0] as Phaser.GameObjects.Graphics;
         bg.clear();
         bg.fillStyle(0x1a1a2e, 1);
@@ -932,7 +775,6 @@ export class PracticeScene extends Phaser.Scene {
         bg.strokeRoundedRect(-70, -80, 140, 160, 12);
 
       } else {
-        // Unselected state
         const isAffordable = this.combatEngine.canAffordMove("player1", move);
 
         this.tweens.add({
@@ -945,7 +787,6 @@ export class PracticeScene extends Phaser.Scene {
           ease: "Power2",
         });
 
-        // Reset style
         let color = 0xffffff;
         if (move === "punch") color = 0xef4444;
         if (move === "kick") color = 0x06b6d4;
@@ -970,7 +811,6 @@ export class PracticeScene extends Phaser.Scene {
       const button = this.moveButtons.get(move);
       if (!button) return;
 
-      // Reset transforms
       this.tweens.add({
         targets: button,
         alpha: 1,
@@ -981,7 +821,6 @@ export class PracticeScene extends Phaser.Scene {
         ease: "Power2",
       });
 
-      // Reset styling
       let color = 0xffffff;
       if (move === "punch") color = 0xef4444;
       if (move === "kick") color = 0x06b6d4;
@@ -1007,14 +846,12 @@ export class PracticeScene extends Phaser.Scene {
         if (!canAfford) {
           container.setAlpha(0.3);
           container.disableInteractive();
-          // Tint children to grayscale for visual feedback
           container.list.forEach((child: any) => {
             if (child.setTint) child.setTint(0x555555);
           });
         } else {
           container.setAlpha(1);
           container.setInteractive();
-          // Clear tint
           container.list.forEach((child: any) => {
             if (child.clearTint) child.clearTint();
           });
@@ -1024,7 +861,7 @@ export class PracticeScene extends Phaser.Scene {
   }
 
   // ===========================================================================
-  // TURN INDICATOR
+  // UI HELPERS
   // ===========================================================================
 
   private createNarrativeDisplay(): void {
@@ -1051,10 +888,6 @@ export class PracticeScene extends Phaser.Scene {
     ).setOrigin(0.5);
   }
 
-  // ===========================================================================
-  // COUNTDOWN OVERLAY
-  // ===========================================================================
-
   private createCountdownOverlay(): void {
     this.countdownText = this.add.text(
       GAME_DIMENSIONS.CENTER_X,
@@ -1064,17 +897,32 @@ export class PracticeScene extends Phaser.Scene {
     ).setOrigin(0.5).setAlpha(0);
   }
 
+  private showFloatingText(text: string, x: number, y: number, color: string): void {
+    const floatText = this.add.text(x, y, text, {
+      fontFamily: "monospace",
+      fontSize: "24px",
+      color: color,
+      fontStyle: "bold",
+    }).setOrigin(0.5);
+
+    this.tweens.add({
+      targets: floatText,
+      y: y - 50,
+      alpha: 0,
+      duration: 1500,
+      ease: "Power2",
+      onComplete: () => floatText.destroy(),
+    });
+  }
+
   // ===========================================================================
-  // GAME FLOW (same as FightScene)
+  // GAME FLOW
   // ===========================================================================
 
   private startRound(): void {
     this.phase = "countdown";
-
-    // Play SFX first (full "3-2-1 Fight" sequence)
     this.playSFX("sfx_cd_fight");
 
-    // Delay visual countdown slightly to match audio timing (approx 0.3s before "3" appears)
     this.time.delayedCall(300, () => {
       this.showCountdown(3);
     });
@@ -1098,7 +946,6 @@ export class PracticeScene extends Phaser.Scene {
             if (count > 0) {
               updateCountdown();
             } else {
-              // SFX already played at start
               this.countdownText.setText("FIGHT!");
               this.countdownText.setAlpha(1);
               this.tweens.add({
@@ -1120,7 +967,6 @@ export class PracticeScene extends Phaser.Scene {
   }
 
   private startSelectionPhase(): void {
-    // Destroy existing timer
     if (this.timerEvent) {
       this.timerEvent.destroy();
       this.timerEvent = undefined;
@@ -1130,23 +976,19 @@ export class PracticeScene extends Phaser.Scene {
     this.selectedMove = null;
     this.turnTimer = 15;
 
-    // Get current state to check if player is stunned
     const state = this.combatEngine.getState();
 
     // Check if player is stunned
     if (state.player1.isStunned) {
-      // Player is stunned - show message and disable buttons
       this.turnIndicatorText.setText("YOU ARE STUNNED!");
       this.turnIndicatorText.setColor("#ff4444");
       this.roundTimerText.setColor("#ff4444");
 
-      // Disable all buttons visually
       this.moveButtons.forEach(btn => {
         btn.setAlpha(0.3);
         btn.disableInteractive();
       });
 
-      // Flash the stun message
       this.tweens.add({
         targets: this.turnIndicatorText,
         alpha: { from: 1, to: 0.5 },
@@ -1155,53 +997,27 @@ export class PracticeScene extends Phaser.Scene {
         repeat: 2,
       });
 
-      // AI makes its decision immediately (player can't act)
-      const thinkTime = getAIThinkTime(this.config.aiDifficulty);
+      // Bot makes decision immediately
+      const thinkTime = 1000 + Math.random() * 1500;
       this.time.delayedCall(thinkTime, () => {
-        // Update AI context with stunned state before deciding
-        this.ai.updateContext({
-          botHealth: state.player2.hp,
-          botMaxHealth: state.player2.maxHp,
-          botEnergy: state.player2.energy,
-          botMaxEnergy: state.player2.maxEnergy,
-          botGuardMeter: state.player2.guardMeter,
-          botIsStunned: state.player2.isStunned || false,
-          botIsStaggered: state.player2.isStaggered || false,
-          opponentHealth: state.player1.hp,
-          opponentMaxHealth: state.player1.maxHp,
-          opponentEnergy: state.player1.energy,
-          opponentMaxEnergy: state.player1.maxEnergy,
-          opponentGuardMeter: state.player1.guardMeter,
-          opponentIsStunned: true,
-          opponentIsStaggered: state.player1.isStaggered || false,
-          roundNumber: state.currentRound,
-          turnNumber: state.currentTurn,
-          botRoundsWon: state.player2.roundsWon,
-          opponentRoundsWon: state.player1.roundsWon,
-        });
-        const decision = this.ai.decide();
-        const aiMove = decision.move;
-        // Player's move doesn't matter when stunned - use punch as placeholder
-        this.resolveRound("punch", aiMove);
+        this.updateBotContext();
+        const decision = this.bot.decide();
+        this.resolveRound("punch", decision.move);
       });
       return;
     }
 
-    // Normal selection phase (player not stunned)
     this.turnIndicatorText.setText("Select your move!");
     this.turnIndicatorText.setColor("#888888");
     this.roundTimerText.setColor("#40e0d0");
 
-    // Reset button visuals and affordability
     this.resetButtonVisuals();
     this.updateMoveButtonAffordability();
 
-    // Start timer
     this.timerEvent = this.time.addEvent({
       delay: 1000,
       callback: () => {
         if (this.phase !== "selecting") return;
-
         this.turnTimer--;
         if (this.turnTimer <= 5) {
           this.roundTimerText.setColor("#ff4444");
@@ -1213,22 +1029,27 @@ export class PracticeScene extends Phaser.Scene {
       repeat: 14,
     });
 
-    // Update AI context
-    this.ai.updateContext({
+    // Update bot context
+    this.updateBotContext();
+  }
+
+  private updateBotContext(): void {
+    const state = this.combatEngine.getState();
+    this.bot.updateContext({
       botHealth: state.player2.hp,
       botMaxHealth: state.player2.maxHp,
       botEnergy: state.player2.energy,
       botMaxEnergy: state.player2.maxEnergy,
       botGuardMeter: state.player2.guardMeter,
-      botIsStunned: state.player2.isStunned || false,
-      botIsStaggered: state.player2.isStaggered || false,
+      botIsStunned: state.player2.isStunned,
+      botIsStaggered: state.player2.isStaggered,
       opponentHealth: state.player1.hp,
       opponentMaxHealth: state.player1.maxHp,
       opponentEnergy: state.player1.energy,
       opponentMaxEnergy: state.player1.maxEnergy,
       opponentGuardMeter: state.player1.guardMeter,
-      opponentIsStunned: state.player1.isStunned || false,
-      opponentIsStaggered: state.player1.isStaggered || false,
+      opponentIsStunned: state.player1.isStunned,
+      opponentIsStaggered: state.player1.isStaggered,
       roundNumber: state.currentRound,
       turnNumber: state.currentTurn,
       botRoundsWon: state.player2.roundsWon,
@@ -1244,7 +1065,6 @@ export class PracticeScene extends Phaser.Scene {
       this.timerEvent = undefined;
     }
 
-    // Auto-select punch if no move selected
     if (!this.selectedMove) {
       this.selectedMove = "punch";
     }
@@ -1254,107 +1074,70 @@ export class PracticeScene extends Phaser.Scene {
 
     this.moveButtons.forEach(btn => btn.setAlpha(0.4).disableInteractive());
 
-    // AI makes its decision
-    const thinkTime = getAIThinkTime(this.config.aiDifficulty);
+    const thinkTime = 1000 + Math.random() * 1500;
     this.time.delayedCall(thinkTime, () => {
-      this.aiMakeDecision();
+      this.botMakeDecision();
     });
   }
 
-  private aiMakeDecision(): void {
-    // Update AI context with current state
-    const state = this.combatEngine.getState();
-    this.ai.updateContext({
-      botHealth: state.player2.hp,
-      botMaxHealth: state.player2.maxHp,
-      botEnergy: state.player2.energy,
-      botMaxEnergy: state.player2.maxEnergy,
-      botGuardMeter: state.player2.guardMeter,
-      botIsStunned: state.player2.isStunned || false,
-      botIsStaggered: state.player2.isStaggered || false,
-      opponentHealth: state.player1.hp,
-      opponentMaxHealth: state.player1.maxHp,
-      opponentEnergy: state.player1.energy,
-      opponentMaxEnergy: state.player1.maxEnergy,
-      opponentGuardMeter: state.player1.guardMeter,
-      opponentIsStunned: state.player1.isStunned || false,
-      opponentIsStaggered: state.player1.isStaggered || false,
-      roundNumber: state.currentRound,
-      turnNumber: state.currentTurn,
-      botRoundsWon: state.player2.roundsWon,
-      opponentRoundsWon: state.player1.roundsWon,
-    });
+  private botMakeDecision(): void {
+    this.updateBotContext();
 
-    const decision = this.ai.decide();
-    const aiMove = decision.move;
+    const decision = this.bot.decide();
+    const botMove = decision.move;
 
-    // Record player's move to AI memory
-    this.ai.recordPlayerMove(this.selectedMove!);
+    // Record player's move
+    this.bot.recordOpponentMove(this.selectedMove!);
+    this.bot.recordBotMove(botMove);
 
-    // Resolve the turn
-    this.resolveRound(this.selectedMove!, aiMove);
+    this.resolveRound(this.selectedMove!, botMove);
   }
 
-  private resolveRound(playerMove: MoveType, aiMove: MoveType): void {
+  private resolveRound(playerMove: MoveType, botMove: MoveType): void {
     this.phase = "resolving";
 
-    // Store previous health for damage calculation
     const prevState = this.combatEngine.getState();
     const prevP1Health = prevState.player1.hp;
     const prevP2Health = prevState.player2.hp;
 
-    // Execute moves in combat engine - returns TurnResult
-    const turnResult = this.combatEngine.resolveTurn(playerMove, aiMove);
-
-    // Get updated state
+    const turnResult = this.combatEngine.resolveTurn(playerMove, botMove);
     const state = this.combatEngine.getState();
 
     const p1Char = this.playerCharacter.id;
-    const p2Char = this.aiCharacter.id;
+    const p2Char = this.botCharacter.id;
 
-    // Using getAnimationScale(charId, animType) from sprite-config.ts for consistent sizing
-    // Scale = targetHeight / frameHeight (280px regular, 336px tanks)
-
-    // Store original positions
     const p1OriginalX = CHARACTER_POSITIONS.PLAYER1.X;
     const p2OriginalX = CHARACTER_POSITIONS.PLAYER2.X;
     const meetingPointX = GAME_DIMENSIONS.CENTER_X;
 
-    // Check if either player was stunned (outcome "stunned" means they missed this turn)
     const p1WasStunned = turnResult.player1.outcome === "stunned";
     const p2WasStunned = turnResult.player2.outcome === "stunned";
 
-    // Determine movement targets based on stun state
     let p1TargetX: number;
     let p2TargetX: number;
 
     if (p1WasStunned && !p2WasStunned) {
-      // Player 1 is stunned - AI runs to player 1's position
-      p1TargetX = p1OriginalX; // Player stays in place
-      p2TargetX = p1OriginalX + 100; // AI runs to player's position
+      p1TargetX = p1OriginalX;
+      p2TargetX = p1OriginalX + 100;
     } else if (p2WasStunned && !p1WasStunned) {
-      // Player 2 (AI) is stunned - Player runs to AI's position
-      p1TargetX = p2OriginalX - 100; // Player runs to AI's position
-      p2TargetX = p2OriginalX; // AI stays in place
+      p1TargetX = p2OriginalX - 100;
+      p2TargetX = p2OriginalX;
     } else {
-      // Normal case - both meet in the middle
       p1TargetX = meetingPointX - 50;
       p2TargetX = meetingPointX + 50;
     }
 
-    // Phase 1: Run animations (only for non-stunned characters)
+    // Phase 1: Run animations
     if (!p1WasStunned && this.anims.exists(`${p1Char}_run`)) {
       const p1RunScale = getAnimationScale(p1Char, 'run');
       this.player1Sprite.setScale(p1RunScale);
       this.player1Sprite.play(`${p1Char}_run`);
     } else if (p1WasStunned) {
-      // Stunned player stays in idle and shows stun effect
       if (this.anims.exists(`${p1Char}_idle`)) {
         const p1IdleScale = getAnimationScale(p1Char, 'idle');
         this.player1Sprite.setScale(p1IdleScale);
         this.player1Sprite.play(`${p1Char}_idle`);
       }
-      // Visual stun indicator - pulsing red tint
       this.tweens.add({
         targets: this.player1Sprite,
         tint: 0xff6666,
@@ -1364,18 +1147,17 @@ export class PracticeScene extends Phaser.Scene {
         onComplete: () => this.player1Sprite.clearTint()
       });
     }
+
     if (!p2WasStunned && this.anims.exists(`${p2Char}_run`)) {
       const p2RunScale = getAnimationScale(p2Char, 'run');
       this.player2Sprite.setScale(p2RunScale);
       this.player2Sprite.play(`${p2Char}_run`);
     } else if (p2WasStunned) {
-      // Stunned player stays in idle and shows stun effect
       if (this.anims.exists(`${p2Char}_idle`)) {
         const p2IdleScale = getAnimationScale(p2Char, 'idle');
         this.player2Sprite.setScale(p2IdleScale);
         this.player2Sprite.play(`${p2Char}_idle`);
       }
-      // Visual stun indicator - pulsing red tint
       this.tweens.add({
         targets: this.player2Sprite,
         tint: 0xff6666,
@@ -1386,7 +1168,6 @@ export class PracticeScene extends Phaser.Scene {
       });
     }
 
-    // Tween to target positions
     this.tweens.add({
       targets: this.player1Sprite,
       x: p1TargetX,
@@ -1400,33 +1181,22 @@ export class PracticeScene extends Phaser.Scene {
       duration: 600,
       ease: 'Power2',
       onComplete: () => {
-        // Calculate actual damage from HP difference (before animations)
         const p1ActualDamage = Math.max(0, prevP1Health - this.combatEngine.getState().player1.hp);
         const p2ActualDamage = Math.max(0, prevP2Health - this.combatEngine.getState().player2.hp);
 
-        // Phase 2: Player 1 Attack (Sequential)
         const runP1Attack = () => {
           return new Promise<void>((resolve) => {
             if (p1WasStunned) {
-              resolve(); // Skip if stunned
+              resolve();
               return;
             }
 
-            // Play P1 animation
             const animKey = `${p1Char}_${playerMove}`;
             if (this.anims.exists(animKey)) {
-              // Use getAnimationScale for consistent sizing across all animations
               const scale = getAnimationScale(p1Char, playerMove);
-
               this.player1Sprite.setScale(scale);
-
-              // Play Animation & SFX Logic
-              // Animation plays immediately, but audio timing varies:
-              // - Block Bruiser Special: Audio delayed 1s (to sync with impact)
-              // - Cyber Ninja Special: Audio delayed 0.5s (to sync with impact)
               this.player1Sprite.play(animKey);
 
-              // SFX Logic with centralized delays and keys
               const sfxKey = getSFXKey(p1Char, playerMove);
               const delay = getSoundDelay(p1Char, playerMove);
               if (delay > 0) {
@@ -1436,17 +1206,12 @@ export class PracticeScene extends Phaser.Scene {
               }
             }
 
-            // Show narrative for P1
             this.turnIndicatorText.setText(playerMove.toUpperCase());
-            this.turnIndicatorText.setColor("#22c55e"); // Player color
+            this.turnIndicatorText.setColor("#22c55e");
 
-            // Show P2 damage delayed - use pre-calculated actual HP lost
             if (p2ActualDamage > 0) {
-              this.time.delayedCall(300, () => { // Hit impact timing
+              this.time.delayedCall(300, () => {
                 this.showFloatingText(`-${p2ActualDamage}`, p2OriginalX - 50, CHARACTER_POSITIONS.PLAYER2.Y - 130, "#ff4444");
-
-                // Play P2 Hurt anim if not blocking/special-ing? 
-                // For now just keep it simple as sound only or flash
                 this.tweens.add({
                   targets: this.player2Sprite,
                   alpha: 0.5,
@@ -1457,14 +1222,10 @@ export class PracticeScene extends Phaser.Scene {
               });
             }
 
-            // Wait for anim to finish (approx 1s)
-            this.time.delayedCall(1200, () => {
-              resolve();
-            });
+            this.time.delayedCall(1200, () => resolve());
           });
         };
 
-        // Phase 3: Player 2 Attack (Sequential)
         const runP2Attack = () => {
           return new Promise<void>((resolve) => {
             if (p2WasStunned) {
@@ -1472,21 +1233,14 @@ export class PracticeScene extends Phaser.Scene {
               return;
             }
 
-            // Play AI animation
-            const animKey = `${p2Char}_${aiMove}`;
+            const animKey = `${p2Char}_${botMove}`;
             if (this.anims.exists(animKey)) {
-              // Use getAnimationScale for consistent sizing across all animations
-              const scale = getAnimationScale(p2Char, aiMove);
-
+              const scale = getAnimationScale(p2Char, botMove);
               this.player2Sprite.setScale(scale);
-
-              // Play Animation & SFX Logic
-              // Animation plays immediately, audio timing varies by character
               this.player2Sprite.play(animKey);
 
-              // SFX Logic with centralized delays and keys
-              const sfxKey = getSFXKey(p2Char, aiMove);
-              const p2Delay = getSoundDelay(p2Char, aiMove);
+              const sfxKey = getSFXKey(p2Char, botMove);
+              const p2Delay = getSoundDelay(p2Char, botMove);
               if (p2Delay > 0) {
                 this.time.delayedCall(p2Delay, () => this.playSFX(sfxKey));
               } else {
@@ -1494,11 +1248,9 @@ export class PracticeScene extends Phaser.Scene {
               }
             }
 
-            // Narrative
-            this.turnIndicatorText.setText(aiMove.toUpperCase());
-            this.turnIndicatorText.setColor("#ef4444"); // AI color
+            this.turnIndicatorText.setText(botMove.toUpperCase());
+            this.turnIndicatorText.setColor("#ef4444");
 
-            // Show P1 damage - use pre-calculated actual HP lost
             if (p1ActualDamage > 0) {
               this.time.delayedCall(300, () => {
                 this.showFloatingText(`-${p1ActualDamage}`, p1OriginalX + 50, CHARACTER_POSITIONS.PLAYER1.Y - 130, "#ff4444");
@@ -1512,58 +1264,47 @@ export class PracticeScene extends Phaser.Scene {
               });
             }
 
-            // Wait for anim to finish (approx 1s)
-            this.time.delayedCall(1200, () => {
-              resolve();
-            });
+            this.time.delayedCall(1200, () => resolve());
           });
         };
 
-        // Execute Sequence
         (async () => {
-          // Check for block interaction
-          const isConcurrent = playerMove === "block" || aiMove === "block";
+          const isConcurrent = playerMove === "block" || botMove === "block";
 
           if (isConcurrent) {
             await Promise.all([runP1Attack(), runP2Attack()]);
           } else {
-            // P1 goes first
             await runP1Attack();
-            // Then P2
             await runP2Attack();
           }
 
-          // Show overall narrative
           let narrative = "";
           if (p1WasStunned && p2WasStunned) {
             narrative = "Both players are stunned!";
           } else if (p1WasStunned) {
-            narrative = `You are STUNNED! AI uses ${aiMove}!`;
+            narrative = `You are STUNNED! ${this.config.botName} uses ${botMove}!`;
           } else if (p2WasStunned) {
-            narrative = `AI is STUNNED! You use ${playerMove}!`;
+            narrative = `${this.config.botName} is STUNNED! You use ${playerMove}!`;
           } else if (p1ActualDamage > 0 && p2ActualDamage > 0) {
-            // Both players took damage - show who did more
             if (p2ActualDamage > p1ActualDamage) {
               narrative = `Brutal exchange! You ${playerMove} for ${p2ActualDamage} dmg, but take ${p1ActualDamage}!`;
             } else if (p1ActualDamage > p2ActualDamage) {
-              narrative = `Fierce clash! AI ${aiMove} for ${p1ActualDamage} dmg, but takes ${p2ActualDamage}!`;
+              narrative = `Fierce clash! ${this.config.botName} ${botMove} for ${p1ActualDamage} dmg, but takes ${p2ActualDamage}!`;
             } else {
               narrative = `Devastating trade! Both deal ${p1ActualDamage} damage!`;
             }
           } else if (p2ActualDamage > 0) {
             narrative = `You hit for ${p2ActualDamage} damage!`;
           } else if (p1ActualDamage > 0) {
-            narrative = `AI hits for ${p1ActualDamage} damage!`;
+            narrative = `${this.config.botName} hits for ${p1ActualDamage} damage!`;
           } else {
             narrative = "Both attacks were blocked or missed!";
           }
           this.narrativeText.setText(narrative);
           this.narrativeText.setAlpha(1);
 
-          // Phase 4: Sync UI & Return
           this.syncUIWithCombatState();
 
-          // Run back animations
           if (this.anims.exists(`${p1Char}_run`)) {
             const p1RunScale = getAnimationScale(p1Char, 'run');
             this.player1Sprite.setScale(p1RunScale);
@@ -1573,10 +1314,9 @@ export class PracticeScene extends Phaser.Scene {
             const p2RunScale = getAnimationScale(p2Char, 'run');
             this.player2Sprite.setScale(p2RunScale);
             this.player2Sprite.play(`${p2Char}_run`);
-            this.player2Sprite.setFlipX(true); // Ensure facing correct way
+            this.player2Sprite.setFlipX(true);
           }
 
-          // Tween back
           this.tweens.add({
             targets: this.player1Sprite,
             x: p1OriginalX,
@@ -1590,7 +1330,6 @@ export class PracticeScene extends Phaser.Scene {
             duration: 600,
             ease: 'Power2',
             onComplete: () => {
-              // Phase 5: Return to idle
               if (this.anims.exists(`${p1Char}_idle`)) {
                 const p1IdleScale = getAnimationScale(p1Char, 'idle');
                 this.player1Sprite.setScale(p1IdleScale);
@@ -1602,7 +1341,6 @@ export class PracticeScene extends Phaser.Scene {
                 this.player2Sprite.play(`${p2Char}_idle`);
               }
 
-              // Check result
               if (state.isMatchOver) {
                 this.showMatchEnd();
               } else if (state.isRoundOver) {
@@ -1617,206 +1355,124 @@ export class PracticeScene extends Phaser.Scene {
     });
   }
 
-  private showDamageNumbers(turnResult: { player1: { damageTaken: number }, player2: { damageTaken: number } }, centerX: number): void {
-    // Show damage taken by player (if any)
-    if (turnResult.player1.damageTaken > 0) {
-      this.showFloatingText(
-        `-${turnResult.player1.damageTaken}`,
-        centerX - 50,
-        CHARACTER_POSITIONS.PLAYER1.Y - 130,
-        "#ff4444"
-      );
-    }
-
-    // Show damage taken by AI (if any)
-    if (turnResult.player2.damageTaken > 0) {
-      this.showFloatingText(
-        `-${turnResult.player2.damageTaken}`,
-        centerX + 50,
-        CHARACTER_POSITIONS.PLAYER2.Y - 130,
-        "#ff4444"
-      );
-    }
-  }
-
-  private showFloatingText(text: string, x: number, y: number, color: string): void {
-    const floatText = this.add.text(x, y, text, {
-      fontFamily: "monospace",
-      fontSize: "28px",
-      color: color,
-      fontStyle: "bold",
-      stroke: "#000000",
-      strokeThickness: 4,
-    }).setOrigin(0.5);
-
-    this.tweens.add({
-      targets: floatText,
-      y: y - 60,
-      alpha: 0,
-      duration: 1000,
-      ease: "Power2",
-      onComplete: () => floatText.destroy(),
-    });
-  }
+  // ===========================================================================
+  // ROUND/MATCH END
+  // ===========================================================================
 
   private showRoundEnd(): void {
     this.phase = "round_end";
     const state = this.combatEngine.getState();
-    const roundsToWin = this.config.matchFormat === "best_of_5" ? 3 : 2;
+    const playerWonRound = state.roundWinner === "player1";
 
-    // Dead animation logic - use centralized scaling
-    const loser = state.roundWinner === "player1" ? "player2" : "player1";
-    const loserChar = loser === "player1" ? this.playerCharacter.id : this.aiCharacter.id;
-    const loserSprite = loser === "player1" ? this.player1Sprite : this.player2Sprite;
+    const text = playerWonRound ? "ROUND WIN!" : "ROUND LOST";
+    const color = playerWonRound ? "#22c55e" : "#ef4444";
 
-    // Use centralized scale from sprite-config.ts
-    const deadScale = getAnimationScale(loserChar, "dead");
+    this.playSFX(playerWonRound ? "sfx_round_win" : "sfx_round_lose");
 
-    // Play dead animation
-    if (this.anims.exists(`${loserChar}_dead`)) {
-      loserSprite.setScale(deadScale);
-      loserSprite.play(`${loserChar}_dead`);
-    }
-
-    // Play Round End SFX
-    const isWin = state.roundWinner === "player1";
-    this.playSFX(isWin ? "sfx_victory" : "sfx_defeat");
-
-    // Show result text
-    const winnerText = state.roundWinner === "player1" ? "YOU WIN ROUND!" : "AI WINS ROUND!";
-    const winnerColor = state.roundWinner === "player1" ? "#22c55e" : "#ff4444";
-
-    this.countdownText.setText(winnerText);
-    this.countdownText.setColor(winnerColor);
+    this.countdownText.setText(text);
+    this.countdownText.setColor(color);
     this.countdownText.setAlpha(1);
 
-    // Update round score
-    this.roundScoreText.setText(
-      `Round ${state.currentRound}  •  ${state.player1.roundsWon} - ${state.player2.roundsWon}  (First to ${roundsToWin})`
-    );
-
-    // Start new round after delay
-    this.time.delayedCall(3000, () => {
-      this.countdownText.setAlpha(0);
-      this.countdownText.setColor("#40e0d0");
-
-      // Reset loser sprite to idle/scale before next round
-      // (Will be handled by createCharacterSprites or reset in startNewRound, 
-      // but we need to reset scale/anim here or rely on startRound setting it)
-      // Actually startRound doesn't reset sprites, only state.
-      // We should probably reset sprites in startRound or here.
-
-      // Reset for new round
-      this.combatEngine.startNewRound();
-      this.syncUIWithCombatState();
-
-      // Reset sprites to idle scales
-      this.resetCharacterSprites();
-
-      this.startRound();
+    this.tweens.add({
+      targets: this.countdownText,
+      scale: { from: 0.5, to: 1.2 },
+      duration: 500,
+      ease: "Back.easeOut",
+      onComplete: () => {
+        this.time.delayedCall(1500, () => {
+          this.countdownText.setAlpha(0);
+          this.combatEngine.startNewRound();
+          this.bot.resetRound();
+          this.syncUIWithCombatState();
+          this.updateRoundScore();
+          this.startRound();
+        });
+      }
     });
-  }
-
-  private resetCharacterSprites(): void {
-    const p1Char = this.playerCharacter.id;
-    const p2Char = this.aiCharacter.id;
-
-    // Use centralized scaling from sprite-config.ts
-    const p1Scale = getAnimationScale(p1Char, "idle");
-    const p2Scale = getAnimationScale(p2Char, "idle");
-
-    // Reset position to original
-    this.player1Sprite.setX(CHARACTER_POSITIONS.PLAYER1.X);
-    this.player2Sprite.setX(CHARACTER_POSITIONS.PLAYER2.X);
-
-    // Apply correct scales
-    this.player1Sprite.setScale(p1Scale);
-    if (this.anims.exists(`${p1Char}_idle`)) this.player1Sprite.play(`${p1Char}_idle`);
-
-    this.player2Sprite.setScale(p2Scale);
-    if (this.anims.exists(`${p2Char}_idle`)) this.player2Sprite.play(`${p2Char}_idle`);
   }
 
   private showMatchEnd(): void {
     this.phase = "match_end";
-
     const state = this.combatEngine.getState();
     const playerWon = state.matchWinner === "player1";
 
-    // Emit match ended event
-    EventBus.emit("practice_match_ended", {
-      playerWon,
-      playerRoundsWon: state.player1.roundsWon,
-      aiRoundsWon: state.player2.roundsWon,
-      difficulty: this.config.aiDifficulty,
-    });
+    this.playSFX(playerWon ? "sfx_victory" : "sfx_defeat");
 
-    // Show result overlay
-    const isWin = playerWon;
-    this.playSFX(isWin ? "sfx_victory" : "sfx_defeat"); // victory.mp3 covers both for now, or use defeat if added
-    this.createMatchResultOverlay(playerWon);
-  }
+    // Create overlay
+    this.matchResultOverlay = this.add.container(0, 0);
 
-  private createMatchResultOverlay(playerWon: boolean): void {
-    this.matchResultOverlay = this.add.container(GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.CENTER_Y);
-
-    // Background
     const bg = this.add.graphics();
     bg.fillStyle(0x000000, 0.8);
-    bg.fillRect(-GAME_DIMENSIONS.WIDTH / 2, -GAME_DIMENSIONS.HEIGHT / 2, GAME_DIMENSIONS.WIDTH, GAME_DIMENSIONS.HEIGHT);
+    bg.fillRect(0, 0, GAME_DIMENSIONS.WIDTH, GAME_DIMENSIONS.HEIGHT);
     this.matchResultOverlay.add(bg);
 
-    // Result title
-    const title = this.add.text(0, -100, playerWon ? "VICTORY!" : "DEFEAT", {
-      fontFamily: "monospace",
-      fontSize: "64px",
-      color: playerWon ? "#22c55e" : "#ef4444",
-      fontStyle: "bold",
-    }).setOrigin(0.5);
+    const resultText = playerWon ? "VICTORY!" : "DEFEAT";
+    const resultColor = playerWon ? "#22c55e" : "#ef4444";
+
+    const title = this.add.text(
+      GAME_DIMENSIONS.CENTER_X,
+      GAME_DIMENSIONS.CENTER_Y - 80,
+      resultText,
+      {
+        fontFamily: "monospace",
+        fontSize: "64px",
+        color: resultColor,
+        fontStyle: "bold",
+      }
+    ).setOrigin(0.5);
     this.matchResultOverlay.add(title);
 
-    // Score
-    const state = this.combatEngine.getState();
-    const score = this.add.text(0, -20, `${state.player1.roundsWon} - ${state.player2.roundsWon}`, {
-      fontFamily: "monospace",
-      fontSize: "36px",
-      color: "#ffffff",
-    }).setOrigin(0.5);
+    const score = this.add.text(
+      GAME_DIMENSIONS.CENTER_X,
+      GAME_DIMENSIONS.CENTER_Y - 20,
+      `${state.player1.roundsWon} - ${state.player2.roundsWon}`,
+      {
+        fontFamily: "monospace",
+        fontSize: "32px",
+        color: "#ffffff",
+      }
+    ).setOrigin(0.5);
     this.matchResultOverlay.add(score);
 
-    // Buttons
-    const retryBtn = this.createResultButton(0, 80, "PLAY AGAIN", () => this.restartMatch());
-    const exitBtn = this.createResultButton(0, 150, "EXIT", () => this.exitPractice());
-    this.matchResultOverlay.add([retryBtn, exitBtn]);
+    // Exit button
+    const exitBtn = this.add.container(GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.CENTER_Y + 80);
+    
+    const exitBg = this.add.graphics();
+    exitBg.fillStyle(0x333333, 1);
+    exitBg.fillRoundedRect(-80, -25, 160, 50, 8);
+    exitBg.lineStyle(2, 0x40e0d0, 1);
+    exitBg.strokeRoundedRect(-80, -25, 160, 50, 8);
+    exitBtn.add(exitBg);
 
-    this.matchResultOverlay.setDepth(100);
-  }
-
-  private createResultButton(x: number, y: number, label: string, onClick: () => void): Phaser.GameObjects.Container {
-    const container = this.add.container(x, y);
-    const width = 200;
-    const height = 50;
-
-    const bg = this.add.graphics();
-    bg.fillStyle(0x40e0d0, 1);
-    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 8);
-
-    const text = this.add.text(0, 0, label, {
+    const exitText = this.add.text(0, 0, "EXIT", {
       fontFamily: "monospace",
-      fontSize: "18px",
-      color: "#000000",
+      fontSize: "20px",
+      color: "#40e0d0",
       fontStyle: "bold",
     }).setOrigin(0.5);
+    exitBtn.add(exitText);
 
-    container.add([bg, text]);
-    container.setSize(width, height);
-    container.setInteractive({ useHandCursor: true });
+    exitBtn.setInteractive(new Phaser.Geom.Rectangle(-80, -25, 160, 50), Phaser.Geom.Rectangle.Contains);
+    exitBtn.on("pointerdown", () => {
+      this.sound.play("sfx_click", { volume: 0.5 });
+      
+      // Emit match ended event
+      EventBus.emit("quickmatch_bot_match_ended", {
+        playerWon,
+        playerRoundsWon: state.player1.roundsWon,
+        botRoundsWon: state.player2.roundsWon,
+      });
+    });
 
-    container.on("pointerover", () => container.setScale(1.05));
-    container.on("pointerout", () => container.setScale(1));
-    container.on("pointerdown", onClick);
+    this.matchResultOverlay.add(exitBtn);
 
-    return container;
+    // Animate in
+    this.matchResultOverlay.setAlpha(0);
+    this.tweens.add({
+      targets: this.matchResultOverlay,
+      alpha: 1,
+      duration: 500,
+    });
   }
 
   // ===========================================================================
@@ -1825,378 +1481,201 @@ export class PracticeScene extends Phaser.Scene {
 
   private syncUIWithCombatState(): void {
     const state = this.combatEngine.getState();
+
+    this.updateHealthBar("player1", state.player1.hp, state.player1.maxHp);
+    this.updateHealthBar("player2", state.player2.hp, state.player2.maxHp);
+    this.updateEnergyBar("player1", state.player1.energy, state.player1.maxEnergy);
+    this.updateEnergyBar("player2", state.player2.energy, state.player2.maxEnergy);
+    this.updateGuardMeter("player1", state.player1.guardMeter);
+    this.updateGuardMeter("player2", state.player2.guardMeter);
+    this.updateRoundScore();
+  }
+
+  private updateHealthBar(player: "player1" | "player2", hp: number, maxHp: number): void {
+    const bar = player === "player1" ? this.player1HealthBar : this.player2HealthBar;
     const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
     const barHeight = 25;
-    const energyHeight = 12;
-    const yOffset = 30;
+    const x = player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.X : UI_POSITIONS.HEALTH_BAR.PLAYER2.X;
+    const y = player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.Y : UI_POSITIONS.HEALTH_BAR.PLAYER2.Y;
 
-    // DEBUG: Log UI sync
-    console.log("[PracticeScene] syncUIWithCombatState:", {
-      p1HP: state.player1.hp,
-      p2HP: state.player2.hp,
-      p1MaxHP: state.player1.maxHp,
-      p2MaxHP: state.player2.maxHp,
-      p1HealthPercent: state.player1.hp / state.player1.maxHp,
-      p2HealthPercent: state.player2.hp / state.player2.maxHp,
-    });
+    const healthPercent = Math.max(0, hp / maxHp);
+    const fillWidth = barWidth * healthPercent;
 
-    // Player 1 health bar (fills left to right)
-    this.player1HealthBar.clear();
-    const p1HealthPercent = Math.min(1, Math.max(0, state.player1.hp) / (state.player1.maxHp || 1));
-    const p1HealthWidth = (barWidth - 4) * p1HealthPercent;
-    this.player1HealthBar.fillStyle(this.getHealthColor(p1HealthPercent), 1);
-    this.player1HealthBar.fillRoundedRect(
-      UI_POSITIONS.HEALTH_BAR.PLAYER1.X + 2,
-      UI_POSITIONS.HEALTH_BAR.PLAYER1.Y + 2,
-      p1HealthWidth,
-      barHeight - 4,
-      3
-    );
+    let color = 0x22c55e;
+    if (healthPercent <= 0.25) color = 0xef4444;
+    else if (healthPercent <= 0.5) color = 0xf97316;
 
-    // Player 2 health bar (fills right to left - mirroring FightScene)
-    this.player2HealthBar.clear();
-    const p2HealthPercent = Math.min(1, Math.max(0, state.player2.hp) / (state.player2.maxHp || 1));
-    const p2HealthWidth = (barWidth - 4) * p2HealthPercent;
-    this.player2HealthBar.fillStyle(this.getHealthColor(p2HealthPercent), 1);
-    this.player2HealthBar.fillRoundedRect(
-      UI_POSITIONS.HEALTH_BAR.PLAYER2.X + 2 + (barWidth - 4 - p2HealthWidth),
-      UI_POSITIONS.HEALTH_BAR.PLAYER2.Y + 2,
-      p2HealthWidth,
-      barHeight - 4,
-      3
-    );
+    bar.clear();
+    bar.fillStyle(color, 1);
+    bar.fillRoundedRect(x + 2, y + 2, Math.max(0, fillWidth - 4), barHeight - 4, 2);
+  }
 
-    // Player 1 energy bar (fills left to right)
-    this.player1EnergyBar.clear();
-    const p1EnergyPercent = Math.min(1, Math.max(0, state.player1.energy) / (state.player1.maxEnergy || 1));
-    const p1EnergyWidth = (barWidth - 2) * p1EnergyPercent;
-    this.player1EnergyBar.fillStyle(0x3b82f6, 1);
-    this.player1EnergyBar.fillRoundedRect(
-      UI_POSITIONS.HEALTH_BAR.PLAYER1.X + 1,
-      UI_POSITIONS.HEALTH_BAR.PLAYER1.Y + yOffset,
-      p1EnergyWidth,
-      energyHeight - 2,
-      2
-    );
+  private updateEnergyBar(player: "player1" | "player2", energy: number, maxEnergy: number): void {
+    const bar = player === "player1" ? this.player1EnergyBar : this.player2EnergyBar;
+    const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
+    const barHeight = 12;
+    const x = player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.X : UI_POSITIONS.HEALTH_BAR.PLAYER2.X;
+    const y = (player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.Y : UI_POSITIONS.HEALTH_BAR.PLAYER2.Y) + 30;
 
-    // Player 2 energy bar (fills right to left - mirroring FightScene)
-    this.player2EnergyBar.clear();
-    const p2EnergyPercent = Math.min(1, Math.max(0, state.player2.energy) / (state.player2.maxEnergy || 1));
-    const p2EnergyWidth = (barWidth - 2) * p2EnergyPercent;
-    this.player2EnergyBar.fillStyle(0x3b82f6, 1);
-    this.player2EnergyBar.fillRoundedRect(
-      UI_POSITIONS.HEALTH_BAR.PLAYER2.X + 1 + (barWidth - 2 - p2EnergyWidth),
-      UI_POSITIONS.HEALTH_BAR.PLAYER2.Y + yOffset,
-      p2EnergyWidth,
-      energyHeight - 2,
-      2
-    );
+    const energyPercent = Math.max(0, energy / maxEnergy);
+    const fillWidth = barWidth * energyPercent;
 
-    // Guard meters
-    this.updateGuardMeterDisplay("player1", state.player1.guardMeter);
-    this.updateGuardMeterDisplay("player2", state.player2.guardMeter);
+    bar.clear();
+    bar.fillStyle(0x3b82f6, 1);
+    bar.fillRoundedRect(x + 1, y + 1, Math.max(0, fillWidth - 2), barHeight - 2, 1);
+  }
 
-    // Round score
+  private updateGuardMeter(player: "player1" | "player2", guardMeter: number): void {
+    const bar = player === "player1" ? this.player1GuardMeter : this.player2GuardMeter;
+    const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
+    const barHeight = 6;
+    const x = player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.X : UI_POSITIONS.HEALTH_BAR.PLAYER2.X;
+    const y = (player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.Y : UI_POSITIONS.HEALTH_BAR.PLAYER2.Y) + 45;
+
+    const guardPercent = guardMeter / COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD;
+    const fillWidth = barWidth * guardPercent;
+
+    let color = 0xf97316;
+    if (guardPercent >= 0.75) color = 0xef4444;
+
+    bar.clear();
+    bar.fillStyle(color, 1);
+    bar.fillRect(x, y, fillWidth, barHeight);
+  }
+
+  private updateRoundScore(): void {
+    const state = this.combatEngine.getState();
     const roundsToWin = this.config.matchFormat === "best_of_5" ? 3 : 2;
     this.roundScoreText.setText(
       `Round ${state.currentRound}  •  ${state.player1.roundsWon} - ${state.player2.roundsWon}  (First to ${roundsToWin})`
     );
   }
 
-  private updateGuardMeterDisplay(player: "player1" | "player2", guardMeter: number): void {
-    const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
-    const barHeight = 6;
-    const yOffset = 45;
-    // Clamp percentage to [0, 1] to prevent bar overflow
-    const guardPercent = Math.min(1, Math.max(0, guardMeter) / 100);
-    const innerWidth = barWidth * guardPercent;
-
-    const graphics = player === "player1" ? this.player1GuardMeter : this.player2GuardMeter;
-    const x = player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.X : UI_POSITIONS.HEALTH_BAR.PLAYER2.X;
-    const y = (player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.Y : UI_POSITIONS.HEALTH_BAR.PLAYER2.Y) + yOffset;
-
-    graphics.clear();
-
-    // Color based on guard level (orange = danger of breaking)
-    let color = 0xf97316;
-    if (guardPercent >= 0.75) color = 0xef4444;
-
-    graphics.fillStyle(color, 1);
-    if (player === "player2") {
-      graphics.fillRect(x + (barWidth - innerWidth), y, innerWidth, barHeight);
-    } else {
-      graphics.fillRect(x, y, innerWidth, barHeight);
-    }
-  }
-
-  private getHealthColor(percent: number): number {
-    if (percent > 0.5) return 0x22c55e; // Green
-    if (percent > 0.25) return 0xf59e0b; // Yellow
-    return 0xef4444; // Red
-  }
-
   // ===========================================================================
-  // EVENT LISTENERS
+  // SETTINGS
   // ===========================================================================
 
   private setupEventListeners(): void {
-    EventBus.on("practice_restart", () => this.restartMatch());
-    EventBus.on("practice_exit", () => this.exitPractice());
+    // Listen for exit event
+    EventBus.on("quickmatch_bot_exit", () => {
+      this.scene.stop();
+    });
   }
-
-  // ===========================================================================
-  // MATCH MANAGEMENT
-  // ===========================================================================
-
-  private restartMatch(): void {
-    this.scene.restart(this.config);
-  }
-
-  private exitPractice(): void {
-    EventBus.off("practice_restart");
-    EventBus.off("practice_exit");
-    EventBus.emit("practice_exit_complete");
-  }
-
-  // ===========================================================================
-  // SETTINGS MENU
-  // ===========================================================================
 
   private createSettingsButton(): void {
-    const radius = 24;
-    // Bottom Left position
-    const x = 50;
-    const y = GAME_DIMENSIONS.HEIGHT - 50;
+    const btn = this.add.container(GAME_DIMENSIONS.WIDTH - 50, 50);
 
-    const container = this.add.container(x, y);
-    container.setDepth(2000); // Ensure it's above everything else
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.8);
+    bg.fillCircle(0, 0, 25);
+    bg.lineStyle(2, 0x40e0d0, 0.8);
+    bg.strokeCircle(0, 0, 25);
+    btn.add(bg);
 
-    const circle = this.add.graphics();
-    circle.fillStyle(0x1a1a2e, 0.8);
-    circle.fillCircle(0, 0, radius);
-    circle.lineStyle(2, 0x4b5563, 1);
-    circle.strokeCircle(0, 0, radius);
+    const icon = this.add.text(0, 0, "⚙", {
+      fontFamily: "monospace",
+      fontSize: "24px",
+      color: "#40e0d0",
+    }).setOrigin(0.5);
+    btn.add(icon);
 
-    // Gear Icon (Simplified geometry)
-    const gear = this.add.graphics();
-    gear.fillStyle(0x9ca3af, 1);
-    gear.fillCircle(0, 0, 8);
-    for (let i = 0; i < 8; i++) {
-      const angle = Phaser.Math.DegToRad(i * 45);
-      const bx = Math.cos(angle) * 12;
-      const by = Math.sin(angle) * 12;
-      gear.fillCircle(bx, by, 4);
-    }
-    gear.fillCircle(0, 0, 4); // Center hole (filled with bg color in next step)
-
-    const centerHole = this.add.graphics();
-    centerHole.fillStyle(0x1a1a2e, 1);
-    centerHole.fillCircle(0, 0, 5);
-
-    container.add([circle, gear, centerHole]);
-    container.setSize(radius * 2, radius * 2);
-
-    // Interactive
-    const hitArea = new Phaser.Geom.Circle(25, 25, radius);
-    container.setInteractive(hitArea, Phaser.Geom.Circle.Contains);
-    container.input!.cursor = 'pointer';
-
-    container.on("pointerover", () => {
-      circle.lineStyle(2, 0x3b82f6, 1);
-      circle.strokeCircle(0, 0, radius);
-      this.tweens.add({ targets: gear, angle: 90, duration: 500, ease: "Back.easeOut" });
-    });
-
-    container.on("pointerout", () => {
-      circle.lineStyle(2, 0x4b5563, 1);
-      circle.strokeCircle(0, 0, radius);
-      this.tweens.add({ targets: gear, angle: 0, duration: 500, ease: "Back.easeOut" });
-    });
-
-    container.on("pointerdown", () => {
-      this.toggleSettingsMenu();
+    btn.setInteractive(new Phaser.Geom.Circle(0, 0, 25), Phaser.Geom.Circle.Contains);
+    btn.on("pointerdown", () => {
+      this.sound.play("sfx_click", { volume: 0.5 });
+      this.toggleSettings();
     });
   }
 
   private createSettingsMenu(): void {
-    const width = 280;
-    const height = 180;
+    // Settings menu container (hidden by default)
+    const menu = this.add.container(GAME_DIMENSIONS.WIDTH - 200, 100);
+    menu.setVisible(false);
+    menu.setName("settingsMenu");
+    this.settingsContainer.add(menu);
 
-    // Position menu above the button (bottom-left area)
-    const x = 50 + width / 2;
-    const y = GAME_DIMENSIONS.HEIGHT - 50 - height / 2 - 20;
-
-    this.settingsContainer = this.add.container(x, y);
-    this.settingsContainer.setVisible(false);
-    this.settingsContainer.setDepth(2001); // Higher than button
-
-    // Menu Background
     const bg = this.add.graphics();
-    bg.fillStyle(0x0f172a, 0.95);
-    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 12);
-    bg.lineStyle(1, 0x334155, 1);
-    bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 12);
-    this.settingsContainer.add(bg);
+    bg.fillStyle(0x1a1a2e, 0.95);
+    bg.fillRoundedRect(-10, -10, 180, 150, 8);
+    bg.lineStyle(2, 0x40e0d0, 0.8);
+    bg.strokeRoundedRect(-10, -10, 180, 150, 8);
+    menu.add(bg);
 
-    // Header
-    const title = this.add.text(0, -70, "AUDIO SETTINGS", {
+    // BGM Volume
+    const bgmLabel = this.add.text(0, 10, "Music", {
       fontFamily: "monospace",
-      fontSize: "16px",
-      color: "#9ca3af",
-      fontStyle: "bold"
-    }).setOrigin(0.5);
-    this.settingsContainer.add(title);
+      fontSize: "12px",
+      color: "#888888",
+    });
+    menu.add(bgmLabel);
 
-    // BGM Volume Slider
-    this.bgmSlider = this.createVolumeSlider(0, -30, "Music", this.bgmVolume, (value) => {
-      this.bgmVolume = value;
+    this.createVolumeSlider(menu, 0, 35, this.bgmVolume, (val) => {
+      this.bgmVolume = val;
       this.applyBgmVolume();
       this.saveAudioSettings();
     });
-    this.settingsContainer.add(this.bgmSlider);
 
-    // SFX Volume Slider
-    this.sfxSlider = this.createVolumeSlider(0, 15, "SFX", this.sfxVolume, (value) => {
-      this.sfxVolume = value;
-      this.saveAudioSettings();
-      // Play a test sound when adjusting
-      this.playSFX("sfx_click");
-    });
-    this.settingsContainer.add(this.sfxSlider);
-
-    // Close button
-    const closeBtn = this.add.text(0, 60, "CLOSE", {
-      fontFamily: "monospace",
-      fontSize: "14px",
-      color: "#6b7280"
-    }).setOrigin(0.5);
-    closeBtn.setInteractive({ useHandCursor: true });
-    closeBtn.on("pointerover", () => closeBtn.setColor("#ffffff"));
-    closeBtn.on("pointerout", () => closeBtn.setColor("#6b7280"));
-    closeBtn.on("pointerdown", () => this.toggleSettingsMenu());
-    this.settingsContainer.add(closeBtn);
-  }
-
-  /**
-   * Create a volume slider control.
-   */
-  private createVolumeSlider(
-    x: number,
-    y: number,
-    label: string,
-    initialValue: number,
-    onChange: (value: number) => void
-  ): Phaser.GameObjects.Container {
-    const container = this.add.container(x, y);
-    const sliderWidth = 140;
-    const sliderHeight = 8;
-    const knobRadius = 10;
-
-    // Label
-    const labelText = this.add.text(-120, 0, label, {
+    // SFX Volume
+    const sfxLabel = this.add.text(0, 70, "SFX", {
       fontFamily: "monospace",
       fontSize: "12px",
-      color: "#9ca3af"
-    }).setOrigin(0, 0.5);
-    container.add(labelText);
-
-    // Track start X
-    const trackOffsetX = 10;
-    const trackStartX = -sliderWidth / 2 + trackOffsetX;
-
-    // Track background
-    const trackBg = this.add.graphics();
-    trackBg.fillStyle(0x1e293b, 1);
-    trackBg.fillRoundedRect(trackStartX, -sliderHeight / 2, sliderWidth, sliderHeight, 4);
-    container.add(trackBg);
-
-    // Track fill (progress)
-    const trackFill = this.add.graphics();
-    container.add(trackFill);
-
-    // Knob
-    const knob = this.add.graphics();
-    container.add(knob);
-
-    // Percentage text
-    const percentText = this.add.text(sliderWidth / 2 + 25, 0, `${Math.round(initialValue * 100)}%`, {
-      fontFamily: "monospace",
-      fontSize: "11px",
-      color: "#6b7280"
-    }).setOrigin(0, 0.5);
-    container.add(percentText);
-
-    // Update visual based on value
-    const updateSliderVisual = (value: number) => {
-      const fillWidth = sliderWidth * value;
-      const knobX = trackStartX + fillWidth;
-
-      trackFill.clear();
-      trackFill.fillStyle(0x3b82f6, 1);
-      trackFill.fillRoundedRect(trackStartX, -sliderHeight / 2, fillWidth, sliderHeight, 4);
-
-      knob.clear();
-      knob.fillStyle(0x3b82f6, 1);
-      knob.fillCircle(knobX, 0, knobRadius);
-      knob.fillStyle(0x1e40af, 1);
-      knob.fillCircle(knobX, 0, knobRadius - 3);
-
-      percentText.setText(`${Math.round(value * 100)}%`);
-    };
-
-    updateSliderVisual(initialValue);
-
-    // Make the entire track area interactive
-    const hitArea = this.add.rectangle(0, 0, 240, 30, 0x000000, 0);
-    hitArea.setInteractive({ useHandCursor: true });
-    container.add(hitArea);
-
-    // Drag handling
-    let isDragging = false;
-
-    const calculateValue = (pointerX: number): number => {
-      const localX = pointerX - container.x - this.settingsContainer.x;
-      const trackEndX = trackStartX + sliderWidth;
-      const clampedX = Phaser.Math.Clamp(localX, trackStartX, trackEndX);
-      return (clampedX - trackStartX) / sliderWidth;
-    };
-
-    hitArea.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-      isDragging = true;
-      const newValue = calculateValue(pointer.x);
-      updateSliderVisual(newValue);
-      onChange(newValue);
+      color: "#888888",
     });
+    menu.add(sfxLabel);
 
-    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
-      if (isDragging) {
-        const newValue = calculateValue(pointer.x);
-        updateSliderVisual(newValue);
-        onChange(newValue);
-      }
+    this.createVolumeSlider(menu, 0, 95, this.sfxVolume, (val) => {
+      this.sfxVolume = val;
+      this.saveAudioSettings();
     });
-
-    this.input.on("pointerup", () => {
-      isDragging = false;
-    });
-
-    return container;
   }
 
-  private toggleSettingsMenu(): void {
-    this.isSettingsOpen = !this.isSettingsOpen;
-    this.settingsContainer.setVisible(this.isSettingsOpen);
+  private createVolumeSlider(
+    parent: Phaser.GameObjects.Container,
+    x: number,
+    y: number,
+    initialValue: number,
+    onChange: (value: number) => void
+  ): void {
+    const sliderWidth = 140;
+    const sliderHeight = 8;
 
-    if (this.isSettingsOpen) {
-      this.settingsContainer.setScale(0.9);
-      this.settingsContainer.setAlpha(0);
-      this.tweens.add({
-        targets: this.settingsContainer,
-        scale: 1,
-        alpha: 1,
-        duration: 200,
-        ease: "Back.easeOut"
-      });
+    const track = this.add.graphics();
+    track.fillStyle(0x333333, 1);
+    track.fillRoundedRect(x, y, sliderWidth, sliderHeight, 4);
+    parent.add(track);
+
+    const fill = this.add.graphics();
+    const fillWidth = sliderWidth * initialValue;
+    fill.fillStyle(0x40e0d0, 1);
+    fill.fillRoundedRect(x, y, fillWidth, sliderHeight, 4);
+    parent.add(fill);
+
+    const knob = this.add.circle(x + fillWidth, y + sliderHeight / 2, 10, 0x40e0d0);
+    parent.add(knob);
+
+    const hitArea = this.add.rectangle(x + sliderWidth / 2, y + sliderHeight / 2, sliderWidth + 20, 30, 0x000000, 0);
+    hitArea.setInteractive({ useHandCursor: true });
+    parent.add(hitArea);
+
+    hitArea.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      const localX = pointer.x - (GAME_DIMENSIONS.WIDTH - 200 + x);
+      const percent = Phaser.Math.Clamp(localX / sliderWidth, 0, 1);
+
+      fill.clear();
+      fill.fillStyle(0x40e0d0, 1);
+      fill.fillRoundedRect(x, y, sliderWidth * percent, sliderHeight, 4);
+      knob.setPosition(x + sliderWidth * percent, y + sliderHeight / 2);
+
+      onChange(percent);
+    });
+  }
+
+  private toggleSettings(): void {
+    this.isSettingsOpen = !this.isSettingsOpen;
+    const menu = this.settingsContainer.getByName("settingsMenu") as Phaser.GameObjects.Container;
+    if (menu) {
+      menu.setVisible(this.isSettingsOpen);
     }
   }
 }
+
+export default QuickMatchBotScene;

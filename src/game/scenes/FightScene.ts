@@ -10,6 +10,8 @@ import { CHAR_SPRITE_CONFIG, TANK_CHARACTERS, getCharacterScale, getCharacterYOf
 import { CombatEngine, BASE_MOVE_STATS, getCharacterCombatStats } from "../combat";
 import { ChatPanel } from "../ui/ChatPanel";
 import { StickerPicker, STICKER_LIST, type StickerId } from "../ui/StickerPicker";
+import { SmartBotOpponent } from "@/lib/game/smart-bot-opponent";
+import { getAIThinkTime } from "@/lib/game/ai-difficulty";
 import type { MoveType, PlayerRole } from "@/types";
 import type { CombatState } from "../combat";
 
@@ -149,8 +151,19 @@ export class FightScene extends Phaser.Scene {
   private localStickerDisplay?: Phaser.GameObjects.Container;
   private opponentStickerDisplay?: Phaser.GameObjects.Container;
 
+  // Bot opponent handling
+  private isBotMatch: boolean = false;
+  private botOpponent?: SmartBotOpponent;
+
   constructor() {
     super({ key: "FightScene" });
+  }
+
+  /**
+   * Check if this is a bot match (opponent address starts with "bot_")
+   */
+  private checkIfBotMatch(): boolean {
+    return this.config.player2Address.startsWith("bot_");
   }
 
   // Audio helper
@@ -213,6 +226,15 @@ export class FightScene extends Phaser.Scene {
   init(data: FightSceneConfig): void {
     this.config = { ...data };
     this.resetFullState();
+    
+    // Check if this is a bot match
+    this.isBotMatch = this.checkIfBotMatch();
+    if (this.isBotMatch) {
+      // Extract bot name from address (or use default)
+      const botName = this.config.player2Address.replace("bot_", "Bot_");
+      this.botOpponent = new SmartBotOpponent(botName);
+      console.log("[FightScene] Bot match detected:", botName);
+    }
   }
 
   /**

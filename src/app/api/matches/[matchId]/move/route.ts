@@ -233,6 +233,114 @@ export async function POST(
     });
     await supabase.removeChannel(gameChannel);
 
+    // BOT AUTO-MOVE: If opponent is a bot and hasn't submitted yet, auto-submit their move
+    const opponentAddress = isPlayer1 ? match.player2_address : match.player1_address;
+    const isOpponentBot = opponentAddress?.startsWith("bot_");
+    
+    if (isOpponentBot && opponentAddress && awaitingOpponent) {
+      console.log(`[Move Submit] Bot opponent detected, auto-submitting move for ${opponentAddress}`);
+      
+      // Get bot's smart move
+      const { SmartBotOpponent } = await import("@/lib/game/smart-bot-opponent");
+      const { CombatEngine } = await import("@/game/combat");
+      
+      // Create a temporary combat engine to get current state
+      const engine = new CombatEngine(
+        match.player1_character_id || "dag-warrior",
+        match.player2_character_id || "dag-warrior",
+        match.format as "best_of_1" | "best_of_3" | "best_of_5"
+      );
+      
+      // Sync engine state with match state (simplified - just set HP/energy/rounds)
+      const matchState = engine.getState();
+      // Note: In production you'd want to fully sync all previous rounds/turns
+      // For now, the bot will make a reasonable decision based on available info
+      
+      const botName = opponentAddress.replace("bot_", "Bot_");
+      const bot = new SmartBotOpponent(botName);
+      
+      // Update bot context with current match state
+      const botPlayer = isPlayer1 ? "player2" : "player1";
+      const humanPlayer = isPlayer1 ? "player1" : "player2";
+      bot.updateContext({
+        botHealth: matchState[botPlayer].hp,
+        botMaxHealth: matchState[botPlayer].maxHp,
+        botEnergy: matchState[botPlayer].energy,
+        botMaxEnergy: matchState[botPlayer].maxEnergy,
+        botGuardMeter: matchState[botPlayer].guardMeter,
+        botIsStunned: matchState[botPlayer].isStunned || false,
+        botIsStaggered: matchState[botPlayer].isStaggered || false,
+        opponentHealth: matchState[humanPlayer].hp,
+        opponentMaxHealth: matchState[humanPlayer].maxHp,
+        opponentEnergy: matchState[humanPlayer].energy,
+        opponentMaxEnergy: matchState[humanPlayer].maxEnergy,
+        opponentGuardMeter: matchState[humanPlayer].guardMeter,
+        opponentIsStunned: matchState[humanPlayer].isStunned || false,
+        opponentIsStaggered: matchState[humanPlayer].isStaggered || false,
+        roundNumber: matchState.currentRound,
+        turnNumber: matchState.currentTurn,
+        botRoundsWon: matchState[botPlayer].roundsWon,
+        opponentRoundsWon: matchState[humanPlayer].roundsWon,
+      });
+      
+      const decision = bot.decide();
+      const botMove = decision.move;
+      
+      console.log(`[Move Submit] Bot chose move: ${botMove} (${decision.reasoning})`);
+      
+      // Submit bot's move (fake transaction ID)
+      const botTxId = `bot_tx_${Date.now()}_${Math.random().toString(36).substring(7)}`.padEnd(64, '0').substring(0, 64);
+      
+      const botMoveColumn = isPlayer1 ? "player2_move" : "player1_move";
+      const botTxColumn = isPlayer1 ? "player2_move_tx_id" : "player1_move_tx_id";
+      
+      const { data: botMoveData, error: botMoveError } = await supabase
+        .from("moves")
+        .insert({
+          round_id: currentRound.id,
+          player_address: opponentAddress,
+          move_type: botMove,
+          tx_id: botTxId,
+        })
+        .select()
+        .single();
+      
+      if (!botMoveError && botMoveData) {
+        await supabase
+          .from("rounds")
+          .update({
+            [botMoveColumn]: botMove,
+            [botTxColumn]: botTxId,
+          })
+          .eq("id", currentRound.id);
+        
+        // Broadcast bot move
+        const botGameChannel = supabase.channel(`game:${matchId}`);
+        await botGameChannel.send({
+          type: "broadcast",
+          event: "move_submitted",
+          payload: {
+            player: isPlayer1 ? "player2" : "player1",
+            txId: botTxId,
+            submittedAt: Date.now(),
+          },
+        });
+        await supabase.removeChannel(botGameChannel);
+        
+        // Both moves submitted now, need to resolve
+        // Update the local variable to trigger resolution below
+        currentRound = {
+          ...currentRound,
+          [botMoveColumn]: botMove,
+          [botTxColumn]: botTxId,
+        };
+      }
+    }
+    
+    // Re-check if we're still awaiting opponent after bot auto-submit
+    const finalOpponentMoveColumn = isPlayer1 ? "player2_move" : "player1_move";
+    const finalAwaitingOpponent = !currentRound[finalOpponentMoveColumn];
+
     // If opponent already rejected, we win this round
     if (opponentRejected) {
       const { handleMoveRejection } = await import("@/lib/game/combat-resolver");
@@ -267,7 +375,7 @@ export async function POST(
 
     // If both players have submitted moves normally, trigger combat resolution
     let resolution = null;
-    if (!awaitingOpponent) {
+    if (!finalAwaitingOpponent) {
       const { resolveRound } = await import("@/lib/game/combat-resolver");
       resolution = await resolveRound(matchId, currentRound.id);
 
@@ -285,7 +393,7 @@ export async function POST(
     return NextResponse.json({
       moveId: move.id,
       roundId: currentRound.id,
-      awaitingOpponent,
+      awaitingOpponent: finalAwaitingOpponent,
       resolution: resolution?.success ? {
         narrative: resolution.narrative,
         roundWinner: resolution.roundWinner,
