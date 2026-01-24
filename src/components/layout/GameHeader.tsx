@@ -8,6 +8,7 @@ import NetworkModeIndicator from "@/components/shared/NetworkModeIndicator";
 import { useWallet } from "@/hooks/useWallet";
 import { ClashShardsDisplay } from "@/components/currency/ClashShardsDisplay";
 import { useShopStore } from "@/stores/shop-store";
+import { useCurrencyRealtime, fetchCurrentCurrency } from "@/hooks/useCurrencyRealtime";
 import {
     Logout01Icon,
 } from "@hugeicons/core-free-icons";
@@ -30,45 +31,42 @@ export function GameHeader() {
         refreshBalance,
     } = useWallet();
 
-    // Fetch currency when connected
-    const fetchCurrency = useCallback(async () => {
-        if (!address) return;
+    // Subscribe to real-time currency updates (no more polling!)
+    const { isSubscribed: isCurrencySubscribed } = useCurrencyRealtime({
+        playerId: address || '',
+        enabled: isConnected && !!address,
+        onCurrencyUpdate: (updatedCurrency) => {
+            console.log('[GameHeader] Real-time currency update:', updatedCurrency);
+        },
+    });
 
-        try {
-            const response = await fetch(`/api/progression/player/${encodeURIComponent(address)}`);
-            if (response.ok) {
-                const data = await response.json();
-                if (data.currency) {
+    // Initial currency fetch on connect
+    useEffect(() => {
+        if (isConnected && address) {
+            // Fetch current currency once
+            fetchCurrentCurrency(address).then((currencyData) => {
+                if (currencyData) {
                     setCurrency({
                         playerId: address,
-                        clashShards: data.currency.clash_shards || 0,
-                        totalEarned: data.currency.total_earned || 0,
-                        totalSpent: data.currency.total_spent || 0,
+                        clashShards: currencyData.clash_shards || 0,
+                        totalEarned: currencyData.total_earned || 0,
+                        totalSpent: currencyData.total_spent || 0,
                         lastUpdated: new Date(),
                     });
                 }
-            }
-        } catch (err) {
-            console.error("Error fetching currency:", err);
-        }
-    }, [address, setCurrency]);
+            });
 
-    useEffect(() => {
-        if (isConnected && address) {
-            fetchCurrency();
-            // Poll for currency updates every 30 seconds
-            const currencyInterval = setInterval(fetchCurrency, 30000);
-            
-            // Poll for balance updates every 10 seconds
+            // Initial balance fetch
             refreshBalance();
-            const balanceInterval = setInterval(refreshBalance, 10000);
+            
+            // Keep balance polling at 30 seconds (wallet balance still needs polling)
+            const balanceInterval = setInterval(refreshBalance, 30000);
             
             return () => {
-                clearInterval(currencyInterval);
                 clearInterval(balanceInterval);
             };
         }
-    }, [isConnected, address, fetchCurrency, refreshBalance]);
+    }, [isConnected, address, setCurrency, refreshBalance]);
 
     const handleConnect = async () => {
         try {

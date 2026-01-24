@@ -198,45 +198,50 @@ export async function POST(
           }, { onConflict: "match_id,round_number" });
 
         console.log("[Select API] Broadcasting match_starting and round_starting events");
-        await broadcastMultipleToChannel(supabase, `game:${matchId}`, [
-          {
-            event: "match_starting",
-            payload: {
-              matchId,
-              player1: {
-                address: match.player1_address,
-                characterId: match.player1_character_id,
+        try {
+          await broadcastMultipleToChannel(supabase, `game:${matchId}`, [
+            {
+              event: "match_starting",
+              payload: {
+                matchId,
+                player1: {
+                  address: match.player1_address,
+                  characterId: match.player1_character_id,
+                },
+                player2: {
+                  address: match.player2_address,
+                  characterId: match.player2_character_id,
+                },
+                format: match.format || "best_of_3",
+                startsAt: Date.now() + ROUND_COUNTDOWN_MS,
               },
-              player2: {
-                address: match.player2_address,
-                characterId: match.player2_character_id,
+            },
+            {
+              event: "round_starting",
+              payload: {
+                roundNumber: 1,
+                turnNumber: 1,
+                moveDeadlineAt,
+                countdownSeconds: Math.floor(ROUND_COUNTDOWN_MS / 1000),
+                // Use character-specific max values
+                player1Health: getCharacterCombatStats(match.player1_character_id || "dag-warrior").maxHp,
+                player2Health: getCharacterCombatStats(match.player2_character_id || "dag-warrior").maxHp,
+                player1MaxHealth: getCharacterCombatStats(match.player1_character_id || "dag-warrior").maxHp,
+                player2MaxHealth: getCharacterCombatStats(match.player2_character_id || "dag-warrior").maxHp,
+                player1Energy: getCharacterCombatStats(match.player1_character_id || "dag-warrior").maxEnergy,
+                player2Energy: getCharacterCombatStats(match.player2_character_id || "dag-warrior").maxEnergy,
+                player1GuardMeter: 0,
+                player2GuardMeter: 0,
+                // Initial round - no stun
+                player1IsStunned: false,
+                player2IsStunned: false,
               },
-              format: match.format || "best_of_3",
-              startsAt: Date.now() + ROUND_COUNTDOWN_MS,
             },
-          },
-          {
-            event: "round_starting",
-            payload: {
-              roundNumber: 1,
-              turnNumber: 1,
-              moveDeadlineAt,
-              countdownSeconds: Math.floor(ROUND_COUNTDOWN_MS / 1000),
-              // Use character-specific max values
-              player1Health: getCharacterCombatStats(match.player1_character_id || "dag-warrior").maxHp,
-              player2Health: getCharacterCombatStats(match.player2_character_id || "dag-warrior").maxHp,
-              player1MaxHealth: getCharacterCombatStats(match.player1_character_id || "dag-warrior").maxHp,
-              player2MaxHealth: getCharacterCombatStats(match.player2_character_id || "dag-warrior").maxHp,
-              player1Energy: getCharacterCombatStats(match.player1_character_id || "dag-warrior").maxEnergy,
-              player2Energy: getCharacterCombatStats(match.player2_character_id || "dag-warrior").maxEnergy,
-              player1GuardMeter: 0,
-              player2GuardMeter: 0,
-              // Initial round - no stun
-              player1IsStunned: false,
-              player2IsStunned: false,
-            },
-          },
-        ]);
+          ]);
+        } catch (broadcastError) {
+          console.error("[Select API] Broadcast failed (non-fatal):", broadcastError);
+          // Continue execution - client will sync via polling or database changes
+        }
 
         const character = getCharacter(existingCharacterId);
         const response: ApiSuccessResponse<SelectionResponse> = {
@@ -311,12 +316,18 @@ export async function POST(
         }
 
         // Broadcast character_selected event to opponent using proper subscription
+        // Don't fail the request if broadcast fails - client will sync via other means
         const { broadcastToChannel } = await import("@/lib/supabase/broadcast");
-        await broadcastToChannel(supabase, `game:${matchId}`, "character_selected", {
-          player: isPlayer1 ? "player1" : "player2",
-          characterId: body.characterId,
-          locked: true,
-        });
+        try {
+          await broadcastToChannel(supabase, `game:${matchId}`, "character_selected", {
+            player: isPlayer1 ? "player1" : "player2",
+            characterId: body.characterId,
+            locked: true,
+          });
+        } catch (broadcastError) {
+          console.error("[Select API] Broadcast failed (non-fatal):", broadcastError);
+          // Continue execution - client will sync via polling or database changes
+        }
 
         // If both ready, update match status to in_progress and broadcast match_starting
         if (matchReady) {
@@ -351,46 +362,51 @@ export async function POST(
 
           console.log("[Select API] Broadcasting match_starting and round_starting events (normal flow)");
           console.log("[Select API] Broadcasting to channel: game:", matchId);
-          await broadcastMultipleToChannel(supabase, `game:${matchId}`, [
-            {
-              event: "match_starting",
-              payload: {
-                matchId,
-                player1: {
-                  address: updatedMatch.player1_address,
-                  characterId: updatedMatch.player1_character_id,
+          try {
+            await broadcastMultipleToChannel(supabase, `game:${matchId}`, [
+              {
+                event: "match_starting",
+                payload: {
+                  matchId,
+                  player1: {
+                    address: updatedMatch.player1_address,
+                    characterId: updatedMatch.player1_character_id,
+                  },
+                  player2: {
+                    address: updatedMatch.player2_address,
+                    characterId: updatedMatch.player2_character_id,
+                  },
+                  format: updatedMatch.format || "best_of_3",
+                  startsAt: Date.now() + ROUND_COUNTDOWN_MS,
                 },
-                player2: {
-                  address: updatedMatch.player2_address,
-                  characterId: updatedMatch.player2_character_id,
+              },
+              {
+                event: "round_starting",
+                payload: {
+                  roundNumber: 1,
+                  turnNumber: 1,
+                  moveDeadlineAt,
+                  countdownSeconds: Math.floor(ROUND_COUNTDOWN_MS / 1000),
+                  // Use character-specific max values
+                  player1Health: getCharacterCombatStats(updatedMatch.player1_character_id || "dag-warrior").maxHp,
+                  player2Health: getCharacterCombatStats(updatedMatch.player2_character_id || "dag-warrior").maxHp,
+                  player1MaxHealth: getCharacterCombatStats(updatedMatch.player1_character_id || "dag-warrior").maxHp,
+                  player2MaxHealth: getCharacterCombatStats(updatedMatch.player2_character_id || "dag-warrior").maxHp,
+                  player1Energy: getCharacterCombatStats(updatedMatch.player1_character_id || "dag-warrior").maxEnergy,
+                  player2Energy: getCharacterCombatStats(updatedMatch.player2_character_id || "dag-warrior").maxEnergy,
+                  player1GuardMeter: 0,
+                  player2GuardMeter: 0,
+                  // Initial round - no stun
+                  player1IsStunned: false,
+                  player2IsStunned: false,
                 },
-                format: updatedMatch.format || "best_of_3",
-                startsAt: Date.now() + ROUND_COUNTDOWN_MS,
               },
-            },
-            {
-              event: "round_starting",
-              payload: {
-                roundNumber: 1,
-                turnNumber: 1,
-                moveDeadlineAt,
-                countdownSeconds: Math.floor(ROUND_COUNTDOWN_MS / 1000),
-                // Use character-specific max values
-                player1Health: getCharacterCombatStats(updatedMatch.player1_character_id || "dag-warrior").maxHp,
-                player2Health: getCharacterCombatStats(updatedMatch.player2_character_id || "dag-warrior").maxHp,
-                player1MaxHealth: getCharacterCombatStats(updatedMatch.player1_character_id || "dag-warrior").maxHp,
-                player2MaxHealth: getCharacterCombatStats(updatedMatch.player2_character_id || "dag-warrior").maxHp,
-                player1Energy: getCharacterCombatStats(updatedMatch.player1_character_id || "dag-warrior").maxEnergy,
-                player2Energy: getCharacterCombatStats(updatedMatch.player2_character_id || "dag-warrior").maxEnergy,
-                player1GuardMeter: 0,
-                player2GuardMeter: 0,
-                // Initial round - no stun
-                player1IsStunned: false,
-                player2IsStunned: false,
-              },
-            },
-          ]);
-          console.log("[Select API] Broadcast complete");
+            ]);
+            console.log("[Select API] Broadcast complete");
+          } catch (broadcastError) {
+            console.error("[Select API] Match starting broadcast failed (non-fatal):", broadcastError);
+            // Continue execution - client will sync via polling or database changes
+          }
         }
       }
     }

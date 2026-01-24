@@ -178,8 +178,8 @@ export async function findOpponent(
   const supabase = await createSupabaseServerClient();
 
   const ratingRange = calculateRatingRange(playerJoinedAt);
-  const minRating = playerRating - ratingRange;
-  const maxRating = playerRating + ratingRange;
+  const minRating = Math.floor(playerRating - ratingRange);
+  const maxRating = Math.ceil(playerRating + ratingRange);
 
   // Determine network from player address
   const network = detectNetworkFromAddress(playerAddress);
@@ -258,10 +258,24 @@ export async function attemptMatch(
 
   if (existingMatch && existingMatch.player2_address) {
     const shortId = existingMatch.id.slice(0, 8);
+    const matchAge = Date.now() - new Date(existingMatch.created_at).getTime();
+    const fiveSecondsMs = 5000;
 
-    // If we're in character_select OR in_progress, abandon the old match
+    // Don't cancel matches that were just created (within 5 seconds)
+    // This prevents cancelling valid matches during the queue->match transition
+    if (matchAge < fiveSecondsMs) {
+      console.log(`[MATCHMAKING] ${shortAddr}: Found recent match ${shortId} (${Math.round(matchAge / 1000)}s old), using it`);
+      return {
+        matchId: existingMatch.id,
+        player1Address: existingMatch.player1_address,
+        player2Address: existingMatch.player2_address,
+        selectionDeadlineAt: existingMatch.selection_deadline_at ?? new Date(Date.now() + 30000).toISOString(),
+      };
+    }
+
+    // If we're in character_select OR in_progress for a while, abandon the old match
     // This assumes that if a user is back in the queue, they have "left" the previous game
-    console.log(`[MATCHMAKING] ${shortAddr}: Abandoning stale/stuck match ${shortId} (status: ${existingMatch.status})`);
+    console.log(`[MATCHMAKING] ${shortAddr}: Abandoning stale/stuck match ${shortId} (status: ${existingMatch.status}, age: ${Math.round(matchAge / 1000)}s)`);
 
     await supabase
       .from("matches")
@@ -306,8 +320,8 @@ export async function attemptMatch(
 
   const playerJoinedAt = new Date(player.joined_at);
   const ratingRange = calculateRatingRange(playerJoinedAt);
-  const minRating = player.rating - ratingRange;
-  const maxRating = player.rating + ratingRange;
+  const minRating = Math.floor(player.rating - ratingRange);
+  const maxRating = Math.ceil(player.rating + ratingRange);
 
   // Determine network from player address
   const network = detectNetworkFromAddress(address);
@@ -481,9 +495,21 @@ export async function createMatch(
 
     if (existingMatch) {
       const shortId = existingMatch.id.slice(0, 8);
+      const matchAge = Date.now() - new Date(existingMatch.created_at).getTime();
+      const fiveSecondsMs = 5000;
 
-      // If we're in character_select OR in_progress, abandon the old match
-      console.log(`[MATCHMAKING-CREATE] ${existingMatch.id}: Abandoning stale/stuck match ${shortId} (status: ${existingMatch.status})`);
+      // Don't cancel matches that were just created (within 5 seconds)
+      // This prevents cancelling valid matches during the queue->match transition
+      if (matchAge < fiveSecondsMs) {
+        console.log(`[MATCHMAKING-CREATE] Found recent match ${shortId} (${Math.round(matchAge / 1000)}s old), reusing it`);
+        return {
+          id: existingMatch.id,
+          selectionDeadlineAt: existingMatch.selection_deadline_at ?? new Date(Date.now() + CHARACTER_SELECT_TIMEOUT_SECONDS * 1000).toISOString(),
+        };
+      }
+
+      // If we're in character_select OR in_progress for a while, abandon the old match
+      console.log(`[MATCHMAKING-CREATE] ${existingMatch.id}: Abandoning stale/stuck match ${shortId} (status: ${existingMatch.status}, age: ${Math.round(matchAge / 1000)}s)`);
 
       await supabase
         .from("matches")

@@ -87,21 +87,19 @@ export const useShopStore = create<ShopStore>()(
       fetchCurrency: async (playerId: string) => {
         if (!playerId) return;
         try {
-          // Reusing the progression endpoint which returns currency
-          const response = await fetch(`/api/progression/player/${playerId}`);
+          // Use lightweight currency endpoint
+          const response = await fetch(`/api/currency/${playerId}`);
           if (response.ok) {
             const data = await response.json();
-            if (data.currency) {
-              set({
-                currency: {
-                  playerId: playerId,
-                  clashShards: data.currency.clash_shards || 0,
-                  totalEarned: data.currency.total_earned || 0,
-                  totalSpent: data.currency.total_spent || 0,
-                  lastUpdated: new Date(),
-                }
-              });
-            }
+            set({
+              currency: {
+                playerId: playerId,
+                clashShards: data.clash_shards || 0,
+                totalEarned: data.total_earned || 0,
+                totalSpent: data.total_spent || 0,
+                lastUpdated: new Date(),
+              }
+            });
           }
         } catch (err) {
           console.error("Error fetching currency:", err);

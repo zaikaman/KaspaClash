@@ -1743,8 +1743,15 @@ export class FightScene extends Phaser.Scene {
       return;
     }
 
-    // Check if affordable
-    if (!this.combatEngine.canAffordMove("player1", move)) {
+    // Check if affordable using server state energy
+    const role = this.config.playerRole;
+    const currentEnergy = role === "player1" 
+      ? (this.serverState?.player1Energy ?? this.combatEngine.getState().player1.energy)
+      : (this.serverState?.player2Energy ?? this.combatEngine.getState().player2.energy);
+    
+    const moveCost = BASE_MOVE_STATS[move].energyCost;
+    
+    if (currentEnergy < moveCost) {
       this.showFloatingText("Not enough energy!", GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.HEIGHT - 150, "#ff4444");
       return;
     }
@@ -1845,9 +1852,15 @@ export class FightScene extends Phaser.Scene {
       return;
     }
 
+    // Get current energy from server state
+    const currentEnergy = role === "player1"
+      ? (this.serverState.player1Energy ?? 0)
+      : (this.serverState.player2Energy ?? 0);
+
     // Update each move button based on affordability
     this.moveButtons.forEach((button, move) => {
-      const isAffordable = this.combatEngine.canAffordMove("player1", move);
+      const moveCost = BASE_MOVE_STATS[move].energyCost;
+      const isAffordable = currentEnergy >= moveCost;
 
       // Apply visual feedback for unaffordable moves (same as stunned)
       if (!isAffordable) {
@@ -3213,6 +3226,16 @@ export class FightScene extends Phaser.Scene {
       this.moveButtons.forEach(btn => {
         btn.setAlpha(0.3);
         btn.disableInteractive();
+      });
+
+      // Trigger bot auto-move after countdown (if opponent is bot)
+      console.log(`[FightScene] Player is stunned, triggering bot auto-move check`);
+      fetch(`/api/matches/${this.config.matchId}/bot-auto-move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stunned: true }),
+      }).catch(err => {
+        console.error("[FightScene] Failed to trigger bot auto-move:", err);
       });
     } else {
       // Normal state

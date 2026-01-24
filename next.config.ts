@@ -1,8 +1,16 @@
 import type { NextConfig } from "next";
 
+const isDev = process.env.NODE_ENV === "development";
+
 const nextConfig: NextConfig = {
   // Mark kaspa-wasm as external to avoid bundling issues with WASM
   serverExternalPackages: ["kaspa-wasm"],
+
+  // Development optimizations
+  ...(isDev && {
+    productionBrowserSourceMaps: false,
+    reactStrictMode: false, // Can cause double renders in dev
+  }),
 
   // Use empty turbopack config to enable Turbopack by default
   // The webpack config is fallback for WASM support when needed

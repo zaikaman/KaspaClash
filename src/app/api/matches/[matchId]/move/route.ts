@@ -204,7 +204,7 @@ export async function POST(
     }
 
     // Check if both players have submitted OR if opponent rejected
-    const { data: updatedRound } = await supabase
+    let { data: updatedRound } = await supabase
       .from("rounds")
       .select("*")
       .eq("id", currentRound.id)
@@ -239,6 +239,8 @@ export async function POST(
     
     if (isOpponentBot && opponentAddress && awaitingOpponent) {
       console.log(`[Move Submit] Bot opponent detected, auto-submitting move for ${opponentAddress}`);
+      console.log(`[Move Submit] Current round ID: ${currentRound.id}, round_number: ${currentRound.round_number}`);
+      console.log(`[Move Submit] Current round state before bot: P1=${currentRound.player1_move}, P2=${currentRound.player2_move}`);
       
       // Get bot's smart move
       const { SmartBotOpponent } = await import("@/lib/game/smart-bot-opponent");
@@ -292,7 +294,6 @@ export async function POST(
       const botTxId = `bot_tx_${Date.now()}_${Math.random().toString(36).substring(7)}`.padEnd(64, '0').substring(0, 64);
       
       const botMoveColumn = isPlayer1 ? "player2_move" : "player1_move";
-      const botTxColumn = isPlayer1 ? "player2_move_tx_id" : "player1_move_tx_id";
       
       const { data: botMoveData, error: botMoveError } = await supabase
         .from("moves")
@@ -305,14 +306,24 @@ export async function POST(
         .select()
         .single();
       
+      if (botMoveError) {
+        console.error("[Move Submit] Failed to insert bot move:", botMoveError);
+      }
+      
       if (!botMoveError && botMoveData) {
-        await supabase
+        // Only update the move column (rounds table doesn't have tx_id columns)
+        const { error: botRoundUpdateError } = await supabase
           .from("rounds")
           .update({
             [botMoveColumn]: botMove,
-            [botTxColumn]: botTxId,
           })
           .eq("id", currentRound.id);
+        
+        if (botRoundUpdateError) {
+          console.error("[Move Submit] Failed to update round with bot move:", botRoundUpdateError);
+        } else {
+          console.log(`[Move Submit] Bot move successfully saved to database - Round ${currentRound.id}, Move: ${botMove}`);
+        }
         
         // Broadcast bot move
         const botGameChannel = supabase.channel(`game:${matchId}`);
@@ -328,18 +339,21 @@ export async function POST(
         await supabase.removeChannel(botGameChannel);
         
         // Both moves submitted now, need to resolve
-        // Update the local variable to trigger resolution below
-        currentRound = {
-          ...currentRound,
-          [botMoveColumn]: botMove,
-          [botTxColumn]: botTxId,
-        };
+        // Update the updatedRound variable with bot's move (updatedRound already has player's move from DB)
+        if (updatedRound) {
+          updatedRound = {
+            ...updatedRound,
+            [botMoveColumn]: botMove,
+          };
+          console.log(`[Move Submit] Bot move submitted. Both moves now ready - P1: ${updatedRound.player1_move}, P2: ${updatedRound.player2_move}`);
+        }
       }
     }
     
     // Re-check if we're still awaiting opponent after bot auto-submit
-    const finalOpponentMoveColumn = isPlayer1 ? "player2_move" : "player1_move";
-    const finalAwaitingOpponent = !currentRound[finalOpponentMoveColumn];
+    // Use updatedRound since it has the latest state from database
+    const finalAwaitingOpponent = !(updatedRound?.player1_move && updatedRound?.player2_move);
+    console.log(`[Move Submit] Final check - awaiting opponent: ${finalAwaitingOpponent}, will resolve: ${!finalAwaitingOpponent}`);
 
     // If opponent already rejected, we win this round
     if (opponentRejected) {
@@ -376,8 +390,13 @@ export async function POST(
     // If both players have submitted moves normally, trigger combat resolution
     let resolution = null;
     if (!finalAwaitingOpponent) {
+      console.log(`[Move Submit] Triggering combat resolution for match ${matchId}, round ${currentRound.id}`);
+      console.log(`[Move Submit] Moves: P1=${updatedRound?.player1_move}, P2=${updatedRound?.player2_move}`);
+      
       const { resolveRound } = await import("@/lib/game/combat-resolver");
       resolution = await resolveRound(matchId, currentRound.id);
+      
+      console.log(`[Move Submit] Combat resolution complete. Success: ${resolution?.success}, isMatchOver: ${resolution?.isMatchOver}`);
 
       if (resolution.isMatchOver) {
         try {
@@ -388,6 +407,8 @@ export async function POST(
           console.error("Failed to trigger payouts:", e);
         }
       }
+    } else {
+      console.log(`[Move Submit] Skipping combat resolution - still awaiting opponent`);
     }
 
     return NextResponse.json({

@@ -101,20 +101,23 @@ export async function GET(
             return NextResponse.json({ progression: null, currency: null });
         }
 
-        // Get player progression
-        const { data: progression, error: progressionError } = await supabase
-            .from("player_progression")
-            .select("*")
-            .eq("player_id", address)
-            .eq("season_id", season.id)
-            .single() as { data: PlayerProgressionRow | null; error: any };
+        // Get player progression and currency in parallel for better performance
+        const [progressionResult, currencyResult] = await Promise.all([
+            supabase
+                .from("player_progression")
+                .select("*")
+                .eq("player_id", address)
+                .eq("season_id", season.id)
+                .single() as Promise<{ data: PlayerProgressionRow | null; error: any }>,
+            supabase
+                .from("player_currency")
+                .select("clash_shards, total_earned, total_spent")
+                .eq("player_id", address)
+                .single() as Promise<{ data: PlayerCurrencyRow | null; error: any }>
+        ]);
 
-        // Get player currency
-        const { data: currency } = await supabase
-            .from("player_currency")
-            .select("clash_shards, total_earned, total_spent")
-            .eq("player_id", address)
-            .single() as { data: PlayerCurrencyRow | null; error: any };
+        const { data: progression, error: progressionError } = progressionResult;
+        const { data: currency } = currencyResult;
 
         if (progressionError || !progression) {
             // No progression exists yet - create default
@@ -156,13 +159,18 @@ export async function GET(
             progression.current_tier
         );
 
-        return NextResponse.json({
+        const response = NextResponse.json({
             progression: {
                 ...progression,
                 tier_progress: tierProgress,
             },
             currency: currency || { clash_shards: 0, total_earned: 0, total_spent: 0 },
         });
+
+        // Cache for 30 seconds to reduce database load
+        response.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
+        
+        return response;
     } catch (error) {
         const apiError = handleError(error);
         return createErrorResponse(apiError);

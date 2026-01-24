@@ -147,7 +147,31 @@ CREATE TABLE public.bot_betting_pools (
   resolved_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT bot_betting_pools_pkey PRIMARY KEY (id)
+  CONSTRAINT bot_betting_pools_pkey PRIMARY KEY (id),
+  CONSTRAINT bot_betting_pools_bot_match_fkey FOREIGN KEY (bot_match_id) REFERENCES public.bot_matches(id)
+);
+CREATE TABLE public.bot_matches (
+  id text NOT NULL,
+  bot1_character_id text NOT NULL,
+  bot2_character_id text NOT NULL,
+  bot1_name text NOT NULL,
+  bot2_name text NOT NULL,
+  seed text NOT NULL,
+  status text NOT NULL DEFAULT 'active'::text CHECK (status = ANY (ARRAY['active'::text, 'completed'::text])),
+  turns jsonb NOT NULL,
+  total_turns integer NOT NULL CHECK (total_turns > 0),
+  match_winner text CHECK (match_winner IS NULL OR (match_winner = ANY (ARRAY['player1'::text, 'player2'::text]))),
+  bot1_rounds_won integer NOT NULL DEFAULT 0,
+  bot2_rounds_won integer NOT NULL DEFAULT 0,
+  turn_duration_ms integer NOT NULL DEFAULT 2500,
+  bot1_max_hp integer NOT NULL,
+  bot2_max_hp integer NOT NULL,
+  bot1_max_energy integer NOT NULL,
+  bot2_max_energy integer NOT NULL,
+  betting_closes_at_turn integer NOT NULL DEFAULT 3,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT bot_matches_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.characters (
   id text NOT NULL,

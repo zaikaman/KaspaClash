@@ -12,6 +12,7 @@ import { DailyQuestList } from "@/components/quests/DailyQuestList";
 import { useQuestStore } from "@/stores/quest-store";
 import { useWalletStore, selectIsConnected, selectPersistedAddress } from "@/stores/wallet-store";
 import { useShopStore } from "@/stores/shop-store";
+import { useCurrencyRealtime, fetchCurrentCurrency } from "@/hooks/useCurrencyRealtime";
 import { Button } from "@/components/ui/button";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -47,28 +48,11 @@ export default function QuestsPage() {
     const [isRefreshing, setIsRefreshing] = React.useState(false);
     const [claimSuccess, setClaimSuccess] = React.useState<{ xp: number; shards: number } | null>(null);
 
-    // Fetch player currency
-    const fetchCurrency = React.useCallback(async () => {
-        if (!walletAddress) return;
-
-        try {
-            const response = await fetch(`/api/progression/player?playerId=${encodeURIComponent(walletAddress)}`);
-            if (response.ok) {
-                const data = await response.json();
-                if (data.currency) {
-                    setShopCurrency({
-                        playerId: walletAddress,
-                        clashShards: data.currency.clash_shards || 0,
-                        totalEarned: data.currency.total_earned || 0,
-                        totalSpent: data.currency.total_spent || 0,
-                        lastUpdated: new Date(),
-                    });
-                }
-            }
-        } catch (err) {
-            console.error("Error fetching currency:", err);
-        }
-    }, [walletAddress, setShopCurrency]);
+    // Real-time currency subscription
+    useCurrencyRealtime({
+        playerId: walletAddress || '',
+        enabled: isConnected && !!walletAddress,
+    });
 
     // Fetch quests on mount and when wallet connects
     const fetchQuests = React.useCallback(async () => {
@@ -78,9 +62,10 @@ export default function QuestsPage() {
         setError(null);
 
         try {
-            const [questsResponse] = await Promise.all([
+            // Fetch quests and currency in parallel
+            const [questsResponse, currencyData] = await Promise.all([
                 fetch(`/api/quests/daily?playerId=${encodeURIComponent(walletAddress)}`),
-                fetchCurrency()
+                fetchCurrentCurrency(walletAddress)
             ]);
 
             const data = await questsResponse.json();
@@ -99,13 +84,24 @@ export default function QuestsPage() {
                 currentStreak: data.statistics.currentStreak,
                 longestStreak: 0, // Not returned from API
             });
+
+            // Update currency if fetched
+            if (currencyData) {
+                setShopCurrency({
+                    playerId: walletAddress,
+                    clashShards: currencyData.clash_shards || 0,
+                    totalEarned: currencyData.total_earned || 0,
+                    totalSpent: currencyData.total_spent || 0,
+                    lastUpdated: new Date(),
+                });
+            }
         } catch (err) {
             console.error("Error fetching quests:", err);
             setError(err instanceof Error ? err.message : "Failed to fetch quests");
         } finally {
             setLoading(false);
         }
-    }, [walletAddress, fetchCurrency, setDailyQuests, setStatistics, setLoading, setError]);
+    }, [walletAddress, setDailyQuests, setStatistics, setLoading, setError, setShopCurrency]);
 
     React.useEffect(() => {
         if (isConnected && walletAddress) {
@@ -153,24 +149,8 @@ export default function QuestsPage() {
                     shards: data.rewards.currency || 0,
                 });
 
-                if (data.newBalance !== undefined) {
-                    setShopCurrency({
-                        playerId: walletAddress,
-                        clashShards: data.newBalance,
-                        // Update only shards, other fields are required but safe to default or omit here if store allows partial updates, 
-                        // but useShopStore usually expects full object or partial if properly typed. 
-                        // Checking useShopStore impl, it expects full object.
-                        // Ideally we should merge with current state, but we don't have current state here easily.
-                        // However, we just fetched currency so updating just shards is ... 
-                        // Actually, let's just re-fetch currency to be safe and consistent.
-                        totalEarned: 0, // Should use existing but cleaner to refetch
-                        totalSpent: 0,
-                        lastUpdated: new Date()
-                    });
-
-                    // Actually, re-fetching is safer to ensure consistency
-                    fetchCurrency();
-                }
+                // Currency will update automatically via Realtime subscription!
+                // No need to manually fetch or update
 
                 console.log(`[QuestClaim] Claimed! XP: ${data.rewards.xp}, Shards: ${data.rewards.currency}, New Balance: ${data.newBalance}`);
 

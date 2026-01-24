@@ -17,6 +17,88 @@ import {
     trackOpponentDefeated,
 } from "@/lib/quests/quest-service";
 import { updateWinStreakAfterMatch } from "@/lib/quests/win-streak-service";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+/**
+ * Helper function to submit a bot move
+ */
+async function submitBotMove(
+    supabase: SupabaseClient,
+    match: any,
+    roundData: any,
+    botPlayer: "player1" | "player2",
+    engineState: any,
+    matchId: string
+): Promise<void> {
+    const botAddress = botPlayer === "player1" ? match.player1_address : match.player2_address;
+    
+    // Get bot's smart move
+    const { SmartBotOpponent } = await import("@/lib/game/smart-bot-opponent");
+    
+    const botName = botAddress.replace("bot_", "Bot_");
+    const bot = new SmartBotOpponent(botName);
+    
+    // Update bot context with current match state
+    const humanPlayer = botPlayer === "player1" ? "player2" : "player1";
+    bot.updateContext({
+        botHealth: engineState[botPlayer].hp,
+        botMaxHealth: engineState[botPlayer].maxHp,
+        botEnergy: engineState[botPlayer].energy,
+        botMaxEnergy: engineState[botPlayer].maxEnergy,
+        botGuardMeter: engineState[botPlayer].guardMeter,
+        botIsStunned: engineState[botPlayer].isStunned || false,
+        botIsStaggered: engineState[botPlayer].isStaggered || false,
+        opponentHealth: engineState[humanPlayer].hp,
+        opponentMaxHealth: engineState[humanPlayer].maxHp,
+        opponentEnergy: engineState[humanPlayer].energy,
+        opponentMaxEnergy: engineState[humanPlayer].maxEnergy,
+        opponentGuardMeter: engineState[humanPlayer].guardMeter,
+        opponentIsStunned: engineState[humanPlayer].isStunned || false,
+        opponentIsStaggered: engineState[humanPlayer].isStaggered || false,
+        roundNumber: engineState.currentRound,
+        turnNumber: engineState.currentTurn,
+        botRoundsWon: engineState[botPlayer].roundsWon,
+        opponentRoundsWon: engineState[humanPlayer].roundsWon,
+    });
+    
+    const decision = bot.decide();
+    const botMove = decision.move;
+    
+    console.log(`[CombatResolver] Bot chose move: ${botMove} (${decision.reasoning})`);
+    
+    // Submit bot's move (fake transaction ID)
+    const botTxId = `bot_tx_${Date.now()}_${Math.random().toString(36).substring(7)}`.padEnd(64, '0').substring(0, 64);
+    
+    const botMoveColumn = botPlayer === "player1" ? "player1_move" : "player2_move";
+    
+    // Insert move record
+    await supabase.from("moves").insert({
+        round_id: roundData.id,
+        player_address: botAddress,
+        move_type: botMove,
+        tx_id: botTxId,
+    });
+    
+    // Update round with bot move
+    await supabase.from("rounds").update({
+        [botMoveColumn]: botMove,
+    }).eq("id", roundData.id);
+    
+    // Broadcast bot move
+    const botGameChannel = supabase.channel(`game:${matchId}`);
+    await botGameChannel.send({
+        type: "broadcast",
+        event: "move_submitted",
+        payload: {
+            player: botPlayer,
+            txId: botTxId,
+            submittedAt: Date.now(),
+        },
+    });
+    await supabase.removeChannel(botGameChannel);
+    
+    console.log(`[CombatResolver] Bot move submitted and saved to database`);
+}
 
 /**
  * Round resolution result.
@@ -54,6 +136,9 @@ export async function resolveRound(
     matchId: string,
     roundId: string
 ): Promise<RoundResolutionResult> {
+    console.log(`[CombatResolver] ======= START RESOLVE ROUND =======`);
+    console.log(`[CombatResolver] Match ID: ${matchId}, Round ID: ${roundId}`);
+    
     const supabase = await createSupabaseServerClient();
 
     // Fetch the current round with moves
@@ -64,11 +149,15 @@ export async function resolveRound(
         .single();
 
     if (roundError || !currentRound) {
+        console.error(`[CombatResolver] Round not found:`, roundError);
         return createErrorResult("Round not found");
     }
+    
+    console.log(`[CombatResolver] Round ${currentRound.round_number} - P1 move: ${currentRound.player1_move}, P2 move: ${currentRound.player2_move}`);
 
     // Validate moves exist
     if (!isValidMove(currentRound.player1_move) || !isValidMove(currentRound.player2_move)) {
+        console.error(`[CombatResolver] Invalid moves - P1: ${currentRound.player1_move}, P2: ${currentRound.player2_move}`);
         return createErrorResult("Invalid moves");
     }
 
@@ -364,6 +453,10 @@ export async function resolveRound(
                 console.log(`[CombatResolver] *** Inserting ${movesToInsert.length} stunned moves`);
                 await supabase.from("moves").insert(movesToInsert);
                 await supabase.from("rounds").update(roundUpdates).eq("id", roundData.id);
+                
+                // Note: Bot move submission will be handled by a scheduled task after the countdown
+                // This ensures proper timing - the bot "thinks" after seeing "3 2 1 FIGHT"
+                console.log(`[CombatResolver] *** Stunned moves pre-filled. Bot will auto-submit after round countdown.`);
             } else {
                 console.log(`[CombatResolver] *** No stunned players, round ${nextRoundNumber} has no pre-filled moves`);
             }

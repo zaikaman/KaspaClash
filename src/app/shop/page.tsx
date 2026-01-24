@@ -13,6 +13,7 @@ import { CategoryFilter } from "@/components/shop/CategoryFilter";
 import { CosmeticPreview } from "@/components/shop/CosmeticPreview";
 import { PurchaseModal } from "@/components/shop/PurchaseModal";
 import { useShopStore } from "@/stores/shop-store";
+import { useCurrencyRealtime, fetchCurrentCurrency } from "@/hooks/useCurrencyRealtime";
 import { useWalletStore, selectIsConnected, selectPersistedAddress } from "@/stores/wallet-store";
 import { Button } from "@/components/ui/button";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -84,29 +85,11 @@ export default function ShopPage() {
         }
     }, [selectedCategory, walletAddress, setItems, setLoading, setError]);
 
-    // Fetch player currency
-    const fetchCurrency = React.useCallback(async () => {
-        if (!walletAddress) return;
-
-        try {
-            // Fetch from player_currency table via progression endpoint
-            const response = await fetch(`/api/progression/player?playerId=${encodeURIComponent(walletAddress)}`);
-            if (response.ok) {
-                const data = await response.json();
-                if (data.currency) {
-                    setCurrency({
-                        playerId: walletAddress,
-                        clashShards: data.currency.clash_shards || 0,
-                        totalEarned: data.currency.total_earned || 0,
-                        totalSpent: data.currency.total_spent || 0,
-                        lastUpdated: new Date(),
-                    });
-                }
-            }
-        } catch (err) {
-            console.error("Error fetching currency:", err);
-        }
-    }, [walletAddress, setCurrency]);
+    // Real-time currency subscription (no polling!)
+    useCurrencyRealtime({
+        playerId: walletAddress || '',
+        enabled: isConnected && !!walletAddress,
+    });
 
     // Fetch featured items
     const fetchFeatured = React.useCallback(async () => {
@@ -128,11 +111,22 @@ export default function ShopPage() {
         fetchFeatured();
     }, [fetchInventory, fetchFeatured]);
 
+    // Initial currency fetch
     React.useEffect(() => {
         if (isConnected && walletAddress) {
-            fetchCurrency();
+            fetchCurrentCurrency(walletAddress).then((currencyData) => {
+                if (currencyData) {
+                    setCurrency({
+                        playerId: walletAddress,
+                        clashShards: currencyData.clash_shards || 0,
+                        totalEarned: currencyData.total_earned || 0,
+                        totalSpent: currencyData.total_spent || 0,
+                        lastUpdated: new Date(),
+                    });
+                }
+            });
         }
-    }, [isConnected, walletAddress, fetchCurrency]);
+    }, [isConnected, walletAddress, setCurrency]);
 
     // Refetch when category changes
     React.useEffect(() => {
@@ -143,7 +137,7 @@ export default function ShopPage() {
     const handleRefresh = async () => {
         setIsRefreshing(true);
         try {
-            await Promise.all([fetchInventory(), fetchCurrency(), fetchFeatured()]);
+            await Promise.all([fetchInventory(), fetchFeatured()]);
         } finally {
             setIsRefreshing(false);
         }

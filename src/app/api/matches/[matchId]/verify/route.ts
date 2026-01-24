@@ -40,6 +40,11 @@ export async function GET(
             return NextResponse.json({ exists: false }, { status: 404 });
         }
 
+        // Reject cancelled or abandoned matches
+        if (match.status === "cancelled" || match.status === "abandoned") {
+            return NextResponse.json({ exists: false, status: match.status }, { status: 410 });
+        }
+
         return NextResponse.json({
             exists: true,
             status: match.status
