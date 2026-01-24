@@ -126,7 +126,6 @@ export default function MatchmakingQueue() {
                     <Button
                         onClick={() => {
                             setHasStarted(false);
-                            setQueuePhase("searching");
                             joinQueue();
                         }}
                         className="bg-gradient-cyber text-white border-0 font-orbitron"
