@@ -3647,6 +3647,39 @@ export class FightScene extends Phaser.Scene {
 
     const p1Char = this.config.player1Character || "dag-warrior";
     const p2Char = this.config.player2Character || "dag-warrior";
+
+    // Handle DRAW case (both characters ran out of HP in the same turn)
+    if (roundWinner === null) {
+      // Both characters died - play dead animation on both
+      if (this.anims.exists(`${p1Char}_dead`)) {
+        this.player1Sprite.setScale(getAnimationScale(p1Char, "dead"));
+        this.player1Sprite.play(`${p1Char}_dead`);
+      }
+      if (this.anims.exists(`${p2Char}_dead`)) {
+        this.player2Sprite.setScale(getAnimationScale(p2Char, "dead"));
+        this.player2Sprite.play(`${p2Char}_dead`);
+      }
+
+      // Wait for death animation to complete (36 frames at 24fps = 1.5s)
+      this.time.delayedCall(1500, () => {
+        // Show draw result text
+        this.countdownText.setText("⚡ DOUBLE KO - DRAW! ⚡");
+        this.countdownText.setFontSize(42);
+        this.countdownText.setColor("#fbbf24");
+        this.countdownText.setAlpha(1);
+
+        // Play neutral SFX
+        this.playSFX("sfx_defeat");
+
+        // After showing result text for 1.5s, start the countdown
+        this.time.delayedCall(1500, () => {
+          this.startRoundCountdown(p1Char, p2Char);
+        });
+      });
+      return;
+    }
+
+    // Normal win/loss case
     const isLocalWinner = roundWinner === this.config.playerRole;
 
     // Play dead animation on the loser
@@ -3682,69 +3715,76 @@ export class FightScene extends Phaser.Scene {
 
       // After showing result text for 1.5s, start the countdown
       this.time.delayedCall(1500, () => {
-        let countdown = 5;
-
-        const updateRoundCountdown = () => {
-          this.countdownText.setText(`Next round starting in ${countdown}`);
-          this.countdownText.setFontSize(32);
-          this.countdownText.setColor("#40e0d0");
-
-          // Pulse effect on the countdown text
-          this.tweens.add({
-            targets: this.countdownText,
-            scale: { from: 1.1, to: 1 },
-            duration: 400,
-            ease: 'Power2',
-          });
-
-          if (countdown > 1) {
-            countdown--;
-            this.time.delayedCall(1000, updateRoundCountdown);
-          } else {
-            // Countdown finished - reset for next round
-            this.time.delayedCall(1000, () => {
-              // Hide countdown text
-              this.countdownText.setAlpha(0);
-              this.countdownText.setFontSize(72);
-
-              // Reset both sprites to idle animations with proper scales
-              // Use centralized scale from sprite-config.ts
-              if (this.anims.exists(`${p1Char}_idle`)) {
-                this.player1Sprite.setScale(getAnimationScale(p1Char, "idle"));
-                this.player1Sprite.play(`${p1Char}_idle`);
-              }
-              if (this.anims.exists(`${p2Char}_idle`)) {
-                this.player2Sprite.setScale(getAnimationScale(p2Char, "idle"));
-                this.player2Sprite.play(`${p2Char}_idle`);
-              }
-
-              // Reset selected move for next round
-              this.selectedMove = null;
-
-              // Change phase to allow processing queued events
-              this.phase = "selecting";
-
-              // Process pending round start if we received one during the round_end sequence
-              if (this.pendingRoundStart) {
-                console.log("[FightScene] *** Processing queued round start after round end countdown");
-                const payload = this.pendingRoundStart;
-                this.pendingRoundStart = null;
-                // Skip the 3-2-1 FIGHT countdown since we already showed our 5-second countdown
-                this.startRoundFromServer(payload, true);
-              } else {
-                console.warn(`[FightScene] *** WARNING: No pendingRoundStart after round end countdown! Waiting for round_starting event`);
-                console.warn(`[FightScene] *** This may indicate round_starting arrived before round_end phase or was lost`);
-                // No pending event, just wait
-                this.turnIndicatorText.setText("Starting next round...");
-                this.turnIndicatorText.setColor("#888888");
-              }
-            });
-          }
-        };
-
-        updateRoundCountdown();
+        this.startRoundCountdown(p1Char, p2Char);
       });
     });
+  }
+
+  /**
+   * Start the countdown to the next round
+   */
+  private startRoundCountdown(p1Char: string, p2Char: string): void {
+    let countdown = 5;
+
+    const updateRoundCountdown = () => {
+      this.countdownText.setText(`Next round starting in ${countdown}`);
+      this.countdownText.setFontSize(32);
+      this.countdownText.setColor("#40e0d0");
+
+      // Pulse effect on the countdown text
+      this.tweens.add({
+        targets: this.countdownText,
+        scale: { from: 1.1, to: 1 },
+        duration: 400,
+        ease: 'Power2',
+      });
+
+      if (countdown > 1) {
+        countdown--;
+        this.time.delayedCall(1000, updateRoundCountdown);
+      } else {
+        // Countdown finished - reset for next round
+        this.time.delayedCall(1000, () => {
+          // Hide countdown text
+          this.countdownText.setAlpha(0);
+          this.countdownText.setFontSize(72);
+
+          // Reset both sprites to idle animations with proper scales
+          // Use centralized scale from sprite-config.ts
+          if (this.anims.exists(`${p1Char}_idle`)) {
+            this.player1Sprite.setScale(getAnimationScale(p1Char, "idle"));
+            this.player1Sprite.play(`${p1Char}_idle`);
+          }
+          if (this.anims.exists(`${p2Char}_idle`)) {
+            this.player2Sprite.setScale(getAnimationScale(p2Char, "idle"));
+            this.player2Sprite.play(`${p2Char}_idle`);
+          }
+
+          // Reset selected move for next round
+          this.selectedMove = null;
+
+          // Change phase to allow processing queued events
+          this.phase = "selecting";
+
+          // Process pending round start if we received one during the round_end sequence
+          if (this.pendingRoundStart) {
+            console.log("[FightScene] *** Processing queued round start after round end countdown");
+            const payload = this.pendingRoundStart;
+            this.pendingRoundStart = null;
+            // Skip the 3-2-1 FIGHT countdown since we already showed our 5-second countdown
+            this.startRoundFromServer(payload, true);
+          } else {
+            console.warn(`[FightScene] *** WARNING: No pendingRoundStart after round end countdown! Waiting for round_starting event`);
+            console.warn(`[FightScene] *** This may indicate round_starting arrived before round_end phase or was lost`);
+            // No pending event, just wait
+            this.turnIndicatorText.setText("Starting next round...");
+            this.turnIndicatorText.setColor("#888888");
+          }
+        });
+      }
+    };
+
+    updateRoundCountdown();
   }
 }
 
