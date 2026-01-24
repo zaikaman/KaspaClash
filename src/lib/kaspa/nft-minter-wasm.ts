@@ -271,7 +271,23 @@ export async function mintCosmeticNFT(
 
         // 3. Connect to RPC for UTXO monitoring
         const { RpcClient, Resolver } = wasm;
-        rpcClient = new RpcClient({ resolver: new Resolver(), networkId });
+        
+        // Use direct RPC URL to avoid "Resolver class mismatch" issue on Vercel
+        // Prioritize environment variables, fallback to reliable public nodes
+        const rpcUrl = network === "testnet" 
+            ? (process.env.KASPA_RPC_URL_TESTNET || "wss://testnet-10-node.kaspa.org")
+            : (process.env.KASPA_RPC_URL || "wss://node.kaspa.org");
+            
+        console.log('[NFT-Minter-WASM] Connecting to RPC:', rpcUrl);
+        
+        try {
+            rpcClient = new RpcClient({ url: rpcUrl, networkId });
+        } catch (e) {
+            console.warn('[NFT-Minter-WASM] Failed to create RpcClient with URL, trying Resolver as fallback...', e);
+            // Fallback to resolver if direct URL is not supported by this build
+            rpcClient = new RpcClient({ resolver: new Resolver(), networkId });
+        }
+        
         await rpcClient.connect();
         
         // IMPORTANT: Also subscribe to the P2SH address since we need to know when it receives funds
