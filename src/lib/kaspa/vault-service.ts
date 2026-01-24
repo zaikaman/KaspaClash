@@ -8,7 +8,8 @@
  */
 
 import { NETWORK_CONFIG, type NetworkType, KASPA_CONSTANTS } from "@/types/constants";
-import { Transaction, Address, OutScript, hexToBytes } from 'kaspalib';
+import { Transaction, Address, OutScript, hexToBytes, bytesToHex, transactionMass } from 'kaspalib';
+import { schnorr } from '@noble/curves/secp256k1';
 
 // =============================================================================
 // TYPES
@@ -318,6 +319,7 @@ export async function sendFromVault(
 
             // 8. Submit
             const rpcTx = tx.toRPCTransaction();
+            console.log(`[VaultService] Working TX mass before delete: ${rpcTx.mass}`);
             // @ts-ignore
             delete rpcTx.mass;
 
@@ -374,6 +376,182 @@ export async function sendFromVault(
         amount: amountSompi,
         toAddress,
     };
+}
+
+/**
+ * Send KAS from the vault with a custom payload (for NFT minting, etc.)
+ * Same as sendFromVault but allows attaching payload data.
+ */
+export async function sendFromVaultWithPayload(
+    network: NetworkType,
+    toAddress: string,
+    amountSompi: bigint,
+    payload: Uint8Array,
+    reason: string
+): Promise<VaultTransferResult> {
+    const config = getVaultConfig(network);
+    const isTestnet = network === "testnet";
+    const apiUrl = getApiBaseUrl(network);
+
+    console.log(`[VaultService] Initiating transfer with payload: ${amountSompi} sompi to ${toAddress}`);
+    console.log(`[VaultService] Payload size: ${payload.length} bytes`);
+    console.log(`[VaultService] Reason: ${reason}`);
+
+    if (amountSompi <= 0n) return { success: false, error: "Amount must be positive", amount: amountSompi, toAddress };
+    if (!toAddress.startsWith(NETWORK_CONFIG[network].prefix)) return { success: false, error: `Invalid address prefix for ${network}`, amount: amountSompi, toAddress };
+
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= MAX_BROADCAST_RETRIES; attempt++) {
+        try {
+            console.log(`[VaultService] Attempt ${attempt}/${MAX_BROADCAST_RETRIES}`);
+
+            const privateKey = hexToBytes(config.privateKey);
+            
+            // Derive public key to verify it matches the vault address
+            const publicKey = schnorr.getPublicKey(privateKey);
+            console.log(`[VaultService] Derived public key: ${bytesToHex(publicKey).substring(0, 20)}...`);
+            
+            const addrParser = Address({ prefix: isTestnet ? "kaspatest" : "kaspa" });
+            const vaultDecoded = addrParser.decode(config.address);
+            
+            // Verify the public key matches the vault address
+            const expectedVaultScript = OutScript.encode({ version: 0, type: 'pk', payload: publicKey });
+            console.log(`[VaultService] Vault address type: ${vaultDecoded.type}`);
+            
+            const utxos = await getUtxos(apiUrl, config.address);
+            
+            if (!utxos || utxos.length === 0) throw new Error(`Vault has no UTXOs (empty balance)`);
+
+            const totalRequired = amountSompi + DEFAULT_TX_FEE;
+            utxos.sort((a: { utxoEntry: { amount: string } }, b: { utxoEntry: { amount: string } }) => {
+                const amountA = BigInt(a.utxoEntry.amount);
+                const amountB = BigInt(b.utxoEntry.amount);
+                return amountA < amountB ? 1 : amountA > amountB ? -1 : 0;
+            });
+
+            const selectedUtxos: typeof utxos = [];
+            let inputAmount = BigInt(0);
+
+            for (const u of utxos) {
+                if (inputAmount >= totalRequired) break;
+                if (selectedUtxos.length >= MAX_INPUTS) break;
+                selectedUtxos.push(u);
+                inputAmount += BigInt(u.utxoEntry.amount);
+            }
+
+            if (inputAmount < totalRequired) throw new Error(`Insufficient funds: Have ${sompiToKas(inputAmount)} KAS, Need ${sompiToKas(totalRequired)} KAS`);
+
+            const inputs = selectedUtxos.map((u: { outpoint: { transactionId: string; index: number }; utxoEntry: { amount: string; scriptPublicKey: { version?: number; scriptPublicKey: string } }; }) => ({
+                utxo: { transactionId: hexToBytes(u.outpoint.transactionId), index: u.outpoint.index, amount: BigInt(u.utxoEntry.amount), version: u.utxoEntry.scriptPublicKey.version || 0, script: hexToBytes(u.utxoEntry.scriptPublicKey.scriptPublicKey) },
+                script: new Uint8Array(0), sequence: BigInt(0), sigOpCount: 1
+            }));
+
+            const recipientDecoded = addrParser.decode(toAddress);
+            const recipientScript = OutScript.encode({ version: 0, type: recipientDecoded.type, payload: recipientDecoded.payload });
+            const outputs = [{ amount: amountSompi, version: recipientScript.version, script: recipientScript.script }];
+
+            const changeAmount = inputAmount - totalRequired;
+            if (changeAmount > BigInt(0)) {
+                const changeScript = OutScript.encode({ version: 0, type: vaultDecoded.type, payload: vaultDecoded.payload });
+                outputs.push({ amount: changeAmount, version: changeScript.version, script: changeScript.script });
+            }
+
+            // For transactions with payloads, subnetwork should be all zeros (native/coinbase subnetwork)
+            const subnetworkId = new Uint8Array(20);
+            
+            console.log(`[VaultService] Creating transaction...`);
+            console.log(`[VaultService] - Payload bytes:`, payload.slice(0, 20), '... (first 20 bytes)');
+            console.log(`[VaultService] - Payload length:`, payload.length);
+            console.log(`[VaultService] - Payload as hex:`, bytesToHex(payload).substring(0, 40) + '...');
+            
+            const tx = new Transaction({ 
+                version: 0, 
+                inputs, 
+                outputs, 
+                lockTime: BigInt(0), 
+                subnetworkId, 
+                gas: BigInt(0), 
+                payload 
+            });
+            
+            console.log(`[VaultService] Transaction object created`);
+            console.log(`[VaultService] - tx.payload length:`, tx.payload.length);
+            console.log(`[VaultService] - tx.payload matches input:`, bytesToHex(tx.payload) === bytesToHex(payload));
+            
+            // Log transaction details for debugging
+            console.log(`[VaultService] Transaction created with payload`);
+            console.log(`[VaultService] - Inputs: ${inputs.length}`);
+            console.log(`[VaultService] - Outputs: ${outputs.length}`);
+            console.log(`[VaultService] - Payload: ${payload.length} bytes`);
+            console.log(`[VaultService] - SubnetworkId: ${bytesToHex(subnetworkId)}`);
+            
+            const signed = tx.sign(privateKey);
+            if (!signed) throw new Error("Failed to sign transaction");
+
+            const rpcTx = tx.toRPCTransaction();
+            
+            // Verify the payload is in the RPC transaction
+            if (!rpcTx.payload || rpcTx.payload.length === 0) {
+                throw new Error("Payload was lost during RPC conversion");
+            }
+            
+            console.log(`[VaultService] Transaction signed successfully`);
+            console.log(`[VaultService] - TX ID: ${tx.id}`);
+            console.log(`[VaultService] - TX mass: ${tx.mass}`);
+            console.log(`[VaultService] - Payload: ${rpcTx.payload.length} chars (hex)`);
+            console.log(`[VaultService] - First input signature script length: ${rpcTx.inputs[0]?.signatureScript?.length || 0}`);
+            console.log(`[VaultService] - Full RPC TX:`, JSON.stringify({
+                version: rpcTx.version,
+                inputs: rpcTx.inputs.map((inp: any, i: number) => ({
+                    index: i,
+                    previousOutpoint: { txId: inp.previousOutpoint.transactionId.substring(0, 16) + '...', index: inp.previousOutpoint.index },
+                    signatureScriptLength: inp.signatureScript.length,
+                    sequence: inp.sequence,
+                    sigOpCount: inp.sigOpCount
+                })),
+                outputs: rpcTx.outputs.map((out: any, i: number) => ({
+                    index: i,
+                    amount: out.amount,
+                    scriptPublicKey: { version: out.scriptPublicKey.version, scriptLength: out.scriptPublicKey.scriptPublicKey.length }
+                })),
+                lockTime: rpcTx.lockTime,
+                subnetworkId: rpcTx.subnetworkId,
+                gas: rpcTx.gas,
+                payloadLength: rpcTx.payload.length
+            }, null, 2));
+            
+            // Delete mass field - let the node recalculate it
+            // @ts-ignore
+            delete rpcTx.mass;
+
+            const result = await submitTransactionToApi(apiUrl, { transaction: rpcTx });
+            const txId = result.transactionId;
+
+            console.log(`[VaultService] ✓ Sent ${sompiToKas(amountSompi)} KAS with payload. TX: ${txId}`);
+            return { success: true, txId, amount: amountSompi, toAddress };
+
+        } catch (error) {
+            lastError = error instanceof Error ? error : new Error(String(error));
+            console.error(`[VaultService] Attempt ${attempt} failed:`, lastError.message);
+
+            if (lastError.message.includes("already accepted by the consensus")) {
+                const txIdMatch = lastError.message.match(/transaction ([a-f0-9]+)/);
+                const txId = txIdMatch ? txIdMatch[1] : "unknown";
+                console.log(`[VaultService] ✓ Transaction accepted. TX: ${txId}`);
+                return { success: true, txId, amount: amountSompi, toAddress };
+            }
+
+            if (attempt < MAX_BROADCAST_RETRIES) {
+                const delay = Math.min(3000 * attempt, 15000);
+                console.log(`[VaultService] Retrying in ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+    }
+
+    console.error(`[VaultService] All ${MAX_BROADCAST_RETRIES} attempts failed.`, lastError?.message);
+    return { success: false, error: lastError?.message || "Unknown error", amount: amountSompi, toAddress };
 }
 
 /**

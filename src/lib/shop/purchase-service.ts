@@ -25,6 +25,7 @@ export interface PurchaseResult {
     purchaseId?: string;
     newBalance?: number;
     txId?: string;
+    nftTxId?: string; // NFT mint transaction ID
     error?: string;
     errorCode?: 'INSUFFICIENT_FUNDS' | 'ALREADY_OWNED' | 'ITEM_NOT_FOUND' | 'WALLET_ERROR' | 'TRANSACTION_FAILED' | 'CONFIRMATION_TIMEOUT' | 'SYSTEM_ERROR';
 }
@@ -211,6 +212,7 @@ export async function processPurchaseWithKaspa(
             purchaseId: result.purchaseId,
             newBalance: result.newBalance,
             txId,
+            nftTxId: result.nftTxId, // Include NFT transaction ID
         };
     } catch (error) {
         console.error('[PurchaseService] Purchase error:', error);

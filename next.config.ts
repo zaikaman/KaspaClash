@@ -4,7 +4,12 @@ const isDev = process.env.NODE_ENV === "development";
 
 const nextConfig: NextConfig = {
   // Mark kaspa-wasm as external to avoid bundling issues with WASM
-  serverExternalPackages: ["kaspa-wasm"],
+  serverExternalPackages: ["kaspa-wasm", "isomorphic-ws"],
+  
+  // Experimental features for better WASM support
+  experimental: {
+    serverComponentsExternalPackages: ["kaspa-wasm"],
+  },
 
   // Development optimizations
   ...(isDev && {
@@ -17,10 +22,11 @@ const nextConfig: NextConfig = {
   turbopack: {},
 
   // Enable WASM support for Kaspa SDK (webpack fallback)
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.experiments = {
       ...config.experiments,
       asyncWebAssembly: true,
+      layers: true,
     };
 
     // Fix for WASM module resolution
@@ -28,6 +34,14 @@ const nextConfig: NextConfig = {
       test: /\.wasm$/,
       type: "webassembly/async",
     });
+
+    // Ensure kaspa-wasm WASM files are properly handled on server
+    if (isServer) {
+      config.externals = config.externals || [];
+      config.externals.push({
+        'kaspa-wasm': 'commonjs kaspa-wasm',
+      });
+    }
 
     return config;
   },

@@ -108,3 +108,31 @@ export interface PlayerCurrency {
   totalSpent: number;
   lastUpdated: Date;
 }
+
+/**
+ * Cosmetic NFT Record
+ * Tracks NFTs minted for cosmetics on Kaspa blockchain
+ */
+export interface CosmeticNFT {
+  id: string;
+  playerId: string;
+  cosmeticId: string;
+  mintTxId: string; // Kaspa transaction ID
+  network: 'mainnet' | 'testnet';
+  metadata: {
+    protocol: string;
+    version: string;
+    type: string;
+    cosmetic: {
+      id: string;
+      name: string;
+      category: string;
+      rarity: string;
+      thumbnailUrl: string;
+      assetPath: string;
+    };
+    mintedAt: string;
+    mintedBy: string;
+  };
+  mintedAt: Date;
+}

@@ -18,7 +18,8 @@ interface PurchaseResponse {
     success: boolean;
     purchaseId?: string;
     newBalance?: number;
-    txId?: string; // Echo back the transaction ID
+    txId?: string; // Payment transaction ID (1 KAS to treasury)
+    nftTxId?: string; // NFT mint transaction ID
     error?: string;
 }
 
@@ -91,6 +92,7 @@ export async function POST(
             purchaseId: result.purchaseId,
             newBalance: result.newBalance,
             txId,
+            nftTxId: result.nftTxId,
         });
     } catch (error) {
         const apiError = handleError(error);

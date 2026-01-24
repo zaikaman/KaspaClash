@@ -202,6 +202,19 @@ CREATE TABLE public.cosmetic_items (
   CONSTRAINT cosmetic_items_pkey PRIMARY KEY (id),
   CONSTRAINT cosmetic_items_character_id_fkey FOREIGN KEY (character_id) REFERENCES public.characters(id)
 );
+CREATE TABLE public.cosmetic_nfts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  player_id text NOT NULL,
+  cosmetic_id uuid NOT NULL,
+  mint_tx_id text NOT NULL UNIQUE,
+  network text NOT NULL CHECK (network = ANY (ARRAY['mainnet'::text, 'testnet'::text])),
+  metadata jsonb NOT NULL,
+  minted_at timestamp with time zone NOT NULL DEFAULT now(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT cosmetic_nfts_pkey PRIMARY KEY (id),
+  CONSTRAINT cosmetic_nfts_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address),
+  CONSTRAINT cosmetic_nfts_cosmetic_id_fkey FOREIGN KEY (cosmetic_id) REFERENCES public.cosmetic_items(id)
+);
 CREATE TABLE public.currency_transactions (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   player_id text NOT NULL,
