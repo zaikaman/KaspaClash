@@ -259,31 +259,19 @@ export async function attemptMatch(
   if (existingMatch && existingMatch.player2_address) {
     const shortId = existingMatch.id.slice(0, 8);
 
-    // If we're in character_select OR in_progress, and the user is attempting to match again,
-    // it means they want a NEW match. So we should abandon the old one.
-    // NOTE: This assumes that if a user is back in the queue, they have "left" the previous game.
-    if (existingMatch.status === "character_select" || existingMatch.status === "in_progress") {
-      console.log(`[MATCHMAKING] ${shortAddr}: Abandoning stale/stuck match ${shortId} (status: ${existingMatch.status})`);
+    // If we're in character_select OR in_progress, abandon the old match
+    // This assumes that if a user is back in the queue, they have "left" the previous game
+    console.log(`[MATCHMAKING] ${shortAddr}: Abandoning stale/stuck match ${shortId} (status: ${existingMatch.status})`);
 
-      await supabase
-        .from("matches")
-        .update({
-          status: "abandoned",
-          completed_at: new Date().toISOString(),
-        })
-        .eq("id", existingMatch.id);
+    await supabase
+      .from("matches")
+      .update({
+        status: "cancelled",
+        completed_at: new Date().toISOString(),
+      })
+      .eq("id", existingMatch.id);
 
-      // Continue execution to create a NEW match
-    } else {
-      console.log(`[MATCHMAKING] ${shortAddr}: Already in active match ${shortId} (${existingMatch.status}), skipping attemptMatch`);
-
-      return {
-        matchId: existingMatch.id,
-        player1Address: existingMatch.player1_address,
-        player2Address: existingMatch.player2_address,
-        selectionDeadlineAt: existingMatch.selection_deadline_at!,
-      };
-    }
+    // Continue execution to create a NEW match
   }
 
   // Step 1: Get the current player from queue
@@ -486,7 +474,7 @@ export async function createMatch(
       .from("matches")
       .select("id, player1_address, player2_address, selection_deadline_at, created_at, status")
       .or(`player1_address.eq.${player1Address},player2_address.eq.${player1Address},player1_address.eq.${player2Address},player2_address.eq.${player2Address}`)
-      .in("status", ["character_select", "in_progress", "waiting"])
+      .in("status", ["character_select", "in_progress"])
       .order("created_at", { ascending: false })
       .limit(1)
       .single();
@@ -494,38 +482,18 @@ export async function createMatch(
     if (existingMatch) {
       const shortId = existingMatch.id.slice(0, 8);
 
-      // If we're in character_select OR in_progress, and the user is attempting to CREATE a match,
-      // it means they want a NEW match. So we should abandon the old one.
-      if (existingMatch.status === "character_select" || existingMatch.status === "in_progress") {
-        console.log(`[MATCHMAKING-CREATE] ${existingMatch.id}: Abandoning stale/stuck match ${shortId} (status: ${existingMatch.status})`);
+      // If we're in character_select OR in_progress, abandon the old match
+      console.log(`[MATCHMAKING-CREATE] ${existingMatch.id}: Abandoning stale/stuck match ${shortId} (status: ${existingMatch.status})`);
 
-        await supabase
-          .from("matches")
-          .update({
-            status: "abandoned",
-            completed_at: new Date().toISOString(),
-          })
-          .eq("id", existingMatch.id);
+      await supabase
+        .from("matches")
+        .update({
+          status: "cancelled",
+          completed_at: new Date().toISOString(),
+        })
+        .eq("id", existingMatch.id);
 
-        // Continue execution to create a NEW match
-      } else {
-        console.log(`[MATCHMAKING] Match already exists for one of the players: ${existingMatch.id}`);
-        // Return the existing match if it involves both players
-        const involvesPlayer1 = existingMatch.player1_address === player1Address || existingMatch.player2_address === player1Address;
-        const involvesPlayer2 = existingMatch.player1_address === player2Address || existingMatch.player2_address === player2Address;
-
-        if (involvesPlayer1 && involvesPlayer2) {
-          console.log(`[MATCHMAKING] Returning existing match between these players: ${existingMatch.id}`);
-          return {
-            id: existingMatch.id,
-            selectionDeadlineAt: existingMatch.selection_deadline_at!
-          };
-        }
-
-        // One player already in a different match - cannot create new match
-        console.log(`[MATCHMAKING] Cannot create match - player already in different match: ${existingMatch.id} (status: ${existingMatch.status})`);
-        return null;
-      }
+      // Continue execution to create a NEW match
     }
 
     // Calculate selection deadline (30 seconds from now)
