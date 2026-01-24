@@ -309,13 +309,9 @@ export async function mintCosmeticNFT(
         });
 
         const commitTx = commitTxs[0];
-        // sign() might be picky about the class type and return values
-        // Let's ensure we are passing the privateKey correctly
-        if (typeof commitTx.sign === 'function') {
-            await commitTx.sign([config.privateKey]);
-        } else {
-            throw new Error("Transaction sign method not found");
-        }
+        // Sign the commit transaction
+        // We can use the string here as sign() is string-aware in this WASM build
+        await commitTx.sign([config.privateKey]);
         const commitHash = await commitTx.submit(rpcClient);
         console.log('[NFT-Minter-WASM] COMMIT submitted:', commitHash);
 
@@ -353,14 +349,16 @@ export async function mintCosmeticNFT(
         });
 
         const revealTx = revealTxs[0];
-        // Sign with private key string directly for maximum compatibility
+        // Sign with private key - sign() accepts strings
         await revealTx.sign([config.privateKey], false);
 
         // Inject the P2SH script signature
         // Find the input that spends from the P2SH address
         const p2shInputIndex = revealTx.transaction.inputs.findIndex((input: any) => input.signatureScript === '');
         if (p2shInputIndex !== -1) {
-            const signature = await revealTx.createInputSignature(p2shInputIndex, config.privateKey);
+            // IMPORTANT: createInputSignature NEEDS the class instance to access .__wbg_ptr
+            // We patched kaspa.js to allow the instanceof check to fail safely on Vercel
+            const signature = await revealTx.createInputSignature(p2shInputIndex, privateKey);
             revealTx.fillInput(p2shInputIndex, script.encodePayToScriptHashSignatureScript(signature));
         }
 

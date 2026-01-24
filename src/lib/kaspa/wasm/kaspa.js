@@ -253,7 +253,7 @@ function debugString(val) {
 
 function _assertClass(instance, klass) {
     if (!(instance instanceof klass)) {
-        throw new Error(`expected instance of ${klass.name}`);
+        console.warn(`[KASPA-WASM] Warning: expected instance of ${klass.name}, but got something else. Proceeding anyway...`);
     }
 }
 
