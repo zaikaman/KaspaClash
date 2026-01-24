@@ -41,6 +41,17 @@ export async function createSupabaseServerClient() {
         }
       },
     },
+    global: {
+      fetch: (url, options = {}) => {
+        // Increase connection timeout to 60 seconds for slow network conditions
+        // This prevents "Connect Timeout Error" when API responses are delayed
+        return fetch(url, {
+          ...options,
+          connectTimeout: 60_000, // 60 seconds (undici-specific)
+          headersTimeout: 60_000, // 60 seconds (undici-specific)
+        } as RequestInit);
+      },
+    },
   });
 }
 
@@ -69,6 +80,16 @@ export function createSupabaseAdminClient() {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
+    },
+    global: {
+      fetch: (url, options = {}) => {
+        // Increase connection timeout to 60 seconds for slow network conditions
+        return fetch(url, {
+          ...options,
+          connectTimeout: 60_000, // 60 seconds (undici-specific)
+          headersTimeout: 60_000, // 60 seconds (undici-specific)
+        } as RequestInit);
+      },
     },
   });
 }

@@ -69,7 +69,13 @@ export async function submitBotMoveForMatch(
     // Get bot's smart move
     const { SmartBotOpponent } = await import("@/lib/game/smart-bot-opponent");
 
-    const botName = botAddress.replace("bot_", "Bot_");
+    // Get bot name from player profile
+    const { data: botProfile } = await supabase
+        .from("players")
+        .select("display_name")
+        .eq("address", botAddress)
+        .single();
+    const botName = botProfile?.display_name || "Bot Opponent";
     const bot = new SmartBotOpponent(botName);
 
     // Update bot context

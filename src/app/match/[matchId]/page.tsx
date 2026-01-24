@@ -53,6 +53,7 @@ function transformMatchData(
     created_at: string;
     started_at: string | null;
     completed_at: string | null;
+    is_bot?: boolean;
     stake_amount?: string | null;
     player1_stake_tx_id?: string | null;
     player2_stake_tx_id?: string | null;
@@ -81,6 +82,8 @@ function transformMatchData(
     createdAt: new Date(dbMatch.created_at),
     startedAt: dbMatch.started_at ? new Date(dbMatch.started_at) : null,
     completedAt: dbMatch.completed_at ? new Date(dbMatch.completed_at) : null,
+    // Bot flag
+    isBot: dbMatch.is_bot ?? false,
     // Stake fields
     stakeAmount: dbMatch.stake_amount,
     player1StakeTxId: dbMatch.player1_stake_tx_id,

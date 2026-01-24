@@ -27,6 +27,8 @@ export interface FightSceneConfig {
   playerRole: PlayerRole; // Which player is the local user
   // For spectator mode
   isSpectator?: boolean;
+  // For bot matches
+  isBot?: boolean;
   // For reconnection
   isReconnect?: boolean;
   reconnectState?: {
@@ -160,9 +162,14 @@ export class FightScene extends Phaser.Scene {
   }
 
   /**
-   * Check if this is a bot match (opponent address starts with "bot_")
+   * Check if this is a bot match
    */
   private checkIfBotMatch(): boolean {
+    // Check if match config has is_bot flag (preferred method)
+    if ('isBot' in this.config) {
+      return this.config.isBot === true;
+    }
+    // Fallback: check for legacy bot_ prefix
     return this.config.player2Address.startsWith("bot_");
   }
 

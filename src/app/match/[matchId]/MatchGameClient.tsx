@@ -154,6 +154,9 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
         ? "player2"
         : null;
 
+  // Check if this is a bot match
+  const isOpponentBot = match.isBot ?? false;
+
   // Determine which scene to start
   const initialScene = getInitialScene(match);
 
@@ -468,7 +471,14 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
 
         if (response.ok) {
           console.log("[MatchGameClient] Surrender successful");
-          // Backend broadcasts 'match_ended' which handles the rest
+          // For bot matches, we might need to redirect manually
+          if (isOpponentBot) {
+            // Wait a moment for the backend to process, then redirect
+            setTimeout(() => {
+              router.push("/matchmaking");
+            }, 1000);
+          }
+          // Backend broadcasts 'match_ended' which handles the rest for human matches
         } else {
           console.error("Surrender failed:", await response.text());
           EventBus.emit("game:moveError", { error: "Surrender failed" });
@@ -484,6 +494,16 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
     const handleCancelRequest = async () => {
       const currentAddress = addressRef.current;
       const currentMatchId = matchIdRef.current;
+      
+      // If opponent is a bot, they automatically refuse the cancellation
+      if (isOpponentBot) {
+        console.log("[MatchGameClient] Bot opponent refuses match cancellation");
+        EventBus.emit("game:moveError", { 
+          error: "Your opponent has declined the cancellation request" 
+        });
+        return;
+      }
+      
       if (currentAddress && currentMatchId) {
         await handleTransactionRejection(currentMatchId, currentAddress);
       }
@@ -836,6 +856,7 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
               player1Character: match.player1CharacterId || "dag-warrior",
               player2Character: match.player2CharacterId || "dag-warrior",
               playerRole: playerRole,
+              isBot: match.isBot,
               // Pass reconnect state if available
               isReconnect: !!reconnectState,
               reconnectState: reconnectState?.gameState,

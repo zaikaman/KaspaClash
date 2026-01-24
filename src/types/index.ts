@@ -137,6 +137,8 @@ export interface Match {
   stakesConfirmed?: boolean;
   /** Deadline for stake deposits */
   stakeDeadlineAt?: string | null;
+  /** True if this is a bot match */
+  isBot?: boolean;
 }
 
 // =============================================================================

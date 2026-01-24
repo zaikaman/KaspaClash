@@ -18,13 +18,26 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Fetch player1's rating to match bot rating appropriately
+        const { data: player1Data } = await supabase
+            .from("players")
+            .select("rating")
+            .eq("address", player1Address)
+            .single();
+
+        const player1Rating = player1Data?.rating || 1000;
+        
+        // Assign bot a rating within ±100 of player's rating for realistic matchmaking
+        const ratingVariation = Math.floor(Math.random() * 201) - 100; // -100 to +100
+        const botRating = Math.max(100, Math.min(3000, player1Rating + ratingVariation));
+
         // Create bot player profile first (required for foreign key constraint)
         const { error: profileError } = await supabase
             .from("players")
             .upsert({
                 address: player2Address,
                 display_name: player2Name,
-                rating: 1000 + Math.floor(Math.random() * 500), // Random rating 1000-1500
+                rating: botRating,
             }, {
                 onConflict: "address",
                 ignoreDuplicates: true,
@@ -58,6 +71,7 @@ export async function POST(request: NextRequest) {
                 format: "best_of_5",
                 status: "character_select",
                 selection_deadline_at: new Date(Date.now() + 30000).toISOString(), // 30 seconds
+                is_bot: true, // Mark as bot match
             })
             .select()
             .single();

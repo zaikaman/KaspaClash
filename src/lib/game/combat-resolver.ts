@@ -35,7 +35,13 @@ async function submitBotMove(
     // Get bot's smart move
     const { SmartBotOpponent } = await import("@/lib/game/smart-bot-opponent");
     
-    const botName = botAddress.replace("bot_", "Bot_");
+    // Get bot name from player profile
+    const { data: botProfile } = await supabase
+        .from("players")
+        .select("display_name")
+        .eq("address", botAddress)
+        .single();
+    const botName = botProfile?.display_name || "Bot Opponent";
     const bot = new SmartBotOpponent(botName);
     
     // Update bot context with current match state
@@ -139,19 +145,25 @@ export async function resolveRound(
     console.log(`[CombatResolver] ======= START RESOLVE ROUND =======`);
     console.log(`[CombatResolver] Match ID: ${matchId}, Round ID: ${roundId}`);
     
-    const supabase = await createSupabaseServerClient();
+    try {
+        const supabase = await createSupabaseServerClient();
 
-    // Fetch the current round with moves
-    const { data: currentRound, error: roundError } = await supabase
-        .from("rounds")
-        .select("*")
-        .eq("id", roundId)
-        .single();
+        // Fetch the current round with moves
+        const { data: currentRound, error: roundError } = await supabase
+            .from("rounds")
+            .select("*")
+            .eq("id", roundId)
+            .single();
 
-    if (roundError || !currentRound) {
-        console.error(`[CombatResolver] Round not found:`, roundError);
-        return createErrorResult("Round not found");
-    }
+        if (roundError || !currentRound) {
+            console.error(`[CombatResolver] Round not found:`, {
+                message: roundError?.message || "Unknown error",
+                details: roundError?.details || "",
+                hint: roundError?.hint || "",
+                code: roundError?.code || "",
+            });
+            return createErrorResult("Round not found");
+        }
     
     console.log(`[CombatResolver] Round ${currentRound.round_number} - P1 move: ${currentRound.player1_move}, P2 move: ${currentRound.player2_move}`);
 
@@ -502,6 +514,18 @@ export async function resolveRound(
         matchWinner: state.matchWinner,
         narrative: result.narrative,
     };
+    } catch (error) {
+        console.error(`[CombatResolver] Fatal error resolving round:`, error);
+        // Log more details if it's a fetch/network error
+        if (error instanceof Error) {
+            console.error(`[CombatResolver] Error details:`, {
+                name: error.name,
+                message: error.message,
+                stack: error.stack,
+            });
+        }
+        return createErrorResult(error instanceof Error ? error.message : "Unknown error");
+    }
 }
 
 /**

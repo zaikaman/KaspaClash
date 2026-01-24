@@ -20,7 +20,7 @@ export async function POST(
             .from("matches")
             .select("*")
             .eq("id", matchId)
-            .single();
+            .single() as { data: any; error: any };
 
         if (matchError || !match) {
             console.error("[BotAutoMove] Match not found:", matchError);
@@ -51,9 +51,27 @@ export async function POST(
             return NextResponse.json({ success: true, action: "none" });
         }
 
-        // Determine which player is the bot
-        const player1IsBot = match.player1_address?.startsWith("bot_");
-        const player2IsBot = match.player2_address?.startsWith("bot_");
+        // Determine which player is the bot (if match has bot)
+        if (!match.is_bot) {
+            return NextResponse.json({ success: true, action: "none" });
+        }
+
+        // For bot matches, determine which player is the bot by checking which profile has bot-like name
+        const { data: player1Profile } = await supabase
+            .from("players")
+            .select("display_name")
+            .eq("address", match.player1_address)
+            .single();
+        
+        const { data: player2Profile } = await supabase
+            .from("players")
+            .select("display_name")
+            .eq("address", match.player2_address)
+            .single();
+
+        // Typically player2 is the bot in our system
+        const player1IsBot = player1Profile?.display_name?.includes("Bot") || false;
+        const player2IsBot = player2Profile?.display_name?.includes("Bot") || !player1IsBot;
 
         // If player 1 is stunned (has move) and player 2 is bot (needs to move)
         if (player1HasMove && !player2HasMove && player2IsBot) {

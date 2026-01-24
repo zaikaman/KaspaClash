@@ -173,6 +173,22 @@ export async function POST(
 
       const updatedMatch = updatedMatchData as unknown as MatchWithDisconnect | null;
 
+      // Broadcast disconnect event first (non-blocking)
+      const gameChannel = supabase.channel(`game:${matchId}`);
+      gameChannel.send({
+        type: "broadcast",
+        event: "player_disconnected",
+        payload: {
+          player: isPlayer1 ? "player1" : "player2",
+          address: body.address,
+          disconnectedAt: Date.now(),
+          timeoutSeconds: match.disconnect_timeout_seconds || 30,
+        },
+      }).catch(err => console.error("[Disconnect API] Broadcast error:", err));
+      
+      // Don't wait for channel cleanup
+      supabase.removeChannel(gameChannel).catch(() => {});
+
       // CHECK: If BOTH players are now disconnected for at least 30 seconds, cancel the match and refund bets
       const bothDisconnected = updatedMatch && 
         updatedMatch.player1_disconnected_at && 
@@ -192,20 +208,6 @@ export async function POST(
         // Only cancel if BOTH players have been disconnected for at least 30 seconds
         if (player1DisconnectedDuration < DISCONNECT_THRESHOLD_MS || player2DisconnectedDuration < DISCONNECT_THRESHOLD_MS) {
           console.log(`[Disconnect API] Both players disconnected but not for 30s yet - P1: ${Math.floor(player1DisconnectedDuration / 1000)}s, P2: ${Math.floor(player2DisconnectedDuration / 1000)}s`);
-          
-          // Broadcast disconnect event but don't cancel yet
-          const gameChannel = supabase.channel(`game:${matchId}`);
-          await gameChannel.send({
-            type: "broadcast",
-            event: "player_disconnected",
-            payload: {
-              player: isPlayer1 ? "player1" : "player2",
-              address: body.address,
-              disconnectedAt: Date.now(),
-              timeoutSeconds: match.disconnect_timeout_seconds || 30,
-            },
-          });
-          await supabase.removeChannel(gameChannel);
 
           const response: ApiSuccessResponse<DisconnectResponse> = {
             success: true,
@@ -266,9 +268,9 @@ export async function POST(
 
         console.log(`[Disconnect API] Total refunds: ${totalRefunded}, Errors: ${refundErrors.length}`);
 
-        // Broadcast match cancelled event with refund details
-        const gameChannel = supabase.channel(`game:${matchId}`);
-        await gameChannel.send({
+        // Broadcast match cancelled event with refund details (non-blocking)
+        const cancelChannel = supabase.channel(`game:${matchId}`);
+        cancelChannel.send({
           type: "broadcast",
           event: "match_cancelled",
           payload: {
@@ -285,8 +287,10 @@ export async function POST(
             },
             redirectTo: "/",
           },
-        });
-        await supabase.removeChannel(gameChannel);
+        }).catch(err => console.error("[Disconnect API] Broadcast error:", err));
+        
+        // Don't wait for channel cleanup
+        supabase.removeChannel(cancelChannel).catch(() => {});
 
         const response: ApiSuccessResponse<DisconnectResponse> = {
           success: true,
@@ -307,9 +311,9 @@ export async function POST(
         return NextResponse.json(response);
       }
 
-      // Broadcast disconnect event to the game channel
-      const gameChannel = supabase.channel(`game:${matchId}`);
-      await gameChannel.send({
+      // Broadcast disconnect event to the game channel (non-blocking)
+      const disconnectChannel = supabase.channel(`game:${matchId}`);
+      disconnectChannel.send({
         type: "broadcast",
         event: "player_disconnected",
         payload: {
@@ -318,8 +322,10 @@ export async function POST(
           disconnectedAt: Date.now(),
           timeoutSeconds: match.disconnect_timeout_seconds || 30,
         },
-      });
-      await supabase.removeChannel(gameChannel);
+      }).catch(err => console.error("[Disconnect API] Broadcast error:", err));
+      
+      // Don't wait for channel cleanup
+      supabase.removeChannel(disconnectChannel).catch(() => {});
 
       const response: ApiSuccessResponse<DisconnectResponse> = {
         success: true,
@@ -385,9 +391,9 @@ export async function POST(
         pendingMoves
       });
 
-      // Broadcast reconnect event
-      const gameChannel = supabase.channel(`game:${matchId}`);
-      await gameChannel.send({
+      // Broadcast reconnect event (non-blocking)
+      const reconnectChannel = supabase.channel(`game:${matchId}`);
+      reconnectChannel.send({
         type: "broadcast",
         event: "player_reconnected",
         payload: {
@@ -395,8 +401,10 @@ export async function POST(
           address: body.address,
           reconnectedAt: Date.now(),
         },
-      });
-      await supabase.removeChannel(gameChannel);
+      }).catch(err => console.error("[Disconnect API] Broadcast error:", err));
+      
+      // Don't wait for channel cleanup
+      supabase.removeChannel(reconnectChannel).catch(() => {});
 
       // Build game state for the reconnecting player
       // Default values for when round data isn't available

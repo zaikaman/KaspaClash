@@ -83,7 +83,7 @@ export async function POST(
       .from("matches")
       .select("*")
       .eq("id", matchId)
-      .single();
+      .single() as { data: any; error: any };
 
     if (matchError || !match) {
       return createErrorResponse(
@@ -235,7 +235,7 @@ export async function POST(
 
     // BOT AUTO-MOVE: If opponent is a bot and hasn't submitted yet, auto-submit their move
     const opponentAddress = isPlayer1 ? match.player2_address : match.player1_address;
-    const isOpponentBot = opponentAddress?.startsWith("bot_");
+    const isOpponentBot = match.is_bot || false;
     
     if (isOpponentBot && opponentAddress && awaitingOpponent) {
       console.log(`[Move Submit] Bot opponent detected, auto-submitting move for ${opponentAddress}`);
@@ -258,7 +258,13 @@ export async function POST(
       // Note: In production you'd want to fully sync all previous rounds/turns
       // For now, the bot will make a reasonable decision based on available info
       
-      const botName = opponentAddress.replace("bot_", "Bot_");
+      // Extract bot name from player profile or use default
+      const { data: botProfile } = await supabase
+        .from("players")
+        .select("display_name")
+        .eq("address", opponentAddress)
+        .single();
+      const botName = botProfile?.display_name || "Bot Opponent";
       const bot = new SmartBotOpponent(botName);
       
       // Update bot context with current match state

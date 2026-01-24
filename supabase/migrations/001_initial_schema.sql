@@ -273,6 +273,7 @@ CREATE TABLE public.matches (
   player2_stake_tx_id text,
   stakes_confirmed boolean DEFAULT false,
   stake_deadline_at timestamp with time zone,
+  is_bot boolean NOT NULL DEFAULT false,
   CONSTRAINT matches_pkey PRIMARY KEY (id),
   CONSTRAINT matches_player1_address_fkey FOREIGN KEY (player1_address) REFERENCES public.players(address),
   CONSTRAINT matches_player2_address_fkey FOREIGN KEY (player2_address) REFERENCES public.players(address),

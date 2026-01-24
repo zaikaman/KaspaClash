@@ -7,13 +7,14 @@ import { useMatchmakingQueue } from "@/hooks/useMatchmakingQueue";
 import { useWallet } from "@/hooks/useWallet";
 import { useRouter } from "next/navigation";
 import { generateBotName } from "@/lib/game/smart-bot-opponent";
+import { generateBotAddress } from "@/lib/utils/network-filter";
 
 /** Timeout in seconds before matching with bot */
 const BOT_MATCH_TIMEOUT_SECONDS = 30;
 
 export default function MatchmakingQueue() {
     const router = useRouter();
-    const { isConnected, address } = useWallet();
+    const { isConnected, address, network } = useWallet();
     const {
         isInQueue,
         isJoining,
@@ -52,9 +53,9 @@ export default function MatchmakingQueue() {
             
             const createBotMatch = async () => {
                 try {
-                    // Generate bot name and address
+                    // Generate bot name and realistic address for current network
                     const botName = generateBotName();
-                    const botAddress = `bot_${Math.random().toString(36).substring(2, 15)}`;
+                    const botAddress = generateBotAddress(network || 'testnet');
                     
                     // Create a fake match entry that looks real
                     const response = await fetch("/api/matchmaking/create-bot-match", {
@@ -85,7 +86,7 @@ export default function MatchmakingQueue() {
             
             createBotMatch();
         }
-    }, [isInQueue, waitTimeSeconds, isCreatingBotMatch, address, leaveQueue, router]);
+    }, [isInQueue, waitTimeSeconds, isCreatingBotMatch, address, network, leaveQueue, router]);
 
 
 

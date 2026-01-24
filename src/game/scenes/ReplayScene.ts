@@ -781,21 +781,21 @@ export class ReplayScene extends Phaser.Scene {
     }
   }
 
-  // Scale getter methods now use imported getCharacterScale
+  // Scale getter methods now use imported getAnimationScale
   private getIdleScale(charId: string): number {
-    return getCharacterScale(charId);
+    return getAnimationScale(charId, "idle");
   }
 
   private getRunScale(charId: string): number {
-    return getCharacterScale(charId);
+    return getAnimationScale(charId, "run");
   }
 
-  private getMoveScale(charId: string, _move: MoveType): number {
-    return getCharacterScale(charId);
+  private getMoveScale(charId: string, move: MoveType): number {
+    return getAnimationScale(charId, move);
   }
 
   private getDeadScale(charId: string): number {
-    return this.getIdleScale(charId);
+    return getAnimationScale(charId, "dead");
   }
 
   private updateHealthBars(): void {
