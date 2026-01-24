@@ -38,15 +38,26 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Create match entry
+        // Pick a random character for the bot
+        const botCharacters = [
+            "cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter",
+            "gene-smasher", "neon-wraith", "sonic-striker", "heavy-loader",
+            "technomancer", "prism-duelist", "nano-brawler", "scrap-goliath",
+            "razor-bot-7", "viperblade", "void-reaper", "kitsune-09",
+            "chrono-drifter", "cyber-paladin", "aeon-guard", "bastion-hulk"
+        ];
+        const botCharacterId = botCharacters[Math.floor(Math.random() * botCharacters.length)];
+
+        // Create match entry with bot character already selected
         const { data: match, error: matchError } = await supabase
             .from("matches")
             .insert({
                 player1_address: player1Address,
                 player2_address: player2Address,
+                player2_character_id: botCharacterId,
                 format: "best_of_5",
                 status: "character_select",
-                selection_deadline_at: new Date(Date.now() + 60000).toISOString(), // 60 seconds
+                selection_deadline_at: new Date(Date.now() + 30000).toISOString(), // 30 seconds
             })
             .select()
             .single();
