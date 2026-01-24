@@ -298,10 +298,12 @@ export class FightScene extends Phaser.Scene {
     this.createTurnIndicator();
     this.createCountdownOverlay();
 
-    // UI - Settings and Dialogs
-    this.settingsContainer = this.add.container(0, 0);
-    this.createSettingsButton();
-    this.createSettingsMenu(); // Create hidden menu
+    // UI - Settings and Dialogs (only for non-spectators)
+    if (!this.config.isSpectator) {
+      this.settingsContainer = this.add.container(0, 0);
+      this.createSettingsButton();
+      this.createSettingsMenu(); // Create hidden menu
+    }
 
     // Create chat panel on the bottom right (only for non-spectators)
     if (!this.config.isSpectator) {
