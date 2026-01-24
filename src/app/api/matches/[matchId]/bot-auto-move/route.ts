@@ -57,40 +57,36 @@ export async function POST(
 
         // If player 1 is stunned (has move) and player 2 is bot (needs to move)
         if (player1HasMove && !player2HasMove && player2IsBot) {
-            console.log("[BotAutoMove] Player 1 stunned, scheduling bot (player 2) move in background");
+            console.log("[BotAutoMove] Player 1 stunned, submitting bot (player 2) move immediately");
             
-            // Schedule bot move in background (don't await - let it run async)
-            const thinkingDelay = 3000 + Math.random() * 2000;
+            // Submit bot move immediately in background (no delay)
             setTimeout(async () => {
                 try {
-                    console.log("[BotAutoMove] Bot finished thinking, submitting move");
                     await submitBotMoveForMatch(matchId, currentRound.id, "player2");
                     console.log("[BotAutoMove] Bot move submitted successfully");
                 } catch (error) {
                     console.error("[BotAutoMove] Error submitting bot move:", error);
                 }
-            }, thinkingDelay);
+            }, 0);
 
-            return NextResponse.json({ success: true, action: "bot_scheduled", player: "player2", thinkingDelay });
+            return NextResponse.json({ success: true, action: "bot_scheduled", player: "player2" });
         }
 
         // If player 2 is stunned (has move) and player 1 is bot (needs to move)
         if (player2HasMove && !player1HasMove && player1IsBot) {
-            console.log("[BotAutoMove] Player 2 stunned, scheduling bot (player 1) move in background");
+            console.log("[BotAutoMove] Player 2 stunned, submitting bot (player 1) move immediately");
             
-            // Schedule bot move in background (don't await - let it run async)
-            const thinkingDelay = 3000 + Math.random() * 2000;
+            // Submit bot move immediately in background (no delay)
             setTimeout(async () => {
                 try {
-                    console.log("[BotAutoMove] Bot finished thinking, submitting move");
                     await submitBotMoveForMatch(matchId, currentRound.id, "player1");
                     console.log("[BotAutoMove] Bot move submitted successfully");
                 } catch (error) {
                     console.error("[BotAutoMove] Error submitting bot move:", error);
                 }
-            }, thinkingDelay);
+            }, 0);
 
-            return NextResponse.json({ success: true, action: "bot_scheduled", player: "player1", thinkingDelay });
+            return NextResponse.json({ success: true, action: "bot_scheduled", player: "player1" });
         }
 
         return NextResponse.json({ success: true, action: "none" });
