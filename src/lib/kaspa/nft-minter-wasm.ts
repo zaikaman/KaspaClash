@@ -309,7 +309,13 @@ export async function mintCosmeticNFT(
         });
 
         const commitTx = commitTxs[0];
-        await commitTx.sign([privateKey]);
+        // sign() might be picky about the class type and return values
+        // Let's ensure we are passing the privateKey correctly
+        if (typeof commitTx.sign === 'function') {
+            await commitTx.sign([config.privateKey]);
+        } else {
+            throw new Error("Transaction sign method not found");
+        }
         const commitHash = await commitTx.submit(rpcClient);
         console.log('[NFT-Minter-WASM] COMMIT submitted:', commitHash);
 
@@ -347,14 +353,14 @@ export async function mintCosmeticNFT(
         });
 
         const revealTx = revealTxs[0];
-        // Sign with private key but don't finalize yet (need script injection)
-        await revealTx.sign([privateKey], false);
+        // Sign with private key string directly for maximum compatibility
+        await revealTx.sign([config.privateKey], false);
 
         // Inject the P2SH script signature
         // Find the input that spends from the P2SH address
         const p2shInputIndex = revealTx.transaction.inputs.findIndex((input: any) => input.signatureScript === '');
         if (p2shInputIndex !== -1) {
-            const signature = await revealTx.createInputSignature(p2shInputIndex, privateKey);
+            const signature = await revealTx.createInputSignature(p2shInputIndex, config.privateKey);
             revealTx.fillInput(p2shInputIndex, script.encodePayToScriptHashSignatureScript(signature));
         }
 
