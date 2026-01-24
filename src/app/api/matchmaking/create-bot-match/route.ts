@@ -18,6 +18,27 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Create bot player profile first (required for foreign key constraint)
+        const { error: profileError } = await supabase
+            .from("players")
+            .upsert({
+                address: player2Address,
+                display_name: player2Name,
+                rating: 1000 + Math.floor(Math.random() * 500), // Random rating 1000-1500
+                is_bot: true, // Mark as bot
+            }, {
+                onConflict: "address",
+                ignoreDuplicates: true,
+            });
+
+        if (profileError) {
+            console.error("[create-bot-match] Error creating bot profile:", profileError);
+            return NextResponse.json(
+                { error: "Failed to create bot profile" },
+                { status: 500 }
+            );
+        }
+
         // Create match entry
         const { data: match, error: matchError } = await supabase
             .from("matches")
@@ -37,24 +58,6 @@ export async function POST(request: NextRequest) {
                 { error: "Failed to create match" },
                 { status: 500 }
             );
-        }
-
-        // Create fake player profile for bot if it doesn't exist
-        const { error: profileError } = await supabase
-            .from("players")
-            .upsert({
-                address: player2Address,
-                display_name: player2Name,
-                rating: 1000 + Math.floor(Math.random() * 500), // Random rating 1000-1500
-                is_bot: true, // Mark as bot
-            }, {
-                onConflict: "address",
-                ignoreDuplicates: true,
-            });
-
-        if (profileError) {
-            console.error("[create-bot-match] Error creating bot profile:", profileError);
-            // Not critical, continue anyway
         }
 
         return NextResponse.json({
