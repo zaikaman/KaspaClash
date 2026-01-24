@@ -24,8 +24,8 @@ export async function POST(request: NextRequest) {
             .insert({
                 player1_address: player1Address,
                 player2_address: player2Address,
-                format: "best_of_3",
-                status: "character_selection",
+                format: "best_of_5",
+                status: "character_select",
                 selection_deadline_at: new Date(Date.now() + 60000).toISOString(), // 60 seconds
             })
             .select()
