@@ -161,7 +161,8 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
   const initialScene = getInitialScene(match);
 
   // Set up game channel subscription
-  const { state: channelState, sendChatMessage, sendSticker } = useGameChannel({
+  // Set up game channel subscription
+  const { state: channelState, sendChatMessage, sendSticker, sendBanSelected, sendBanConfirmed } = useGameChannel({
     matchId: match.id,
     playerAddress: address || "",
     playerRole: playerRole || "player1",
@@ -207,6 +208,31 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       EventBus.off("game:sendSticker", handleSendSticker);
     };
   }, [sendSticker]);
+
+  // Listen for ban events from Phaser and forward to channel
+  useEffect(() => {
+    const handleSendBanSelected = (data: unknown) => {
+      const payload = data as { characterId: string };
+      if (payload.characterId) {
+        sendBanSelected(payload.characterId);
+      }
+    };
+
+    const handleSendBanConfirmed = (data: unknown) => {
+      const payload = data as { characterId: string };
+      if (payload.characterId) {
+        sendBanConfirmed(payload.characterId);
+      }
+    };
+
+    EventBus.on("game:sendBanSelected", handleSendBanSelected);
+    EventBus.on("game:sendBanConfirmed", handleSendBanConfirmed);
+
+    return () => {
+      EventBus.off("game:sendBanSelected", handleSendBanSelected);
+      EventBus.off("game:sendBanConfirmed", handleSendBanConfirmed);
+    };
+  }, [sendBanSelected, sendBanConfirmed]);
 
   // Handle reconnection on mount
   useEffect(() => {
@@ -494,16 +520,16 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
     const handleCancelRequest = async () => {
       const currentAddress = addressRef.current;
       const currentMatchId = matchIdRef.current;
-      
+
       // If opponent is a bot, they automatically refuse the cancellation
       if (isOpponentBot) {
         console.log("[MatchGameClient] Bot opponent refuses match cancellation");
-        EventBus.emit("game:moveError", { 
-          error: "Your opponent has declined the cancellation request" 
+        EventBus.emit("game:moveError", {
+          error: "Your opponent has declined the cancellation request"
         });
         return;
       }
-      
+
       if (currentAddress && currentMatchId) {
         await handleTransactionRejection(currentMatchId, currentAddress);
       }
@@ -870,6 +896,7 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
               existingPlayerCharacter: match.player1CharacterId,
               existingOpponentCharacter: match.player2CharacterId,
               ownedCharacterIds: ownedCharacterIds,
+              isBot: match.isBot,
             } : initialScene === "ResultsScene" ? {
               result: {
                 winner: match.winnerAddress === match.player1Address ? "player1" :

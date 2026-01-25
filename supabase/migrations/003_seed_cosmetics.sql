@@ -60,22 +60,22 @@ ON CONFLICT (id) DO UPDATE SET
 INSERT INTO public.cosmetic_items (name, description, category, rarity, character_id, price, is_premium, is_limited, thumbnail_url, preview_url, tags)
 VALUES
     -- Characters (Category 'character')
-    ('Neon Wraith', 'The stealthy variant of the cyber ninja, focused on speed.', 'character', 'common', 'neon-wraith', 0, false, false, '/characters/neon-wraith/portrait.webp', '/characters/neon-wraith/portrait.webp', ARRAY['speed', 'glitch', 'glass_cannon']),
+    ('Neon Wraith', 'The stealthy variant of the cyber ninja, focused on speed.', 'character', 'common', 'neon-wraith', 150, false, false, '/characters/neon-wraith/portrait.webp', '/characters/neon-wraith/portrait.webp', ARRAY['speed', 'glitch', 'glass_cannon']),
     ('Kitsune-09', 'Bio-augmented cyborg with nine holographic tails.', 'character', 'rare', 'kitsune-09', 800, false, false, '/characters/kitsune-09/portrait.webp', '/characters/kitsune-09/portrait.webp', ARRAY['speed', 'fox', 'evasive']),
     ('Viperblade', 'A toxic biomech with mantis-style blades.', 'character', 'epic', 'viperblade', 1500, false, false, '/characters/viperblade/portrait.webp', '/characters/viperblade/portrait.webp', ARRAY['speed', 'toxic', 'balanced']),
     ('Chrono-Drifter', 'A time-displaced ronin wielding a frozen blade.', 'character', 'legendary', 'chrono-drifter', 2500, false, false, '/characters/chrono-drifter/portrait.webp', '/characters/chrono-drifter/portrait.webp', ARRAY['speed', 'time', 'tanky']),
 
-    ('Heavy-Loader', 'Industrial mech with hydraulic crushing claws. Massive health pool.', 'character', 'common', 'heavy-loader', 0, false, false, '/characters/heavy-loader/portrait.webp', '/characters/heavy-loader/portrait.webp', ARRAY['tank', 'mech', 'super_tank']),
+    ('Heavy-Loader', 'Industrial mech with hydraulic crushing claws. Massive health pool.', 'character', 'common', 'heavy-loader', 150, false, false, '/characters/heavy-loader/portrait.webp', '/characters/heavy-loader/portrait.webp', ARRAY['tank', 'mech', 'super_tank']),
     ('Gene-Smasher', 'Experimental super-soldier using raw brute force.', 'character', 'rare', 'gene-smasher', 800, false, false, '/characters/gene-smasher/portrait.webp', '/characters/gene-smasher/portrait.webp', ARRAY['tank', 'mutant', 'berzerker']),
     ('Bastion Hulk', 'Geometric golem with floating block fists.', 'character', 'epic', 'bastion-hulk', 1500, false, false, '/characters/bastion-hulk/portrait.webp', '/characters/bastion-hulk/portrait.webp', ARRAY['tank', 'shield', 'energy']),
     ('Scrap-Goliath', 'A massive golem animated from urban debris.', 'character', 'legendary', 'scrap-goliath', 2500, false, false, '/characters/scrap-goliath/portrait.webp', '/characters/scrap-goliath/portrait.webp', ARRAY['tank', 'junk', 'regen']),
 
-    ('Cyber-Paladin', 'An upgraded paladin model with enhanced shielding.', 'character', 'common', 'cyber-paladin', 0, false, false, '/characters/cyber-paladin/portrait.webp', '/characters/cyber-paladin/portrait.webp', ARRAY['tech', 'knight', 'defensive']),
+    ('Cyber-Paladin', 'An upgraded paladin model with enhanced shielding.', 'character', 'common', 'cyber-paladin', 150, false, false, '/characters/cyber-paladin/portrait.webp', '/characters/cyber-paladin/portrait.webp', ARRAY['tech', 'knight', 'defensive']),
     ('Nano-Brawler', 'Street fighter utilizing nanobot-enhanced punches.', 'character', 'rare', 'nano-brawler', 800, false, false, '/characters/nano-brawler/portrait.webp', '/characters/nano-brawler/portrait.webp', ARRAY['tech', 'street', 'aggressive']),
     ('Technomancer', 'Sorcerer manipulating high-voltage cables as whips.', 'character', 'epic', 'technomancer', 1500, false, false, '/characters/technomancer/portrait.webp', '/characters/technomancer/portrait.webp', ARRAY['tech', 'magic', 'special']),
     ('Aeon Guard', 'Cosmic guardian wielding a gravity-bending staff.', 'character', 'legendary', 'aeon-guard', 2500, false, false, '/characters/aeon-guard/portrait.webp', '/characters/aeon-guard/portrait.webp', ARRAY['tech', 'cosmic', 'elite']),
 
-    ('Razor-Bot 7', 'A newer model of the Hunter series, faster but more fragile.', 'character', 'common', 'razor-bot-7', 0, false, false, '/characters/razor-bot-7/portrait.webp', '/characters/razor-bot-7/portrait.webp', ARRAY['precision', 'whip', 'critical']),
+    ('Razor-Bot 7', 'A newer model of the Hunter series, faster but more fragile.', 'character', 'common', 'razor-bot-7', 150, false, false, '/characters/razor-bot-7/portrait.webp', '/characters/razor-bot-7/portrait.webp', ARRAY['precision', 'whip', 'critical']),
     ('Sonic-Striker', 'Fighter using massive subwoofer-gauntlets.', 'character', 'rare', 'sonic-striker', 800, false, false, '/characters/sonic-striker/portrait.webp', '/characters/sonic-striker/portrait.webp', ARRAY['precision', 'gauntlets', 'heavy']),
     ('Prism-Duelist', 'Fencer with a rapier of focused light.', 'character', 'epic', 'prism-duelist', 1500, false, false, '/characters/prism-duelist/portrait.webp', '/characters/prism-duelist/portrait.webp', ARRAY['precision', 'fencer', 'counter']),
     ('Void-Reaper', 'Alien predator wielding dark matter scythes.', 'character', 'legendary', 'void-reaper', 2500, false, false, '/characters/void-reaper/portrait.webp', '/characters/void-reaper/portrait.webp', ARRAY['precision', 'void', 'glass']),

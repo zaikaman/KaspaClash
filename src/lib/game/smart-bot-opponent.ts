@@ -19,7 +19,7 @@ export interface SmartBotContext {
   botGuardMeter: number;
   botIsStunned: boolean;
   botIsStaggered: boolean;
-  
+
   // Opponent (player) state
   opponentHealth: number;
   opponentMaxHealth: number;
@@ -28,13 +28,13 @@ export interface SmartBotContext {
   opponentGuardMeter: number;
   opponentIsStunned: boolean;
   opponentIsStaggered: boolean;
-  
+
   // Match state
   roundNumber: number;
   turnNumber: number;
   botRoundsWon: number;
   opponentRoundsWon: number;
-  
+
   // History for pattern recognition
   lastOpponentMove?: MoveType;
   lastBotMove?: MoveType;
@@ -127,7 +127,7 @@ export class SmartBotOpponent {
       botGuardMeter: 0,
       botIsStunned: false,
       botIsStaggered: false,
-      
+
       opponentHealth: 100,
       opponentMaxHealth: 100,
       opponentEnergy: 100,
@@ -135,12 +135,12 @@ export class SmartBotOpponent {
       opponentGuardMeter: 0,
       opponentIsStunned: false,
       opponentIsStaggered: false,
-      
+
       roundNumber: 1,
       turnNumber: 1,
       botRoundsWon: 0,
       opponentRoundsWon: 0,
-      
+
       consecutiveOpponentBlocks: 0,
       consecutiveOpponentAttacks: 0,
       consecutiveBotBlocks: 0,
@@ -204,7 +204,7 @@ export class SmartBotOpponent {
   recordBotMove(move: MoveType): void {
     this.context.lastBotMove = move;
     this.moveHistory.push(move);
-    
+
     if (move === "block") {
       this.context.consecutiveBotBlocks++;
     } else {
@@ -279,10 +279,10 @@ export class SmartBotOpponent {
     // Guard breaks at 100, blocking adds 25 (GUARD_BUILDUP_ON_BLOCK) + potential 15 more if hit
     const guardAfterBlock = this.context.botGuardMeter + COMBAT_CONSTANTS.GUARD_BUILDUP_ON_BLOCK;
     const guardAfterBlockAndHit = guardAfterBlock + COMBAT_CONSTANTS.GUARD_BUILDUP_ON_HIT;
-    
+
     // If blocking would put us at risk of guard break (>= 75), don't block
     const blockWouldBreakGuard = guardAfterBlockAndHit >= COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD;
-    
+
     // CASE 4: OPPONENT HAS LOW ENERGY - They likely can't do special, be more aggressive
     const opponentLowEnergy = this.context.opponentEnergy < ENERGY_COSTS.special;
 
@@ -390,7 +390,7 @@ export class SmartBotOpponent {
     // CASE 13: PREDICT OPPONENT MOVE based on last move
     if (this.context.lastOpponentMove) {
       const lastMove = this.context.lastOpponentMove;
-      
+
       // Players often repeat successful moves
       // Counter: Block beats punch/kick, Kick beats block, Punch beats special
       if (lastMove === "punch" && !blockWouldBreakGuard && Math.random() < 0.4) {
@@ -430,7 +430,7 @@ export class SmartBotOpponent {
     // =========================================================================
     // DEFAULT: WEIGHTED RANDOM SELECTION (to feel like a real player)
     // =========================================================================
-    
+
     const weights: MoveWeights = {
       punch: 30,
       kick: 25,
@@ -461,7 +461,7 @@ export class SmartBotOpponent {
    */
   private weightedMove(weights: MoveWeights): SmartBotDecision {
     const totalWeight = Object.values(weights).reduce((a, b) => a + b, 0);
-    
+
     if (totalWeight === 0) {
       return { move: "punch", confidence: 0.5, reasoning: "Fallback to punch" };
     }
@@ -485,6 +485,30 @@ export class SmartBotOpponent {
       confidence: 0.5,
       reasoning: "Weighted fallback",
     };
+  }
+
+  /**
+   * Decide which character to ban.
+   * Strategically bans a character that the opponent actually owns.
+   * 
+   * @param opponentOwnedIds - List of character IDs owned by the opponent
+   * @param allCharacterIds - List of all available character IDs (fallback)
+   */
+  banCharacter(opponentOwnedIds: string[], allCharacterIds: string[]): string {
+    // Strategy: Ban something the opponent owns to deny them their pick
+    if (opponentOwnedIds && opponentOwnedIds.length > 0) {
+      const randomIndex = Math.floor(Math.random() * opponentOwnedIds.length);
+      return opponentOwnedIds[randomIndex];
+    }
+
+    // Fallback: Ban random character if we don't know what they own
+    if (allCharacterIds && allCharacterIds.length > 0) {
+      const randomIndex = Math.floor(Math.random() * allCharacterIds.length);
+      return allCharacterIds[randomIndex];
+    }
+
+    // Ultimate fallback (should never happen if roster exists)
+    return "cyber-ninja";
   }
 
   /**

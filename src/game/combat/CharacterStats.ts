@@ -10,15 +10,17 @@ import type { CharacterCombatStats } from "./types";
 // =============================================================================
 
 export const NEON_WRAITH_STATS: CharacterCombatStats = {
-    maxHp: 85, // Glass Cannon
+    archetype: 'speed',
+    maxHp: 92, // Glass Cannon (Buffed)
     maxEnergy: 120, // Very high energy
-    damageModifiers: { punch: 1.2, kick: 1.1, block: 1.0, special: 1.2, stunned: 1.0 },
-    blockEffectiveness: 0.3, // Very weak block
-    specialCostModifier: 0.8, // Cheap specials
+    damageModifiers: { punch: 1.1, kick: 1.1, block: 1.0, special: 1.15, stunned: 1.0 },
+    blockEffectiveness: 0.45, // Weak block (Buffed)
+    specialCostModifier: 0.9, // Lower cost (Buffed)
     energyRegen: 25, // Fast regen
 };
 
 export const KITSUNE_09_STATS: CharacterCombatStats = {
+    archetype: 'speed',
     maxHp: 90,
     maxEnergy: 110,
     damageModifiers: { punch: 1.0, kick: 1.1, block: 1.0, special: 1.1, stunned: 1.0 },
@@ -28,21 +30,23 @@ export const KITSUNE_09_STATS: CharacterCombatStats = {
 };
 
 export const VIPERBLADE_STATS: CharacterCombatStats = {
-    maxHp: 100, // Balanced Speedster
+    archetype: 'speed',
+    maxHp: 105, // Balanced Speedster (Buffed)
     maxEnergy: 100,
-    damageModifiers: { punch: 1.1, kick: 1.1, block: 1.0, special: 1.0, stunned: 1.0 },
-    blockEffectiveness: 0.5,
+    damageModifiers: { punch: 1.15, kick: 1.15, block: 1.0, special: 1.1, stunned: 1.0 },
+    blockEffectiveness: 0.6,
     specialCostModifier: 1.0,
-    energyRegen: 20,
+    energyRegen: 23, // Buffed Regen
 };
 
 export const CHRONO_DRIFTER_STATS: CharacterCombatStats = {
-    maxHp: 105, // Tanky Speedster
-    maxEnergy: 95,
-    damageModifiers: { punch: 1.05, kick: 1.0, block: 1.0, special: 1.1, stunned: 1.0 },
-    blockEffectiveness: 0.6,
-    specialCostModifier: 1.1,
-    energyRegen: 18,
+    archetype: 'speed',
+    maxHp: 120, // Tanky Speedster (Buffed)
+    maxEnergy: 105, // Buffed
+    damageModifiers: { punch: 1.1, kick: 1.1, block: 1.0, special: 1.25, stunned: 1.0 }, // Buffed Modifiers
+    blockEffectiveness: 0.65,
+    specialCostModifier: 1.0,
+    energyRegen: 22, // Buffed
 };
 
 // =============================================================================
@@ -50,39 +54,43 @@ export const CHRONO_DRIFTER_STATS: CharacterCombatStats = {
 // =============================================================================
 
 export const HEAVY_LOADER_STATS: CharacterCombatStats = {
-    maxHp: 130, // Super Tank
+    archetype: 'tank',
+    maxHp: 135, // Super Tank (Buffed)
     maxEnergy: 70, // Low energy
     damageModifiers: { punch: 1.1, kick: 1.0, block: 1.0, special: 1.0, stunned: 1.0 },
-    blockEffectiveness: 0.3, // Relies on HP, not blocking technique
+    blockEffectiveness: 0.4, // Relies on HP, not blocking technique
     specialCostModifier: 1.3,
     energyRegen: 15,
 };
 
 export const GENE_SMASHER_STATS: CharacterCombatStats = {
+    archetype: 'tank',
     maxHp: 115,
     maxEnergy: 90,
-    damageModifiers: { punch: 1.3, kick: 1.3, block: 1.0, special: 1.2, stunned: 1.0 },
-    blockEffectiveness: 0.2, // Terrible block (Berzerker)
+    damageModifiers: { punch: 1.25, kick: 1.25, block: 1.0, special: 1.1, stunned: 1.0 },
+    blockEffectiveness: 0.25, // Terrible block (Berzerker)
     specialCostModifier: 1.0,
     energyRegen: 20,
 };
 
 export const BASTION_HULK_STATS: CharacterCombatStats = {
-    maxHp: 105,
-    maxEnergy: 110, // Energy Tank
-    damageModifiers: { punch: 0.9, kick: 0.9, block: 1.0, special: 1.1, stunned: 1.0 },
-    blockEffectiveness: 0.8, // Incredible shield
+    archetype: 'tank',
+    maxHp: 115, // Buffed HP
+    maxEnergy: 115, // Energy Tank
+    damageModifiers: { punch: 1.0, kick: 1.0, block: 1.0, special: 1.1, stunned: 1.0 },
+    blockEffectiveness: 0.85, // Incredible shield
     specialCostModifier: 0.9,
     energyRegen: 20,
 };
 
 export const SCRAP_GOLIATH_STATS: CharacterCombatStats = {
-    maxHp: 120, // Regen Tank
+    archetype: 'tank',
+    maxHp: 115, // Regen Tank (Nerfed)
     maxEnergy: 80,
     damageModifiers: { punch: 1.1, kick: 1.1, block: 1.0, special: 1.1, stunned: 1.0 },
-    blockEffectiveness: 0.5,
-    specialCostModifier: 1.2,
-    energyRegen: 30, // Very high regen
+    blockEffectiveness: 0.6,
+    specialCostModifier: 1.1,
+    energyRegen: 25, // Very high regen
 };
 
 // =============================================================================
@@ -90,15 +98,17 @@ export const SCRAP_GOLIATH_STATS: CharacterCombatStats = {
 // =============================================================================
 
 export const CYBER_PALADIN_STATS: CharacterCombatStats = {
-    maxHp: 110, // Defensive Warrior
+    archetype: 'tech',
+    maxHp: 115, // Buffed HP
     maxEnergy: 95,
-    damageModifiers: { punch: 1.0, kick: 1.0, block: 1.0, special: 1.0, stunned: 1.0 },
+    damageModifiers: { punch: 1.05, kick: 1.05, block: 1.0, special: 1.05, stunned: 1.0 },
     blockEffectiveness: 0.6,
     specialCostModifier: 1.0,
-    energyRegen: 18,
+    energyRegen: 20,
 };
 
 export const NANO_BRAWLER_STATS: CharacterCombatStats = {
+    archetype: 'tech',
     maxHp: 95, // Aggressive Warrior
     maxEnergy: 105,
     damageModifiers: { punch: 1.2, kick: 1.0, block: 1.0, special: 1.1, stunned: 1.0 },
@@ -108,82 +118,92 @@ export const NANO_BRAWLER_STATS: CharacterCombatStats = {
 };
 
 export const TECHNOMANCER_STATS: CharacterCombatStats = {
-    maxHp: 90, // Special Specialist
+    archetype: 'tech',
+    maxHp: 95, // Special Specialist
     maxEnergy: 120,
-    damageModifiers: { punch: 0.8, kick: 0.8, block: 1.0, special: 1.4, stunned: 1.0 },
-    blockEffectiveness: 0.5,
-    specialCostModifier: 0.7, // Very cheap specials
+    damageModifiers: { punch: 0.95, kick: 0.95, block: 1.0, special: 1.25, stunned: 1.0 }, // Nerfed Special
+    blockEffectiveness: 0.55,
+    specialCostModifier: 0.85, // Increased cost slightly
     energyRegen: 25,
 };
 
 export const AEON_GUARD_STATS: CharacterCombatStats = {
-    maxHp: 105, // Elite Balanced
-    maxEnergy: 105,
-    damageModifiers: { punch: 1.05, kick: 1.05, block: 1.0, special: 1.05, stunned: 1.0 },
-    blockEffectiveness: 0.55,
+    archetype: 'tech',
+    maxHp: 120, // Elite Balanced (Buffed)
+    maxEnergy: 120, // Buffed
+    damageModifiers: { punch: 1.1, kick: 1.1, block: 1.0, special: 1.2, stunned: 1.0 }, // Buffed
+    blockEffectiveness: 0.65, // Buffed
     specialCostModifier: 1.0,
-    energyRegen: 21,
+    energyRegen: 24, // Buffed
 };
 
 // =============================================================================
 // PRECISION ARCHETYPE STATS (Hash-Hunter Base)
 // =============================================================================
 
-export const RAZOR_BOT_STATS: CharacterCombatStats = {
-    maxHp: 90,
+export const RAZOR_BOT_7_STATS: CharacterCombatStats = {
+    archetype: 'precision',
+    maxHp: 95,
     maxEnergy: 100,
-    damageModifiers: { punch: 1.0, kick: 1.0, block: 1.0, special: 1.3, stunned: 1.0 }, // Big finishes
+    damageModifiers: { punch: 1.05, kick: 1.05, block: 1.0, special: 1.3, stunned: 1.0 },
     blockEffectiveness: 0.5,
     specialCostModifier: 1.0,
-    energyRegen: 20,
+    energyRegen: 22, // Buffed
 };
 
 export const SONIC_STRIKER_STATS: CharacterCombatStats = {
-    maxHp: 100,
+    archetype: 'precision',
+    maxHp: 105, // Buffed
     maxEnergy: 100,
-    damageModifiers: { punch: 1.15, kick: 1.15, block: 1.0, special: 1.0, stunned: 1.0 }, // Heavy hits
+    damageModifiers: { punch: 1.15, kick: 1.15, block: 1.0, special: 1.0, stunned: 1.0 },
     blockEffectiveness: 0.5,
     specialCostModifier: 1.0,
-    energyRegen: 15, // Slower regen due to heavy gear
+    energyRegen: 18,
 };
 
 export const PRISM_DUELIST_STATS: CharacterCombatStats = {
-    maxHp: 95,
-    maxEnergy: 100,
-    damageModifiers: { punch: 1.0, kick: 1.0, block: 1.0, special: 1.1, stunned: 1.0 },
+    archetype: 'precision',
+    maxHp: 100, // Buffed
+    maxEnergy: 110,
+    damageModifiers: { punch: 1.05, kick: 1.05, block: 1.0, special: 1.2, stunned: 1.0 },
     blockEffectiveness: 0.75, // Excellent parry/block
     specialCostModifier: 0.9,
-    energyRegen: 20,
+    energyRegen: 22,
 };
 
 export const VOID_REAPER_STATS: CharacterCombatStats = {
-    maxHp: 88, // Glass Reaper
-    maxEnergy: 115,
+    archetype: 'precision',
+    maxHp: 95, // Glass Reaper (Buffed/Nerfed)
+    maxEnergy: 120,
     damageModifiers: { punch: 1.25, kick: 1.25, block: 1.0, special: 1.25, stunned: 1.0 },
-    blockEffectiveness: 0.3,
-    specialCostModifier: 1.1,
-    energyRegen: 20,
+    blockEffectiveness: 0.35,
+    specialCostModifier: 1.0,
+    energyRegen: 22,
 };
 
 // Original Base Stats (Kept for fallback/reference)
 export const CYBER_NINJA_STATS: CharacterCombatStats = {
+    archetype: 'speed',
     maxHp: 96, maxEnergy: 105,
-    damageModifiers: { punch: 1.15, kick: 1.0, block: 1.0, special: 1.0, stunned: 1.0 },
+    damageModifiers: { punch: 1.15, kick: 1.05, block: 1.0, special: 1.0, stunned: 1.0 },
     blockEffectiveness: 0.6, specialCostModifier: 0.85, energyRegen: 20,
 };
 export const DAG_WARRIOR_STATS: CharacterCombatStats = {
+    archetype: 'tech',
     maxHp: 100, maxEnergy: 100,
-    damageModifiers: { punch: 1.0, kick: 1.0, block: 1.0, special: 1.0, stunned: 1.0 },
-    blockEffectiveness: 0.5, specialCostModifier: 1.0, energyRegen: 20,
+    damageModifiers: { punch: 1.05, kick: 1.05, block: 1.0, special: 1.05, stunned: 1.0 },
+    blockEffectiveness: 0.55, specialCostModifier: 1.0, energyRegen: 20,
 };
 export const BLOCK_BRUISER_STATS: CharacterCombatStats = {
-    maxHp: 110, maxEnergy: 85,
+    archetype: 'tank',
+    maxHp: 115, maxEnergy: 90,
     damageModifiers: { punch: 1.0, kick: 1.2, block: 1.0, special: 1.0, stunned: 1.0 },
-    blockEffectiveness: 0.4, specialCostModifier: 1.25, energyRegen: 20,
+    blockEffectiveness: 0.45, specialCostModifier: 1.25, energyRegen: 20,
 };
 export const HASH_HUNTER_STATS: CharacterCombatStats = {
+    archetype: 'precision',
     maxHp: 98, maxEnergy: 105,
-    damageModifiers: { punch: 1.0, kick: 1.1, block: 1.0, special: 1.15, stunned: 1.0 },
+    damageModifiers: { punch: 1.0, kick: 1.1, block: 1.0, special: 1.2, stunned: 1.0 },
     blockEffectiveness: 0.65, specialCostModifier: 1.0, energyRegen: 20,
 };
 
@@ -219,7 +239,7 @@ export const CHARACTER_COMBAT_STATS: Record<string, CharacterCombatStats> = {
     "aeon-guard": AEON_GUARD_STATS,
 
     // Precision (Hunter Base)
-    "razor-bot-7": RAZOR_BOT_STATS,
+    "razor-bot-7": RAZOR_BOT_7_STATS,
     "sonic-striker": SONIC_STRIKER_STATS, // Renamed from sonic-boom
     "prism-duelist": PRISM_DUELIST_STATS,
     "void-reaper": VOID_REAPER_STATS,

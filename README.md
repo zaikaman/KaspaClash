@@ -77,7 +77,7 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 
 ### 🎮 Core Gameplay
 - **Turn-Based Combat System:** Strategic rock-paper-scissors style fighting where **every move is a Kaspa transaction** confirmed in real-time
-- **20 Unique Characters:** Diverse roster of fighters with unique stats and abilities
+- **20 Unique Characters:** Diverse roster with **Tier-Based Scaling** (Common to Legendary). Higher tiers possess reinforced stats and stronger counters.
 - **Multiple Game Modes:**
   - **Ranked Matchmaking:** ELO-based competitive queue with a **30-second failover to Smart Bots** to ensure near-instant entry into combat.
   - **Private Rooms:** 6-character room codes for custom matches with **P2P Wagering** (Challenge your friends with real KAS stakes).
@@ -228,7 +228,10 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 #### Match Flow
 1. **Queue Join:** Player connects wallet → API validates → Supabase stores queue entry
 2. **Matchmaking:** Server matches players by ELO. If no human opponent is found within **30 seconds**, the system automatically pairs the player with a **Smart Bot** to minimize wait times.
-3. **Character Select:** Both players choose fighters → Broadcast selections → Lock when both ready (Bots select instantly)
+3. **Strategic Ban & Pick:** 
+   - **Ban Phase:** Both players blindly ban one character from the roster.
+   - **Blind Pick:** Players select their fighter (excluding bans). Choices are hidden until both lock in.
+   - **Reveal:** Dramatic unveil of the selected fighters before combat begins.
 4. **Combat Rounds:** 
    - Client submits moves via API
    - Server validates + resolves combat using deterministic engine
@@ -789,6 +792,21 @@ Every **Monday at 00:00 UTC**, the treasury automatically distributes accumulate
 <a id="game-mechanics"></a>
 ## 🎲 Game Mechanics
 
+### Pre-Match Strategy
+
+KaspaClash matches begin before the first punch is thrown. The selection phase tests your knowledge of the meta:
+
+1.  **Ban Phase:**
+    *   Players are presented with the full roster of 20 characters.
+    *   Each player simultaneously selects one character to **BAN**.
+    *   Banned characters cannot be picked by either player.
+    *   *Bot Behavior:* Smart Bots will analyze your owned characters and strategically ban your highest-tier or most-played fighter.
+
+2.  **Blind Pick Phase:**
+    *   Players select their champion from the remaining pool.
+    *   **Blind Selection:** You cannot see your opponent's choice until you lock in yours.
+    *   This prevents "counter-picking" and forces players to rely on their main strategies.
+
 ### Combat System
 
 KaspaClash uses a **turn-based combat engine** with simultaneous move submission:
@@ -865,6 +883,28 @@ Special  Stunned    Hit        Shatter    Both Hit
 - **Double KO:** If both players reach 0 HP simultaneously, player with higher HP percentage wins
 - **Timeout:** If move not submitted within 20 seconds, the match is cancelled
 - **Disconnect:** If player disconnects for 30+ seconds, opponent wins by forfeit
+
+### Counter & Tier System
+
+#### The Triangle of Power
+Combat revolves around a strict advantage system:
+*   **Block** 🛡️ counters **Punch** 🥊 (Reflects damage)
+*   **Punch** 🥊 counters **Special** ⚡ (Interrupts & Stuns)
+*   **Special** ⚡ counters **Block** 🛡️ (Shatters Guard)
+*   **Kick** 🦵 acts as a wild-card, beating Punch but losing to Special.
+
+#### Tier Scaling
+Characters are minted with specific rarities that define their combat potential. Higher tiers are statistically superior but skill remains king:
+
+| Tier | Stat Multiplier | Description |
+| :--- | :---: | :--- |
+| **Common** | 1.0x | Standard baseline stats. |
+| **Uncommon** | 1.1x | Slight edge in Health and Energy. |
+| **Rare** | 1.25x | Noticeable power increase. Enhanced counter-damage. |
+| **Epic** | 1.5x | Powerful fighters with high HP pools. |
+| **Legendary** | 2.0x | Boss-level stats. Require coordinated play to defeat. |
+
+*Note: While Legendary characters hit harder, a "Counter Hit" (e.g. Punching a Special) deals massive bonus damage, allowing a skilled Common player to defeat a Legendary opponent through prediction.*
 
 ### Smart Bot Opponent
 

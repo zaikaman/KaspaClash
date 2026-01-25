@@ -595,6 +595,19 @@ export class CharacterCard extends Phaser.GameObjects.Container {
   }
 
   /**
+   * Enable this card.
+   */
+  enable(): void {
+    // Only enable if previously disabled
+    if (this.cardState !== "disabled") return;
+
+    this.cardState = "default";
+    this.isInteractive = true;
+    this.setAlpha(1);
+    this.animateToState();
+  }
+
+  /**
    * Get the character this card represents.
    */
   getCharacter(): Character {

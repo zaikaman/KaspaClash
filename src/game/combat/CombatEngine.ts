@@ -283,7 +283,11 @@ export class CombatEngine {
         if (outcome === "hit") {
             const baseDamage = BASE_MOVE_STATS[myMove].damage;
             const modifier = myStats.damageModifiers[myMove];
-            damageDealt = Math.floor(baseDamage * modifier);
+
+            // Calculate Counter Multiplier
+            const counterMult = this.getArchetypeMultiplier(myState.characterId, opponentState.characterId);
+
+            damageDealt = Math.floor(baseDamage * modifier * counterMult);
 
             // Apply stagger penalty
             if (myState.isStaggered) {
@@ -315,7 +319,7 @@ export class CombatEngine {
             const baseDamage = BASE_MOVE_STATS[opponentMove].damage;
             const modifier = opponentStats.damageModifiers[opponentMove];
             const fullDamage = baseDamage * modifier;
-            damageTaken = Math.floor(fullDamage * myStats.blockEffectiveness);
+            damageTaken = Math.floor(fullDamage * (1 - myStats.blockEffectiveness));
         }
 
         // Calculate energy spent
@@ -532,6 +536,28 @@ export class CombatEngine {
         }
 
         return parts.join(" ");
+    }
+
+    /**
+     * Calculate damage multiplier based on Archetype Counters.
+     * Cycle: Speed > Tech > Tank > Precision > Speed
+     * Effect: +20% damage (1.2x)
+     */
+    private getArchetypeMultiplier(attackerId: string, defenderId: string): number {
+        const attackerArgs = getCharacterCombatStats(attackerId);
+        const defenderArgs = getCharacterCombatStats(defenderId);
+
+        const aType = attackerArgs.archetype;
+        const dType = defenderArgs.archetype;
+
+        let isCounter = false;
+
+        if (aType === 'speed' && dType === 'tech') isCounter = true;
+        if (aType === 'tech' && dType === 'tank') isCounter = true;
+        if (aType === 'tank' && dType === 'precision') isCounter = true;
+        if (aType === 'precision' && dType === 'speed') isCounter = true;
+
+        return isCounter ? 1.2 : 1.0;
     }
 }
 

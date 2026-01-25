@@ -208,7 +208,7 @@ export function useWallet(): UseWalletReturn {
     console.log("[useWallet] Scheduling auto-reconnect in 300ms at:", Date.now());
     const timer = setTimeout(autoReconnect, 300);
     return () => clearTimeout(timer);
-  }, [hasHydrated, store]);
+  }, [hasHydrated]); // Dependency loop fixed: removed 'store'
 
   /**
    * Discover wallets on mount.

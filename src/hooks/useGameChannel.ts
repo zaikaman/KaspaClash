@@ -56,10 +56,13 @@ export interface UseGameChannelOptions {
   onMatchStarting?: (payload: MatchStartingPayload) => void;
   onChatMessage?: (payload: ChatMessagePayload) => void;
   onStickerMessage?: (payload: StickerPayload) => void;
+  onBanSelected?: (payload: { player: PlayerRole; characterId: string }) => void;
+  onBanConfirmed?: (payload: { player: PlayerRole; characterId: string }) => void;
   onPlayerJoin?: (presence: GamePlayerPresence) => void;
   onPlayerLeave?: (address: string) => void;
   onError?: (error: string) => void;
 }
+
 
 /**
  * Game channel hook return type.
@@ -71,6 +74,8 @@ export interface UseGameChannelReturn {
   trackPresence: (isReady: boolean) => Promise<void>;
   sendChatMessage: (message: string) => Promise<void>;
   sendSticker: (stickerId: string) => Promise<void>;
+  sendBanSelected: (characterId: string) => Promise<void>;
+  sendBanConfirmed: (characterId: string) => Promise<void>;
 }
 
 // =============================================================================
@@ -91,6 +96,8 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
     onMatchStarting,
     onChatMessage,
     onStickerMessage,
+    onBanSelected,
+    onBanConfirmed,
     onPlayerJoin,
     onPlayerLeave,
     onError,
@@ -388,6 +395,32 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
   );
 
   /**
+   * Handle ban_selected event.
+   */
+  const handleBanSelected = useCallback(
+    (payload: { player: PlayerRole; characterId: string }) => {
+      console.log("[GameChannel] ban_selected:", payload);
+      // Emit to Phaser
+      EventBus.emit("game:banSelected", payload);
+      onBanSelected?.(payload);
+    },
+    [onBanSelected]
+  );
+
+  /**
+   * Handle ban_confirmed event.
+   */
+  const handleBanConfirmed = useCallback(
+    (payload: { player: PlayerRole; characterId: string }) => {
+      console.log("[GameChannel] ban_confirmed:", payload);
+      // Emit to Phaser
+      EventBus.emit("game:banConfirmed", payload);
+      onBanConfirmed?.(payload);
+    },
+    [onBanConfirmed]
+  );
+
+  /**
    * Handle presence sync.
    */
   const handlePresenceSync = useCallback(() => {
@@ -535,6 +568,12 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
         })
         .on("broadcast", { event: "sticker_displayed" }, ({ payload }) => {
           handleStickerMessage(payload as StickerPayload);
+        })
+        .on("broadcast", { event: "ban_selected" }, ({ payload }) => {
+          handleBanSelected(payload as { player: PlayerRole; characterId: string });
+        })
+        .on("broadcast", { event: "ban_confirmed" }, ({ payload }) => {
+          handleBanConfirmed(payload as { player: PlayerRole; characterId: string });
         });
 
       // Set up presence listeners
@@ -610,6 +649,8 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
     handlePlayerDisconnected,
     handlePlayerReconnected,
     handleChatMessage,
+    handleBanSelected,
+    handleBanConfirmed,
     handlePresenceSync,
     handlePresenceJoin,
     handlePresenceLeave,
@@ -713,6 +754,46 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
     [playerRole, playerAddress]
   );
 
+  /**
+   * Send a ban selection to opponent.
+   */
+  const sendBanSelected = useCallback(
+    async (characterId: string) => {
+      if (!channelRef.current) return;
+      const payload = { player: playerRole, characterId };
+      try {
+        await channelRef.current.send({
+          type: "broadcast",
+          event: "ban_selected",
+          payload,
+        });
+      } catch (e) {
+        console.error("Failed to send ban selection", e);
+      }
+    },
+    [playerRole]
+  );
+
+  /**
+   * Send a ban confirmation to opponent.
+   */
+  const sendBanConfirmed = useCallback(
+    async (characterId: string) => {
+      if (!channelRef.current) return;
+      const payload = { player: playerRole, characterId };
+      try {
+        await channelRef.current.send({
+          type: "broadcast",
+          event: "ban_confirmed",
+          payload,
+        });
+      } catch (e) {
+        console.error("Failed to send ban confirmation", e);
+      }
+    },
+    [playerRole]
+  );
+
   // ===========================================================================
   // LIFECYCLE
   // ===========================================================================
@@ -743,6 +824,8 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
     trackPresence,
     sendChatMessage,
     sendSticker,
+    sendBanSelected,
+    sendBanConfirmed,
   };
 }
 

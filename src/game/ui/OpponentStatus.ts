@@ -247,7 +247,19 @@ export class OpponentStatus extends Phaser.GameObjects.Container {
   }
 
   /**
-   * Show character preview when opponent locks in.
+   * Set status to locked but hidden (Blind Pick).
+   */
+  setLockedHidden(): void {
+    this.status = "locked";
+    this.updateVisuals();
+    this.statusText.setText("LOCKED IN");
+    this.addressText.setText("Waiting for reveal...");
+    this.addressText.setVisible(true);
+    this.addressText.setColor("#22c55e");
+  }
+
+  /**
+   * Show character preview when opponent locks in (Reveal).
    */
   showCharacterPreview(characterName: string, characterTheme: string): void {
     this.status = "locked";

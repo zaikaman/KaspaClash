@@ -13,6 +13,8 @@ import type { MoveType } from "@/types";
  * Combat-specific stats for a character.
  */
 export interface CharacterCombatStats {
+    /** Character class/role for counter system */
+    archetype: CharacterArchetype;
     /** Base health points */
     maxHp: number;
     /** Base energy pool */
@@ -26,6 +28,12 @@ export interface CharacterCombatStats {
     /** Energy regeneration per turn */
     energyRegen: number;
 }
+
+/**
+ * Character Archetypes for the Counter System.
+ * Cycle: Speed > Tech > Tank > Precision > Speed
+ */
+export type CharacterArchetype = 'speed' | 'tank' | 'tech' | 'precision';
 
 // =============================================================================
 // MOVE DEFINITIONS
