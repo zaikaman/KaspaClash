@@ -6,12 +6,11 @@
 import Phaser from "phaser";
 import { EventBus } from "../EventBus";
 import { GAME_DIMENSIONS, CHARACTER_POSITIONS, UI_POSITIONS } from "../config";
-import { CHAR_SPRITE_CONFIG, TANK_CHARACTERS, getCharacterScale, getCharacterYOffset, getAnimationScale, getSoundDelay, getSFXKey } from "../config/sprite-config";
-import { CombatEngine, BASE_MOVE_STATS, getCharacterCombatStats } from "../combat";
+import { getCharacterScale, getCharacterYOffset, getAnimationScale, getSoundDelay, getSFXKey } from "../config/sprite-config";
+import { CombatEngine, BASE_MOVE_STATS } from "../combat";
 import { ChatPanel } from "../ui/ChatPanel";
 import { StickerPicker, STICKER_LIST, type StickerId } from "../ui/StickerPicker";
 import { SmartBotOpponent } from "@/lib/game/smart-bot-opponent";
-import { getAIThinkTime } from "@/lib/game/ai-difficulty";
 import type { MoveType, PlayerRole } from "@/types";
 import type { CombatState } from "../combat";
 
@@ -157,6 +156,13 @@ export class FightScene extends Phaser.Scene {
   private isBotMatch: boolean = false;
   private botOpponent?: SmartBotOpponent;
 
+  // Animation synchronization state
+  private isResolving: boolean = false;
+  private pendingMatchEndPayload: any = null;
+
+  // Track stun visual effects
+  private stunTweens: Map<"player1" | "player2", Phaser.Tweens.Tween> = new Map();
+
   constructor() {
     super({ key: "FightScene" });
   }
@@ -233,7 +239,7 @@ export class FightScene extends Phaser.Scene {
   init(data: FightSceneConfig): void {
     this.config = { ...data };
     this.resetFullState();
-    
+
     // Check if this is a bot match
     this.isBotMatch = this.checkIfBotMatch();
     if (this.isBotMatch) {
@@ -542,7 +548,7 @@ export class FightScene extends Phaser.Scene {
     }
 
     // Create container for sticker above the sender's character
-    const container = this.add.container(targetSprite.x, targetSprite.y - 150);
+    const container = this.add.container(targetSprite.x, targetSprite.y - 250);
     container.setDepth(1000);
 
     // Sticker image
@@ -657,8 +663,8 @@ export class FightScene extends Phaser.Scene {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          address: this.config.playerRole === "player1" 
-            ? this.config.player1Address 
+          address: this.config.playerRole === "player1"
+            ? this.config.player1Address
             : this.config.player2Address,
           action: "disconnect",
         }),
@@ -688,8 +694,8 @@ export class FightScene extends Phaser.Scene {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          address: this.config.playerRole === "player1" 
-            ? this.config.player1Address 
+          address: this.config.playerRole === "player1"
+            ? this.config.player1Address
             : this.config.player2Address,
           action: "reconnect",
         }),
@@ -698,7 +704,7 @@ export class FightScene extends Phaser.Scene {
       if (response.ok) {
         const data = await response.json();
         console.log("[FightScene] Reconnect notification sent:", data);
-        
+
         // Check if match was cancelled/completed while away
         if (data.data?.matchStatus === "completed" || data.data?.matchStatus === "cancelled") {
           console.log("[FightScene] Match ended while disconnected, fetching final state");
@@ -735,7 +741,34 @@ export class FightScene extends Phaser.Scene {
         });
       }
     } catch (error) {
-      console.error("[FightScene] Error fetching final match state:", error);
+    }
+  }
+
+  /**
+   * Toggle persistent stun visual effect (red pulse)
+   */
+  private toggleStunEffect(player: "player1" | "player2", enable: boolean): void {
+    const sprite = player === "player1" ? this.player1Sprite : this.player2Sprite;
+    const existingTween = this.stunTweens.get(player);
+
+    if (enable) {
+      if (!existingTween || !existingTween.isPlaying()) {
+        const tween = this.tweens.add({
+          targets: sprite,
+          tint: 0xff4444, // Red tint
+          yoyo: true,
+          repeat: -1,     // Infinite loop
+          duration: 300,
+          ease: 'Sine.easeInOut'
+        });
+        this.stunTweens.set(player, tween);
+      }
+    } else {
+      if (existingTween) {
+        existingTween.stop();
+        this.stunTweens.delete(player);
+      }
+      sprite.clearTint();
     }
   }
 
@@ -1752,12 +1785,12 @@ export class FightScene extends Phaser.Scene {
 
     // Check if affordable using server state energy
     const role = this.config.playerRole;
-    const currentEnergy = role === "player1" 
+    const currentEnergy = role === "player1"
       ? (this.serverState?.player1Energy ?? this.combatEngine.getState().player1.energy)
       : (this.serverState?.player2Energy ?? this.combatEngine.getState().player2.energy);
-    
+
     const moveCost = BASE_MOVE_STATS[move].energyCost;
-    
+
     if (currentEnergy < moveCost) {
       this.showFloatingText("Not enough energy!", GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.HEIGHT - 150, "#ff4444");
       return;
@@ -1772,6 +1805,14 @@ export class FightScene extends Phaser.Scene {
     this.isWaitingForOpponent = true;
     this.turnIndicatorText.setText("Submitting move...");
     this.turnIndicatorText.setColor("#f97316");
+
+    // Disable all buttons immediately to prevent double submission
+    this.moveButtons.forEach(btn => {
+      btn.disableInteractive();
+      if (btn !== this.moveButtons.get(move)) {
+        btn.setAlpha(0.5); // Dim others
+      }
+    });
 
     EventBus.emit("game:submitMove", {
       matchId: this.config.matchId,
@@ -1842,12 +1883,12 @@ export class FightScene extends Phaser.Scene {
   private updateMoveButtonAffordability(): void {
     if (this.config.isSpectator || !this.config.playerRole || !this.serverState) return;
 
-    // Strict disable if stunned
+    // Strict disable if stunned or waiting for opponent
     const role = this.config.playerRole;
     const isStunned = (role === "player1" && this.serverState.player1IsStunned) ||
       (role === "player2" && this.serverState.player2IsStunned);
 
-    if (isStunned) {
+    if (isStunned || this.isWaitingForOpponent) {
       this.moveButtons.forEach((button) => {
         button.setAlpha(0.3);
         button.disableInteractive();
@@ -2126,23 +2167,40 @@ export class FightScene extends Phaser.Scene {
     const winnerText = isLocalWinner ? "VICTORY!" : "DEFEAT";
 
     this.countdownText.setText(winnerText);
-    this.countdownText.setFontSize(48);
+    this.countdownText.setFontSize(64);
     this.countdownText.setColor(isLocalWinner ? "#22c55e" : "#ef4444");
     this.countdownText.setAlpha(1);
 
     // Play SFX
     this.playSFX(isLocalWinner ? "sfx_victory" : "sfx_defeat");
 
-    // Play victory/defeat animations
+    // Play victory/dead animations with correct scaling
     const p1Char = this.config.player1Character || "dag-warrior";
     const p2Char = this.config.player2Character || "dag-warrior";
 
+    // Helper to apply animation and scale safely
+    const playEndAnim = (sprite: Phaser.GameObjects.Sprite, charId: string, animType: "victory" | "dead") => {
+      const animKey = `${charId}_${animType}`;
+      const scale = getAnimationScale(charId, animType);
+
+      // Update scale for the specific animation
+      sprite.setScale(scale);
+
+      if (this.anims.exists(animKey)) {
+        sprite.play(animKey);
+      } else {
+        console.warn(`[FightScene] Missing animation: ${animKey}, falling back to idle`);
+        const idleKey = `${charId}_idle`;
+        if (this.anims.exists(idleKey)) sprite.play(idleKey);
+      }
+    };
+
     if (winner === "player1") {
-      if (this.anims.exists(`${p1Char}_victory`)) this.player1Sprite.play(`${p1Char}_victory`);
-      if (this.anims.exists(`${p2Char}_defeat`)) this.player2Sprite.play(`${p2Char}_defeat`);
+      playEndAnim(this.player1Sprite, p1Char, "victory");
+      playEndAnim(this.player2Sprite, p2Char, "dead");
     } else {
-      if (this.anims.exists(`${p1Char}_defeat`)) this.player1Sprite.play(`${p1Char}_defeat`);
-      if (this.anims.exists(`${p2Char}_victory`)) this.player2Sprite.play(`${p2Char}_victory`);
+      playEndAnim(this.player1Sprite, p1Char, "dead");
+      playEndAnim(this.player2Sprite, p2Char, "victory");
     }
   }
 
@@ -2173,14 +2231,14 @@ export class FightScene extends Phaser.Scene {
 
     let message = payload.message || "Both players disconnected";
     message += "\\n\\n";
-    
+
     // Show personalized bet refund info if user had a bet
     if (userBet && userBet.amount > 0) {
       message += `YOUR BET: ${userBet.amount} KAS refunded`;
       message += `\\n(Predicted: ${userBet.prediction === "player1" ? "Player 1" : "Player 2"})`;
       message += "\\n\\n";
     }
-    
+
     if (totalRefunded > 0) {
       message += `Total refunds: ${totalRefunded} transactions`;
       if (refundStats.stakesRefunded > 0) {
@@ -2285,7 +2343,7 @@ export class FightScene extends Phaser.Scene {
       color: "#000000",
       fontStyle: "bold",
     }).setOrigin(0.5);
-    
+
     buttonBg.setInteractive({ useHandCursor: true });
     buttonBg.on("pointerover", () => buttonBg.setFillStyle(0xffaa00));
     buttonBg.on("pointerout", () => buttonBg.setFillStyle(0xff6b35));
@@ -2298,13 +2356,13 @@ export class FightScene extends Phaser.Scene {
     // Animate in
     overlay.setAlpha(0);
     container.setScale(0.8).setAlpha(0);
-    
+
     this.tweens.add({
       targets: overlay,
       alpha: 0.85,
       duration: 300,
     });
-    
+
     this.tweens.add({
       targets: container,
       scale: 1,
@@ -2569,34 +2627,12 @@ export class FightScene extends Phaser.Scene {
         };
       };
 
-      // Use helper for SFX and Animations
-      this.showMatchEnd(payload.winner);
-
-      this.time.delayedCall(3000, () => {
-        // Construct detailed result from server state + payload
-        const result = {
-          winner: payload.winner,
-          reason: (payload.reason as any),
-          player1FinalHealth: this.serverState?.player1Health ?? 0,
-          player2FinalHealth: this.serverState?.player2Health ?? 0,
-          player1RoundsWon: this.serverState?.player1RoundsWon ?? 0,
-          player2RoundsWon: this.serverState?.player2RoundsWon ?? 0,
-          txIds: [],
-          ratingChanges: payload.ratingChanges,
-        };
-
-        // Emit for React components (optional)
-        EventBus.emit("match:ended", { result });
-
-        // Transition to ResultsScene
-        this.scene.start("ResultsScene", {
-          result,
-          playerRole: this.config.playerRole,
-          matchId: this.config.matchId,
-          player1CharacterId: this.config.player1Character,
-          player2CharacterId: this.config.player2Character,
-        });
-      });
+      if (this.isResolving) {
+        console.log("[FightScene] Match ended while resolving round - queueing payload");
+        this.pendingMatchEndPayload = payload;
+      } else {
+        this.processMatchEnd(payload);
+      }
     });
 
     // Listen for round starting (synchronized timing from server)
@@ -2632,10 +2668,10 @@ export class FightScene extends Phaser.Scene {
 
     // Listen for match cancellation (both players rejected OR both disconnected)
     EventBus.on("game:matchCancelled", (data: unknown) => {
-      const payload = data as { 
-        matchId: string; 
-        reason: string; 
-        message: string; 
+      const payload = data as {
+        matchId: string;
+        reason: string;
+        message: string;
         redirectTo?: string;
         refundsProcessed?: boolean;
         refundStats?: {
@@ -2681,7 +2717,7 @@ export class FightScene extends Phaser.Scene {
 
       // Otherwise, show simple cancellation message (transaction rejection)
       console.log("[FightScene] Showing simple cancellation message");
-      
+
       // Safety check: ensure text objects exist
       if (this.countdownText && this.countdownText.active) {
         this.countdownText.setText("MATCH CANCELLED");
@@ -3114,6 +3150,10 @@ export class FightScene extends Phaser.Scene {
     // Sync UI with server state (updates HP bars, round info, etc.)
     this.syncUIWithCombatState();
 
+    // Apply persistent stun visual effects
+    this.toggleStunEffect("player1", this.serverState.player1IsStunned ?? false);
+    this.toggleStunEffect("player2", this.serverState.player2IsStunned ?? false);
+
     if (skipCountdown) {
       // Skip the 3-2-1 FIGHT countdown - go directly to selection phase
       // This is used when we already showed our own 5-second countdown
@@ -3307,6 +3347,9 @@ export class FightScene extends Phaser.Scene {
   }): void {
     console.log(`[FightScene] *** handleServerRoundResolved - Setting phase to 'resolving', Timestamp: ${Date.now()}`);
     console.log(`[FightScene] *** pendingRoundStart before setting phase: ${!!this.pendingRoundStart}`);
+
+    // Set resolving flag to prevent match end from interrupting animations
+    this.isResolving = true;
     this.phase = "resolving";
 
     // Stop timer
@@ -3372,6 +3415,7 @@ export class FightScene extends Phaser.Scene {
       const p1RunScale = getAnimationScale(p1Char, "run");
       this.player1Sprite.setScale(p1RunScale);
       this.player1Sprite.play(`${p1Char}_run`);
+      this.toggleStunEffect("player1", false);
     } else if (p1IsStunned) {
       // Stunned player stays in idle and shows stun effect
       if (this.anims.exists(`${p1Char}_idle`)) {
@@ -3380,19 +3424,14 @@ export class FightScene extends Phaser.Scene {
         this.player1Sprite.play(`${p1Char}_idle`);
       }
       // Visual stun indicator - pulsing red tint
-      this.tweens.add({
-        targets: this.player1Sprite,
-        tint: 0xff6666,
-        yoyo: true,
-        repeat: 3,
-        duration: 200,
-        onComplete: () => this.player1Sprite.clearTint()
-      });
+      // Visual stun indicator - persistent red pulse
+      this.toggleStunEffect("player1", true);
     }
     if (!p2IsStunned && this.anims.exists(`${p2Char}_run`)) {
       const p2RunScale = getAnimationScale(p2Char, "run");
       this.player2Sprite.setScale(p2RunScale);
       this.player2Sprite.play(`${p2Char}_run`);
+      this.toggleStunEffect("player2", false);
     } else if (p2IsStunned) {
       // Stunned player stays in idle and shows stun effect
       if (this.anims.exists(`${p2Char}_idle`)) {
@@ -3401,14 +3440,8 @@ export class FightScene extends Phaser.Scene {
         this.player2Sprite.play(`${p2Char}_idle`);
       }
       // Visual stun indicator - pulsing red tint
-      this.tweens.add({
-        targets: this.player2Sprite,
-        tint: 0xff6666,
-        yoyo: true,
-        repeat: 3,
-        duration: 200,
-        onComplete: () => this.player2Sprite.clearTint()
-      });
+      // Visual stun indicator - persistent red pulse
+      this.toggleStunEffect("player2", true);
     }
 
     // Tween both characters toward targets
@@ -3593,6 +3626,22 @@ export class FightScene extends Phaser.Scene {
             duration: p2IsStunned ? 0 : 600,
             ease: 'Power2',
             onComplete: () => {
+              // Unset resolving flag
+              this.isResolving = false;
+
+              // If match is over, DO NOT return to idle
+              if (payload.isMatchOver) {
+                console.log("[FightScene] Match is over - skipping return to idle");
+
+                // Process any queued match end payload
+                if (this.pendingMatchEndPayload) {
+                  console.log("[FightScene] Processing queued match end payload");
+                  this.processMatchEnd(this.pendingMatchEndPayload);
+                  this.pendingMatchEndPayload = null;
+                }
+                return;
+              }
+
               // Phase 5: Return to idle
               if (this.anims.exists(`${p1Char}_idle`)) {
                 const p1IdleScale = getAnimationScale(p1Char, "idle");
@@ -3614,7 +3663,7 @@ export class FightScene extends Phaser.Scene {
 
               // Handle round/match end
               if (payload.isMatchOver) {
-                // Match end handled by event
+                // Match end handled by event (processMatchEnd called above if pending)
               } else if (payload.isRoundOver) {
                 this.showRoundEndFromServer(payload.roundWinner, payload.player1RoundsWon, payload.player2RoundsWon);
               } else {
@@ -3638,6 +3687,48 @@ export class FightScene extends Phaser.Scene {
           });
         })();
       },
+    });
+  }
+
+  /**
+   * Process match end payload (separated to allow queuing).
+   */
+  private processMatchEnd(payload: {
+    winner: "player1" | "player2";
+    winnerAddress: string;
+    reason: string;
+    ratingChanges?: {
+      winner: { before: number; after: number; change: number };
+      loser: { before: number; after: number; change: number };
+    };
+  }): void {
+    // Use helper for SFX and Animations
+    this.showMatchEnd(payload.winner);
+
+    this.time.delayedCall(5000, () => {
+      // Construct detailed result from server state + payload
+      const result = {
+        winner: payload.winner,
+        reason: (payload.reason as any),
+        player1FinalHealth: this.serverState?.player1Health ?? 0,
+        player2FinalHealth: this.serverState?.player2Health ?? 0,
+        player1RoundsWon: this.serverState?.player1RoundsWon ?? 0,
+        player2RoundsWon: this.serverState?.player2RoundsWon ?? 0,
+        txIds: [],
+        ratingChanges: payload.ratingChanges,
+      };
+
+      // Emit for React components (optional)
+      EventBus.emit("match:ended", { result });
+
+      // Transition to ResultsScene
+      this.scene.start("ResultsScene", {
+        result,
+        playerRole: this.config.playerRole,
+        matchId: this.config.matchId,
+        player1CharacterId: this.config.player1Character,
+        player2CharacterId: this.config.player2Character,
+      });
     });
   }
 

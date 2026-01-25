@@ -185,13 +185,13 @@ export async function POST(
           timeoutSeconds: match.disconnect_timeout_seconds || 30,
         },
       }).catch(err => console.error("[Disconnect API] Broadcast error:", err));
-      
+
       // Don't wait for channel cleanup
-      supabase.removeChannel(gameChannel).catch(() => {});
+      supabase.removeChannel(gameChannel).catch(() => { });
 
       // CHECK: If BOTH players are now disconnected for at least 30 seconds, cancel the match and refund bets
-      const bothDisconnected = updatedMatch && 
-        updatedMatch.player1_disconnected_at && 
+      const bothDisconnected = updatedMatch &&
+        updatedMatch.player1_disconnected_at &&
         updatedMatch.player2_disconnected_at;
 
       if (bothDisconnected && updatedMatch.status === "in_progress") {
@@ -199,12 +199,12 @@ export async function POST(
         const player1DisconnectTime = new Date(updatedMatch.player1_disconnected_at!).getTime();
         const player2DisconnectTime = new Date(updatedMatch.player2_disconnected_at!).getTime();
         const nowTime = new Date(now).getTime();
-        
+
         const player1DisconnectedDuration = nowTime - player1DisconnectTime;
         const player2DisconnectedDuration = nowTime - player2DisconnectTime;
-        
+
         const DISCONNECT_THRESHOLD_MS = 30 * 1000; // 30 seconds
-        
+
         // Only cancel if BOTH players have been disconnected for at least 30 seconds
         if (player1DisconnectedDuration < DISCONNECT_THRESHOLD_MS || player2DisconnectedDuration < DISCONNECT_THRESHOLD_MS) {
           console.log(`[Disconnect API] Both players disconnected but not for 30s yet - P1: ${Math.floor(player1DisconnectedDuration / 1000)}s, P2: ${Math.floor(player2DisconnectedDuration / 1000)}s`);
@@ -227,9 +227,9 @@ export async function POST(
 
           return NextResponse.json(response);
         }
-        
+
         console.log(`[Disconnect API] Both players disconnected for 30+ seconds for match ${matchId}, cancelling match and refunding bets`);
-        
+
         // Update match status to cancelled
         await supabase
           .from("matches")
@@ -288,9 +288,9 @@ export async function POST(
             redirectTo: "/",
           },
         }).catch(err => console.error("[Disconnect API] Broadcast error:", err));
-        
+
         // Don't wait for channel cleanup
-        supabase.removeChannel(cancelChannel).catch(() => {});
+        supabase.removeChannel(cancelChannel).catch(() => { });
 
         const response: ApiSuccessResponse<DisconnectResponse> = {
           success: true,
@@ -323,9 +323,9 @@ export async function POST(
           timeoutSeconds: match.disconnect_timeout_seconds || 30,
         },
       }).catch(err => console.error("[Disconnect API] Broadcast error:", err));
-      
+
       // Don't wait for channel cleanup
-      supabase.removeChannel(disconnectChannel).catch(() => {});
+      supabase.removeChannel(disconnectChannel).catch(() => { });
 
       const response: ApiSuccessResponse<DisconnectResponse> = {
         success: true,
@@ -361,13 +361,16 @@ export async function POST(
       }
 
       // Get current round info for state sync
-      const { data: currentRound } = await supabase
+      // Get last 2 rounds (turns) to handle pending state correctly
+      const { data: recentRounds } = await supabase
         .from("rounds")
         .select("*")
         .eq("match_id", matchId)
         .order("round_number", { ascending: false })
-        .limit(1)
-        .single();
+        .limit(2);
+
+      const currentRound = recentRounds?.[0] as any; // The current active (pending) turn
+      const previousRound = recentRounds?.[1] as any; // The previous resolved turn
 
       // Check if we have pending moves in current round
       // A round is resolved if:
@@ -402,9 +405,9 @@ export async function POST(
           reconnectedAt: Date.now(),
         },
       }).catch(err => console.error("[Disconnect API] Broadcast error:", err));
-      
+
       // Don't wait for channel cleanup
-      supabase.removeChannel(reconnectChannel).catch(() => {});
+      supabase.removeChannel(reconnectChannel).catch(() => { });
 
       // Build game state for the reconnecting player
       // Default values for when round data isn't available
@@ -417,17 +420,69 @@ export async function POST(
         ? Date.now() + 15000 // Give them 15 seconds to make a move
         : null;
 
+      // Determine correct health values
+      // If current round (turn) is unresolved, health_after is likely null/undefined
+      // So we need to look at the PREVIOUS round (turn) state, unless this is a fresh game round
+
+      // Get character max stats
+      const { getCharacterCombatStats } = await import("@/game/combat");
+      const p1Stats = getCharacterCombatStats(match.player1_character_id || "dag-warrior");
+      const p2Stats = getCharacterCombatStats(match.player2_character_id || "dag-warrior");
+
+      let p1Health = p1Stats.maxHp;
+      let p2Health = p2Stats.maxHp;
+      let p1Energy = p1Stats.maxEnergy;
+      let p2Energy = p2Stats.maxEnergy;
+      let p1Guard = 0;
+      let p2Guard = 0;
+
+      if (currentRound) {
+        // If current round *has* values (resolved), use them
+        if (currentRound.player1_health_after !== null && currentRound.player1_health_after !== undefined) {
+          p1Health = currentRound.player1_health_after ?? p1Stats.maxHp;
+          p2Health = currentRound.player2_health_after ?? p2Stats.maxHp;
+          p1Energy = currentRound.player1_energy ?? p1Stats.maxEnergy;
+          p2Energy = currentRound.player2_energy ?? p2Stats.maxEnergy;
+          p1Guard = currentRound.player1_guard_meter ?? 0;
+          p2Guard = currentRound.player2_guard_meter ?? 0;
+        }
+        // If current round is pending (null values), look at previous round
+        else if (previousRound) {
+          // If previous round ended the GAME round (winner_address set), then we are at start of new round -> Max HP
+          if (previousRound.winner_address) {
+            p1Health = p1Stats.maxHp;
+            p2Health = p2Stats.maxHp;
+            p1Energy = p1Stats.maxEnergy;
+            p2Energy = p2Stats.maxEnergy;
+            p1Guard = 0;
+            p2Guard = 0;
+          } else {
+            // Otherwise continue from previous turn's end state
+            p1Health = previousRound.player1_health_after ?? p1Stats.maxHp;
+            p2Health = previousRound.player2_health_after ?? p2Stats.maxHp;
+            p1Energy = previousRound.player1_energy ?? p1Stats.maxEnergy;
+            p2Energy = previousRound.player2_energy ?? p2Stats.maxEnergy;
+            p1Guard = previousRound.player1_guard_meter ?? 0;
+            p2Guard = previousRound.player2_guard_meter ?? 0;
+          }
+        }
+        // If no previous round (current is Round 1), use Max HP (default)
+      }
+
       const gameState = {
         status: match.status,
-        currentRound: currentRound?.round_number || 1,
-        player1Health: currentRound?.player1_health_after ?? defaultHealth,
-        player2Health: currentRound?.player2_health_after ?? defaultHealth,
+        // Fix: Calculate actual match round (1, 2, 3) based on wins, NOT the database round_number which tracks turns
+        currentRound: (match.player1_rounds_won || 0) + (match.player2_rounds_won || 0) + 1,
+        player1Health: p1Health,
+        player2Health: p2Health,
         player1RoundsWon: match.player1_rounds_won,
         player2RoundsWon: match.player2_rounds_won,
         player1CharacterId: match.player1_character_id,
         player2CharacterId: match.player2_character_id,
-        player1Energy: defaultEnergy, // Would need to track in rounds table for accuracy
-        player2Energy: defaultEnergy,
+        player1Energy: p1Energy,
+        player2Energy: p2Energy,
+        player1GuardMeter: p1Guard,
+        player2GuardMeter: p2Guard,
         moveDeadlineAt,
         pendingMoves,
       };

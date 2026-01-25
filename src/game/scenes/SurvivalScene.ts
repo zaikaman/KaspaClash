@@ -8,7 +8,7 @@ import { EventBus } from "@/game/EventBus";
 import { GAME_DIMENSIONS, CHARACTER_POSITIONS, UI_POSITIONS } from "@/game/config";
 import { CHAR_SPRITE_CONFIG, getCharacterScale, getAnimationScale, getCharacterYOffset, getSoundDelay, getSFXKey } from "@/game/config/sprite-config";
 import { CombatEngine, BASE_MOVE_STATS } from "@/game/combat";
-import { AIOpponent, type AIDifficulty } from "@/lib/game/ai-opponent";
+import { AIOpponent } from "@/lib/game/ai-opponent";
 import { getAIThinkTime } from "@/lib/game/ai-difficulty";
 import { getCharacter, CHARACTER_ROSTER } from "@/data/characters";
 import type { MoveType, Character } from "@/types";

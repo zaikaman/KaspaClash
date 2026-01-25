@@ -16,7 +16,7 @@ import { EventBus } from "../EventBus";
 import { GAME_DIMENSIONS, CHARACTER_POSITIONS, UI_POSITIONS } from "../config";
 import { getCharacterScale, getCharacterYOffset, getAnimationScale, getSFXKey, getSoundDelay } from "../config/sprite-config";
 import { CHARACTER_ROSTER } from "@/data/characters";
-import type { MoveType, Character } from "@/types";
+import type { Character } from "@/types";
 import type { BotTurnData } from "@/lib/game/bot-match-service";
 
 /**

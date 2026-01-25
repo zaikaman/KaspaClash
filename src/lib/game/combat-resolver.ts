@@ -17,6 +17,7 @@ import {
     trackOpponentDefeated,
 } from "@/lib/quests/quest-service";
 import { updateWinStreakAfterMatch } from "@/lib/quests/win-streak-service";
+import { broadcastToChannel } from "@/lib/supabase/broadcast";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
@@ -31,10 +32,10 @@ async function submitBotMove(
     matchId: string
 ): Promise<void> {
     const botAddress = botPlayer === "player1" ? match.player1_address : match.player2_address;
-    
+
     // Get bot's smart move
     const { SmartBotOpponent } = await import("@/lib/game/smart-bot-opponent");
-    
+
     // Get bot name from player profile
     const { data: botProfile } = await supabase
         .from("players")
@@ -43,7 +44,7 @@ async function submitBotMove(
         .single();
     const botName = botProfile?.display_name || "Bot Opponent";
     const bot = new SmartBotOpponent(botName);
-    
+
     // Update bot context with current match state
     const humanPlayer = botPlayer === "player1" ? "player2" : "player1";
     bot.updateContext({
@@ -66,17 +67,17 @@ async function submitBotMove(
         botRoundsWon: engineState[botPlayer].roundsWon,
         opponentRoundsWon: engineState[humanPlayer].roundsWon,
     });
-    
+
     const decision = bot.decide();
     const botMove = decision.move;
-    
+
     console.log(`[CombatResolver] Bot chose move: ${botMove} (${decision.reasoning})`);
-    
+
     // Submit bot's move (fake transaction ID)
     const botTxId = `bot_tx_${Date.now()}_${Math.random().toString(36).substring(7)}`.padEnd(64, '0').substring(0, 64);
-    
+
     const botMoveColumn = botPlayer === "player1" ? "player1_move" : "player2_move";
-    
+
     // Insert move record
     await supabase.from("moves").insert({
         round_id: roundData.id,
@@ -84,25 +85,19 @@ async function submitBotMove(
         move_type: botMove,
         tx_id: botTxId,
     });
-    
+
     // Update round with bot move
     await supabase.from("rounds").update({
         [botMoveColumn]: botMove,
     }).eq("id", roundData.id);
-    
+
     // Broadcast bot move
-    const botGameChannel = supabase.channel(`game:${matchId}`);
-    await botGameChannel.send({
-        type: "broadcast",
-        event: "move_submitted",
-        payload: {
-            player: botPlayer,
-            txId: botTxId,
-            submittedAt: Date.now(),
-        },
+    await broadcastToChannel(supabase, `game:${matchId}`, "move_submitted", {
+        player: botPlayer,
+        txId: botTxId,
+        moveType: "secret" // Don't reveal bot move yet
     });
-    await supabase.removeChannel(botGameChannel);
-    
+
     console.log(`[CombatResolver] Bot move submitted and saved to database`);
 }
 
@@ -144,7 +139,7 @@ export async function resolveRound(
 ): Promise<RoundResolutionResult> {
     console.log(`[CombatResolver] ======= START RESOLVE ROUND =======`);
     console.log(`[CombatResolver] Match ID: ${matchId}, Round ID: ${roundId}`);
-    
+
     try {
         const supabase = await createSupabaseServerClient();
 
@@ -164,160 +159,161 @@ export async function resolveRound(
             });
             return createErrorResult("Round not found");
         }
-    
-    console.log(`[CombatResolver] Round ${currentRound.round_number} - P1 move: ${currentRound.player1_move}, P2 move: ${currentRound.player2_move}`);
 
-    // Validate moves exist
-    if (!isValidMove(currentRound.player1_move) || !isValidMove(currentRound.player2_move)) {
-        console.error(`[CombatResolver] Invalid moves - P1: ${currentRound.player1_move}, P2: ${currentRound.player2_move}`);
-        return createErrorResult("Invalid moves");
-    }
+        console.log(`[CombatResolver] Round ${currentRound.round_number} - P1 move: ${currentRound.player1_move}, P2 move: ${currentRound.player2_move}`);
 
-    // Fetch match for character info
-    const { data: match, error: matchError } = await supabase
-        .from("matches")
-        .select("*")
-        .eq("id", matchId)
-        .single();
+        // Validate moves exist
+        if (!isValidMove(currentRound.player1_move) || !isValidMove(currentRound.player2_move)) {
+            console.error(`[CombatResolver] Invalid moves - P1: ${currentRound.player1_move}, P2: ${currentRound.player2_move}`);
+            return createErrorResult("Invalid moves");
+        }
 
-    if (matchError || !match) {
-        return createErrorResult("Match not found");
-    }
+        // Fetch match for character info
+        const { data: match, error: matchError } = await supabase
+            .from("matches")
+            .select("*")
+            .eq("id", matchId)
+            .single();
 
-    const player1CharId = match.player1_character_id || "dag-warrior";
-    const player2CharId = match.player2_character_id || "dag-warrior";
+        if (matchError || !match) {
+            return createErrorResult("Match not found");
+        }
 
-    // Create combat engine and initialize with character stats
-    const engine = new CombatEngine(player1CharId, player2CharId, "best_of_5");
+        const player1CharId = match.player1_character_id || "dag-warrior";
+        const player2CharId = match.player2_character_id || "dag-warrior";
 
-    // Fetch all previous resolved rounds to rebuild state
-    const { data: previousRounds } = await supabase
-        .from("rounds")
-        .select("*")
-        .eq("match_id", matchId)
-        .lt("round_number", currentRound.round_number)
-        .order("round_number", { ascending: true });
+        // Create combat engine and initialize with character stats
+        const engine = new CombatEngine(player1CharId, player2CharId, "best_of_5");
 
-    // Replay previous rounds (if any) to get current health/energy state
-    // For now, we're using a simplified model where each "round" is actually a "turn"
-    // within the same health pool until someone is KO'd
-    if (previousRounds) {
-        for (const prevRound of previousRounds) {
-            if (isValidMove(prevRound.player1_move) && isValidMove(prevRound.player2_move)) {
-                engine.resolveTurn(prevRound.player1_move, prevRound.player2_move);
+        // Fetch all previous resolved rounds to rebuild state
+        const { data: previousRounds } = await supabase
+            .from("rounds")
+            .select("*")
+            .eq("match_id", matchId)
+            .lt("round_number", currentRound.round_number)
+            .order("round_number", { ascending: true });
 
-                // If a round ended, start new round
-                const prevState = engine.getState();
-                if (prevState.isRoundOver && !prevState.isMatchOver) {
-                    engine.startNewRound();
+        // Replay previous rounds (if any) to get current health/energy state
+        // For now, we're using a simplified model where each "round" is actually a "turn"
+        // within the same health pool until someone is KO'd
+        if (previousRounds) {
+            for (const prevRound of previousRounds) {
+                if (isValidMove(prevRound.player1_move) && isValidMove(prevRound.player2_move)) {
+                    engine.resolveTurn(prevRound.player1_move, prevRound.player2_move);
+
+                    // If a round ended, start new round
+                    const prevState = engine.getState();
+                    if (prevState.isRoundOver && !prevState.isMatchOver) {
+                        engine.startNewRound();
+                    }
                 }
             }
         }
-    }
 
-    // Now resolve the current turn
-    const result = engine.resolveTurn(
-        currentRound.player1_move,
-        currentRound.player2_move
-    );
+        // Now resolve the current turn
+        const result = engine.resolveTurn(
+            currentRound.player1_move,
+            currentRound.player2_move
+        );
 
-    const state = engine.getState();
+        const state = engine.getState();
 
-    // Update round with results
-    const { error: updateError } = await supabase
-        .from("rounds")
-        .update({
-            player1_damage_dealt: result.player1.damageDealt,
-            player2_damage_dealt: result.player2.damageDealt,
-            // Clamp health values to 0 to respect DB constraints
-            player1_health_after: Math.max(0, state.player1.hp),
-            player2_health_after: Math.max(0, state.player2.hp),
-            winner_address: state.roundWinner === "player1"
-                ? match.player1_address
-                : state.roundWinner === "player2"
-                    ? match.player2_address
-                    : null,
-        })
-        .eq("id", roundId);
+        // Update round with results
+        const { error: updateError } = await supabase
+            .from("rounds")
+            .update({
+                player1_damage_dealt: result.player1.damageDealt,
+                player2_damage_dealt: result.player2.damageDealt,
+                // Clamp health values to 0 to respect DB constraints
+                player1_health_after: Math.max(0, state.player1.hp),
+                player2_health_after: Math.max(0, state.player2.hp),
+                // Track energy and guard meter for state restoration
+                player1_energy: state.player1.energy,
+                player2_energy: state.player2.energy,
+                player1_guard_meter: state.player1.guardMeter,
+                player2_guard_meter: state.player2.guardMeter,
+                winner_address: state.roundWinner === "player1"
+                    ? match.player1_address
+                    : state.roundWinner === "player2"
+                        ? match.player2_address
+                        : null,
+            })
+            .eq("id", roundId);
 
-    if (updateError) {
-        console.error("Round update error:", updateError);
-    }
+        if (updateError) {
+            console.error("Round update error:", updateError);
+        }
 
-    // Update match round scores
-    if (state.isRoundOver || state.isMatchOver) {
-        const matchUpdate: Record<string, unknown> = {
-            player1_rounds_won: state.player1.roundsWon,
-            player2_rounds_won: state.player2.roundsWon,
-        };
+        // Update match round scores
+        if (state.isRoundOver || state.isMatchOver) {
+            const matchUpdate: Record<string, unknown> = {
+                player1_rounds_won: state.player1.roundsWon,
+                player2_rounds_won: state.player2.roundsWon,
+            };
 
+            if (state.isMatchOver) {
+                matchUpdate.status = "completed";
+                matchUpdate.winner_address = state.matchWinner === "player1"
+                    ? match.player1_address
+                    : match.player2_address;
+                matchUpdate.completed_at = new Date().toISOString();
+            }
+
+            await supabase
+                .from("matches")
+                .update(matchUpdate)
+                .eq("id", matchId);
+        }
+
+        // Update player ratings if match is over
+        let ratingResult: RatingUpdateResult | null = null;
         if (state.isMatchOver) {
-            matchUpdate.status = "completed";
-            matchUpdate.winner_address = state.matchWinner === "player1"
+            const winnerAddress = state.matchWinner === "player1"
                 ? match.player1_address
-                : match.player2_address;
-            matchUpdate.completed_at = new Date().toISOString();
+                : match.player2_address!; // player2_address is guaranteed non-null for in-progress matches
+            const loserAddress = state.matchWinner === "player1"
+                ? match.player2_address!
+                : match.player1_address;
+            ratingResult = await updateMatchRatings(winnerAddress, loserAddress);
+
+            // Track quest progress for match completion
+            try {
+                await trackMatchCompletion(winnerAddress, matchId, true);
+                await trackMatchCompletion(loserAddress, matchId, false);
+
+                // Track win streak for winner
+                await updateWinStreakAfterMatch(winnerAddress, matchId, true);
+            } catch (questError) {
+                console.error("Error tracking quest progress:", questError);
+            }
         }
 
-        await supabase
-            .from("matches")
-            .update(matchUpdate)
-            .eq("id", matchId);
-    }
-
-    // Update player ratings if match is over
-    let ratingResult: RatingUpdateResult | null = null;
-    if (state.isMatchOver) {
-        const winnerAddress = state.matchWinner === "player1"
-            ? match.player1_address
-            : match.player2_address!; // player2_address is guaranteed non-null for in-progress matches
-        const loserAddress = state.matchWinner === "player1"
-            ? match.player2_address!
-            : match.player1_address;
-        ratingResult = await updateMatchRatings(winnerAddress, loserAddress);
-
-        // Track quest progress for match completion
+        // Track damage dealt for quest progress (for both players every turn)
         try {
-            await trackMatchCompletion(winnerAddress, matchId, true);
-            await trackMatchCompletion(loserAddress, matchId, false);
+            if (result.player1.damageDealt > 0) {
+                await trackDamageDealt(match.player1_address, matchId, result.player1.damageDealt);
+            }
+            if (result.player2.damageDealt > 0 && match.player2_address) {
+                await trackDamageDealt(match.player2_address, matchId, result.player2.damageDealt);
+            }
 
-            // Track win streak for winner
-            await updateWinStreakAfterMatch(winnerAddress, matchId, true);
+            // Track ability usage
+            await trackAbilityUsed(match.player1_address, matchId, currentRound.player1_move);
+            if (match.player2_address) {
+                await trackAbilityUsed(match.player2_address, matchId, currentRound.player2_move);
+            }
+
+            // Track opponent defeated (round win by KO)
+            if (state.isRoundOver && state.roundWinner) {
+                const winnerAddr = state.roundWinner === "player1" ? match.player1_address : match.player2_address!;
+                await trackOpponentDefeated(winnerAddr, matchId);
+            }
         } catch (questError) {
-            console.error("Error tracking quest progress:", questError);
-        }
-    }
-
-    // Track damage dealt for quest progress (for both players every turn)
-    try {
-        if (result.player1.damageDealt > 0) {
-            await trackDamageDealt(match.player1_address, matchId, result.player1.damageDealt);
-        }
-        if (result.player2.damageDealt > 0 && match.player2_address) {
-            await trackDamageDealt(match.player2_address, matchId, result.player2.damageDealt);
+            console.error("Error tracking quest progress for turn:", questError);
         }
 
-        // Track ability usage
-        await trackAbilityUsed(match.player1_address, matchId, currentRound.player1_move);
-        if (match.player2_address) {
-            await trackAbilityUsed(match.player2_address, matchId, currentRound.player2_move);
-        }
-
-        // Track opponent defeated (round win by KO)
-        if (state.isRoundOver && state.roundWinner) {
-            const winnerAddr = state.roundWinner === "player1" ? match.player1_address : match.player2_address!;
-            await trackOpponentDefeated(winnerAddr, matchId);
-        }
-    } catch (questError) {
-        console.error("Error tracking quest progress for turn:", questError);
-    }
-
-    // Broadcast round_resolved event
-    const gameChannel = supabase.channel(`game:${matchId}`);
-    await gameChannel.send({
-        type: "broadcast",
-        event: "round_resolved",
-        payload: {
+        // Broadcast round_resolved event
+        await broadcastToChannel(supabase, `game:${matchId}`, "round_resolved", {
             roundNumber: currentRound.round_number,
             turnNumber: state.currentTurn - 1, // Turn that just resolved
             player1: {
@@ -349,17 +345,11 @@ export async function resolveRound(
             isMatchOver: state.isMatchOver,
             matchWinner: state.matchWinner,
             narrative: result.narrative,
-        },
-    });
-    await supabase.removeChannel(gameChannel);
+        });
 
-    // If match is over, broadcast match_ended
-    if (state.isMatchOver) {
-        const endChannel = supabase.channel(`game:${matchId}`);
-        await endChannel.send({
-            type: "broadcast",
-            event: "match_ended",
-            payload: {
+        // If match is over, broadcast match_ended
+        if (state.isMatchOver) {
+            await broadcastToChannel(supabase, `game:${matchId}`, "match_ended", {
                 winner: state.matchWinner,
                 winnerAddress: state.matchWinner === "player1"
                     ? match.player1_address
@@ -381,103 +371,97 @@ export async function resolveRound(
                         change: ratingResult.loser.change,
                     },
                 } : undefined,
-            },
-        });
-        await supabase.removeChannel(endChannel);
-    } else {
-        // Broadcast round_starting for next turn with synchronized deadline
-        // When a round ends (someone KO'd), add extra time for client death animation sequence:
-        // - Death animation: 1.5s
-        // - Result text display: 1.5s
-        // - 5-second countdown: 5s
-        // - Buffer: 1s
-        // Total: 9 seconds extra when round is over
-        const ROUND_END_ANIMATION_MS = 9000; // Extra time for death animation + text + countdown
-        const ROUND_COUNTDOWN_MS = 3000;
-        const MOVE_TIMER_MS = 20000;
-        const animationTime = state.isRoundOver ? ROUND_END_ANIMATION_MS : 0;
-        const moveDeadlineAt = Date.now() + animationTime + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
+            });
+        } else {
+            // Broadcast round_starting for next turn with synchronized deadline
+            // When a round ends (someone KO'd), add extra time for client death animation sequence:
+            // - Death animation: 1.5s
+            // - Result text display: 1.5s
+            // - 5-second countdown: 5s
+            // - Buffer: 1s
+            // Total: 9 seconds extra when round is over
+            const ROUND_END_ANIMATION_MS = 9000; // Extra time for death animation + text + countdown
+            const ROUND_COUNTDOWN_MS = 3000;
+            const MOVE_TIMER_MS = 20000;
+            const animationTime = state.isRoundOver ? ROUND_END_ANIMATION_MS : 0;
+            const moveDeadlineAt = Date.now() + animationTime + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
 
-        // If round is over (someone KO'd), start new round in engine
-        if (state.isRoundOver) {
-            engine.startNewRound();
-        }
-        const newState = engine.getState();
+            // If round is over (someone KO'd), start new round in engine
+            if (state.isRoundOver) {
+                engine.startNewRound();
+            }
+            const newState = engine.getState();
 
-        const nextChannel = supabase.channel(`game:${matchId}`);
 
-        // Create/update next round with server-side deadline
-        // IMPORTANT: Always use turn-based numbering (currentRound.round_number + 1)
-        // The database round_number represents TURNS (1,2,3,4,5...), NOT game rounds (1,2,3)
-        // Previously this used newState.currentRound when isRoundOver was true, which caused
-        // database row conflicts (e.g., creating turn 2 when we should create turn 6)
-        const nextRoundNumber = currentRound.round_number + 1;
-        const { data: roundData, error: roundUpsertError } = await supabase
-            .from("rounds")
-            .upsert({
-                match_id: matchId,
-                round_number: nextRoundNumber,
-                move_deadline_at: new Date(moveDeadlineAt).toISOString(),
-                // Clear moves when starting new game round (after KO) to avoid reusing old data
-                player1_move: null,
-                player2_move: null,
-                winner_address: null,
-                player1_rejected: false,
-                player2_rejected: false,
-            }, { onConflict: "match_id,round_number" })
-            .select() // Select to get ID
-            .single();
+            // Create/update next round with server-side deadline
+            // IMPORTANT: Always use turn-based numbering (currentRound.round_number + 1)
+            // The database round_number represents TURNS (1,2,3,4,5...), NOT game rounds (1,2,3)
+            // Previously this used newState.currentRound when isRoundOver was true, which caused
+            // database row conflicts (e.g., creating turn 2 when we should create turn 6)
+            const nextRoundNumber = currentRound.round_number + 1;
+            const { data: roundData, error: roundUpsertError } = await supabase
+                .from("rounds")
+                .upsert({
+                    match_id: matchId,
+                    round_number: nextRoundNumber,
+                    move_deadline_at: new Date(moveDeadlineAt).toISOString(),
+                    // Clear moves when starting new game round (after KO) to avoid reusing old data
+                    player1_move: null,
+                    player2_move: null,
+                    winner_address: null,
+                    player1_rejected: false,
+                    player2_rejected: false,
+                }, { onConflict: "match_id,round_number" })
+                .select() // Select to get ID
+                .single();
 
-        if (roundUpsertError) {
-            console.error("Failed to upsert round:", roundUpsertError);
-        } else if (roundData) {
-            console.log(`[CombatResolver] *** Created/updated round ${nextRoundNumber} for match ${matchId}`);
-            console.log(`[CombatResolver] *** Player states - P1 stunned: ${newState.player1.isStunned}, P2 stunned: ${newState.player2.isStunned}`);
+            if (roundUpsertError) {
+                console.error("Failed to upsert round:", roundUpsertError);
+            } else if (roundData) {
+                console.log(`[CombatResolver] *** Created/updated round ${nextRoundNumber} for match ${matchId}`);
+                console.log(`[CombatResolver] *** Player states - P1 stunned: ${newState.player1.isStunned}, P2 stunned: ${newState.player2.isStunned}`);
 
-            // Check for stunned players and pre-fill moves
-            const movesToInsert: any[] = [];
-            const roundUpdates: any = {};
+                // Check for stunned players and pre-fill moves
+                const movesToInsert: any[] = [];
+                const roundUpdates: any = {};
 
-            if (newState.player1.isStunned) {
-                console.log(`[CombatResolver] Pre-filling stunned move for Player 1 (Round ${nextRoundNumber})`);
-                movesToInsert.push({
-                    round_id: roundData.id,
-                    player_address: match.player1_address,
-                    move_type: "block", // Use 'block' as dummy move (DB constraint safe)
-                    tx_id: "stunned-skip",
-                });
-                roundUpdates.player1_move = "block";
+                if (newState.player1.isStunned) {
+                    console.log(`[CombatResolver] Pre-filling stunned move for Player 1 (Round ${nextRoundNumber})`);
+                    movesToInsert.push({
+                        round_id: roundData.id,
+                        player_address: match.player1_address,
+                        move_type: "block", // Use 'block' as dummy move (DB constraint safe)
+                        tx_id: "stunned-skip",
+                    });
+                    roundUpdates.player1_move = "block";
+                }
+
+                if (newState.player2.isStunned) {
+                    console.log(`[CombatResolver] Pre-filling stunned move for Player 2 (Round ${nextRoundNumber})`);
+                    movesToInsert.push({
+                        round_id: roundData.id,
+                        // Handle nullable player2 address (shouldn't happen in-progress)
+                        player_address: match.player2_address || "",
+                        move_type: "block", // Use 'block' as dummy move (DB constraint safe)
+                        tx_id: "stunned-skip",
+                    });
+                    roundUpdates.player2_move = "block";
+                }
+
+                if (movesToInsert.length > 0) {
+                    console.log(`[CombatResolver] *** Inserting ${movesToInsert.length} stunned moves`);
+                    await supabase.from("moves").insert(movesToInsert);
+                    await supabase.from("rounds").update(roundUpdates).eq("id", roundData.id);
+
+                    // Note: Bot move submission will be handled by a scheduled task after the countdown
+                    // This ensures proper timing - the bot "thinks" after seeing "3 2 1 FIGHT"
+                    console.log(`[CombatResolver] *** Stunned moves pre-filled. Bot will auto-submit after round countdown.`);
+                } else {
+                    console.log(`[CombatResolver] *** No stunned players, round ${nextRoundNumber} has no pre-filled moves`);
+                }
             }
 
-            if (newState.player2.isStunned) {
-                console.log(`[CombatResolver] Pre-filling stunned move for Player 2 (Round ${nextRoundNumber})`);
-                movesToInsert.push({
-                    round_id: roundData.id,
-                    // Handle nullable player2 address (shouldn't happen in-progress)
-                    player_address: match.player2_address || "",
-                    move_type: "block", // Use 'block' as dummy move (DB constraint safe)
-                    tx_id: "stunned-skip",
-                });
-                roundUpdates.player2_move = "block";
-            }
-
-            if (movesToInsert.length > 0) {
-                console.log(`[CombatResolver] *** Inserting ${movesToInsert.length} stunned moves`);
-                await supabase.from("moves").insert(movesToInsert);
-                await supabase.from("rounds").update(roundUpdates).eq("id", roundData.id);
-                
-                // Note: Bot move submission will be handled by a scheduled task after the countdown
-                // This ensures proper timing - the bot "thinks" after seeing "3 2 1 FIGHT"
-                console.log(`[CombatResolver] *** Stunned moves pre-filled. Bot will auto-submit after round countdown.`);
-            } else {
-                console.log(`[CombatResolver] *** No stunned players, round ${nextRoundNumber} has no pre-filled moves`);
-            }
-        }
-
-        await nextChannel.send({
-            type: "broadcast",
-            event: "round_starting",
-            payload: {
+            await broadcastToChannel(supabase, `game:${matchId}`, "round_starting", {
                 roundNumber: newState.currentRound,
                 turnNumber: newState.currentTurn,
                 moveDeadlineAt,
@@ -490,30 +474,27 @@ export async function resolveRound(
                 player2Energy: newState.player2.energy,
                 player1GuardMeter: newState.player1.guardMeter,
                 player2GuardMeter: newState.player2.guardMeter,
-                // Stun state - if true, player cannot act this turn
                 player1IsStunned: newState.player1.isStunned,
                 player2IsStunned: newState.player2.isStunned,
-            },
-        });
-        await supabase.removeChannel(nextChannel);
-    }
+            });
+        }
 
-    return {
-        success: true,
-        roundNumber: currentRound.round_number,
-        player1Move: currentRound.player1_move,
-        player2Move: currentRound.player2_move,
-        player1DamageDealt: result.player1.damageDealt,
-        player2DamageDealt: result.player2.damageDealt,
-        player1HealthAfter: state.player1.hp,
-        player2HealthAfter: state.player2.hp,
-        player1EnergyAfter: state.player1.energy,
-        player2EnergyAfter: state.player2.energy,
-        roundWinner: state.roundWinner,
-        isMatchOver: state.isMatchOver,
-        matchWinner: state.matchWinner,
-        narrative: result.narrative,
-    };
+        return {
+            success: true,
+            roundNumber: currentRound.round_number,
+            player1Move: currentRound.player1_move,
+            player2Move: currentRound.player2_move,
+            player1DamageDealt: result.player1.damageDealt,
+            player2DamageDealt: result.player2.damageDealt,
+            player1HealthAfter: state.player1.hp,
+            player2HealthAfter: state.player2.hp,
+            player1EnergyAfter: state.player1.energy,
+            player2EnergyAfter: state.player2.energy,
+            roundWinner: state.roundWinner,
+            isMatchOver: state.isMatchOver,
+            matchWinner: state.matchWinner,
+            narrative: result.narrative,
+        };
     } catch (error) {
         console.error(`[CombatResolver] Fatal error resolving round:`, error);
         // Log more details if it's a fetch/network error

@@ -6,7 +6,7 @@
 import Phaser from "phaser";
 import { EventBus } from "@/game/EventBus";
 import { GAME_DIMENSIONS, CHARACTER_POSITIONS, UI_POSITIONS } from "@/game/config";
-import { CHAR_SPRITE_CONFIG, TANK_CHARACTERS, getCharacterScale, getAnimationScale, getCharacterYOffset, getSoundDelay, getSFXKey } from "@/game/config/sprite-config";
+import { getCharacterScale, getAnimationScale, getCharacterYOffset, getSoundDelay, getSFXKey } from "@/game/config/sprite-config";
 import { CombatEngine, BASE_MOVE_STATS } from "@/game/combat";
 import { SmartBotOpponent } from "@/lib/game/smart-bot-opponent";
 import { getAIThinkTime } from "@/lib/game/ai-difficulty";
