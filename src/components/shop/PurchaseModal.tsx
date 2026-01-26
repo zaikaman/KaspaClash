@@ -24,7 +24,7 @@ interface PurchaseModalProps {
     onClose: () => void;
     item: CosmeticItem | null;
     currentBalance: number;
-    onConfirm: (onProgress?: (state: string) => void) => Promise<{ commitTxId?: string; nftTxId?: string }>;
+    onConfirm: (onProgress?: (state: string) => void) => Promise<{ nftTxId?: string }>;
 }
 
 type PurchaseState = "confirm" | "processing" | "success" | "error";
@@ -53,7 +53,7 @@ export function PurchaseModal({
     const [state, setState] = React.useState<PurchaseState>("confirm");
     const [processingStep, setProcessingStep] = React.useState<string>("Processing purchase...");
     const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
-    const [txHashes, setTxHashes] = React.useState<{ commit?: string; reveal?: string }>({});
+    const [nftTxId, setNftTxId] = React.useState<string | undefined>();
 
     // Reset state when modal opens
     React.useEffect(() => {
@@ -61,7 +61,7 @@ export function PurchaseModal({
             setState("confirm");
             setProcessingStep("Processing purchase...");
             setErrorMessage(null);
-            setTxHashes({});
+            setNftTxId(undefined);
         }
     }, [isOpen]);
 
@@ -77,10 +77,7 @@ export function PurchaseModal({
                 setProcessingStep(step);
             });
             
-            setTxHashes({
-                commit: result.commitTxId,
-                reveal: result.nftTxId
-            });
+            setNftTxId(result.nftTxId);
             
             setState("success");
         } catch (err) {
@@ -247,38 +244,25 @@ export function PurchaseModal({
                                 PURCHASE SUCCESSFUL!
                             </h3>
                             <p className="text-muted-foreground mb-6">
-                                {item.name} has been added to your inventory.
+                                {item.name} has been added to your inventory and NFT minted to your wallet.
                             </p>
 
-                            {/* Transaction Links */}
-                            <div className="space-y-2 mb-6 px-4">
-                                {txHashes.commit && (
+                            {/* Transaction Link */}
+                            {nftTxId && (
+                                <div className="space-y-2 mb-6 px-4">
                                     <div className="flex justify-between items-center text-xs p-2 rounded bg-white/5">
-                                        <span className="text-muted-foreground uppercase tracking-wider">Commit TX</span>
+                                        <span className="text-muted-foreground uppercase tracking-wider">NFT TX</span>
                                         <a 
-                                            href={getExplorerLink(txHashes.commit)} 
+                                            href={getExplorerLink(nftTxId)} 
                                             target="_blank" 
                                             rel="noopener noreferrer"
                                             className="text-cyber-gold hover:underline flex items-center gap-1"
                                         >
-                                            View {txHashes.commit.substring(0, 8)}...
+                                            View {nftTxId.substring(0, 8)}...
                                         </a>
                                     </div>
-                                )}
-                                {txHashes.reveal && (
-                                    <div className="flex justify-between items-center text-xs p-2 rounded bg-white/5">
-                                        <span className="text-muted-foreground uppercase tracking-wider">Reveal (NFT) TX</span>
-                                        <a 
-                                            href={getExplorerLink(txHashes.reveal)} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
-                                            className="text-cyber-gold hover:underline flex items-center gap-1"
-                                        >
-                                            View {txHashes.reveal.substring(0, 8)}...
-                                        </a>
-                                    </div>
-                                )}
-                            </div>
+                                </div>
+                            )}
 
                             <Button 
                                 className="w-full bg-white/10 hover:bg-white/20 text-white" 

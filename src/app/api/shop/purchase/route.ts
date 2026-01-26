@@ -11,15 +11,15 @@ import { processPurchase } from '@/lib/shop/purchase-handler';
 interface PurchaseRequest {
     playerId: string;
     cosmeticId: string;
-    txId?: string; // Optional Kaspa transaction ID
+    nftTxId?: string; // Optional NFT transaction ID (client-minted)
+    nftMetadata?: any; // Optional NFT metadata (client-minted)
 }
 
 interface PurchaseResponse {
     success: boolean;
     purchaseId?: string;
     newBalance?: number;
-    txId?: string; // Payment transaction ID (1 KAS to treasury)
-    nftTxId?: string; // NFT mint transaction ID
+    nftTxId?: string; // NFT transaction ID (client-minted)
     error?: string;
 }
 
@@ -44,15 +44,14 @@ function isValidUUID(id: string): boolean {
 
 /**
  * POST /api/shop/purchase
- * Request body: { playerId: string, cosmeticId: string }
+ * Request body: { playerId: string, cosmeticId: string, nftTxId?: string, nftMetadata?: any }
  */
 export async function POST(
     request: NextRequest
 ): Promise<NextResponse<PurchaseResponse | ApiErrorResponse>> {
     try {
         const body: PurchaseRequest = await request.json();
-        const { playerId, cosmeticId, txId } = body;
-
+        const { playerId, cosmeticId, nftTxId, nftMetadata } = body;
         // Validate inputs
         if (!playerId) {
             throw Errors.badRequest('playerId is required');
@@ -71,7 +70,7 @@ export async function POST(
         }
 
         // Process the purchase
-        const result = await processPurchase(playerId, cosmeticId, txId);
+        const result = await processPurchase(playerId, cosmeticId, nftTxId, nftMetadata);
 
         if (!result.success) {
             return NextResponse.json(
@@ -91,7 +90,6 @@ export async function POST(
             success: true,
             purchaseId: result.purchaseId,
             newBalance: result.newBalance,
-            txId,
             nftTxId: result.nftTxId,
         });
     } catch (error) {

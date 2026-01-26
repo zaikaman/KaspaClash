@@ -1,12 +1,11 @@
 /**
  * Purchase Handler
  * Transaction processing with validation and rollback support
- * Now includes NFT minting to player wallets
+ * Records client-minted NFTs without server-side minting
  */
 
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { canAffordPurchase, createTransaction, CURRENCY_SOURCES } from '@/lib/progression/currency-utils';
-import { mintCosmeticNFT } from '@/lib/kaspa/nft-minter-server';
 import type { NetworkType } from '@/types/constants';
 import type { CosmeticItem, ShopPurchase, CurrencyTransaction } from '@/types/cosmetic';
 
@@ -17,8 +16,7 @@ export interface PurchaseResult {
     success: boolean;
     purchaseId?: string;
     newBalance?: number;
-    nftTxId?: string;       // Reveal transaction ID (final)
-    commitTxId?: string;    // Commit transaction ID
+    nftTxId?: string;       // NFT transaction ID (client-minted)
     error?: string;
     errorCode?: 'INSUFFICIENT_FUNDS' | 'ALREADY_OWNED' | 'ITEM_NOT_FOUND' | 'SYSTEM_ERROR';
 }
@@ -77,13 +75,15 @@ export async function validatePurchase(
 }
 
 /**
+/**
  * Process a cosmetic purchase
- * Now includes NFT minting to player's wallet
+ * Records client-minted NFT in database (no server-side minting)
  */
 export async function processPurchase(
     playerId: string,
     cosmeticId: string,
-    txId?: string
+    nftTxId?: string,
+    nftMetadata?: any
 ): Promise<PurchaseResult> {
     const supabase = createSupabaseAdminClient() as any;
 
@@ -199,48 +199,41 @@ export async function processPurchase(
                     purchase_id: purchase?.id,
                 },
             });
-
         if (txError) {
             console.error('Transaction log error:', txError);
             // Non-critical, continue
         }
 
-        // 5. Mint NFT to player's wallet
-        console.log(`[PurchaseHandler] Minting NFT for ${item.name} to ${playerId}`);
-        const nftResult = await mintCosmeticNFT(playerId, item, network);
-
-        if (nftResult.success && nftResult.txId) {
-            console.log(`[PurchaseHandler] NFT minted successfully: ${nftResult.txId}`);
+        // 5. Record NFT if provided (client-minted)
+        if (nftTxId && nftMetadata) {
+            console.log(`[PurchaseHandler] Recording client-minted NFT: ${nftTxId}`);
             
-            // 6. Record NFT mint in database
             const { error: nftRecordError } = await supabase
                 .from('cosmetic_nfts')
                 .insert({
                     player_id: playerId,
                     cosmetic_id: cosmeticId,
-                    mint_tx_id: nftResult.txId,
-                    commit_tx_id: nftResult.commitTxId, // Add this if column exists, else it won't hurt
+                    mint_tx_id: nftTxId,
                     network: network,
-                    metadata: nftResult.metadata,
+                    metadata: nftMetadata,
                     minted_at: new Date().toISOString(),
                 });
 
             if (nftRecordError) {
                 console.error('[PurchaseHandler] Failed to record NFT in database:', nftRecordError);
-                // Non-critical, NFT was still minted on-chain
+                // Non-critical, NFT was still minted on-chain by client
+            } else {
+                console.log('[PurchaseHandler] ✓ NFT recorded successfully');
             }
         } else {
-            console.error('[PurchaseHandler] NFT minting failed:', nftResult.error);
-            // Non-critical failure - player still gets the cosmetic in their inventory
-            // The NFT is a bonus feature
+            console.log('[PurchaseHandler] No NFT data provided (purchase without NFT)');
         }
 
         return {
             success: true,
             purchaseId: purchase?.id,
             newBalance,
-            nftTxId: nftResult.txId,
-            commitTxId: nftResult.commitTxId,
+            nftTxId: nftTxId,
         };
     } catch (error) {
         console.error('Purchase processing error:', error);

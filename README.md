@@ -95,7 +95,7 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 - **Season System:** Seasonal battle pass content with unique rewards and progression resets
 
 ### 🛍️ Customization & Shop
-- **KRC-721 NFT Cosmetics:** Every cosmetic item purchased is minted as a real **KRC-721 NFT** on the Kaspa blockchain, ensuring true ownership and interoperability.
+- **Client-Side NFT Cosmetics:** Every cosmetic item purchased triggers a **1 KAS transaction to the treasury vault** with NFT metadata embedded in the payload, inscribing your cosmetic on-chain.
 - **Cosmetic Shop:** Browse and purchase skins, emotes, victory poses, and profile badges
 - **Weekly Featured Rotation:** Special limited-time items with exclusive designs
 - **Inventory Management:** Track owned cosmetics and transaction history
@@ -155,10 +155,10 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 - **[Zustand 5.0](https://zustand-demo.pmnd.rs/)** - Lightweight state management
 
 ### Blockchain
-- **[Kaspa WASM 0.13+](https://github.com/kaspanet/rusty-kaspa)** - Native SDK used for KRC-721 inscription and secure transaction signing
+- **[Kaspa WASM 0.13+](https://github.com/kaspanet/rusty-kaspa)** - Native SDK used for transaction building and signing
 - **[kaspalib 0.0.3](https://www.npmjs.com/package/kaspalib)** - Kaspa address utilities
 - **[Kasware Wallet](https://kasware.xyz/)** - Browser wallet for player transactions
-- **KRC-721 Integration:** Custom server-side minter for on-chain digital collectibles using Commit/Reveal scripts.
+- **Client-Side NFT Minting:** Users mint NFTs directly from their wallets using transaction payloads with embedded metadata.
 
 ### Backend
 - **[Supabase](https://supabase.com/)** - PostgreSQL database with Row Level Security
@@ -980,8 +980,9 @@ const vaultAddress = isTestnet
 ### Blockchain Data Storage
 
 While game state is managed in Supabase for performance, key assets and events are recorded on-chain:
-- **KRC-721 NFT Minting:** Cosmetic items are minted using the official KRC-721 Inscription standard (Commit/Reveal) under the `KCLASH` ticker.
-- **On-Chain Metadata:** Each NFT contains a sub-protocol envelope (`KCLASH-NFT v1.0`) with immutable links to asset thumbnails and properties.
+- **Client-Side NFT Minting:** When purchasing cosmetics, users send 1 KAS to the treasury vault with NFT metadata embedded in the transaction payload.
+- **On-Chain Metadata:** Each NFT transaction contains a JSON payload with the `KCLASH-NFT v1.0` protocol, including cosmetic details, rarity, and asset links.
+- **Payment & Inscription:** The 1 KAS payment serves dual purpose - funding the treasury while inscribing the NFT on-chain with immutable metadata.
 - **Match creation transactions**
 - **Final match results**
 - **Betting pool resolutions**

@@ -26,7 +26,7 @@ import {
     Clock01Icon,
 } from "@hugeicons/core-free-icons";
 import type { CosmeticItem, CosmeticCategory } from "@/types/cosmetic";
-import { processPurchaseWithKaspa } from "@/lib/shop/purchase-service";
+import { processPurchaseWithNFT } from "@/lib/shop/purchase-service";
 
 export default function ShopPage() {
     const isConnected = useWalletStore(selectIsConnected);
@@ -161,18 +161,18 @@ export default function ShopPage() {
         }
     };
 
-    // Handle purchase confirmation with Kaspa transaction
+    // Handle purchase confirmation with client-side NFT minting
     const handlePurchaseConfirm = async (onProgress?: (step: string) => void) => {
-        if (!purchaseItem || !walletAddress) return { nftTxId: undefined, commitTxId: undefined };
+        if (!purchaseItem || !walletAddress) return { nftTxId: undefined };
 
-        // Use the Kaspa transaction purchase flow
-        // This will: 1) Send 1 KAS to user's own address, 2) Wait for confirmation, 3) Complete purchase
-        const result = await processPurchaseWithKaspa({
+        // Use the new client-side NFT minting flow
+        // This will: 1) Mint NFT to user's wallet, 2) Complete purchase (deduct shards)
+        const result = await processPurchaseWithNFT({
             playerId: walletAddress,
             cosmeticId: purchaseItem.id,
             itemName: purchaseItem.name,
             price: purchaseItem.price,
-        }, onProgress);
+        }, purchaseItem, onProgress);
 
         if (!result.success) {
             throw new Error(result.error || "Purchase failed");
@@ -189,7 +189,6 @@ export default function ShopPage() {
 
         return {
             nftTxId: result.nftTxId,
-            commitTxId: result.commitTxId
         };
     };
 
