@@ -7,11 +7,23 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import RoomCreate from "@/components/matchmaking/RoomCreate";
 import RoomJoin from "@/components/matchmaking/RoomJoin";
+import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 
 type ViewState = "main" | "create" | "join";
 
 export default function MatchmakingPage() {
     const [view, setView] = useState<ViewState>("main");
+    const [isTransitioning, setIsTransitioning] = useState(false);
+    const router = useRouter();
+
+    const handleQuickMatch = () => {
+        setIsTransitioning(true);
+        // Play sound if available?
+        setTimeout(() => {
+            router.push("/queue");
+        }, 2000); // 2s transition time for wormhole effect
+    };
 
     // If showing create or join view, render in centered container
     if (view !== "main") {
@@ -41,6 +53,46 @@ export default function MatchmakingPage() {
 
     return (
         <GameLayout>
+            {/* Wormhole Transition Overlay - Portaled to cover global UI */}
+            {isTransitioning && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black animate-[fadeIn_0.5s_ease-out_forwards]">
+                    {/* The Tunnel/Wormhole */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        {/* Stars/Particles streaming past */}
+                        <div className="absolute inset-[-100vw] bg-[url('/assets/grid.svg')] bg-center opacity-40 animate-[warpSpeed_2s_ease-in_forwards]"></div>
+
+                        {/* Central Core Darkness */}
+                        <div className="w-[10px] h-[10px] bg-black rounded-full shadow-[0_0_100px_50px_rgba(0,0,0,1)] z-20 animate-[expandBlackhole_2s_cubic-bezier(0.7,0,0.84,0)_forwards] relative">
+                            {/* Rim Lighting */}
+                            <div className="absolute inset-[-2px] rounded-full border-[0.5px] border-white/50 animate-ping"></div>
+                        </div>
+                    </div>
+
+                    {/* Text fades out quickly as we accelerate */}
+                    <div className="relative z-30 text-center animate-[fadeOut_0.5s_ease-out_forwards_0.5s]">
+                        <h2 className="text-4xl font-bold font-orbitron text-white glitch-text tracking-[1em] scale-150">
+                            WARPING
+                        </h2>
+                    </div>
+
+                    <style jsx>{`
+                        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+                        @keyframes warpSpeed {
+                            0% { transform: scale(1) rotate(0deg); opacity: 0.4; }
+                            100% { transform: scale(20) rotate(45deg); opacity: 0; }
+                        }
+                        @keyframes expandBlackhole {
+                            0% { transform: scale(1); }
+                            40% { transform: scale(10); }
+                            100% { transform: scale(300); background-color: black; }
+                        }
+                        @keyframes fadeOut {
+                            to { opacity: 0; transform: scale(2); }
+                        }
+                    `}</style>
+                </div>,
+                document.body
+            )}
             <div className="relative w-full min-h-screen pt-6 sm:pt-10 pb-20">
                 {/* Background Grid Lines */}
                 <div className="absolute top-0 bottom-0 left-[70.5px] w-px bg-cyber-orange/10 hidden md:block pointer-events-none"></div>
@@ -73,11 +125,20 @@ export default function MatchmakingPage() {
                                     Find a worthy opponent instantly. Ranked matches that impact your global standing.
                                 </p>
 
-                                <Link href="/queue" className="w-full">
-                                    <Button className="w-full bg-gradient-cyber text-white border-0 font-orbitron hover:opacity-90">
-                                        FIND MATCH
-                                    </Button>
-                                </Link>
+                                <Button
+                                    className="w-full bg-gradient-cyber text-white border-0 font-orbitron hover:opacity-90 relative overflow-hidden"
+                                    onClick={() => handleQuickMatch()}
+                                    disabled={isTransitioning}
+                                >
+                                    {isTransitioning ? (
+                                        <span className="animate-pulse">INITIALIZING...</span>
+                                    ) : (
+                                        "FIND MATCH"
+                                    )}
+                                    {isTransitioning && (
+                                        <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                                    )}
+                                </Button>
                             </div>
                         </div>
 

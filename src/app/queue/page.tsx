@@ -1,13 +1,11 @@
 import React from "react";
-import GameLayout from "@/components/layout/GameLayout";
+// GameLayout removed for immersive fullscreen experience
 import MatchmakingQueue from "@/components/matchmaking/MatchmakingQueue";
 
 export default function QueuePage() {
     return (
-        <GameLayout>
-            <div className="min-h-screen flex items-center justify-center pt-10 px-4 sm:px-6">
-                <MatchmakingQueue />
-            </div>
-        </GameLayout>
+        <main className="w-full h-screen bg-black overflow-hidden relative">
+            <MatchmakingQueue />
+        </main>
     );
 }
