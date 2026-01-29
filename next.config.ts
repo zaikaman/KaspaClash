@@ -5,11 +5,6 @@ const isDev = process.env.NODE_ENV === "development";
 const nextConfig: NextConfig = {
   // Mark kaspa-wasm as external to avoid bundling issues with WASM
   serverExternalPackages: ["kaspa-wasm", "isomorphic-ws"],
-  
-  // Experimental features for better WASM support
-  experimental: {
-    serverComponentsExternalPackages: ["kaspa-wasm"],
-  },
 
   // Development optimizations
   ...(isDev && {

@@ -45,6 +45,8 @@ function transformMatchData(
         player2_address: string | null;
         player1_character_id: string | null;
         player2_character_id: string | null;
+        player1_ban_id: string | null;
+        player2_ban_id: string | null;
         format: string;
         status: string;
         selection_deadline_at: string | null;
@@ -68,6 +70,8 @@ function transformMatchData(
         player2Address: dbMatch.player2_address,
         player1CharacterId: dbMatch.player1_character_id,
         player2CharacterId: dbMatch.player2_character_id,
+        player1BanId: dbMatch.player1_ban_id,
+        player2BanId: dbMatch.player2_ban_id,
         format: dbMatch.format as MatchFormat,
         status: dbMatch.status as MatchStatus,
         selectionDeadlineAt: dbMatch.selection_deadline_at,
@@ -120,7 +124,11 @@ export default async function SpectateMatchPage({ params }: SpectatePageProps) {
     }
 
     // Transform to camelCase
-    const match = transformMatchData(dbMatch);
+    // Cast dbMatch to include ban columns since they exist in the DB but may not be in generated types
+    const match = transformMatchData(dbMatch as typeof dbMatch & { 
+        player1_ban_id: string | null; 
+        player2_ban_id: string | null;
+    });
 
     return (
         <Suspense fallback={<SpectateLoading />}>
