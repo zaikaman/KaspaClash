@@ -183,7 +183,7 @@ export function ConnectWalletButton({
                 No Kaspa wallets detected
               </p>
               <p className="text-sm text-muted-foreground">
-                Please install a Kaspa wallet extension like{" "}
+                Please install the{" "}
                 <a
                   href="https://kasware.xyz"
                   target="_blank"
@@ -192,24 +192,7 @@ export function ConnectWalletButton({
                 >
                   Kasware
                 </a>
-                ,{" "}
-                <a
-                  href="https://kaspium.io"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-kaspa hover:underline"
-                >
-                  Kaspium
-                </a>
-                , or{" "}
-                <a
-                  href="https://kastle.io"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-kaspa hover:underline"
-                >
-                  Kastle
-                </a>
+                {" "}wallet extension to continue.
               </p>
             </div>
           ) : (

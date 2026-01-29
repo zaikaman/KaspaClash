@@ -137,30 +137,26 @@ export async function resolveRound(
     matchId: string,
     roundId: string
 ): Promise<RoundResolutionResult> {
-    console.log(`[CombatResolver] ======= START RESOLVE ROUND =======`);
-    console.log(`[CombatResolver] Match ID: ${matchId}, Round ID: ${roundId}`);
+    const resolveStartTime = Date.now();
+    console.log(`[CombatResolver] ⚡ START RESOLVE ROUND`);
 
     try {
         const supabase = await createSupabaseServerClient();
 
         // Fetch the current round with moves
+        const fetchStartTime = Date.now();
         const { data: currentRound, error: roundError } = await supabase
             .from("rounds")
             .select("*")
             .eq("id", roundId)
             .single();
+        
+        console.log(`[CombatResolver] ⚡ Round fetch: ${Date.now() - fetchStartTime}ms`);
 
         if (roundError || !currentRound) {
-            console.error(`[CombatResolver] Round not found:`, {
-                message: roundError?.message || "Unknown error",
-                details: roundError?.details || "",
-                hint: roundError?.hint || "",
-                code: roundError?.code || "",
-            });
+            console.error(`[CombatResolver] Round not found:`, roundError?.message);
             return createErrorResult("Round not found");
         }
-
-        console.log(`[CombatResolver] Round ${currentRound.round_number} - P1 move: ${currentRound.player1_move}, P2 move: ${currentRound.player2_move}`);
 
         // Validate moves exist
         if (!isValidMove(currentRound.player1_move) || !isValidMove(currentRound.player2_move)) {
@@ -169,11 +165,14 @@ export async function resolveRound(
         }
 
         // Fetch match for character info
+        const matchFetchStart = Date.now();
         const { data: match, error: matchError } = await supabase
             .from("matches")
             .select("*")
             .eq("id", matchId)
             .single();
+        
+        console.log(`[CombatResolver] ⚡ Match fetch: ${Date.now() - matchFetchStart}ms`);
 
         if (matchError || !match) {
             return createErrorResult("Match not found");
@@ -288,31 +287,39 @@ export async function resolveRound(
             }
         }
 
-        // Track damage dealt for quest progress (for both players every turn)
-        try {
-            if (result.player1.damageDealt > 0) {
-                await trackDamageDealt(match.player1_address, matchId, result.player1.damageDealt);
-            }
-            if (result.player2.damageDealt > 0 && match.player2_address) {
-                await trackDamageDealt(match.player2_address, matchId, result.player2.damageDealt);
-            }
+        // Track quest progress - run in parallel to avoid blocking
+        // Fire-and-forget to not slow down the main flow
+        const questTrackingPromise = (async () => {
+            try {
+                const promises: Promise<any>[] = [];
+                
+                if (result.player1.damageDealt > 0) {
+                    promises.push(trackDamageDealt(match.player1_address, matchId, result.player1.damageDealt));
+                }
+                if (result.player2.damageDealt > 0 && match.player2_address) {
+                    promises.push(trackDamageDealt(match.player2_address, matchId, result.player2.damageDealt));
+                }
 
-            // Track ability usage
-            await trackAbilityUsed(match.player1_address, matchId, currentRound.player1_move);
-            if (match.player2_address) {
-                await trackAbilityUsed(match.player2_address, matchId, currentRound.player2_move);
-            }
+                if (currentRound.player1_move) {
+                    promises.push(trackAbilityUsed(match.player1_address, matchId, currentRound.player1_move));
+                }
+                if (match.player2_address && currentRound.player2_move) {
+                    promises.push(trackAbilityUsed(match.player2_address, matchId, currentRound.player2_move));
+                }
 
-            // Track opponent defeated (round win by KO)
-            if (state.isRoundOver && state.roundWinner) {
-                const winnerAddr = state.roundWinner === "player1" ? match.player1_address : match.player2_address!;
-                await trackOpponentDefeated(winnerAddr, matchId);
+                if (state.isRoundOver && state.roundWinner) {
+                    const winnerAddr = state.roundWinner === "player1" ? match.player1_address : match.player2_address!;
+                    promises.push(trackOpponentDefeated(winnerAddr, matchId));
+                }
+                
+                await Promise.all(promises);
+            } catch (questError) {
+                console.error("Error tracking quest progress:", questError);
             }
-        } catch (questError) {
-            console.error("Error tracking quest progress for turn:", questError);
-        }
+        })();
 
-        // Broadcast round_resolved event
+        // Broadcast round_resolved event IMMEDIATELY - don't wait for quest tracking
+        const broadcastStartTime = Date.now();
         await broadcastToChannel(supabase, `game:${matchId}`, "round_resolved", {
             roundNumber: currentRound.round_number,
             turnNumber: state.currentTurn - 1, // Turn that just resolved
@@ -479,6 +486,9 @@ export async function resolveRound(
             });
         }
 
+        console.log(`[CombatResolver] ⚡ Broadcast done in ${Date.now() - broadcastStartTime}ms`);
+        console.log(`[CombatResolver] ⚡ TOTAL resolve time: ${Date.now() - resolveStartTime}ms`);
+
         return {
             success: true,
             roundNumber: currentRound.round_number,
@@ -497,14 +507,6 @@ export async function resolveRound(
         };
     } catch (error) {
         console.error(`[CombatResolver] Fatal error resolving round:`, error);
-        // Log more details if it's a fetch/network error
-        if (error instanceof Error) {
-            console.error(`[CombatResolver] Error details:`, {
-                name: error.name,
-                message: error.message,
-                stack: error.stack,
-            });
-        }
         return createErrorResult(error instanceof Error ? error.message : "Unknown error");
     }
 }

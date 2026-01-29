@@ -19,9 +19,6 @@ const DISCOVERY_TIMEOUT = 2000;
  */
 const KNOWN_WALLETS: Record<string, { name: string; icon?: string }> = {
   kasware: { name: "Kasware", icon: "/assets/wallets/kasware.png" },
-  kaspium: { name: "Kaspium", icon: "/assets/wallets/kaspium.png" },
-  kastle: { name: "Kastle", icon: "/assets/wallets/kastle.png" },
-  onekey: { name: "OneKey", icon: "/assets/wallets/onekey.png" },
 };
 
 /**
@@ -35,7 +32,6 @@ function checkDirectInjectedProviders(): KaspaProvider | null {
   const win = window as unknown as {
     kasware?: KaspaProvider;
     kaspa?: KaspaProvider;
-    kaspium?: KaspaProvider;
   };
 
   // Check for Kasware (most common)
@@ -48,12 +44,6 @@ function checkDirectInjectedProviders(): KaspaProvider | null {
   if (win.kaspa && typeof win.kaspa.connect === "function") {
     console.log("Found Kaspa provider via window.kaspa");
     return win.kaspa;
-  }
-
-  // Check for Kaspium
-  if (win.kaspium && typeof win.kaspium.connect === "function") {
-    console.log("Found Kaspium via window.kaspium");
-    return win.kaspium;
   }
 
   return null;
@@ -117,7 +107,6 @@ export async function discoverAllWallets(): Promise<WalletDiscoveryResult[]> {
   const win = window as unknown as {
     kasware?: KaspaProvider;
     kaspa?: KaspaProvider;
-    kaspium?: KaspaProvider;
   };
 
   if (win.kasware && typeof win.kasware.connect === "function") {
@@ -127,15 +116,6 @@ export async function discoverAllWallets(): Promise<WalletDiscoveryResult[]> {
       icon: KNOWN_WALLETS.kasware.icon,
     });
     seenProviders.add(win.kasware);
-  }
-
-  if (win.kaspium && typeof win.kaspium.connect === "function" && !seenProviders.has(win.kaspium)) {
-    wallets.push({
-      provider: win.kaspium,
-      name: "Kaspium",
-      icon: KNOWN_WALLETS.kaspium.icon,
-    });
-    seenProviders.add(win.kaspium);
   }
 
   // Also try KIP-12 discovery for any additional wallets

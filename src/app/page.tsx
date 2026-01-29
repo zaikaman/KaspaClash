@@ -184,7 +184,7 @@ export default function Home() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
                   <motion.div variants={fadeInUp}>
                     <h3 className="text-4xl lg:text-[47px] font-semibold bg-gradient-cyber bg-clip-text text-transparent mb-2 font-orbitron">
-                      3+
+                      20
                     </h3>
                     <p className="text-white text-lg">Unique Fighters</p>
                   </motion.div>
@@ -391,8 +391,8 @@ export default function Home() {
                   ),
                 },
                 {
-                  title: "Ranked Play",
-                  description: "Compete for KAS and glory. Climb the leaderboard and earn exclusive rewards.",
+                  title: "Survival Mode",
+                  description: "Test your endurance against 20 relentless AI opponents. Clear waves, earn shards, and survive the gauntlet.",
                   icon: (
                     <svg width="40" height="39" viewBox="0 0 40 39" fill="none">
                       <path d="M33.1583 13.225L39.2917 19.3583L36.6083 22.0417L30.475 15.9083C29.8042 16.2917 29.0854 16.6111 28.3188 16.8667C27.5521 17.1222 26.7375 17.25 25.875 17.25C23.4792 17.25 21.4427 16.4115 19.7656 14.7344C18.0885 13.0573 17.25 11.0208 17.25 8.625C17.25 6.22917 18.0885 4.19271 19.7656 2.51562C21.4427 0.838542 23.4792 0 25.875 0C28.2708 0 30.3073 0.838542 31.9844 2.51562C33.6615 4.19271 34.5 6.22917 34.5 8.625C34.5 9.4875 34.3722 10.3021 34.1167 11.0688C33.8611 11.8354 33.5417 12.5542 33.1583 13.225ZM25.875 13.4167C27.2167 13.4167 28.3507 12.9535 29.2771 12.0271C30.2035 11.1007 30.6667 9.96667 30.6667 8.625C30.6667 7.28333 30.2035 6.14931 29.2771 5.22292C28.3507 4.29653 27.2167 3.83333 25.875 3.83333C24.5333 3.83333 23.3993 4.29653 22.4729 5.22292C21.5465 6.14931 21.0833 7.28333 21.0833 8.625C21.0833 9.96667 21.5465 11.1007 22.4729 12.0271C23.3993 12.9535 24.5333 13.4167 25.875 13.4167ZM3.83333 38.3333C2.77917 38.3333 1.87674 37.958 1.12604 37.2073C0.375347 36.4566 0 35.5542 0 34.5V7.66667C0 6.6125 0.375347 5.71007 1.12604 4.95937C1.87674 4.20868 2.77917 3.83333 3.83333 3.83333H14.375C14.0236 4.63194 13.784 5.45451 13.6563 6.30104C13.5285 7.14757 13.4646 7.98611 13.4646 8.81667C13.4646 12.2986 14.6944 15.2056 17.1542 17.5375C19.6139 19.8694 22.5368 21.0354 25.9229 21.0354C26.5299 21.0354 27.1368 20.9955 27.7438 20.9156C28.3507 20.8358 28.9736 20.7 29.6125 20.5083L34.5 25.3958V34.5C34.5 35.5542 34.1247 36.4566 33.374 37.2073C32.6233 37.958 31.7208 38.3333 30.6667 38.3333H3.83333Z" fill="url(#paint1_linear)" />
@@ -523,7 +523,7 @@ export default function Home() {
                 {
                   number: "02.",
                   question: "Do I need a wallet to play?",
-                  answer: "For Practice Mode, no wallet is required. For Ranked and Quick Matches, you need a Kaspa-compatible wallet (like Kaspium or Kasware) to sign transactions."
+                  answer: "For Practice Mode, no wallet is required. For Survival and Quick Matches, you need a Kaspa-compatible wallet (like Kasware) to sign transactions."
                 },
                 {
                   number: "03.",

@@ -9,10 +9,10 @@
 
 /**
  * Kaspa wallet provider interface following KIP-12 standard.
- * Implemented by browser extensions like Kasware, Kaspium, Kastle.
+ * Implemented by browser extensions like Kasware.
  */
 export interface KaspaProvider {
-  /** Provider name (e.g., "Kasware", "Kaspium") */
+  /** Provider name (e.g., "Kasware") */
   name?: string;
 
   /** Connect to wallet and get address */

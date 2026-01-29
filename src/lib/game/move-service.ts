@@ -57,6 +57,142 @@ export interface MoveConfirmationStatus {
 const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
 const CONFIRMATION_POLL_INTERVAL_MS = 2000; // 2 seconds
 
+// Kaspa has 10 BPS (100ms blocks) after Crescendo hardfork
+// Transaction should be confirmed in ~1 second
+const BLOCK_CONFIRMATION_CHECK_DELAY_MS = 100; // Wait 100ms between checks
+const BLOCK_CONFIRMATION_MAX_RETRIES = 12; // Max 12 checks = ~1.2 seconds
+const BLOCK_CONFIRMATION_TIMEOUT_MS = 3000; // 3 second absolute timeout
+
+// Enable block confirmation verification - showcases Kaspa's actual speed
+const SKIP_MEMPOOL_VERIFICATION = false;
+
+// =============================================================================
+// MEMPOOL VERIFICATION
+// =============================================================================
+
+/**
+ * Block confirmation status.
+ */
+export interface BlockConfirmationStatus {
+  txId: string;
+  confirmed: boolean;
+  inMempool?: boolean;
+  elapsed?: number;
+  error?: string;
+}
+
+/**
+ * Check if a transaction is confirmed in a block using server-side API.
+ * Returns confirmation status, mempool status, and elapsed time.
+ */
+async function checkBlockConfirmation(
+  txId: string, 
+  network: 'mainnet' | 'testnet'
+): Promise<{ confirmed: boolean; inMempool: boolean; elapsed: number }> {
+  const start = Date.now();
+  try {
+    const response = await fetch('/api/verify-mempool', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ txId, network }),
+    });
+
+    if (!response.ok) {
+      return { confirmed: false, inMempool: false, elapsed: Date.now() - start };
+    }
+
+    const data = await response.json();
+    return { 
+      confirmed: data.confirmed === true,
+      inMempool: data.inMempool === true, 
+      elapsed: data.elapsed || Date.now() - start 
+    };
+  } catch (error) {
+    console.warn('[MoveService] Block confirmation check error:', error);
+    return { confirmed: false, inMempool: false, elapsed: Date.now() - start };
+  }
+}
+
+/**
+ * Wait for transaction to be confirmed in a block.
+ * Kaspa has 10 BPS (100ms blocks) so tx should be confirmed in ~1 second.
+ * 
+ * Strategy: Check repeatedly with short delays until confirmed or timeout.
+ * Transaction goes: wallet broadcast → mempool → confirmed in block
+ * 
+ * @param txId - The transaction ID to verify
+ * @returns Status indicating whether transaction was confirmed
+ */
+export async function waitForBlockConfirmation(
+  txId: string
+): Promise<BlockConfirmationStatus> {
+  const startTime = Date.now();
+
+  try {
+    // Detect network from current wallet address
+    const address = getConnectedAddress();
+    const network = address?.startsWith('kaspatest:') ? 'testnet' : 'mainnet';
+
+    console.log(`⚡[MoveService] Waiting for tx ${txId.substring(0, 16)}... to be confirmed in block`);
+
+    // Brief delay to let transaction propagate
+    await new Promise(resolve => setTimeout(resolve, BLOCK_CONFIRMATION_CHECK_DELAY_MS));
+
+    // Check repeatedly until confirmed or timeout
+    let lastStatus = { confirmed: false, inMempool: false, elapsed: 0 };
+    
+    for (let i = 0; i < BLOCK_CONFIRMATION_MAX_RETRIES; i++) {
+      // Check timeout
+      if (Date.now() - startTime > BLOCK_CONFIRMATION_TIMEOUT_MS) {
+        break;
+      }
+
+      const result = await checkBlockConfirmation(txId, network);
+      lastStatus = result;
+      
+      if (result.confirmed) {
+        const elapsed = Date.now() - startTime;
+        console.log(`⚡[MoveService] ✓ TX CONFIRMED in block after ${elapsed}ms (RPC took ${result.elapsed}ms)`);
+        EventBus.emit('match:blockConfirmed', { txId, elapsed });
+        return { txId, confirmed: true, elapsed };
+      }
+
+      // Log if in mempool but not yet confirmed
+      if (result.inMempool && i === 0) {
+        console.log(`⚡[MoveService] TX in mempool, waiting for block confirmation...`);
+      }
+
+      // Wait before next check (unless it's the last retry)
+      if (i < BLOCK_CONFIRMATION_MAX_RETRIES - 1) {
+        await new Promise(resolve => setTimeout(resolve, BLOCK_CONFIRMATION_CHECK_DELAY_MS));
+      }
+    }
+
+    // Timeout reached
+    const elapsed = Date.now() - startTime;
+    const statusMsg = lastStatus.inMempool 
+      ? 'in mempool but not yet confirmed'
+      : 'not found in mempool or blocks';
+    
+    console.warn(`⚡[MoveService] TX ${statusMsg} after ${elapsed}ms - proceeding optimistically`);
+    
+    return {
+      txId,
+      confirmed: false,
+      inMempool: lastStatus.inMempool,
+      elapsed,
+      error: `Transaction ${statusMsg} after ${elapsed}ms`,
+    };
+  } catch (error) {
+    console.error('[MoveService] Block confirmation check failed:', error);
+    return {
+      txId,
+      confirmed: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
 // =============================================================================
 // MOVE SUBMISSION
 // =============================================================================
@@ -211,13 +347,54 @@ export async function submitMoveWithTransaction(
 
     txId = txIdClean;
 
-    // Emit event for UI feedback
-    EventBus.emit("match:moveSubmitted", {
+    const txTimestamp = Date.now();
+    console.log(`[MoveService] ⚡ TX accepted by wallet in ${txTimestamp - timestamp}ms, txId: ${txId.substring(0, 16)}...`);
+
+    // Emit event for UI feedback - tx accepted by wallet
+    EventBus.emit("match:movePending", {
       matchId,
       roundNumber,
       moveType,
       txId,
     });
+
+    // Wait for block confirmation to showcase Kaspa's speed
+    // With 10 BPS (100ms blocks), this should complete in ~1 second
+    if (!SKIP_MEMPOOL_VERIFICATION) {
+      console.log("⚡[MoveService] Waiting for block confirmation...");
+      const confirmStatus = await waitForBlockConfirmation(txId);
+      
+      // Emit confirmed event with actual block confirmation status
+      EventBus.emit("match:moveSubmitted", {
+        matchId,
+        roundNumber,
+        moveType,
+        txId,
+        blockConfirmed: confirmStatus.confirmed,
+      });
+      
+      console.log(`⚡[MoveService] Move submission complete in ${Date.now() - timestamp}ms (confirmed: ${confirmStatus.confirmed})`);
+    } else {
+      // Fire-and-forget block confirmation check for logging purposes
+      waitForBlockConfirmation(txId).then(status => {
+        if (status.confirmed) {
+          console.log(`[MoveService] ✓ Background: TX confirmed in block`);
+        } else {
+          console.log(`[MoveService] Background: TX not yet confirmed (${status.error})`);
+        }
+      }).catch(() => {});
+      
+      // Emit confirmed event immediately - don't wait for confirmation
+      EventBus.emit("match:moveSubmitted", {
+        matchId,
+        roundNumber,
+        moveType,
+        txId,
+        blockConfirmed: false, // We're not waiting for it
+      });
+      
+      console.log(`[MoveService] ⚡ Move submission complete in ${Date.now() - timestamp}ms`);
+    }
 
     return {
       success: true,

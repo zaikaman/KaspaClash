@@ -177,6 +177,26 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
     }
   }, [channelState.isSubscribed, match.id]);
 
+  // Pre-warm RPC connection for fast mempool verification
+  // This ensures the WebSocket is connected before any moves are submitted
+  useEffect(() => {
+    const prewarmRpc = async () => {
+      const network = address?.startsWith('kaspatest:') ? 'testnet' : 'mainnet';
+      try {
+        const response = await fetch(`/api/verify-mempool?network=${network}`);
+        const data = await response.json();
+        console.log(`⚡[MatchGameClient] RPC pre-warmed for ${network} in ${data.elapsed}ms`);
+      } catch (err) {
+        console.warn('[MatchGameClient] RPC pre-warm failed:', err);
+      }
+    };
+    
+    // Pre-warm on match load if wallet is connected
+    if (address && match.status !== 'completed') {
+      prewarmRpc();
+    }
+  }, [address, match.status]);
+
   // Listen for chat messages from Phaser and forward to channel
   useEffect(() => {
     const handleSendChat = (data: unknown) => {
@@ -575,26 +595,24 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
 
     // Handle move submission from Phaser - uses REAL Kaspa transactions
     const handleMoveSubmitted = async (data: unknown) => {
+      const submitStartTime = Date.now();
       const payload = data as { moveType: string; matchId: string };
 
       // Use refs for latest values (avoids stale closure after page refresh)
       const currentAddress = addressRef.current;
       const currentMatchId = matchIdRef.current;
 
-      console.log("[MatchGameClient] handleMoveSubmitted() called at:", Date.now());
+      console.log(`[MatchGameClient] ⚡ handleMoveSubmitted() START at: ${submitStartTime}`);
       console.log("[MatchGameClient] payload:", payload);
-      console.log("[MatchGameClient] currentAddress from ref:", currentAddress ? currentAddress.substring(0, 20) + "..." : "NULL");
-      console.log("[MatchGameClient] React connectionState:", useWalletStore.getState().connectionState);
 
       if (!currentAddress || !currentMatchId) {
         console.error("[MatchGameClient] Missing address or match.id!", { currentAddress, currentMatchId });
         return;
       }
 
-      console.log("[MatchGameClient] Submitting move with real transaction:", payload.moveType);
-
       try {
         // Use real Kaspa transaction for immutable move recording
+        const walletStartTime = Date.now();
         const { submitMoveWithTransaction } = await import("@/lib/game/move-service");
 
         const result = await submitMoveWithTransaction({
@@ -603,11 +621,14 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
           moveType: payload.moveType as any,
           useFullTransaction: true,
         });
+        
+        console.log(`[MatchGameClient] ⚡ Wallet tx complete in ${Date.now() - walletStartTime}ms`);
 
         if (result.success && result.txId) {
-          console.log("[MatchGameClient] Transaction submitted:", result.txId);
+          console.log(`[MatchGameClient] Transaction submitted: ${result.txId.substring(0, 16)}...`);
 
           // Submit to API with real txId and AUTHENTICATION
+          const apiStartTime = Date.now();
           try {
             const response = await authenticatedFetch(`/api/matches/${currentMatchId}/move`, {
               method: "POST",
@@ -618,13 +639,15 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
                 txId: result.txId,
               }),
             });
+            
+            console.log(`[MatchGameClient] ⚡ API call complete in ${Date.now() - apiStartTime}ms`);
 
             if (!response.ok) {
               const errorText = await response.text();
               console.error("Failed to submit move:", errorText);
               EventBus.emit("game:moveError", { error: "Failed to submit move to server" });
             } else {
-              console.log("[MatchGameClient] Move recorded on server");
+              console.log(`[MatchGameClient] ⚡ TOTAL move submission: ${Date.now() - submitStartTime}ms`);
               // Mark move as submitted to prevent double-submission
               moveSubmittedRef.current = true;
             }

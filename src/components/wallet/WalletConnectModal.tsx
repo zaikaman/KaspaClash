@@ -36,21 +36,6 @@ export default function WalletConnectModal({ isOpen, onClose, onConnect }: Walle
                         </div>
                         <span className="text-cyber-gray text-xs group-hover:text-white transition-colors">Recommended</span>
                     </Button>
-
-                    {/* Kaspium Wallet */}
-                    <Button
-                        onClick={() => onConnect("kaspium")}
-                        className="h-16 bg-black/40 border border-cyber-gold/30 hover:border-cyber-gold hover:bg-cyber-gold/10 flex items-center justify-between px-6 transition-all group"
-                    >
-                        <div className="flex items-center gap-4">
-                            {/* Placeholder Icon */}
-                            <div className="w-8 h-8 rounded-full bg-cyber-blue/20 flex items-center justify-center">
-                                <span className="text-cyber-blue text-lg">M</span>
-                            </div>
-                            <span className="text-lg font-medium text-white group-hover:text-cyber-gold transition-colors">Kaspium</span>
-                        </div>
-                        <span className="text-cyber-gray text-xs group-hover:text-white transition-colors">Mobile</span>
-                    </Button>
                 </div>
 
                 <div className="mt-4 text-center">

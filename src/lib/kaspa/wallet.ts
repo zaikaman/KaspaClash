@@ -165,7 +165,7 @@ export async function connectWallet(
     }
 
     throw new Error(
-      "No Kaspa wallet found. Please install Kasware, Kaspium, or another compatible wallet."
+      "No Kaspa wallet found. Please install the Kasware wallet extension."
     );
   } catch (error) {
     console.error("Wallet connection error:", error);

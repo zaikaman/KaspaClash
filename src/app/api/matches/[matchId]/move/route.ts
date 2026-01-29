@@ -11,6 +11,8 @@ export const POST = withWalletAuth(async (
   request: NextRequest,
   { params }: { params: Promise<any> }
 ): Promise<NextResponse<any>> => {
+  const apiStartTime = Date.now();
+  
   try {
     const { matchId } = await params;
 
@@ -24,6 +26,7 @@ export const POST = withWalletAuth(async (
 
     // Parse request body
     const body = await request.json();
+    console.log(`[Move API] ⚡ Request parsed in ${Date.now() - apiStartTime}ms`);
 
     // Validate request using Zod
     const validation = validateBody(body, submitMoveSchema);
@@ -35,6 +38,7 @@ export const POST = withWalletAuth(async (
 
     const { address, moveType, txId } = validation.data;
 
+    const dbStartTime = Date.now();
     const supabase = await createSupabaseServerClient();
 
     // Fetch the match
@@ -43,6 +47,8 @@ export const POST = withWalletAuth(async (
       .select("*")
       .eq("id", matchId)
       .single() as { data: any; error: any };
+    
+    console.log(`[Move API] ⚡ Match fetch in ${Date.now() - dbStartTime}ms`);
 
     if (matchError || !match) {
       return createErrorResponse(
@@ -355,26 +361,31 @@ export const POST = withWalletAuth(async (
     // If both players have submitted moves normally, trigger combat resolution
     let resolution = null;
     if (!finalAwaitingOpponent) {
-      console.log(`[Move Submit] Triggering combat resolution for match ${matchId}, round ${currentRound.id}`);
-      console.log(`[Move Submit] Moves: P1=${updatedRound?.player1_move}, P2=${updatedRound?.player2_move}`);
+      const resolveStartTime = Date.now();
+      console.log(`[Move API] ⚡ Triggering combat resolution for match ${matchId}`);
 
       const { resolveRound } = await import("@/lib/game/combat-resolver");
       resolution = await resolveRound(matchId, currentRound.id);
 
-      console.log(`[Move Submit] Combat resolution complete. Success: ${resolution?.success}, isMatchOver: ${resolution?.isMatchOver}`);
+      console.log(`[Move API] ⚡ Combat resolution complete in ${Date.now() - resolveStartTime}ms`);
 
       if (resolution.isMatchOver) {
-        try {
-          const { resolveMatchPayouts, resolveMatchStakePayout } = await import("@/lib/betting/payout-service");
-          await resolveMatchPayouts(matchId);
-          await resolveMatchStakePayout(matchId);
-        } catch (e) {
-          console.error("Failed to trigger payouts:", e);
-        }
+        // Fire-and-forget payouts to avoid blocking response
+        (async () => {
+          try {
+            const { resolveMatchPayouts, resolveMatchStakePayout } = await import("@/lib/betting/payout-service");
+            await resolveMatchPayouts(matchId);
+            await resolveMatchStakePayout(matchId);
+          } catch (e) {
+            console.error("Failed to trigger payouts:", e);
+          }
+        })();
       }
     } else {
-      console.log(`[Move Submit] Skipping combat resolution - still awaiting opponent`);
+      console.log(`[Move API] Awaiting opponent move`);
     }
+
+    console.log(`[Move API] ⚡ TOTAL API time: ${Date.now() - apiStartTime}ms`);
 
     return NextResponse.json({
       moveId: move.id,
