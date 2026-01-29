@@ -168,8 +168,8 @@ export class BotBattleScene extends Phaser.Scene {
                 this.startPlayback();
             });
         } else {
-            // Show server-synchronized betting countdown
-            this.showBettingCountdown();
+            // Schedule match start without Phaser UI (handled by React)
+            this.scheduleMatchStart();
         }
 
         EventBus.emit("bot_battle_scene_ready", {
@@ -661,122 +661,17 @@ export class BotBattleScene extends Phaser.Scene {
     }
 
     // ==========================================================================
-    // BETTING COUNTDOWN
+    // MATCH SCHEDULING
     // ==========================================================================
 
-    private showBettingCountdown(): void {
-        // Use server-provided betting status for accurate synchronization
+    private scheduleMatchStart(): void {
         const serverSecondsRemaining = this.config.bettingStatus?.secondsRemaining ?? 30;
 
-        console.log('[BotBattleScene] Betting countdown starting with', serverSecondsRemaining, 'seconds (server-synced)');
-
-        // Create betting countdown container
-        const container = this.add.container(GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.CENTER_Y - 50);
-
-        // Background
-        const bg = this.add.rectangle(0, 0, 450, 200, 0x000000, 0.85)
-            .setStrokeStyle(3, 0xff6b35);
-        container.add(bg);
-
-        // "WAITING FOR BETS" title
-        const titleText = this.add.text(0, -40, "WAITING FOR BETS...", {
-            fontFamily: "Orbitron",
-            fontSize: "32px",
-            color: "#ffd700",
-            fontStyle: "bold",
-        }).setOrigin(0.5);
-        container.add(titleText);
-
-        // Countdown timer text (server-synchronized)
-        const timerText = this.add.text(0, 20, serverSecondsRemaining.toString(), {
-            fontFamily: "Orbitron",
-            fontSize: "64px",
-            color: "#ff6b35",
-            fontStyle: "bold",
-        }).setOrigin(0.5);
-        container.add(timerText);
-
-        // Subtext
-        const subText = this.add.text(0, 70, "Match starts when timer reaches 0", {
-            fontFamily: "Exo 2",
-            fontSize: "16px",
-            color: "#aaaaaa",
-        }).setOrigin(0.5);
-        container.add(subText);
-
-        // Pulse animation on title
-        this.tweens.add({
-            targets: titleText,
-            scale: 1.05,
-            yoyo: true,
-            repeat: -1,
-            duration: 800,
-            ease: "Sine.easeInOut",
-        });
-
-        // Update countdown every second
-        let remainingSeconds = serverSecondsRemaining;
-        const countdownInterval = this.time.addEvent({
-            delay: 1000,
-            callback: () => {
-                remainingSeconds--;
-                if (remainingSeconds > 0) {
-                    timerText.setText(remainingSeconds.toString());
-
-                    // Change color as time runs out
-                    if (remainingSeconds <= 5) {
-                        timerText.setColor("#ff0000");
-                    } else if (remainingSeconds <= 10) {
-                        timerText.setColor("#ffaa00");
-                    }
-                } else {
-                    countdownInterval.destroy();
-                    timerText.setText("0");
-                }
-            },
-            repeat: remainingSeconds - 1,
-        });
+        console.log('[BotBattleScene] Scheduling match start in', serverSecondsRemaining, 'seconds');
 
         // After server-provided duration, start the match
         this.time.delayedCall(serverSecondsRemaining * 1000, () => {
-            // Remove countdown UI
-            container.destroy();
-
-            // Show "FIGHT!" text briefly
-            const fightText = this.add.text(
-                GAME_DIMENSIONS.CENTER_X,
-                GAME_DIMENSIONS.CENTER_Y,
-                "FIGHT!",
-                {
-                    fontFamily: "Orbitron",
-                    fontSize: "72px",
-                    color: "#ff6b35",
-                    fontStyle: "bold",
-                    stroke: "#000000",
-                    strokeThickness: 6,
-                }
-            ).setOrigin(0.5).setAlpha(0);
-
-            this.tweens.add({
-                targets: fightText,
-                alpha: 1,
-                scale: { from: 0.5, to: 1.2 },
-                duration: 300,
-                ease: "Back.easeOut",
-                onComplete: () => {
-                    this.time.delayedCall(800, () => {
-                        this.tweens.add({
-                            targets: fightText,
-                            alpha: 0,
-                            duration: 200,
-                            onComplete: () => {
-                                fightText.destroy();
-                                this.startPlayback();
-                            }
-                        });
-                    });
-                }
-            });
+            this.startPlayback();
         });
     }
 

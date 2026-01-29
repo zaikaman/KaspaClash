@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useSpectatorChat, type ChatMessage } from "@/hooks/useSpectatorChat";
 import { createFakeChatGenerator } from "@/lib/chat/fake-chat-service";
 import type { BotTurnData } from "@/lib/game/bot-match-service";
+import { twMerge } from "tailwind-merge";
 
 interface SpectatorChatProps {
     matchId: string;
@@ -112,7 +113,10 @@ export function SpectatorChat({
 
     return (
         <div
-            className={`flex flex-col rounded-xl overflow-hidden border border-cyber-gold/20 bg-black/60 backdrop-blur-md ${className}`}
+            className={twMerge(
+                "flex flex-col rounded-xl overflow-hidden border border-cyber-gold/20 bg-black/60 backdrop-blur-md",
+                className
+            )}
         >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-orange-500/20 via-cyber-gold/10 to-transparent border-b border-cyber-gold/20">

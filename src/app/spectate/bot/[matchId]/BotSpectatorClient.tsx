@@ -6,7 +6,7 @@
  */
 
 import React, { useEffect, useState, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { EventBus } from "@/game/EventBus";
@@ -47,6 +47,28 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
         prediction: "bot1" | "bot2";
         winnerName: string;
     } | null>(null);
+
+    // Betting countdown state
+    const [secondsRemaining, setSecondsRemaining] = useState(
+        match.bettingStatus?.secondsRemaining ?? 0
+    );
+
+    // Update countdown timer
+    useEffect(() => {
+        // Sync with match data updates
+        if (currentMatch.bettingStatus?.secondsRemaining) {
+            setSecondsRemaining(currentMatch.bettingStatus.secondsRemaining);
+        }
+
+        const timer = setInterval(() => {
+            setSecondsRemaining(prev => {
+                if (prev <= 0) return 0;
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [currentMatch.bettingStatus?.secondsRemaining]);
 
     // Real-time balance polling
     useEffect(() => {
@@ -123,7 +145,7 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
             console.log("[BotSpectatorClient] Match ended event received:", eventData);
             console.log("[BotSpectatorClient] Current match ID:", currentMatch.id);
             console.log("[BotSpectatorClient] User address:", address);
-            
+
             if (eventData.matchId === currentMatch.id && address) {
                 console.log("[BotSpectatorClient] Match ended, checking if user won bet");
 
@@ -131,14 +153,14 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
                     // Fetch user's bet for this match with address parameter
                     const url = `/api/bot-betting/pool/${currentMatch.id}?address=${encodeURIComponent(address)}`;
                     console.log("[BotSpectatorClient] Fetching bet data from:", url);
-                    
+
                     const response = await fetch(url);
                     console.log("[BotSpectatorClient] Response status:", response.status);
-                    
+
                     if (response.ok) {
                         const data = await response.json();
                         console.log("[BotSpectatorClient] Bet data received:", data);
-                        
+
                         const userBet = data.userBet; // Changed from data.data?.bets?.find
                         console.log("[BotSpectatorClient] User bet found:", userBet);
 
@@ -147,19 +169,19 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
                             const winnerBot = eventData.winner === "player1" ? "bot1" : "bot2";
                             console.log("[BotSpectatorClient] Winner bot:", winnerBot);
                             console.log("[BotSpectatorClient] User bet on:", userBet.bet_on);
-                            
+
                             // Check if user's prediction matches the winner
                             if (userBet.bet_on === winnerBot) {
                                 console.log("[BotSpectatorClient] USER WON! Showing notification");
-                                
+
                                 // User won! Show celebration immediately
                                 const winnerName = eventData.winner === "player1" ? currentMatch.bot1Name : currentMatch.bot2Name;
                                 // Calculate payout: 2x the net bet amount
                                 const netAmount = BigInt(userBet.net_amount || userBet.amount);
                                 const payoutAmount = netAmount * 2n;
-                                
+
                                 console.log("[BotSpectatorClient] Payout amount:", sompiToKas(payoutAmount), "KAS");
-                                
+
                                 setWinningNotification({
                                     show: true,
                                     amount: sompiToKas(payoutAmount),
@@ -245,7 +267,7 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
         : 0;
 
     return (
-        <div className="relative w-full min-h-screen flex flex-col bg-[#0a0a0a]">
+        <div className="relative w-full h-screen flex flex-col bg-[#0a0a0a] overflow-hidden">
             {/* Header */}
             <motion.div
                 initial={{ opacity: 0, y: -20 }}
@@ -284,7 +306,7 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
 
             {/* Main Content - Game + Betting Panel */}
             {/* Main Content - Game + Betting Panel */}
-            <div className="flex-1 flex flex-col lg:flex-row items-stretch justify-center gap-4 p-4 min-h-0">
+            <div className="flex-1 w-full flex flex-col xl:flex-row items-stretch justify-center gap-4 p-4 min-h-0 overflow-y-auto xl:overflow-hidden">
                 {/* Game Container */}
                 <div className="flex-1 flex items-center justify-center w-full">
                     {error ? (
@@ -302,7 +324,7 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
                             animate={{ opacity: 1, scale: 1 }}
                             transition={{ delay: 0.2 }}
                             ref={containerRef}
-                            className="w-full max-w-[1280px] aspect-video bg-black rounded-lg overflow-hidden border-2 border-orange-500/30 shadow-lg shadow-orange-500/10"
+                            className="w-full max-w-[1280px] aspect-video bg-black rounded-lg overflow-hidden border-2 border-orange-500/30 shadow-lg shadow-orange-500/10 relative xl:h-full xl:max-h-full"
                         >
                             {!gameReady && (
                                 <div className="flex items-center justify-center h-full">
@@ -316,6 +338,38 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
                                     </div>
                                 </div>
                             )}
+
+                            {/* "Waiting for Bets" Overlay */}
+                            <AnimatePresence>
+                                {gameReady && secondsRemaining > 0 && currentMatch.bettingStatus?.isOpen && (
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.9 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 1.1 }}
+                                        className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+                                    >
+                                        <div className="relative p-8 rounded-2xl border-2 border-orange-500/50 bg-black/90 shadow-[0_0_50px_rgba(255,107,53,0.3)] text-center max-w-[90%] sm:max-w-md">
+                                            <h2 className="text-2xl sm:text-4xl font-orbitron font-bold text-yellow-400 mb-4 tracking-wider animate-pulse">
+                                                WAITING FOR BETS...
+                                            </h2>
+
+                                            <div className="flex justify-center my-6">
+                                                <div className={`text-6xl sm:text-8xl font-orbitron font-bold ${secondsRemaining <= 5 ? 'text-red-500' :
+                                                    secondsRemaining <= 10 ? 'text-orange-500' : 'text-orange-400'
+                                                    }`}>
+                                                    {secondsRemaining}
+                                                </div>
+                                            </div>
+
+                                            <div className="text-gray-400 font-exo text-sm sm:text-base">
+                                                Match starts when timer reaches 0
+                                            </div>
+
+                                            <div className="absolute top-0 left-0 w-full h-full border border-orange-500/30 rounded-2xl blur-[2px] pointer-events-none" />
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </motion.div>
                     )}
                 </div>
@@ -325,7 +379,7 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.3 }}
-                    className="w-full lg:w-[380px] shrink-0 flex flex-col gap-4 min-h-0"
+                    className="w-full xl:w-[380px] shrink-0 flex flex-col gap-4 min-h-0 xl:h-full xl:overflow-y-auto scrollbar-thin scrollbar-thumb-orange-500/20 scrollbar-track-transparent pr-1"
                 >
                     <div className={isBettingPanelVisible ? "block shrink-0" : "hidden"}>
                         <BotBettingPanel
@@ -344,7 +398,7 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
                         isBotMatch={true}
                         player1Name={currentMatch.bot1Name}
                         player2Name={currentMatch.bot2Name}
-                        className={isBettingPanelVisible ? "h-[300px] shrink-0" : "h-[780px] shrink-0"}
+                        className="flex-1 min-h-[250px]"
                     />
                 </motion.div>
             </div>
