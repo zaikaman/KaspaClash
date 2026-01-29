@@ -179,19 +179,55 @@ export function validateKaspaAddress(address: string): void {
 }
 
 /**
- * CORS headers for API routes.
+ * Allowed CORS origins
+
  */
-export const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Signature",
-};
+const ALLOWED_ORIGINS: string[] = [
+  process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "https://kaspaclash.vercel.app",
+  // Add staging/preview URLs if needed
+  ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
+];
+
+/**
+ * Get CORS headers based on request origin
+
+ */
+export function getCorsHeaders(origin: string | null): Record<string, string> {
+  // Check if origin is allowed
+  const isAllowed = origin && ALLOWED_ORIGINS.some(allowed => {
+    // Exact match or wildcard subdomain match
+    if (allowed === origin) return true;
+    // Support Vercel preview URLs
+    if (origin.endsWith(".vercel.app") && process.env.VERCEL) return true;
+    return false;
+  });
+
+  const allowedOrigin = isAllowed ? origin : ALLOWED_ORIGINS[0];
+
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Signature, X-Wallet-Address, X-Timestamp",
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Max-Age": "86400", // 24 hours
+  };
+}
+
+/**
+ * Legacy CORS headers (deprecated - use getCorsHeaders instead)
+ * @deprecated Use getCorsHeaders(origin) instead for origin-restricted CORS
+ */
+export const corsHeaders = getCorsHeaders(null);
 
 /**
  * Add CORS headers to response.
  */
-export function withCors<T>(response: NextResponse<T>): NextResponse<T> {
-  Object.entries(corsHeaders).forEach(([key, value]) => {
+export function withCors<T>(response: NextResponse<T>, origin?: string | null): NextResponse<T> {
+  const headers = getCorsHeaders(origin ?? null);
+  Object.entries(headers).forEach(([key, value]) => {
     response.headers.set(key, value);
   });
   return response;
@@ -200,9 +236,11 @@ export function withCors<T>(response: NextResponse<T>): NextResponse<T> {
 /**
  * Handle OPTIONS request for CORS preflight.
  */
-export function handleCorsPreFlight(): NextResponse {
-  return new NextResponse(null, { status: 204, headers: corsHeaders });
+export function handleCorsPreFlight(request: NextRequest): NextResponse {
+  const origin = request.headers.get("origin");
+  return new NextResponse(null, { status: 204, headers: getCorsHeaders(origin) });
 }
+
 
 /**
  * Compose multiple middleware functions.
@@ -216,23 +254,17 @@ export function compose<T>(
 
 /**
  * Verify a Kaspa wallet signature.
- * In a production environment, this would use the kaspa-wasm SDK
- * to cryptographically verify the signature.
+ * This is now properly implemented using kaspa-wasm SDK.
+ * 
+ * @deprecated Use verifyWalletSignature from auth-middleware instead for new code
  */
 export async function verifySignature(
-  _address: string,
-  _message: string,
-  _signature: string
+  address: string,
+  message: string,
+  signature: string
 ): Promise<boolean> {
-  // TODO: Implement actual signature verification using kaspa-wasm
-  // For now, return true for development
-  // In production, this should:
-  // 1. Load the kaspa-wasm SDK
-  // 2. Use PublicKey.fromAddress(address)
-  // 3. Verify the signature against the message
-  console.warn(
-    "verifySignature: Signature verification not implemented. " +
-    "Accepting all signatures for development."
-  );
-  return true;
+  // Import and use the proper signature verification from auth-middleware
+  const { verifyWalletSignature } = await import("./auth-middleware");
+  return verifyWalletSignature(address, message, signature);
 }
+

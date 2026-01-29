@@ -1,19 +1,8 @@
-/**
- * Join Room API Route
- * Endpoint: POST /api/matchmaking/rooms/join
- */
-
 import { NextRequest, NextResponse } from "next/server";
 import { Errors, handleError, createErrorResponse, type ApiErrorResponse } from "@/lib/api/errors";
 import { joinRoom } from "@/lib/matchmaking/matchmaker";
-
-/**
- * Join room request body.
- */
-interface JoinRoomRequest {
-  address: string;
-  roomCode: string;
-}
+import { withWalletAuth } from "@/lib/api/auth-middleware";
+import { joinRoomSchema, validateBody } from "@/lib/api/validators";
 
 /**
  * Join room response.
@@ -27,51 +16,23 @@ interface JoinRoomResponse {
 }
 
 /**
- * Validate Kaspa address format.
- */
-function isValidKaspaAddress(address: string): boolean {
-  return (
-    typeof address === "string" &&
-    (address.startsWith("kaspa:") || address.startsWith("kaspatest:")) &&
-    address.length >= 40
-  );
-}
-
-/**
- * Validate room code format.
- */
-function isValidRoomCode(code: string): boolean {
-  return typeof code === "string" && /^[A-Z0-9]{6}$/i.test(code);
-}
-
-/**
  * POST /api/matchmaking/rooms/join
  * Join an existing private room by code.
  * Returns stake info if the room has stakes enabled.
  */
-export async function POST(
+export const POST = withWalletAuth(async (
   request: NextRequest
-): Promise<NextResponse<JoinRoomResponse | ApiErrorResponse>> {
+): Promise<NextResponse<JoinRoomResponse | ApiErrorResponse>> => {
   try {
-    const body = (await request.json()) as JoinRoomRequest;
-    const { address, roomCode } = body;
+    const body = await request.json();
 
-    // Validate request
-    if (!address) {
-      throw Errors.badRequest("Address is required");
+    // Validate request using Zod
+    const validation = validateBody(body, joinRoomSchema);
+    if (!validation.success) {
+      throw Errors.badRequest(validation.error);
     }
 
-    if (!isValidKaspaAddress(address)) {
-      throw Errors.invalidAddress(address);
-    }
-
-    if (!roomCode) {
-      throw Errors.badRequest("Room code is required");
-    }
-
-    if (!isValidRoomCode(roomCode)) {
-      throw Errors.badRequest("Invalid room code format. Must be 6 alphanumeric characters.");
-    }
+    const { address, roomCode } = validation.data;
 
     // Join the room
     const result = await joinRoom(address, roomCode);
@@ -91,5 +52,5 @@ export async function POST(
     const apiError = handleError(error);
     return createErrorResponse(apiError);
   }
-}
+});
 

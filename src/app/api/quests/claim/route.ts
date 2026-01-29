@@ -1,9 +1,3 @@
-/**
- * Quest Claim API Route
- * Endpoint: POST /api/quests/claim
- * Claims rewards for completed quests
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { Errors, handleError, createErrorResponse, type ApiErrorResponse } from '@/lib/api/errors';
@@ -11,14 +5,8 @@ import { canClaimQuest, getQuestRewards, calculateStreakBonus } from '@/lib/ques
 import { getQuestTemplateById } from '@/lib/quests/quest-templates';
 import { CURRENCY_SOURCES } from '@/lib/progression/currency-utils';
 import { getTodayUTC } from '@/lib/quests/quest-generator';
-
-/**
- * Request body for claiming quest
- */
-interface ClaimQuestRequest {
-    playerId: string;
-    questId: string;
-}
+import { withWalletAuth } from '@/lib/api/auth-middleware';
+import { questClaimSchema, validateBody } from '@/lib/api/validators';
 
 /**
  * Response for quest claim
@@ -40,38 +28,27 @@ interface ClaimQuestResponse {
 }
 
 /**
- * Validate Kaspa address format
- */
-function isValidKaspaAddress(address: string): boolean {
-    return (
-        typeof address === 'string' &&
-        (address.startsWith('kaspa:') || address.startsWith('kaspatest:')) &&
-        address.length >= 40
-    );
-}
-
-/**
  * POST /api/quests/claim
  * Claim rewards for a completed quest
  */
-export async function POST(
+export const POST = withWalletAuth(async (
     request: NextRequest
-): Promise<NextResponse<ClaimQuestResponse | ApiErrorResponse>> {
+): Promise<NextResponse<any>> => {
     try {
-        const body = await request.json() as ClaimQuestRequest;
-        const { playerId, questId } = body;
+        const body = await request.json();
 
-        // Validate required fields
-        if (!playerId) {
-            throw Errors.badRequest('playerId is required');
+        // Validate inputs using Zod
+        const validation = validateBody(body, questClaimSchema);
+        if (!validation.success) {
+            throw Errors.badRequest(validation.error);
         }
 
-        if (!isValidKaspaAddress(playerId)) {
-            throw Errors.invalidAddress(playerId);
-        }
+        const { playerAddress: playerId, questId } = validation.data;
 
-        if (!questId) {
-            throw Errors.badRequest('questId is required');
+        // Ensure authentication address matches the player claiming the quest
+        const authAddress = request.headers.get("X-Authenticated-Address");
+        if (authAddress && authAddress !== playerId) {
+            throw Errors.forbidden("You can only claim quests for your own account");
         }
 
         const supabase = createSupabaseAdminClient() as any;
@@ -156,7 +133,7 @@ export async function POST(
         if (rewards.currency > 0) {
             // Get player's prestige multiplier
             let prestigeCurrencyMultiplier = 1.0;
-            
+
             // Get current active season
             const { data: season } = await supabase
                 .from('battle_pass_seasons')
@@ -235,8 +212,8 @@ export async function POST(
                 source: CURRENCY_SOURCES.QUEST_CLAIM,
                 balance_before: currentBalance,
                 balance_after: newBalance,
-                metadata: { 
-                    quest_id: questId, 
+                metadata: {
+                    quest_id: questId,
                     template_id: template.id,
                     base_amount: rewards.currency,
                     prestige_multiplier: prestigeCurrencyMultiplier,
@@ -371,4 +348,4 @@ export async function POST(
         const apiError = handleError(error);
         return createErrorResponse(apiError);
     }
-}
+});

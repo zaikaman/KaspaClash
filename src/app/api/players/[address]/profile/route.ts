@@ -1,13 +1,9 @@
-/**
- * Player Profile Update API Route
- * Endpoint: PATCH /api/players/[address]/profile
- * Handles avatar upload and display name changes
- */
-
 import { NextRequest, NextResponse } from "next/server";
 import { Errors, handleError, createErrorResponse, type ApiErrorResponse } from "@/lib/api/errors";
 import { updatePlayerProfile, getPlayer } from "@/lib/player/registration";
 import { uploadAvatar } from "@/lib/cloudinary/upload";
+import { withWalletAuth } from "@/lib/api/auth-middleware";
+import { playerUpdateSchema, validateBody } from "@/lib/api/validators";
 import type { Player } from "@/types";
 
 /**
@@ -19,36 +15,13 @@ interface ProfileUpdateResponse {
 }
 
 /**
- * Validate Kaspa address format.
- */
-function isValidKaspaAddress(address: string): boolean {
-    return (
-        typeof address === "string" &&
-        (address.startsWith("kaspa:") || address.startsWith("kaspatest:")) &&
-        address.length >= 40
-    );
-}
-
-/**
- * Validate display name format.
- */
-function isValidDisplayName(name: string): boolean {
-    return (
-        typeof name === "string" &&
-        name.length >= 1 &&
-        name.length <= 32 &&
-        /^[a-zA-Z0-9_]+$/.test(name)
-    );
-}
-
-/**
  * PATCH /api/players/[address]/profile
  * Update player profile (display name and/or avatar).
  */
-export async function PATCH(
+export const PATCH = withWalletAuth(async (
     request: NextRequest,
-    context: { params: Promise<{ address: string }> }
-): Promise<NextResponse<ProfileUpdateResponse | ApiErrorResponse>> {
+    context: { params: Promise<any> }
+): Promise<NextResponse<any>> => {
     try {
         const { address } = await context.params;
 
@@ -59,8 +32,10 @@ export async function PATCH(
 
         const decodedAddress = decodeURIComponent(address);
 
-        if (!isValidKaspaAddress(decodedAddress)) {
-            throw Errors.invalidAddress(decodedAddress);
+        // Ensure authentication address matches the address in the URL
+        const authAddress = request.headers.get("X-Authenticated-Address");
+        if (authAddress && authAddress !== decodedAddress) {
+            throw Errors.forbidden("You can only update your own profile");
         }
 
         // Check if player exists
@@ -71,17 +46,21 @@ export async function PATCH(
 
         // Parse request body
         const body = await request.json();
-        const { displayName, avatarBase64 } = body;
+
+        // Validate inputs using Zod
+        const validation = validateBody(body, playerUpdateSchema);
+        if (!validation.success) {
+            throw Errors.badRequest(validation.error);
+        }
+
+        const { displayName } = validation.data;
+        // avatarBase64 is passed separately as it's not in the shared schema yet
+        const { avatarBase64 } = body;
 
         const updates: { displayName?: string; avatarUrl?: string } = {};
 
-        // Validate and process display name
-        if (displayName !== undefined) {
-            if (!isValidDisplayName(displayName)) {
-                throw Errors.badRequest(
-                    "Display name must be 1-32 characters and contain only letters, numbers, and underscores"
-                );
-            }
+        // Process display name from validated data
+        if (displayName) {
             updates.displayName = displayName;
         }
 
@@ -116,4 +95,4 @@ export async function PATCH(
         const apiError = handleError(error);
         return createErrorResponse(apiError);
     }
-}
+});

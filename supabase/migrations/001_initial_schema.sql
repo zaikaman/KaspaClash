@@ -431,6 +431,15 @@ CREATE TABLE public.quest_templates (
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT quest_templates_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.rate_limits (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  client_id text NOT NULL,
+  endpoint text NOT NULL DEFAULT 'global'::text,
+  request_count integer NOT NULL DEFAULT 1,
+  window_start timestamp with time zone NOT NULL DEFAULT now(),
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT rate_limits_pkey PRIMARY KEY (id)
+);
 CREATE TABLE public.rounds (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   match_id uuid NOT NULL,
@@ -453,6 +462,27 @@ CREATE TABLE public.rounds (
   CONSTRAINT rounds_pkey PRIMARY KEY (id),
   CONSTRAINT rounds_match_id_fkey FOREIGN KEY (match_id) REFERENCES public.matches(id),
   CONSTRAINT rounds_winner_address_fkey FOREIGN KEY (winner_address) REFERENCES public.players(address)
+);
+CREATE TABLE public.security_audit_log (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  event_type text NOT NULL,
+  event_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+  client_ip text,
+  user_address text,
+  endpoint text,
+  success boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT security_audit_log_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.session_tokens (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  player_address text NOT NULL,
+  token text NOT NULL UNIQUE,
+  expires_at timestamp with time zone NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  last_used_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT session_tokens_pkey PRIMARY KEY (id),
+  CONSTRAINT session_tokens_player_address_fkey FOREIGN KEY (player_address) REFERENCES public.players(address)
 );
 CREATE TABLE public.shop_purchases (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),

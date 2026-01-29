@@ -14,60 +14,21 @@ import {
     DEFAULT_DISTRIBUTION_CONFIG,
 } from "@/lib/treasury/treasury-service";
 import { sompiToKas } from "@/lib/kaspa/vault-service";
+import { withCronAuth } from "@/lib/api/auth-middleware";
 import type { NetworkType } from "@/types/constants";
 
 // Vercel Cron requires this export to identify the function as a cron handler
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5 minutes max for distribution processing
 
-/**
- * Verify the request is authorized via Bearer token
- * Compatible with Vercel Cron, cron-job.org, or any service that can send a Bearer token
- */
-function isCronAuthorized(request: NextRequest): boolean {
-    const authHeader = request.headers.get("authorization");
-    const cronSecret = process.env.CRON_SECRET;
-
-    // Check for Bearer token authorization
-    if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
-        return true;
-    }
-
-    // Fallback for Vercel-specific signature header (if needed)
-    const vercelCronSignature = request.headers.get("x-vercel-signature");
-    if (vercelCronSignature) {
-        return true;
-    }
-
-    return false;
-}
-
-export async function GET(request: NextRequest) {
+export const GET = withCronAuth(async (request: NextRequest): Promise<NextResponse<any>> => {
     console.log("[Cron] Weekly distribution triggered");
-
-    // Verify cron authorization
-    if (!isCronAuthorized(request)) {
-        console.error("[Cron] Unauthorized cron request");
-        return NextResponse.json(
-            { error: "Unauthorized" },
-            { status: 401 }
-        );
-    }
 
     try {
         // Process distributions for BOTH networks
-        // Players on testnet get testnet distributions, mainnet players get mainnet
+        // ... rest of the logic
         const networks: NetworkType[] = ["mainnet", "testnet"];
-        const results: {
-            network: NetworkType;
-            success: boolean;
-            distributionId: string | null;
-            totalDistributed: number;
-            eloPayouts: number;
-            survivalPayouts: number;
-            failedPayouts: number;
-            error?: string;
-        }[] = [];
+        const results: any[] = [];
 
         for (const network of networks) {
             console.log(`[Cron] Running weekly distribution on ${network}...`);
@@ -126,9 +87,7 @@ export async function GET(request: NextRequest) {
             { status: 500 }
         );
     }
-}
+});
 
 // POST method for manual triggers (same as GET)
-export async function POST(request: NextRequest) {
-    return GET(request);
-}
+export const POST = GET;

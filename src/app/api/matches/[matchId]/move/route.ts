@@ -1,39 +1,16 @@
-/**
- * POST /api/matches/[matchId]/move
- * Submit a move with transaction ID
- */
-
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ApiError, ErrorCodes, createErrorResponse } from "@/lib/api/errors";
-import type { MoveType } from "@/types";
-
-/**
- * Request body schema.
- */
-interface MoveSubmitRequest {
-  address: string;
-  moveType: MoveType;
-  txId: string;
-}
-
-/**
- * Validate move type.
- */
-function isValidMoveType(move: unknown): move is MoveType {
-  return (
-    typeof move === "string" &&
-    ["punch", "kick", "block", "special", "stunned"].includes(move)
-  );
-}
+import { withWalletAuth } from "@/lib/api/auth-middleware";
+import { submitMoveSchema, validateBody } from "@/lib/api/validators";
 
 /**
  * POST handler - Submit move
  */
-export async function POST(
+export const POST = withWalletAuth(async (
   request: NextRequest,
-  { params }: { params: Promise<{ matchId: string }> }
-) {
+  { params }: { params: Promise<any> }
+): Promise<NextResponse<any>> => {
   try {
     const { matchId } = await params;
 
@@ -46,35 +23,17 @@ export async function POST(
     }
 
     // Parse request body
-    const body: MoveSubmitRequest = await request.json();
+    const body = await request.json();
 
-    // Validate required fields
-    if (!body.address || !body.moveType || !body.txId) {
+    // Validate request using Zod
+    const validation = validateBody(body, submitMoveSchema);
+    if (!validation.success) {
       return createErrorResponse(
-        new ApiError(
-          ErrorCodes.VALIDATION_ERROR,
-          "Missing required fields: address, moveType, txId"
-        )
+        new ApiError(ErrorCodes.VALIDATION_ERROR, validation.error)
       );
     }
 
-    // Validate move type
-    if (!isValidMoveType(body.moveType)) {
-      return createErrorResponse(
-        new ApiError(
-          ErrorCodes.VALIDATION_ERROR,
-          "Invalid move type. Must be: punch, kick, block, or special"
-        )
-      );
-    }
-
-    // Validate transaction ID format (64 hex characters)
-    const txIdRegex = /^[a-f0-9]{64}$/i;
-    if (!txIdRegex.test(body.txId)) {
-      return createErrorResponse(
-        new ApiError(ErrorCodes.VALIDATION_ERROR, "Invalid transaction ID format")
-      );
-    }
+    const { address, moveType, txId } = validation.data;
 
     const supabase = await createSupabaseServerClient();
 
@@ -236,28 +195,28 @@ export async function POST(
     // BOT AUTO-MOVE: If opponent is a bot and hasn't submitted yet, auto-submit their move
     const opponentAddress = isPlayer1 ? match.player2_address : match.player1_address;
     const isOpponentBot = match.is_bot || false;
-    
+
     if (isOpponentBot && opponentAddress && awaitingOpponent) {
       console.log(`[Move Submit] Bot opponent detected, auto-submitting move for ${opponentAddress}`);
       console.log(`[Move Submit] Current round ID: ${currentRound.id}, round_number: ${currentRound.round_number}`);
       console.log(`[Move Submit] Current round state before bot: P1=${currentRound.player1_move}, P2=${currentRound.player2_move}`);
-      
+
       // Get bot's smart move
       const { SmartBotOpponent } = await import("@/lib/game/smart-bot-opponent");
       const { CombatEngine } = await import("@/game/combat");
-      
+
       // Create a temporary combat engine to get current state
       const engine = new CombatEngine(
         match.player1_character_id || "dag-warrior",
         match.player2_character_id || "dag-warrior",
         match.format as "best_of_1" | "best_of_3" | "best_of_5"
       );
-      
+
       // Sync engine state with match state (simplified - just set HP/energy/rounds)
       const matchState = engine.getState();
       // Note: In production you'd want to fully sync all previous rounds/turns
       // For now, the bot will make a reasonable decision based on available info
-      
+
       // Extract bot name from player profile or use default
       const { data: botProfile } = await supabase
         .from("players")
@@ -266,7 +225,7 @@ export async function POST(
         .single();
       const botName = botProfile?.display_name || "Bot Opponent";
       const bot = new SmartBotOpponent(botName);
-      
+
       // Update bot context with current match state
       const botPlayer = isPlayer1 ? "player2" : "player1";
       const humanPlayer = isPlayer1 ? "player1" : "player2";
@@ -290,17 +249,17 @@ export async function POST(
         botRoundsWon: matchState[botPlayer].roundsWon,
         opponentRoundsWon: matchState[humanPlayer].roundsWon,
       });
-      
+
       const decision = bot.decide();
       const botMove = decision.move;
-      
+
       console.log(`[Move Submit] Bot chose move: ${botMove} (${decision.reasoning})`);
-      
+
       // Submit bot's move (fake transaction ID)
       const botTxId = `bot_tx_${Date.now()}_${Math.random().toString(36).substring(7)}`.padEnd(64, '0').substring(0, 64);
-      
+
       const botMoveColumn = isPlayer1 ? "player2_move" : "player1_move";
-      
+
       const { data: botMoveData, error: botMoveError } = await supabase
         .from("moves")
         .insert({
@@ -311,11 +270,11 @@ export async function POST(
         })
         .select()
         .single();
-      
+
       if (botMoveError) {
         console.error("[Move Submit] Failed to insert bot move:", botMoveError);
       }
-      
+
       if (!botMoveError && botMoveData) {
         // Only update the move column (rounds table doesn't have tx_id columns)
         const { error: botRoundUpdateError } = await supabase
@@ -324,13 +283,13 @@ export async function POST(
             [botMoveColumn]: botMove,
           })
           .eq("id", currentRound.id);
-        
+
         if (botRoundUpdateError) {
           console.error("[Move Submit] Failed to update round with bot move:", botRoundUpdateError);
         } else {
           console.log(`[Move Submit] Bot move successfully saved to database - Round ${currentRound.id}, Move: ${botMove}`);
         }
-        
+
         // Broadcast bot move
         const botGameChannel = supabase.channel(`game:${matchId}`);
         await botGameChannel.send({
@@ -343,7 +302,7 @@ export async function POST(
           },
         });
         await supabase.removeChannel(botGameChannel);
-        
+
         // Both moves submitted now, need to resolve
         // Update the updatedRound variable with bot's move (updatedRound already has player's move from DB)
         if (updatedRound) {
@@ -355,7 +314,7 @@ export async function POST(
         }
       }
     }
-    
+
     // Re-check if we're still awaiting opponent after bot auto-submit
     // Use updatedRound since it has the latest state from database
     const finalAwaitingOpponent = !(updatedRound?.player1_move && updatedRound?.player2_move);
@@ -398,10 +357,10 @@ export async function POST(
     if (!finalAwaitingOpponent) {
       console.log(`[Move Submit] Triggering combat resolution for match ${matchId}, round ${currentRound.id}`);
       console.log(`[Move Submit] Moves: P1=${updatedRound?.player1_move}, P2=${updatedRound?.player2_move}`);
-      
+
       const { resolveRound } = await import("@/lib/game/combat-resolver");
       resolution = await resolveRound(matchId, currentRound.id);
-      
+
       console.log(`[Move Submit] Combat resolution complete. Success: ${resolution?.success}, isMatchOver: ${resolution?.isMatchOver}`);
 
       if (resolution.isMatchOver) {
@@ -434,4 +393,4 @@ export async function POST(
       new ApiError(ErrorCodes.INTERNAL_ERROR, "Internal server error")
     );
   }
-}
+});

@@ -535,6 +535,56 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       }
     };
 
+    // Helper for authenticated API calls with Session Token support
+    const authenticatedFetch = async (url: string, options: RequestInit) => {
+      if (!address) throw new Error("Wallet not connected");
+
+      // Check for existing session token
+      const SESSION_KEY = `kaspaclash_session_${address}`;
+      let token = localStorage.getItem(SESSION_KEY);
+      let expiry = localStorage.getItem(`${SESSION_KEY}_expiry`);
+
+      // If no valid token, login first
+      if (!token || !expiry || new Date(expiry) < new Date()) {
+        console.log("[Auth] No valid session, logging in...");
+        const timestamp = Date.now().toString();
+        const message = `Login to KaspaClash:${timestamp}`;
+        const signature = await signMessage(message);
+
+        const loginRes = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address, signature, timestamp })
+        });
+
+        if (!loginRes.ok) {
+          throw new Error("Login failed");
+        }
+
+        const loginData = await loginRes.json();
+        token = loginData.token;
+        expiry = loginData.expiresAt;
+
+        if (token && expiry) {
+          localStorage.setItem(SESSION_KEY, token);
+          localStorage.setItem(`${SESSION_KEY}_expiry`, expiry);
+        }
+      }
+
+      const headers = new Headers(options.headers);
+      if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
+
+      // Fallback: If for some reason token is missing (shouldn't happen), add legacy headers?
+      // No, let's rely on token. If token fails, user will be prompted to sign next time.
+
+      return fetch(url, {
+        ...options,
+        headers
+      });
+    };
+
     // Handle move submission from Phaser - uses REAL Kaspa transactions
     const handleMoveSubmitted = async (data: unknown) => {
       const payload = data as { moveType: string; matchId: string };
@@ -569,26 +619,32 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
         if (result.success && result.txId) {
           console.log("[MatchGameClient] Transaction submitted:", result.txId);
 
-          // Submit to API with real txId
-          const response = await fetch(`/api/matches/${currentMatchId}/move`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              address: currentAddress,
-              moveType: payload.moveType,
-              txId: result.txId,
-            }),
-          });
+          // Submit to API with real txId and AUTHENTICATION
+          try {
+            const response = await authenticatedFetch(`/api/matches/${currentMatchId}/move`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                address: currentAddress,
+                moveType: payload.moveType,
+                txId: result.txId,
+              }),
+            });
 
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error("Failed to submit move:", errorText);
-            EventBus.emit("game:moveError", { error: "Failed to submit move to server" });
-          } else {
-            console.log("[MatchGameClient] Move recorded on server");
-            // Mark move as submitted to prevent double-submission
-            moveSubmittedRef.current = true;
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error("Failed to submit move:", errorText);
+              EventBus.emit("game:moveError", { error: "Failed to submit move to server" });
+            } else {
+              console.log("[MatchGameClient] Move recorded on server");
+              // Mark move as submitted to prevent double-submission
+              moveSubmittedRef.current = true;
+            }
+          } catch (authError) {
+            console.error("Auth/Network error submitting move:", authError);
+            EventBus.emit("game:moveError", { error: "Authentication failed. Please sign the request." });
           }
+
         } else {
           // Transaction failed - user likely rejected the wallet popup
           console.error("Transaction failed:", result.error);

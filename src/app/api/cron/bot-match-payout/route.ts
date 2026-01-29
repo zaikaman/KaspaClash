@@ -26,32 +26,13 @@ import {
 } from "@/lib/game/bot-match-service";
 import { resolveBotMatchPayouts } from "@/lib/betting/bot-payout-service";
 import { lockBettingPool } from "@/lib/game/bot-match-lifecycle";
+import { withCronAuth } from "@/lib/api/auth-middleware";
 
 export const runtime = "nodejs";
 export const maxDuration = 60; // 1 minute max
 
 // Betting window duration in milliseconds
 const BETTING_WINDOW_MS = 30000;
-
-/**
- * Verify the request is authorized
- */
-function isCronAuthorized(request: NextRequest): boolean {
-    const authHeader = request.headers.get("authorization");
-    const cronSecret = process.env.CRON_SECRET;
-
-    if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
-        return true;
-    }
-
-    // Vercel-specific signature header (if migrating back from cron-job.org)
-    const vercelCronSignature = request.headers.get("x-vercel-signature");
-    if (vercelCronSignature) {
-        return true;
-    }
-
-    return false;
-}
 
 interface BotMatchRow {
     id: string;
@@ -135,24 +116,15 @@ async function processMatchPayout(
     }
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withCronAuth(async (request: NextRequest): Promise<NextResponse<any>> => {
     console.log("[AutoPayout] Bot match auto-payout triggered");
-
-    // Verify authorization
-    if (!isCronAuthorized(request)) {
-        console.error("[AutoPayout] Unauthorized request");
-        return NextResponse.json(
-            { error: "Unauthorized" },
-            { status: 401 }
-        );
-    }
 
     try {
         const supabase = await createSupabaseServerClient();
         const db = supabase as any;
 
+        // ... rest of the logic
         // Find all active matches that should be finished based on time
-        // A match is finished when: now >= createdAt + bettingWindow + (totalTurns * turnDurationMs)
         const { data: activeMatches, error: matchesError } = await db
             .from("bot_matches")
             .select("*")
@@ -178,45 +150,21 @@ export async function GET(request: NextRequest) {
 
         console.log(`[AutoPayout] Found ${activeMatches.length} active matches to check`);
 
-        const results: Array<{
-            matchId: string;
-            success: boolean;
-            winner?: string;
-            payoutsCount?: number;
-            error?: string;
-        }> = [];
+        const results: any[] = [];
 
         for (const row of activeMatches as BotMatchRow[]) {
             const match = rowToBotMatch(row);
-
-            // Debug: Log match timing info
-            const now = Date.now();
-            const elapsed = now - match.createdAt;
-            const maxDuration = match.totalTurns * match.turnDurationMs + 30000; // BETTING_WINDOW_MS
             const finished = isMatchFinished(match);
-            console.log(`[AutoPayout] Match ${match.id.slice(0, 20)}... | elapsed: ${Math.floor(elapsed / 1000)}s | maxDuration: ${Math.floor(maxDuration / 1000)}s | finished: ${finished}`);
 
-            // Check if match has finished based on elapsed time
             if (finished) {
                 console.log(`[AutoPayout] Processing finished match: ${match.id}`);
-
-                // Mark match as completed
                 await markBotMatchCompleted(match.id);
-
-                // Process payout using vault service
                 const result = await processMatchPayout(match.id);
                 results.push(result);
-
-                if (result.success) {
-                    console.log(`[AutoPayout] Match ${match.id} resolved - Winner: ${result.winner}, Payouts: ${result.payoutsCount}, Total: ${result.totalAmount} sompi`);
-                } else {
-                    console.error(`[AutoPayout] Match ${match.id} failed: ${result.error}`);
-                }
             }
         }
 
         // Also check for pools that are still 'open' but their match has ended
-        // This catches edge cases where the pool wasn't locked properly
         const { data: openPools, error: poolsError } = await db
             .from("bot_betting_pools")
             .select("id, bot_match_id, bot_matches!inner(*)")
@@ -226,29 +174,17 @@ export async function GET(request: NextRequest) {
             for (const pool of openPools) {
                 const matchRow = pool.bot_matches as BotMatchRow;
                 if (!matchRow) continue;
-
                 const match = rowToBotMatch(matchRow);
-
-                // Lock the pool if betting window has closed
                 const elapsed = Date.now() - match.createdAt;
                 if (elapsed >= BETTING_WINDOW_MS) {
-                    console.log(`[AutoPayout] Locking orphan pool for match: ${match.id}`);
                     await lockBettingPool(pool.id);
                 }
             }
         }
 
-        const successCount = results.filter(r => r.success).length;
-        const failCount = results.filter(r => !r.success).length;
-
-        console.log(`[AutoPayout] Completed: ${results.length} matches processed (${successCount} succeeded, ${failCount} failed)`);
-
         return NextResponse.json({
             success: true,
-            message: `Processed ${results.length} matches`,
             processed: results.length,
-            succeeded: successCount,
-            failed: failCount,
             results,
         });
     } catch (error) {
@@ -258,9 +194,7 @@ export async function GET(request: NextRequest) {
             { status: 500 }
         );
     }
-}
+});
 
 // Also support POST for flexibility
-export async function POST(request: NextRequest) {
-    return GET(request);
-}
+export const POST = GET;

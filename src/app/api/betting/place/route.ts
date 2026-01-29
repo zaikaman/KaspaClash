@@ -1,43 +1,33 @@
 /**
  * POST /api/betting/place
- * Place a bet on a match
+ * Place a bet on a match with input validation
  */
 
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { ApiError, ErrorCodes, createErrorResponse } from "@/lib/api/errors";
+import { ApiError, ErrorCodes, createErrorResponse, Errors } from "@/lib/api/errors";
 import {
     calculateFee,
     calculateNetAmount,
     MIN_BET_SOMPI,
 } from "@/lib/betting/betting-service";
-
-interface PlaceBetRequest {
-    matchId: string;
-    betOn: 'player1' | 'player2';
-    amount: string; // sompi as string (bigint)
-    txId: string;
-    bettorAddress: string;
-}
+import { placeBetSchema, validateBody } from "@/lib/api/validators";
 
 export async function POST(request: Request) {
     try {
-        const body: PlaceBetRequest = await request.json();
-        const { matchId, betOn, amount, txId, bettorAddress } = body;
+        const body = await request.json();
 
-        // Validate input
-        if (!matchId || !betOn || !amount || !txId || !bettorAddress) {
+        // Validate input using Zod schema
+        const validation = validateBody(body, placeBetSchema);
+        if (!validation.success) {
             return createErrorResponse(
-                new ApiError(ErrorCodes.BAD_REQUEST, "Missing required fields")
+                new ApiError(ErrorCodes.BAD_REQUEST, validation.error)
             );
         }
 
-        if (betOn !== 'player1' && betOn !== 'player2') {
-            return createErrorResponse(
-                new ApiError(ErrorCodes.BAD_REQUEST, "betOn must be 'player1' or 'player2'")
-            );
-        }
+        const { matchId, betOn, amount, txId, bettorAddress } = validation.data;
 
+        // Validate minimum bet amount
         const amountBigInt = BigInt(amount);
         if (amountBigInt < MIN_BET_SOMPI) {
             return createErrorResponse(
