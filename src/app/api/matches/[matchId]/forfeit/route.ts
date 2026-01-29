@@ -174,8 +174,27 @@ export async function POST(
     });
     await supabase.removeChannel(gameChannel);
 
+    // Return full match ended payload for client-side handling (especially bot matches)
     return NextResponse.json({
       winnerAddress,
+      winner: isPlayer1 ? "player2" : "player1",
+      reason: "forfeit",
+      finalScore: {
+        player1RoundsWon: match.player1_rounds_won || 0,
+        player2RoundsWon: match.player2_rounds_won || 0,
+      },
+      ratingChanges: ratingResult ? {
+        winner: {
+          before: ratingResult.winner.ratingBefore,
+          after: ratingResult.winner.ratingAfter,
+          change: ratingResult.winner.change,
+        },
+        loser: {
+          before: ratingResult.loser.ratingBefore,
+          after: ratingResult.loser.ratingAfter,
+          change: ratingResult.loser.change,
+        },
+      } : undefined,
     });
   } catch (error) {
     console.error("Forfeit endpoint error:", error);

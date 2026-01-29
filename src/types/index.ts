@@ -107,6 +107,10 @@ export interface Match {
   player1CharacterId: string | null;
   /** P2's selected character */
   player2CharacterId: string | null;
+  /** P1's banned character */
+  player1BanId: string | null;
+  /** P2's banned character */
+  player2BanId: string | null;
   /** Match format */
   format: MatchFormat;
   /** Current state */

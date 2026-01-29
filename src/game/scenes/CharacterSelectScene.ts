@@ -27,6 +27,8 @@ export interface CharacterSelectSceneConfig {
   existingOpponentCharacter?: string | null;
   ownedCharacterIds?: string[]; // IDs of characters owned by the player
   isBot?: boolean;
+  // Bot's pre-selected ban (set when match is created)
+  botBanId?: string | null;
 }
 
 /**
@@ -101,6 +103,13 @@ export class CharacterSelectScene extends Phaser.Scene {
    * Initialize scene with match data.
    */
   init(data: CharacterSelectSceneConfig): void {
+    console.log("[CharacterSelectScene] init() called with data:", JSON.stringify({
+      matchId: data?.matchId,
+      isBot: data?.isBot,
+      botBanId: data?.botBanId,
+      existingOpponentCharacter: data?.existingOpponentCharacter,
+    }));
+    
     // Provide defaults if data is missing (e.g., if scene started without config)
     this.config = {
       matchId: data?.matchId || "unknown",
@@ -114,6 +123,8 @@ export class CharacterSelectScene extends Phaser.Scene {
       ownedCharacterIds: data?.ownedCharacterIds || [
         "cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"
       ], // Default starters if missing
+      isBot: data?.isBot,
+      botBanId: data?.botBanId, // Bot's pre-selected ban from database
     };
     this.resetState();
   }
@@ -199,8 +210,42 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     this.setupEventListeners();
 
+    // Initialize Bot BEFORE restoreExistingSelectionsUI to ensure isBot flag is set correctly
+    // This prevents incorrect opponent character restoration for bot matches
+    const isBotMatch = this.config.isBot || !this.config.opponentAddress || this.config.opponentAddress === "";
+
+    if (isBotMatch) {
+      console.log("[CharacterSelectScene] Initializing Smart Bot Opponent (Fallback/Explicit)");
+      this.bot = new SmartBotOpponent("Smart Bot");
+      this.config.isBot = true; // Ensure flag is set for other logic BEFORE restoreExistingSelectionsUI
+
+      // Use pre-set ban from match creation (stored in database)
+      if (this.config.botBanId) {
+        this.botBanTarget = this.config.botBanId;
+        console.log(`[CharacterSelectScene] Bot using pre-set ban from database: ${this.botBanTarget}`);
+      } else {
+        // Fallback: decide ban now if not pre-set
+        const allCharIds = CHARACTER_ROSTER.map(c => c.id);
+        const userOwnedIds = this.config.ownedCharacterIds || [];
+        this.botBanTarget = this.bot.banCharacter(userOwnedIds, allCharIds);
+        console.log(`[CharacterSelectScene] Bot fallback ban: ${this.botBanTarget}`);
+      }
+
+      // Pre-decide pick (different from ban)
+      const allCharIds = CHARACTER_ROSTER.map(c => c.id);
+      const available = allCharIds.filter(id => id !== this.botBanTarget);
+      this.botPickTarget = available[Math.floor(Math.random() * available.length)];
+      console.log(`[CharacterSelectScene] Bot pre-decided pick: ${this.botPickTarget}`);
+
+      // Schedule bot ban REVEAL after 3-6 seconds delay
+      const botBanDelay = 3000 + Math.random() * 3000; // 3-6 seconds
+      console.log(`[CharacterSelectScene] Bot ban will be revealed in ${Math.round(botBanDelay)}ms`);
+      this.time.delayedCall(botBanDelay, () => this.revealBotBan());
+    }
+
     // Restore existing selections UI (for reconnection scenarios)
     // This only restores the visual state - API calls are deferred until channel is ready
+    // IMPORTANT: This must run AFTER bot initialization so isBot flag is correctly set
     this.restoreExistingSelectionsUI();
 
     // Listen for channel ready to trigger API calls
@@ -223,56 +268,31 @@ export class CharacterSelectScene extends Phaser.Scene {
     EventBus.emit("character_select_ready", { matchId: this.config.matchId });
     EventBus.emit("character_select_ready", { matchId: this.config.matchId });
     console.log("[CharacterSelectScene] create() complete, scene ready");
-
-    // Initialize Bot if applicable
-    // Initialize Bot if applicable (or fallback if opponent address is empty)
-    const isBotMatch = this.config.isBot || !this.config.opponentAddress || this.config.opponentAddress === "";
-
-    if (isBotMatch) {
-      console.log("[CharacterSelectScene] Initializing Smart Bot Opponent (Fallback/Explicit)");
-      this.bot = new SmartBotOpponent("Smart Bot");
-      this.config.isBot = true; // Ensure flag is set for other logic
-
-      // Pre-calculate bot moves immediately
-      const allCharIds = CHARACTER_ROSTER.map(c => c.id);
-      const userOwnedIds = this.config.ownedCharacterIds || [];
-
-      // 1. Decide Ban
-      this.botBanTarget = this.bot.banCharacter(userOwnedIds, allCharIds);
-      console.log(`[CharacterSelectScene] Bot pre-decided ban: ${this.botBanTarget}`);
-
-      // 2. Decide Pick (preliminary, might change if ban changes, but good for robust fallback)
-      const available = allCharIds.filter(id => id !== this.botBanTarget);
-      this.botPickTarget = available[Math.floor(Math.random() * available.length)];
-      console.log(`[CharacterSelectScene] Bot pre-decided pick: ${this.botPickTarget}`);
-
-      // Schedule bot ban execution
-      this.time.delayedCall(1000 + Math.random() * 2000, () => this.performBotBan());
-    }
   }
 
   /**
-   * Execute Bot Ban Logic.
+   * Reveal Bot's pre-set ban after delay.
+   * The ban was already decided when the match was created.
    */
-  private performBotBan(): void {
-    if (!this.bot || this.hasOpponentLockedBan) return;
-
-    // Use pre-decided ban or decide now
-    let banId = this.botBanTarget;
-    if (!banId) {
-      const allCharIds = CHARACTER_ROSTER.map(c => c.id);
-      const userOwnedIds = this.config.ownedCharacterIds || [];
-      banId = this.bot.banCharacter(userOwnedIds, allCharIds);
-      this.botBanTarget = banId;
+  private revealBotBan(): void {
+    // Skip if already banned (e.g., from reconnection) or phase changed
+    if (this.hasOpponentLockedBan || this.phase !== "BANNING") {
+      console.log(`[CharacterSelectScene] Skipping bot ban reveal - hasOpponentLockedBan: ${this.hasOpponentLockedBan}, phase: ${this.phase}`);
+      return;
     }
 
-    // Determine Bot Role (Opposite of me)
+    const banId = this.botBanTarget;
+    if (!banId) {
+      console.error("[CharacterSelectScene] No bot ban target set!");
+      return;
+    }
+
+    // Determine Bot Role (Opposite of player)
     const botRole = this.config.isHost ? "player2" : "player1";
 
-    console.log(`[CharacterSelectScene] Bot performing ban: ${banId} with role: ${botRole}`);
-    console.log(`[CharacterSelectScene] My role is: ${this.config.isHost ? "player1" : "player2"}`);
+    console.log(`[CharacterSelectScene] Bot revealing ban: ${banId} with role: ${botRole}`);
 
-    // Simulate opponent ban confirmation
+    // Trigger the opponent ban confirmed handler
     this.onOpponentBanConfirmed(banId, botRole);
   }
 

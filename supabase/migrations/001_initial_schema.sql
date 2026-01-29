@@ -287,6 +287,8 @@ CREATE TABLE public.matches (
   stakes_confirmed boolean DEFAULT false,
   stake_deadline_at timestamp with time zone,
   is_bot boolean NOT NULL DEFAULT false,
+  player1_ban_id text,
+  player2_ban_id text,
   CONSTRAINT matches_pkey PRIMARY KEY (id),
   CONSTRAINT matches_player1_address_fkey FOREIGN KEY (player1_address) REFERENCES public.players(address),
   CONSTRAINT matches_player2_address_fkey FOREIGN KEY (player2_address) REFERENCES public.players(address),

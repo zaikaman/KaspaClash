@@ -44,6 +44,8 @@ function transformMatchData(
     player2_address: string | null;
     player1_character_id: string | null;
     player2_character_id: string | null;
+    player1_ban_id?: string | null;
+    player2_ban_id?: string | null;
     format: string;
     status: string;
     selection_deadline_at: string | null;
@@ -73,6 +75,8 @@ function transformMatchData(
     player2Address: dbMatch.player2_address,
     player1CharacterId: dbMatch.player1_character_id,
     player2CharacterId: dbMatch.player2_character_id,
+    player1BanId: dbMatch.player1_ban_id ?? null,
+    player2BanId: dbMatch.player2_ban_id ?? null,
     format: dbMatch.format as MatchFormat,
     status: dbMatch.status as MatchStatus,
     selectionDeadlineAt: dbMatch.selection_deadline_at,

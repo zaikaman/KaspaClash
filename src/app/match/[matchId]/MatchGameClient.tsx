@@ -498,14 +498,22 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
 
         if (response.ok) {
           console.log("[MatchGameClient] Surrender successful");
-          // For bot matches, we might need to redirect manually
+          const data = await response.json();
+          
+          // For bot matches, we need to emit the match ended event manually
+          // since the broadcast may not reach the client properly
           if (isOpponentBot) {
-            // Wait a moment for the backend to process, then redirect
-            setTimeout(() => {
-              router.push("/matchmaking");
-            }, 1000);
+            console.log("[MatchGameClient] Bot match - emitting game:matchEnded manually");
+            // Emit the match ended event to trigger ResultsScene transition
+            EventBus.emit("game:matchEnded", {
+              winner: data.winner,
+              winnerAddress: data.winnerAddress,
+              reason: "forfeit",
+              finalScore: data.finalScore,
+              ratingChanges: data.ratingChanges,
+            });
           }
-          // Backend broadcasts 'match_ended' which handles the rest for human matches
+          // For human matches, backend broadcasts 'match_ended' which the game channel handles
         } else {
           console.error("Surrender failed:", await response.text());
           EventBus.emit("game:moveError", { error: "Surrender failed" });
@@ -933,6 +941,8 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
               existingOpponentCharacter: match.player2CharacterId,
               ownedCharacterIds: ownedCharacterIds,
               isBot: match.isBot,
+              // Pass bot's pre-selected ban for bot matches
+              botBanId: match.isBot ? match.player2BanId : null,
             } : initialScene === "ResultsScene" ? {
               result: {
                 winner: match.winnerAddress === match.player1Address ? "player1" :

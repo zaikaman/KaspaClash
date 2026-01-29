@@ -13,6 +13,7 @@ import { useQuestStore } from "@/stores/quest-store";
 import { useWalletStore, selectIsConnected, selectPersistedAddress } from "@/stores/wallet-store";
 import { useShopStore } from "@/stores/shop-store";
 import { useCurrencyRealtime, fetchCurrentCurrency } from "@/hooks/useCurrencyRealtime";
+import { authenticatedPost } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -124,20 +125,16 @@ export default function QuestsPage() {
         if (!walletAddress) return;
 
         try {
-            const response = await fetch("/api/quests/claim", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    playerId: walletAddress,
-                    questId,
-                }),
+            // Use authenticated request with session token
+            const data = await authenticatedPost<{
+                success: boolean;
+                rewards?: { xp: number; currency: number };
+                newBalance?: number;
+                error?: string;
+            }>("/api/quests/claim", walletAddress, {
+                playerAddress: walletAddress,
+                questId,
             });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || "Failed to claim quest");
-            }
 
             // Update local state
             markQuestClaimed(questId);

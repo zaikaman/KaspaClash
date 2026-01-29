@@ -60,14 +60,19 @@ export async function POST(request: NextRequest) {
             "chrono-drifter", "cyber-paladin", "aeon-guard", "bastion-hulk"
         ];
         const botCharacterId = botCharacters[Math.floor(Math.random() * botCharacters.length)];
+        
+        // Pick a random ban for the bot (different from picked character)
+        const availableForBan = botCharacters.filter(c => c !== botCharacterId);
+        const botBanId = availableForBan[Math.floor(Math.random() * availableForBan.length)];
 
-        // Create match entry with bot character already selected
+        // Create match entry with bot character and ban already selected
         const { data: match, error: matchError } = await supabase
             .from("matches")
             .insert({
                 player1_address: player1Address,
                 player2_address: player2Address,
                 player2_character_id: botCharacterId,
+                player2_ban_id: botBanId, // Bot's pre-selected ban
                 format: "best_of_5",
                 status: "character_select",
                 selection_deadline_at: new Date(Date.now() + 30000).toISOString(), // 30 seconds
