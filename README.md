@@ -780,7 +780,8 @@ Every **Monday at 00:00 UTC**, the treasury automatically distributes accumulate
 
 - **40% to Top 10 ELO Players:** Reward for competitive excellence.
 - **40% to Top 10 Survival Players:** Reward for PvE mastery.
-- **20% Reserve:** Retained for future prize pools and development.
+- **20% to Project Wallet:** Supports ongoing development and operations.
+- **Minimum Reserve:** Always keeps at least 10 KAS in treasury for transaction fees.
 
 #### Funding
 - The treasury is funded by a **0.1% fee** on all betting pools and 1 KAS for each cosmetics purchase.

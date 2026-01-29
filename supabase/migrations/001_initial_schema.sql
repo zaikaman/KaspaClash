@@ -574,6 +574,8 @@ CREATE TABLE public.treasury_distributions (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   started_at timestamp with time zone,
   completed_at timestamp with time zone,
+  project_wallet_amount bigint DEFAULT 0 CHECK (project_wallet_amount >= 0),
+  project_wallet_address text,
   CONSTRAINT treasury_distributions_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.verification_badges (

@@ -4,7 +4,8 @@
  * Handles weekly distribution of treasury funds to top leaderboard players:
  * - 40% to top 10 ELO rating players
  * - 40% to top 10 Survival mode players
- * - 20% remains in treasury as reserve
+ * - 20% to designated project wallet (network-specific)
+ * - Always keep at least 10 KAS in treasury for fees
  * 
  * Runs every Monday at 09:00 via cron job.
  */
@@ -32,19 +33,22 @@ export interface DistributionConfig {
     eloPercentage: number;
     /** Percentage for Survival leaderboard (0-100) */
     survivalPercentage: number;
-    /** Percentage for treasury reserve (0-100) */
-    reservePercentage: number;
+    /** Percentage for project wallet (0-100) */
+    projectWalletPercentage: number;
     /** Number of top players to distribute to */
     topPlayersCount: number;
     /** Minimum vault balance to trigger distribution (sompi) */
     minDistributionBalance: bigint;
+    /** Minimum balance to keep in treasury for fees (sompi) */
+    minTreasuryReserve: bigint;
 }
 
 export interface DistributionSplit {
     totalAmount: bigint;
     eloPoolAmount: bigint;
     survivalPoolAmount: bigint;
-    reserveAmount: bigint;
+    projectWalletAmount: bigint;
+    treasuryReserveAmount: bigint;
     perEloPlayerAmount: bigint;
     perSurvivalPlayerAmount: bigint;
 }
@@ -78,10 +82,17 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 export const DEFAULT_DISTRIBUTION_CONFIG: DistributionConfig = {
     eloPercentage: 40,
     survivalPercentage: 40,
-    reservePercentage: 20,
+    projectWalletPercentage: 20,
     topPlayersCount: 10,
     minDistributionBalance: BigInt(10_00000000), // 10 KAS minimum
+    minTreasuryReserve: BigInt(10_00000000), // Keep 10 KAS for fees
 };
+
+/** Project wallet addresses by network */
+export const PROJECT_WALLET_ADDRESSES = {
+    testnet: "kaspatest:qpxxrel67ydhnyfw6juel06xq83ymvxru8fdu9sguht6t7xennvt5fuanuugp",
+    mainnet: "kaspa:qpxxrel67ydhnyfw6juel06xq83ymvxru8fdu9sguht6t7xennvt5g6mgnze9",
+} as const;
 
 // =============================================================================
 // HELPER FUNCTIONS
@@ -89,29 +100,40 @@ export const DEFAULT_DISTRIBUTION_CONFIG: DistributionConfig = {
 
 /**
  * Calculate the distribution split amounts.
+ * Ensures minimum treasury reserve is maintained.
  */
 export function calculateDistributionSplit(
     totalBalance: bigint,
     config: DistributionConfig
 ): DistributionSplit {
-    // Calculate pool amounts
-    const eloPoolAmount = (totalBalance * BigInt(config.eloPercentage)) / 100n;
-    const survivalPoolAmount = (totalBalance * BigInt(config.survivalPercentage)) / 100n;
-    const reserveAmount = totalBalance - eloPoolAmount - survivalPoolAmount;
+    // Calculate distributable amount (total balance - minimum reserve)
+    const distributableAmount = totalBalance > config.minTreasuryReserve 
+        ? totalBalance - config.minTreasuryReserve 
+        : 0n;
+
+    // Calculate pool amounts from distributable amount
+    const eloPoolAmount = (distributableAmount * BigInt(config.eloPercentage)) / 100n;
+    const survivalPoolAmount = (distributableAmount * BigInt(config.survivalPercentage)) / 100n;
+    const projectWalletAmount = (distributableAmount * BigInt(config.projectWalletPercentage)) / 100n;
 
     // Calculate per-player amounts (equal split among top N)
     const perEloPlayerAmount = eloPoolAmount / BigInt(config.topPlayersCount);
     const perSurvivalPlayerAmount = survivalPoolAmount / BigInt(config.topPlayersCount);
 
-    // Total actually distributed (excluding reserve and rounding dust)
+    // Total actually distributed (excluding treasury reserve and rounding dust)
     const totalDistributed = (perEloPlayerAmount * BigInt(config.topPlayersCount)) +
-        (perSurvivalPlayerAmount * BigInt(config.topPlayersCount));
+        (perSurvivalPlayerAmount * BigInt(config.topPlayersCount)) +
+        projectWalletAmount;
+
+    // Treasury reserve is what remains after distribution
+    const treasuryReserveAmount = totalBalance - totalDistributed;
 
     return {
         totalAmount: totalDistributed,
         eloPoolAmount,
         survivalPoolAmount,
-        reserveAmount,
+        projectWalletAmount,
+        treasuryReserveAmount,
         perEloPlayerAmount,
         perSurvivalPlayerAmount,
     };
@@ -179,7 +201,8 @@ function getCurrentWeekStart(): Date {
  */
 async function createDistributionRecord(
     network: NetworkType,
-    split: DistributionSplit
+    split: DistributionSplit,
+    projectWalletAddress: string
 ): Promise<string> {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const weekStart = getCurrentWeekStart();
@@ -191,7 +214,9 @@ async function createDistributionRecord(
             total_amount: split.totalAmount.toString(),
             elo_pool_amount: split.eloPoolAmount.toString(),
             survival_pool_amount: split.survivalPoolAmount.toString(),
-            reserve_amount: split.reserveAmount.toString(),
+            reserve_amount: split.treasuryReserveAmount.toString(),
+            project_wallet_amount: split.projectWalletAmount.toString(),
+            project_wallet_address: projectWalletAddress,
             network,
             status: "processing",
             started_at: new Date().toISOString(),
@@ -360,10 +385,12 @@ export async function processWeeklyDistribution(
 
         // Step 3: Calculate distribution split
         const split = calculateDistributionSplit(vaultBalance.balance, config);
+        const projectWalletAddress = PROJECT_WALLET_ADDRESSES[network];
         console.log(`[TreasuryService] Distribution split:`);
         console.log(`  - ELO pool: ${sompiToKas(split.eloPoolAmount)} KAS`);
         console.log(`  - Survival pool: ${sompiToKas(split.survivalPoolAmount)} KAS`);
-        console.log(`  - Reserve: ${sompiToKas(split.reserveAmount)} KAS`);
+        console.log(`  - Project wallet: ${sompiToKas(split.projectWalletAmount)} KAS`);
+        console.log(`  - Treasury reserve: ${sompiToKas(split.treasuryReserveAmount)} KAS`);
         console.log(`  - Per ELO player: ${sompiToKas(split.perEloPlayerAmount)} KAS`);
         console.log(`  - Per Survival player: ${sompiToKas(split.perSurvivalPlayerAmount)} KAS`);
 
@@ -375,7 +402,7 @@ export async function processWeeklyDistribution(
         console.log(`[TreasuryService] Top Survival players: ${topSurvivalPlayers.length}`);
 
         // Step 5: Create distribution record
-        distributionId = await createDistributionRecord(network, split);
+        distributionId = await createDistributionRecord(network, split, projectWalletAddress);
         console.log(`[TreasuryService] Distribution ID: ${distributionId}`);
 
         // Step 6: Build payout targets for batch transfer
@@ -425,18 +452,41 @@ export async function processWeeklyDistribution(
             });
         }
 
+        // Add Project Wallet payout (20%)
+        if (split.projectWalletAmount > 0n) {
+            console.log(`[TreasuryService] Preparing Project Wallet payout: ${sompiToKas(split.projectWalletAmount)} KAS to ${projectWalletAddress}`);
+            allPayoutTargets.push({
+                toAddress: projectWalletAddress,
+                amountSompi: split.projectWalletAmount,
+                reason: `Weekly Project Allocation (20%)`,
+            });
+        }
+
         console.log(`[TreasuryService] Processing ${allPayoutTargets.length} payouts via batch transfer...`);
 
         // Step 7: Execute batch transfer with chained transactions
         const batchResult = await sendBatchFromVault(network, allPayoutTargets);
 
         // Step 8: Process results and record each payout
-        let eloIndex = 0;
-        let survivalIndex = 0;
+        const projectWalletPayoutIndex = topEloPlayers.length + topSurvivalPlayers.length;
+        let projectWalletSuccess = false;
+        let projectWalletTxId: string | null = null;
 
         for (let i = 0; i < batchResult.results.length; i++) {
             const result = batchResult.results[i];
             const target = allPayoutTargets[i];
+
+            // Check if this is the project wallet payout (last in the batch)
+            if (i === projectWalletPayoutIndex) {
+                projectWalletSuccess = result.success;
+                projectWalletTxId = result.txId || null;
+                if (result.success) {
+                    console.log(`[TreasuryService] Project Wallet payout: ${sompiToKas(split.projectWalletAmount)} KAS to ${projectWalletAddress} - TX: ${result.txId}`);
+                } else {
+                    console.error(`[TreasuryService] Project Wallet payout FAILED: ${result.error}`);
+                }
+                continue;
+            }
 
             // Determine if this is ELO or Survival payout based on position
             const isEloPayout = i < topEloPlayers.length;
@@ -468,15 +518,15 @@ export async function processWeeklyDistribution(
         }
 
 
-        // Step 8: Finalize distribution
-        const distributionSuccess = failedPayouts.length === 0;
+        // Step 9: Finalize distribution
+        const distributionSuccess = failedPayouts.length === 0 && projectWalletSuccess;
         await finalizeDistribution(
             distributionId,
             distributionSuccess,
             eloPayouts.length,
             survivalPayouts.length,
             failedPayouts.length,
-            distributionSuccess ? undefined : `${failedPayouts.length} payouts failed`
+            distributionSuccess ? undefined : `${failedPayouts.length} payouts failed${!projectWalletSuccess ? ', project wallet payout failed' : ''}`
         );
 
         // Record post-distribution balance
@@ -490,8 +540,10 @@ export async function processWeeklyDistribution(
         console.log(`[TreasuryService] Distribution complete!`);
         console.log(`  - ELO payouts: ${eloPayouts.length}/${topEloPlayers.length}`);
         console.log(`  - Survival payouts: ${survivalPayouts.length}/${topSurvivalPlayers.length}`);
+        console.log(`  - Project wallet: ${projectWalletSuccess ? 'SUCCESS' : 'FAILED'}`);
         console.log(`  - Failed: ${failedPayouts.length}`);
         console.log(`  - Total distributed: ${sompiToKas(totalDistributed)} KAS`);
+        console.log(`  - Treasury reserve remaining: ${sompiToKas(split.treasuryReserveAmount)} KAS`);
 
         return {
             success: distributionSuccess,
@@ -547,6 +599,8 @@ export async function getDistributionHistory(
         eloPoolAmount: bigint;
         survivalPoolAmount: bigint;
         reserveAmount: bigint;
+        projectWalletAmount?: bigint;
+        projectWalletAddress?: string;
         status: string;
         eloPayoutsCount: number;
         survivalPayoutsCount: number;
@@ -577,6 +631,8 @@ export async function getDistributionHistory(
             eloPoolAmount: BigInt(row.elo_pool_amount),
             survivalPoolAmount: BigInt(row.survival_pool_amount),
             reserveAmount: BigInt(row.reserve_amount),
+            projectWalletAmount: row.project_wallet_amount ? BigInt(row.project_wallet_amount) : undefined,
+            projectWalletAddress: row.project_wallet_address || undefined,
             status: row.status,
             eloPayoutsCount: row.elo_payouts_count,
             survivalPayoutsCount: row.survival_payouts_count,
