@@ -78,7 +78,10 @@ export function GameSidebar() {
     return (
         <>
             {/* Mobile Menu Button */}
-            <div className="lg:hidden fixed top-4 left-4 z-50">
+            <div className={cn(
+                "lg:hidden fixed top-4 left-4 z-50 transition-opacity duration-300",
+                isMobileMenuOpen ? "opacity-0 pointer-events-none" : "opacity-100"
+            )}>
                 <Button
                     variant="ghost"
                     size="icon"
