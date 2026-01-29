@@ -15,6 +15,7 @@ import { updateMatchRatings } from "@/lib/rating/elo";
 interface ForfeitRequest {
   address: string;
   signature: string;
+  publicKey?: string;
 }
 
 /**
@@ -50,7 +51,7 @@ export async function POST(
 
     // Verify signature
     const forfeitMessage = `Forfeit match: ${matchId}`;
-    const isValid = await verifySignature(body.address, forfeitMessage, body.signature);
+    const isValid = await verifySignature(body.address, forfeitMessage, body.signature, body.publicKey);
 
     if (!isValid) {
       return createErrorResponse(

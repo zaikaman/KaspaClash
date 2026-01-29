@@ -261,10 +261,11 @@ export function compose<T>(
 export async function verifySignature(
   address: string,
   message: string,
-  signature: string
+  signature: string,
+  publicKey?: string
 ): Promise<boolean> {
   // Import and use the proper signature verification from auth-middleware
   const { verifyWalletSignature } = await import("./auth-middleware");
-  return verifyWalletSignature(address, message, signature);
+  return verifyWalletSignature(address, message, signature, publicKey);
 }
 

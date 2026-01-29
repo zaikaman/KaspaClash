@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useWalletStore, selectIsConnected, selectIsConnecting, selectFormattedBalance, selectTruncatedAddress, selectHasHydrated } from "@/stores/wallet-store";
-import { connectWallet, disconnectWallet, signMessage as signWalletMessage, getBalance, isWalletConnected, tryReconnect } from "@/lib/kaspa/wallet";
+import { connectWallet, disconnectWallet, signMessage as signWalletMessage, getBalance, isWalletConnected, tryReconnect, getPublicKey as getWalletPublicKey } from "@/lib/kaspa/wallet";
 import { discoverAllWallets } from "@/lib/kaspa/wallet-discovery";
 import type { KaspaAddress, KaspaProvider, WalletDiscoveryResult } from "@/types/kaspa";
 
@@ -29,6 +29,8 @@ export interface UseWalletReturn {
   connect: (provider?: KaspaProvider) => Promise<void>;
   disconnect: () => Promise<void>;
   signMessage: (message: string) => Promise<string>;
+  signMessageWithPublicKey: (message: string) => Promise<{ signature: string; publicKey: string }>;
+  getPublicKey: () => Promise<string | null>;
   refreshBalance: () => Promise<void>;
   discoverWallets: () => Promise<WalletDiscoveryResult[]>;
 }
@@ -58,14 +60,60 @@ export function useWallet(): UseWalletReturn {
   }, []);
 
   /**
-   * Connect to a Kaspa wallet.
+   * Connect to a Kaspa wallet and authenticate with signature.
+   * This is a "Sign-In With Kaspa" (SIWK) flow.
    */
   const connect = useCallback(async (provider?: KaspaProvider): Promise<void> => {
     try {
       store.setConnecting();
 
       const connection = await connectWallet(provider);
+
+      // Immediately authenticate with signature after wallet connection
+      console.log("[Auth] Wallet connected, requesting signature for authentication...");
+      const timestamp = Date.now().toString();
+      const message = `Login to KaspaClash:${timestamp}`;
+
+      // Sign the message and get public key for verification
+      const signResult = await signWalletMessage(message);
+
+      // Get public key for server-side verification
+      let publicKey = signResult.publicKey || "";
+      if (!publicKey) {
+        // Try to get public key separately if not returned with signature
+        publicKey = await getWalletPublicKey() || "";
+      }
+
+      // Send to server for verification and session creation
+      const loginRes = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          address: connection.address,
+          signature: signResult.signature,
+          publicKey,
+          timestamp,
+        }),
+      });
+
+      if (!loginRes.ok) {
+        const errorData = await loginRes.json().catch(() => ({}));
+        throw new Error(errorData.error || "Authentication failed");
+      }
+
+      const loginData = await loginRes.json();
+
+      // Store session token
+      const SESSION_KEY = `kaspaclash_session_${connection.address}`;
+      if (loginData.token && loginData.expiresAt) {
+        localStorage.setItem(SESSION_KEY, loginData.token);
+        localStorage.setItem(`${SESSION_KEY}_expiry`, loginData.expiresAt);
+        console.log("[Auth] Session token stored, expires:", loginData.expiresAt);
+      }
+
+      // Now set as connected (after successful auth)
       store.setConnected(connection.address as KaspaAddress, connection.network || "mainnet");
+      console.log("[Auth] Wallet authenticated successfully:", connection.address.substring(0, 20) + "...");
 
       // Auto-register player in database (creates new or returns existing)
       try {
@@ -96,6 +144,7 @@ export function useWallet(): UseWalletReturn {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to connect wallet";
       store.setError(message);
+      store.setDisconnected(); // Reset state on auth failure
       throw error;
     }
   }, [store]);
@@ -124,6 +173,32 @@ export function useWallet(): UseWalletReturn {
 
     const result = await signWalletMessage(message);
     return result.signature;
+  }, [isConnected]);
+
+  /**
+   * Sign a message with the connected wallet and return both signature and public key.
+   * This is needed for server-side signature verification.
+   */
+  const signMessageWithPublicKey = useCallback(async (message: string): Promise<{ signature: string; publicKey: string }> => {
+    if (!isConnected) {
+      throw new Error("Wallet not connected");
+    }
+
+    const result = await signWalletMessage(message);
+    return {
+      signature: result.signature,
+      publicKey: result.publicKey || "",
+    };
+  }, [isConnected]);
+
+  /**
+   * Get the public key from the connected wallet.
+   */
+  const getPublicKey = useCallback(async (): Promise<string | null> => {
+    if (!isConnected) {
+      return null;
+    }
+    return await getWalletPublicKey();
   }, [isConnected]);
 
   /**
@@ -166,6 +241,7 @@ export function useWallet(): UseWalletReturn {
 
   /**
    * Auto-reconnect after store hydration if previously connected.
+   * Only reconnects if there's a valid session token - otherwise user must re-authenticate.
    */
   useEffect(() => {
     // Wait for store to hydrate from localStorage
@@ -177,6 +253,20 @@ export function useWallet(): UseWalletReturn {
         try {
           console.log("[useWallet] Auto-reconnecting wallet at:", Date.now());
           console.log("[useWallet] Stored address:", store.address?.substring(0, 20) + "...");
+
+          // Check if we have a valid session token
+          const SESSION_KEY = `kaspaclash_session_${store.address}`;
+          const token = localStorage.getItem(SESSION_KEY);
+          const expiry = localStorage.getItem(`${SESSION_KEY}_expiry`);
+
+          const hasValidSession = token && expiry && new Date(expiry) > new Date();
+
+          if (!hasValidSession) {
+            console.log("[useWallet] No valid session found - user must re-authenticate");
+            store.setDisconnected();
+            return;
+          }
+
           // tryReconnect uses getAccounts() which doesn't prompt user
           const result = await tryReconnect();
           if (result) {
@@ -189,13 +279,14 @@ export function useWallet(): UseWalletReturn {
             } catch (e) {
               console.warn("Failed to fetch balance after reconnect:", e);
             }
-            console.log("[useWallet] Wallet auto-reconnected successfully at:", Date.now());
+            console.log("[useWallet] Wallet auto-reconnected with valid session at:", Date.now());
           } else {
             console.log("[useWallet] Silent reconnect failed - wallet may require new authorization");
-            // Don't clear state - user may want to manually reconnect
+            store.setDisconnected();
           }
         } catch (error) {
           console.warn("[useWallet] Auto-reconnect failed:", error);
+          store.setDisconnected();
         }
       } else {
         console.log("[useWallet] Auto-reconnect skipped - no stored address or already connected");
@@ -234,6 +325,8 @@ export function useWallet(): UseWalletReturn {
     connect,
     disconnect,
     signMessage,
+    signMessageWithPublicKey,
+    getPublicKey,
     refreshBalance,
     discoverWallets,
   };

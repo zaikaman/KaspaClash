@@ -72,7 +72,7 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
   console.log("[MatchGameClient] DEADLINE VALUE:", match.selectionDeadlineAt ?? "UNDEFINED/NULL");
 
 
-  const { signMessage } = useWallet();
+  const { signMessage, signMessageWithPublicKey } = useWallet();
   const { address, connectionState } = useWalletStore();
   const matchStore = useMatchStore();
   const matchActions = useMatchActions();
@@ -483,7 +483,7 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
 
         // 1. Sign message
         const message = `Forfeit match: ${currentMatchId}`;
-        const signature = await signMessage(message);
+        const { signature, publicKey } = await signMessageWithPublicKey(message);
 
         // 2. Call forfeit API
         const response = await fetch(`/api/matches/${currentMatchId}/forfeit`, {
@@ -491,7 +491,8 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             address: currentAddress,
-            signature
+            signature,
+            publicKey
           }),
         });
 
@@ -544,31 +545,10 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       let token = localStorage.getItem(SESSION_KEY);
       let expiry = localStorage.getItem(`${SESSION_KEY}_expiry`);
 
-      // If no valid token, login first
+      // If no valid token, throw error (user must reconnect wallet to authenticate)
       if (!token || !expiry || new Date(expiry) < new Date()) {
-        console.log("[Auth] No valid session, logging in...");
-        const timestamp = Date.now().toString();
-        const message = `Login to KaspaClash:${timestamp}`;
-        const signature = await signMessage(message);
-
-        const loginRes = await fetch("/api/auth/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ address, signature, timestamp })
-        });
-
-        if (!loginRes.ok) {
-          throw new Error("Login failed");
-        }
-
-        const loginData = await loginRes.json();
-        token = loginData.token;
-        expiry = loginData.expiresAt;
-
-        if (token && expiry) {
-          localStorage.setItem(SESSION_KEY, token);
-          localStorage.setItem(`${SESSION_KEY}_expiry`, expiry);
-        }
+        console.warn("[Auth] Session expired or missing");
+        throw new Error("Session expired - please disconnect and reconnect wallet");
       }
 
       const headers = new Headers(options.headers);

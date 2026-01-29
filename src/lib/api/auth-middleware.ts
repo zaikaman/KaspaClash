@@ -33,7 +33,8 @@ const MAX_TIMESTAMP_AGE_MS = 5 * 60 * 1000;
 export async function verifyWalletSignature(
     address: string,
     message: string,
-    signature: string
+    signature: string,
+    publicKey?: string
 ): Promise<boolean> {
     try {
         // Validate inputs
@@ -53,15 +54,76 @@ export async function verifyWalletSignature(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const kaspaWasm: any = await import("kaspa-wasm");
 
-        // Use the signMessage verification if available
-        // The API might vary between kaspa-wasm versions
+        // PRIMARY PATH: If publicKey is provided, use kaspa-wasm verifyMessage
+        // This is the most reliable method for Schnorr signatures
+        if (publicKey && typeof kaspaWasm.verifyMessage === "function") {
+            try {
+                // 1. Validate that the public key corresponds to the claimed address
+                if (kaspaWasm.createAddress) {
+                    // Determine network type from address prefix
+                    const networkType = address.startsWith("kaspatest:") ? "testnet-10" : "mainnet";
+
+                    const derivedAddress = kaspaWasm.createAddress(publicKey, networkType);
+                    const derivedAddressStr = derivedAddress.toString();
+
+                    // Check for exact match first
+                    if (derivedAddressStr !== address) {
+                        // Check/Fallback: Compare payload parts (excluding prefix and checksum)
+                        const addressParts = address.split(':');
+                        const derivedParts = derivedAddressStr.split(':');
+
+                        let match = false;
+                        if (addressParts.length === 2 && derivedParts.length === 2) {
+                            const addressPayload = addressParts[1];
+                            const derivedPayload = derivedParts[1];
+
+                            // Remove the 8-character checksum from the end
+                            const addressCore = addressPayload.substring(0, addressPayload.length - 8);
+                            const derivedCore = derivedPayload.substring(0, derivedPayload.length - 8);
+
+                            if (addressCore === derivedCore && addressCore.length > 0) {
+                                match = true;
+                            }
+                        }
+
+                        if (!match) {
+                            console.warn("[Auth] Public key does not match address");
+                            console.warn(`[Auth] Expected: ${address}, Derived: ${derivedAddressStr}`);
+                            return false;
+                        }
+                    }
+                }
+
+                // 2. Verify the signature
+                const isValid = kaspaWasm.verifyMessage({
+                    message,
+                    signature,
+                    publicKey,
+                });
+
+                return isValid;
+            } catch (kError) {
+                console.error("[Auth] kaspa-wasm verification failed:", kError);
+                // Fallthrough to legacy methods if this fails
+            }
+        }
+
+        // LEGACY PATH: Use old verifyMessage signature (address based) if available
+        // Note: This often fails for Schnorr/P2PK checks where pubkey is needed explicitly
         if (typeof kaspaWasm.verifyMessage === "function") {
-            const messageBytes = new TextEncoder().encode(message);
-            const signatureBytes = Buffer.from(signature, "hex");
-            return kaspaWasm.verifyMessage(address, messageBytes, signatureBytes);
+            try {
+                // Some versions of kaspa-wasm might support (address, message, signature)
+                // converting inputs to bytes
+                const messageBytes = new TextEncoder().encode(message);
+                const signatureBytes = Buffer.from(signature, "hex");
+                return kaspaWasm.verifyMessage(address, messageBytes, signatureBytes);
+            } catch {
+                // Ignore, try next method
+            }
         }
 
         // Alternative: Try to reconstruct public key from address and verify
+        // This only works if the address IS the public key (P2PK), which isn't always true
         if (kaspaWasm.Address && kaspaWasm.PublicKey) {
             try {
                 const addressObj = new kaspaWasm.Address(address);
@@ -81,14 +143,11 @@ export async function verifyWalletSignature(
                     }
                 }
             } catch (innerError) {
-                console.error("[Auth] Public key extraction failed:", innerError);
+                // console.error("[Auth] Public key extraction failed:", innerError);
             }
         }
 
-        // If we reach here, kaspa-wasm doesn't have the expected API
-        console.warn("[Auth] kaspa-wasm signature verification API not available");
-        console.warn("[Auth] Please update kaspa-wasm or implement custom verification");
-
+        // If we reach here, validation failed
         // In development, we can bypass for testing
         if (process.env.NODE_ENV === "development" && process.env.BYPASS_AUTH === "true") {
             console.warn("[Auth] DEVELOPMENT: Bypassing signature check");
@@ -98,11 +157,6 @@ export async function verifyWalletSignature(
         return false;
     } catch (error) {
         console.error("[Auth] Signature verification error:", error);
-        // In development, log more details
-        if (process.env.NODE_ENV === "development") {
-            console.error("[Auth] Address:", address);
-            console.error("[Auth] Message:", message);
-        }
         return false;
     }
 }
@@ -171,6 +225,7 @@ interface AuthHeaders {
     signature: string | null;
     address: string | null;
     timestamp: string | null;
+    publicKey: string | null;
 }
 
 function extractAuthHeaders(request: NextRequest): AuthHeaders {
@@ -178,6 +233,7 @@ function extractAuthHeaders(request: NextRequest): AuthHeaders {
         signature: request.headers.get("X-Signature"),
         address: request.headers.get("X-Wallet-Address"),
         timestamp: request.headers.get("X-Timestamp"),
+        publicKey: request.headers.get("X-Public-Key"),
     };
 }
 
@@ -223,7 +279,7 @@ export function withWalletAuth<T>(handler: ApiHandler<T>): ApiHandler<T> {
             }
         }
 
-        const { signature, address, timestamp } = extractAuthHeaders(request);
+        const { signature, address, timestamp, publicKey } = extractAuthHeaders(request);
 
         // Check all required headers are present
         if (!signature || !address || !timestamp) {
@@ -272,7 +328,7 @@ export function withWalletAuth<T>(handler: ApiHandler<T>): ApiHandler<T> {
         let isValid = false;
         try {
             // Try kaspa-wasm first
-            isValid = await verifyWalletSignature(address, message, signature);
+            isValid = await verifyWalletSignature(address, message, signature, publicKey || undefined);
         } catch {
             // Fallback to secp256k1
             isValid = await verifySignatureSecp256k1(address, message, signature);
@@ -322,7 +378,7 @@ export function withOptionalWalletAuth<T>(handler: ApiHandler<T>): ApiHandler<T>
             } catch { }
         }
 
-        const { signature, address, timestamp } = extractAuthHeaders(request);
+        const { signature, address, timestamp, publicKey } = extractAuthHeaders(request);
 
         // If no auth headers, just continue
         if (!signature || !address || !timestamp) {
@@ -345,7 +401,7 @@ export function withOptionalWalletAuth<T>(handler: ApiHandler<T>): ApiHandler<T>
         let isValid = false;
 
         try {
-            isValid = await verifyWalletSignature(address, message, signature);
+            isValid = await verifyWalletSignature(address, message, signature, publicKey || undefined);
         } catch {
             try {
                 isValid = await verifySignatureSecp256k1(address, message, signature);

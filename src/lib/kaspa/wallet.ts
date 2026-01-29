@@ -20,6 +20,7 @@ export interface KaswareWallet {
   getAccounts(): Promise<string[]>;
   getNetwork(): Promise<string>;
   getBalance(): Promise<{ confirmed: number; unconfirmed: number; total: number }>;
+  getPublicKey?(): Promise<string>;
   signMessage(message: string): Promise<string>;
   signPsbt?(psbtHex: string): Promise<string>;
   disconnect?(): Promise<void>;
@@ -264,7 +265,29 @@ export function getProviderWithRpc(): KaswareWalletWithRpc | null {
 }
 
 /**
+ * Get the public key from the connected wallet.
+ * This is needed for signature verification on the server side.
+ */
+export async function getPublicKey(): Promise<string | null> {
+  if (!currentWallet) {
+    return null;
+  }
+
+  try {
+    if (currentWallet.getPublicKey) {
+      const publicKey = await currentWallet.getPublicKey();
+      return publicKey;
+    }
+    return null;
+  } catch (error) {
+    console.warn("Failed to get public key:", error);
+    return null;
+  }
+}
+
+/**
  * Sign a message with the connected wallet.
+ * Returns the signature and public key (if available from wallet).
  */
 export async function signMessage(message: string): Promise<SignMessageResult> {
   if (!currentWallet || !currentAddress) {
@@ -274,9 +297,19 @@ export async function signMessage(message: string): Promise<SignMessageResult> {
   try {
     const signature = await currentWallet.signMessage(message);
 
+    // Try to get the public key for signature verification
+    let publicKey = "";
+    if (currentWallet.getPublicKey) {
+      try {
+        publicKey = await currentWallet.getPublicKey();
+      } catch (e) {
+        console.warn("Failed to get public key from wallet:", e);
+      }
+    }
+
     return {
       signature,
-      publicKey: "", // Kasware doesn't return public key separately
+      publicKey,
     };
   } catch (error) {
     console.error("Sign message error:", error);
@@ -351,13 +384,13 @@ export async function sendKaspa(
       priorityFee: 0,
       payload: payload,
     });
-    
+
     console.log("Transaction result type:", typeof txResult);
     console.log("Transaction result:", txResult);
-    
+
     // Extract transaction ID - handle string, JSON string, or object responses
     let txId: string;
-    
+
     if (typeof txResult === 'string') {
       // Check if it's a JSON string
       try {
@@ -378,12 +411,12 @@ export async function sendKaspa(
       console.error("Unexpected transaction result format:", txResult);
       throw new Error("Invalid transaction response format");
     }
-    
+
     if (!txId || typeof txId !== 'string') {
       console.error("Failed to extract valid transaction ID. Result:", txResult);
       throw new Error("Invalid transaction ID");
     }
-    
+
     console.log("Transaction sent successfully. ID:", txId);
     return txId;
   } catch (error) {
