@@ -51,15 +51,19 @@ export default function Home() {
               </div>
 
               {/* Character Image */}
-              <div className="relative z-10 flex justify-center">
-                <motion.img
-                  initial={{ opacity: 0, y: 100 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
-                  src="/assets/hero.webp"
-                  alt="Cyberpunk Fighter"
-                  className="w-auto h-[300px] sm:h-[400px] md:h-[600px] lg:h-[700px] object-contain drop-shadow-[0_0_30px_rgba(240,183,31,0.3)]"
-                />
+              <div className="relative z-10 flex justify-center items-end">
+                <div className="relative">
+                  <motion.img
+                    initial={{ opacity: 0, y: 100 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
+                    src="/assets/hero.webp"
+                    alt="Cyberpunk Fighter"
+                    className="w-auto h-[300px] sm:h-[400px] md:h-[600px] lg:h-[700px] object-contain drop-shadow-[0_0_30px_rgba(240,183,31,0.3)] [mask-image:linear-gradient(to_bottom,black_80%,transparent_100%)]"
+                  />
+                  {/* Blending Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none z-20 h-full w-full bottom-0"></div>
+                </div>
               </div>
 
               {/* "True Ownership" - Left Side (Stories & Lore style) */}
