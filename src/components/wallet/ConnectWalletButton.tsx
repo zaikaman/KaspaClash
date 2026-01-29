@@ -70,6 +70,24 @@ export function ConnectWalletButton({
 
   const [isOpen, setIsOpen] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile device
+  useEffect(() => {
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+      const mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i;
+      const isMobileDevice = mobileRegex.test(userAgent.toLowerCase());
+      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      const isSmallScreen = window.innerWidth <= 768;
+      
+      setIsMobile(isMobileDevice || (isTouchDevice && isSmallScreen));
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Track when wallets have been discovered
   useEffect(() => {
@@ -167,61 +185,97 @@ export function ConnectWalletButton({
         <DialogHeader>
           <DialogTitle>Connect Your Wallet</DialogTitle>
           <DialogDescription>
-            Choose a Kaspa wallet to connect to KaspaClash
+            {isMobile 
+              ? "Desktop Required"
+              : "Choose a Kaspa wallet to connect to KaspaClash"
+            }
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
-          {isInitializing ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-kaspa mx-auto mb-4" />
-              Detecting wallets...
-            </div>
-          ) : availableWallets.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground mb-4">
-                No Kaspa wallets detected
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Please install the{" "}
-                <a
-                  href="https://kasware.xyz"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-kaspa hover:underline"
-                >
-                  Kasware
-                </a>
-                {" "}wallet extension to continue.
-              </p>
+          {isMobile ? (
+            // Mobile-specific message
+            <div className="text-center py-8 space-y-4">
+              <div className="text-5xl mb-4">🖥️</div>
+              <div className="space-y-2">
+                <p className="font-medium text-lg">
+                  Kasware is Only for Desktop Users
+                </p>
+                <p className="text-muted-foreground">
+                  To connect your wallet and play KaspaClash, please access the game from your computer.
+                </p>
+              </div>
+              <div className="rounded-lg bg-muted p-4 mt-6">
+                <p className="text-sm text-muted-foreground">
+                  Kasware wallet extension is only available on desktop browsers.
+                  Visit{" "}
+                  <a
+                    href="https://kasware.xyz"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-kaspa hover:underline font-medium"
+                  >
+                    kasware.xyz
+                  </a>
+                  {" "}on your computer to get started.
+                </p>
+              </div>
             </div>
           ) : (
+            // Desktop wallet selection
             <>
-              {availableWallets.map((wallet) => (
-                <Button
-                  key={wallet.name}
-                  variant="outline"
-                  className="w-full justify-start gap-3 h-14"
-                  onClick={() => handleConnect(wallet.name)}
-                  disabled={isConnecting}
-                >
-                  {wallet.icon ? (
-                    <img
-                      src={wallet.icon}
-                      alt={wallet.name}
-                      className="size-8 rounded"
-                    />
-                  ) : (
-                    <WalletIcon className="size-8" />
-                  )}
-                  <div className="text-left">
-                    <p className="font-medium">{wallet.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Click to connect
-                    </p>
-                  </div>
-                </Button>
-              ))}
+              {isInitializing ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-kaspa mx-auto mb-4" />
+                  Detecting wallets...
+                </div>
+              ) : availableWallets.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground mb-4">
+                    No Kaspa wallets detected
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Please install the{" "}
+                    <a
+                      href="https://kasware.xyz"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-kaspa hover:underline"
+                    >
+                      Kasware
+                    </a>
+                    {" "}wallet extension to continue.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {availableWallets.map((wallet) => (
+                    <Button
+                      key={wallet.name}
+                      variant="outline"
+                      className="w-full justify-start gap-3 h-14"
+                      onClick={() => handleConnect(wallet.name)}
+                      disabled={isConnecting}
+                    >
+                      {wallet.icon ? (
+                        <img
+                          src={wallet.icon}
+                          alt={wallet.name}
+                          className="size-8 rounded"
+                        />
+                      ) : (
+                        <WalletIcon className="size-8" />
+                      )}
+                      <div className="text-left">
+                        <p className="font-medium">{wallet.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Click to connect
+                        </p>
+                      </div>
+                    </Button>
+                  ))}
+                </>
+              )}
             </>
           )}
 

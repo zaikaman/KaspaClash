@@ -134,7 +134,6 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 - **Premium UI:** Glassmorphic design with dynamic layout adjustment (compact during betting, full-height during match)
 
 ### 🎨 User Experience
-- **Responsive Design:** Optimized for desktop, tablet, and mobile
 - **Real-Time Updates:** Supabase Realtime for instant game state synchronization
 - **Progressive Web App:** Installable with offline character previews
 - **Smooth Animations:** Framer Motion + Phaser.js for fluid gameplay
