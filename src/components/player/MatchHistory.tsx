@@ -54,14 +54,7 @@ function formatTimeAgo(dateString: string): string {
     return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
 }
 
-function formatAddress(address: string): string {
-    if (address.length > 16) {
-        const prefix = address.substring(0, 10);
-        const suffix = address.substring(address.length - 6);
-        return `${prefix}...${suffix}`;
-    }
-    return address;
-}
+import { formatAddress } from "@/lib/utils";
 
 const CHARACTER_NAMES: Record<string, string> = {
     "cyber-ninja": "Cyber Ninja",

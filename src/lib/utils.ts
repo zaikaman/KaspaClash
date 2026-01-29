@@ -10,10 +10,18 @@ export function cn(...inputs: ClassValue[]) {
 
 /**
  * Format a Kaspa address for display.
- * Shortens to first 10 and last 6 characters.
+ * Handles both mainnet (kaspa:) and testnet (kaspatest:) prefixes gracefully.
  */
 export function formatAddress(address: string): string {
   if (!address || address.length < 20) return address;
+
+  // For testnet addresses, we need to show more characters to ensure the hash is visible
+  if (address.startsWith("kaspatest:")) {
+    // kaspatest:qp (12 chars) ... suffix (6 chars)
+    return `${address.slice(0, 12)}...${address.slice(-6)}`;
+  }
+
+  // Default behavior (kaspa: is 6 chars, so 10 chars gives us prefix + 4 chars of hash)
   return `${address.slice(0, 10)}...${address.slice(-6)}`;
 }
 

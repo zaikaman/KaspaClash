@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { formatAddress } from "@/lib/utils";
 
 interface UnifiedBetHistoryItem {
     id: string;
@@ -123,7 +124,7 @@ export async function GET(request: NextRequest) {
         // Get match details for bot matches
         const botMatchIds = [...new Set((botBetsData || []).map((bet: any) => bet.bot_betting_pools?.bot_match_id).filter(Boolean))];
         const botMatchDetailsMap = new Map<string, any>();
-        
+
         if (botMatchIds.length > 0) {
             const { data: botMatchesData } = await db
                 .from("bot_matches")
@@ -140,14 +141,14 @@ export async function GET(request: NextRequest) {
         // Get match details for player matches
         const playerMatchIds = [...new Set((playerBetsData || []).map((bet: any) => bet.betting_pools?.match_id).filter(Boolean))];
         const playerMatchDetailsMap = new Map<string, any>();
-        
+
         if (playerMatchIds.length > 0) {
             const { data: playerMatchesData } = await db
                 .from("matches")
                 .select(`
                     id,
-                    player1_id,
-                    player2_id,
+                    player1_address,
+                    player2_address,
                     player1_character_id,
                     player2_character_id
                 `)
@@ -155,19 +156,19 @@ export async function GET(request: NextRequest) {
 
             if (playerMatchesData) {
                 // Get player names
-                const playerIds = [...new Set(playerMatchesData.flatMap((m: any) => [m.player1_id, m.player2_id]).filter(Boolean))];
+                const playerAddresses = [...new Set(playerMatchesData.flatMap((m: any) => [m.player1_address, m.player2_address]).filter(Boolean))];
                 const { data: playersData } = await db
                     .from("players")
                     .select("address, username")
-                    .in("address", playerIds);
+                    .in("address", playerAddresses);
 
                 const playersMap = new Map(playersData?.map((p: any) => [p.address, p.username]) || []);
 
                 playerMatchesData.forEach((match: any) => {
                     playerMatchDetailsMap.set(match.id, {
                         ...match,
-                        player1_name: playersMap.get(match.player1_id) || match.player1_id?.slice(0, 8) || 'Unknown',
-                        player2_name: playersMap.get(match.player2_id) || match.player2_id?.slice(0, 8) || 'Unknown',
+                        player1_name: playersMap.get(match.player1_address) || formatAddress(match.player1_address) || 'Unknown',
+                        player2_name: playersMap.get(match.player2_address) || formatAddress(match.player2_address) || 'Unknown',
                     });
                 });
             }

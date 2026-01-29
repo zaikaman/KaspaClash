@@ -11,15 +11,7 @@ import { useWalletStore } from "@/stores/wallet-store";
 
 const PAGE_SIZE = 50;
 
-/**
- * Format a Kaspa address for display (truncate middle).
- */
-function formatAddress(address: string): string {
-    if (address.length <= 20) return address;
-    const prefix = address.slice(0, 14);
-    const suffix = address.slice(-6);
-    return `${prefix}...${suffix}`;
-}
+import { formatAddress } from "@/lib/utils";
 
 /**
  * Get prestige badge styling based on level.
