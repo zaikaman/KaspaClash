@@ -105,6 +105,7 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
   const addressRef = useRef(address);
   const matchIdRef = useRef(match.id);
   const moveSubmittedRef = useRef(false); // Track if move was already submitted this round
+  const playerRoleRef = useRef<PlayerRole | null>(null);
 
   // Keep refs in sync with latest values
   useEffect(() => {
@@ -153,6 +154,11 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       : address === match.player2Address
         ? "player2"
         : null;
+
+  // Keep playerRoleRef in sync
+  useEffect(() => {
+    playerRoleRef.current = playerRole;
+  }, [playerRole]);
 
   // Check if this is a bot match
   const isOpponentBot = match.isBot ?? false;
@@ -678,6 +684,13 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
               console.log(`[MatchGameClient] ⚡ TOTAL move submission: ${Date.now() - submitStartTime}ms`);
               // Mark move as submitted to prevent double-submission
               moveSubmittedRef.current = true;
+              
+              // Emit move confirmed with txId for the transaction toast
+              EventBus.emit("game:moveConfirmed", {
+                player: playerRoleRef.current,
+                txId: result.txId,
+                confirmedAt: Date.now(),
+              });
             }
           } catch (authError) {
             console.error("Auth/Network error submitting move:", authError);

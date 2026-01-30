@@ -9,6 +9,7 @@ export { RoundTimer, type RoundTimerConfig } from "./RoundTimer";
 export { HealthBar, type HealthBarConfig } from "./HealthBar";
 export { RoundScore, type RoundScoreConfig } from "./RoundScore";
 export { StickerPicker, type StickerPickerConfig, STICKER_LIST } from "./StickerPicker";
+export { TransactionToast } from "./TransactionToast";
 
 // Character selection UI
 export { CharacterCard, type CharacterCardConfig } from "./CharacterCard";

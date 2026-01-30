@@ -10,6 +10,7 @@ import { getCharacterScale, getCharacterYOffset, getAnimationScale, getSoundDela
 import { CombatEngine, BASE_MOVE_STATS } from "../combat";
 import { ChatPanel } from "../ui/ChatPanel";
 import { StickerPicker, STICKER_LIST, type StickerId } from "../ui/StickerPicker";
+import { TransactionToast } from "../ui/TransactionToast";
 import { SmartBotOpponent } from "@/lib/game/smart-bot-opponent";
 import type { MoveType, PlayerRole } from "@/types";
 import type { CombatState } from "../combat";
@@ -159,6 +160,9 @@ export class FightScene extends Phaser.Scene {
   // Animation synchronization state
   private isResolving: boolean = false;
   private pendingMatchEndPayload: any = null;
+
+  // Transaction toast for showing confirmed transactions
+  private activeTransactionToast?: TransactionToast;
   
   // Pending server state - holds the new HP/energy values during animations
   // This prevents the UI from showing new values before animations complete
@@ -2795,16 +2799,22 @@ export class FightScene extends Phaser.Scene {
 
     // Listen for move confirmation (when player signs transaction)
     EventBus.on("game:moveConfirmed", (data: unknown) => {
-      const payload = data as { player: string };
+      const payload = data as { player: string; txId?: string };
 
-      // If we confirmed our move, stop the local timer
-      if (payload.player === this.config.playerRole && this.phase === "selecting") {
-        if (this.timerEvent) {
+      // If we confirmed our move, stop the local timer and show transaction toast
+      if (payload.player === this.config.playerRole) {
+        // Stop timer if still running during selection phase
+        if (this.phase === "selecting" && this.timerEvent) {
           this.timerEvent.destroy();
           this.timerEvent = undefined;
         }
         this.turnIndicatorText.setText("Move locked in!");
         this.turnIndicatorText.setColor("#22c55e");
+
+        // Show transaction toast if we have a txId
+        if (payload.txId) {
+          this.showTransactionToast(payload.txId);
+        }
       }
     });
 
@@ -3089,6 +3099,39 @@ export class FightScene extends Phaser.Scene {
           payload.timestamp
         );
       }
+    });
+  }
+
+  /**
+   * Show a transaction confirmation toast notification.
+   * Displays the transaction ID with a link to the Kaspa explorer.
+   */
+  private showTransactionToast(txId: string): void {
+    // Close any existing toast first
+    if (this.activeTransactionToast) {
+      this.activeTransactionToast.close();
+      this.activeTransactionToast = undefined;
+    }
+
+    // Determine player address for network detection
+    const playerAddress = this.config.playerRole === "player1" 
+      ? this.config.player1Address 
+      : this.config.player2Address;
+
+    // Position toast in top-right corner with some padding
+    const toastX = GAME_DIMENSIONS.WIDTH - 180;
+    const toastY = 180;
+
+    this.activeTransactionToast = new TransactionToast({
+      scene: this,
+      x: toastX,
+      y: toastY,
+      txId: txId,
+      playerAddress: playerAddress,
+      duration: 3000, // 3 seconds
+      onClose: () => {
+        this.activeTransactionToast = undefined;
+      },
     });
   }
 
