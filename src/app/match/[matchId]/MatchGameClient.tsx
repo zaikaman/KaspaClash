@@ -229,8 +229,11 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
     };
   }, [sendSticker]);
 
-  // Listen for ban events from Phaser and forward to channel
+  // Listen for ban events from Phaser and forward to channel + save to database
   useEffect(() => {
+    const currentMatchId = match.id;
+    const currentAddress = address;
+
     const handleSendBanSelected = (data: unknown) => {
       const payload = data as { characterId: string };
       if (payload.characterId) {
@@ -238,10 +241,33 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       }
     };
 
-    const handleSendBanConfirmed = (data: unknown) => {
+    const handleSendBanConfirmed = async (data: unknown) => {
       const payload = data as { characterId: string };
-      if (payload.characterId) {
+      if (payload.characterId && currentAddress) {
+        // First broadcast to opponent for immediate feedback
         sendBanConfirmed(payload.characterId);
+
+        // Then persist to database for server-side synchronization
+        try {
+          console.log("[MatchGameClient] Saving ban to database:", payload.characterId);
+          const response = await fetch(`/api/matches/${currentMatchId}/ban`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              playerAddress: currentAddress,
+              characterId: payload.characterId,
+            }),
+          });
+
+          if (!response.ok) {
+            console.error("[MatchGameClient] Failed to save ban:", await response.text());
+          } else {
+            const result = await response.json();
+            console.log("[MatchGameClient] Ban saved to database:", result);
+          }
+        } catch (error) {
+          console.error("[MatchGameClient] Error saving ban:", error);
+        }
       }
     };
 
@@ -252,7 +278,7 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       EventBus.off("game:sendBanSelected", handleSendBanSelected);
       EventBus.off("game:sendBanConfirmed", handleSendBanConfirmed);
     };
-  }, [sendBanSelected, sendBanConfirmed]);
+  }, [sendBanSelected, sendBanConfirmed, match.id, address]);
 
   // Handle reconnection on mount
   useEffect(() => {
@@ -955,13 +981,25 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
               reconnectState: reconnectState?.gameState,
             } : initialScene === "CharacterSelectScene" ? {
               matchId: match.id,
-              playerAddress: match.player1Address,
-              opponentAddress: match.player2Address || "",
+              playerAddress: playerRole === "player1" ? match.player1Address : (match.player2Address || ""),
+              opponentAddress: playerRole === "player1" ? (match.player2Address || "") : match.player1Address,
               isHost: playerRole === "player1",
               selectionTimeLimit: 30,
               selectionDeadlineAt: match.selectionDeadlineAt,
-              existingPlayerCharacter: match.player1CharacterId,
-              existingOpponentCharacter: match.player2CharacterId,
+              // Character selections (for reconnection)
+              existingPlayerCharacter: playerRole === "player1" 
+                ? match.player1CharacterId 
+                : match.player2CharacterId,
+              existingOpponentCharacter: playerRole === "player1" 
+                ? match.player2CharacterId 
+                : match.player1CharacterId,
+              // Ban selections (for reconnection)
+              existingPlayerBan: playerRole === "player1"
+                ? match.player1BanId
+                : match.player2BanId,
+              existingOpponentBan: playerRole === "player1"
+                ? match.player2BanId
+                : match.player1BanId,
               ownedCharacterIds: ownedCharacterIds,
               isBot: match.isBot,
               // Pass bot's pre-selected ban for bot matches
