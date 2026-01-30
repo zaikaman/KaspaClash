@@ -226,6 +226,10 @@ export function useSpectatorChannel(options: UseSpectatorChannelOptions): UseSpe
                 })
                 .on("broadcast", { event: "match_cancelled" }, ({ payload }) => {
                     handleMatchCancelled(payload);
+                })
+                .on("broadcast", { event: "fight_state_update" }, ({ payload }) => {
+                    console.log("[SpectatorChannel] fight_state_update received:", payload);
+                    EventBus.emit("game:fightStateUpdate", payload);
                 });
 
             // Subscribe to the channel

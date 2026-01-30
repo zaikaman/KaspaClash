@@ -591,11 +591,13 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
     };
 
     // Helper for authenticated API calls with Session Token support
-    const authenticatedFetch = async (url: string, options: RequestInit) => {
-      if (!address) throw new Error("Wallet not connected");
+    // Takes walletAddress as parameter to avoid stale closure issues
+    const authenticatedFetch = async (url: string, options: RequestInit, walletAddress?: string) => {
+      const effectiveAddress = walletAddress || addressRef.current;
+      if (!effectiveAddress) throw new Error("Wallet not connected");
 
       // Check for existing session token
-      const SESSION_KEY = `kaspaclash_session_${address}`;
+      const SESSION_KEY = `kaspaclash_session_${effectiveAddress}`;
       let token = localStorage.getItem(SESSION_KEY);
       let expiry = localStorage.getItem(`${SESSION_KEY}_expiry`);
 
@@ -664,7 +666,7 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
                 moveType: payload.moveType,
                 txId: result.txId,
               }),
-            });
+            }, currentAddress);
             
             console.log(`[MatchGameClient] ⚡ API call complete in ${Date.now() - apiStartTime}ms`);
 

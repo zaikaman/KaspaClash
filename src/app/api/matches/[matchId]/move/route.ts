@@ -184,6 +184,20 @@ export const POST = withWalletAuth(async (
       updatedRound?.player1_move && updatedRound?.player2_move
     );
 
+    // Update fight state snapshot with move submission
+    try {
+      const { updateMoveSubmission } = await import("@/lib/game/fight-state-service");
+      await updateMoveSubmission(
+        supabase,
+        matchId,
+        isPlayer1 ? "player1" : "player2",
+        true
+      );
+    } catch (fightStateError) {
+      console.error("[Move Submit] Failed to update fight state:", fightStateError);
+      // Don't throw - fight state is supplementary
+    }
+
     // Broadcast move_submitted event via Supabase Realtime REST API
     // Server-side sends without subscribing explicitly use HTTP/REST
     const gameChannel = supabase.channel(`game:${matchId}`);

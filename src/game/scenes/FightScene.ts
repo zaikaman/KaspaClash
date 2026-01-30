@@ -159,6 +159,26 @@ export class FightScene extends Phaser.Scene {
   // Animation synchronization state
   private isResolving: boolean = false;
   private pendingMatchEndPayload: any = null;
+  
+  // Pending server state - holds the new HP/energy values during animations
+  // This prevents the UI from showing new values before animations complete
+  private pendingServerState: {
+    player1Health: number;
+    player1MaxHealth: number;
+    player2Health: number;
+    player2MaxHealth: number;
+    player1Energy: number;
+    player1MaxEnergy: number;
+    player2Energy: number;
+    player2MaxEnergy: number;
+    player1GuardMeter: number;
+    player2GuardMeter: number;
+    player1RoundsWon: number;
+    player2RoundsWon: number;
+    currentRound: number;
+    player1IsStunned?: boolean;
+    player2IsStunned?: boolean;
+  } | null = null;
 
   // Track stun visual effects
   private stunTweens: Map<"player1" | "player2", Phaser.Tweens.Tween> = new Map();
@@ -690,7 +710,8 @@ export class FightScene extends Phaser.Scene {
     if (this.config.isSpectator) return;
 
     try {
-      const response = await fetch(`/api/matches/${this.config.matchId}/disconnect`, {
+      // First notify disconnect API about reconnection
+      const disconnectResponse = await fetch(`/api/matches/${this.config.matchId}/disconnect`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -701,24 +722,205 @@ export class FightScene extends Phaser.Scene {
         }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
+      if (disconnectResponse.ok) {
+        const data = await disconnectResponse.json();
         console.log("[FightScene] Reconnect notification sent:", data);
 
         // Check if match was cancelled/completed while away
         if (data.data?.matchStatus === "completed" || data.data?.matchStatus === "cancelled") {
           console.log("[FightScene] Match ended while disconnected, fetching final state");
           this.fetchFinalMatchState();
-        } else if (data.data?.gameState) {
-          // Sync with current game state from server
-          console.log("[FightScene] Syncing with server game state");
-          this.syncWithServerState(data.data.gameState);
+          return;
+        }
+      }
+
+      // Fetch comprehensive fight state from new API
+      console.log("[FightScene] Fetching comprehensive fight state from server");
+      const fightStateResponse = await fetch(`/api/matches/${this.config.matchId}/fight-state`);
+      
+      if (fightStateResponse.ok) {
+        const fightStateData = await fightStateResponse.json();
+        console.log("[FightScene] Got fight state from server:", fightStateData);
+        
+        if (fightStateData.success && fightStateData.state) {
+          this.syncWithFightState(fightStateData.state);
+        } else {
+          console.warn("[FightScene] No fight state available, requesting round state");
+          EventBus.emit("fight:requestRoundState", { matchId: this.config.matchId });
         }
       } else {
-        console.warn("[FightScene] Failed to send reconnect notification");
+        console.warn("[FightScene] Failed to fetch fight state, requesting round state via EventBus");
+        EventBus.emit("fight:requestRoundState", { matchId: this.config.matchId });
       }
     } catch (error) {
       console.error("[FightScene] Error notifying reconnect:", error);
+      // Fallback to legacy sync mechanism
+      EventBus.emit("fight:requestRoundState", { matchId: this.config.matchId });
+    }
+  }
+
+  /**
+   * Sync client with comprehensive fight state from server.
+   * This handles all phases: countdown, selecting, resolving, round_end, match_end
+   */
+  private syncWithFightState(state: any): void {
+    console.log("[FightScene] Syncing with comprehensive fight state:", state);
+
+    // Don't sync state during animations - it would show HP/energy changes prematurely
+    if (this.phase === "resolving") {
+      console.log("[FightScene] Ignoring syncWithFightState during resolving phase to prevent premature UI updates");
+      return;
+    }
+
+    const now = Date.now();
+
+    // Update server state
+    this.serverState = {
+      player1Health: state.player1Health,
+      player1MaxHealth: state.player1MaxHealth,
+      player2Health: state.player2Health,
+      player2MaxHealth: state.player2MaxHealth,
+      player1Energy: state.player1Energy,
+      player1MaxEnergy: state.player1MaxEnergy,
+      player2Energy: state.player2Energy,
+      player2MaxEnergy: state.player2MaxEnergy,
+      player1GuardMeter: state.player1GuardMeter || 0,
+      player2GuardMeter: state.player2GuardMeter || 0,
+      player1RoundsWon: state.player1RoundsWon || 0,
+      player2RoundsWon: state.player2RoundsWon || 0,
+      currentRound: state.currentRound || 1,
+      player1IsStunned: state.player1IsStunned || false,
+      player2IsStunned: state.player2IsStunned || false,
+    };
+
+    // Update UI
+    this.syncUIWithCombatState();
+
+    // Apply stun effects
+    this.toggleStunEffect("player1", state.player1IsStunned ?? false);
+    this.toggleStunEffect("player2", state.player2IsStunned ?? false);
+
+    // Update round score
+    const roundsToWin = this.combatEngine ? this.combatEngine.getState().roundsToWin : 2;
+    this.roundScoreText.setText(
+      `Round ${state.currentRound}  •  ${state.player1RoundsWon} - ${state.player2RoundsWon}  (First to ${roundsToWin})`
+    );
+
+    // Handle phase-specific logic
+    switch (state.phase) {
+      case "countdown": {
+        // We're in countdown phase - calculate remaining countdown time
+        const countdownEndsAt = state.countdownEndsAt ? new Date(state.countdownEndsAt).getTime() : now;
+        const remainingCountdownMs = countdownEndsAt - now;
+        
+        if (remainingCountdownMs > 0) {
+          // Resume countdown
+          const remainingSeconds = Math.ceil(remainingCountdownMs / 1000);
+          const moveDeadlineAt = state.moveDeadlineAt ? new Date(state.moveDeadlineAt).getTime() : now + 20000;
+          this.phase = "countdown";
+          this.moveDeadlineAt = moveDeadlineAt;
+          this.showCountdownThenSync(remainingSeconds, moveDeadlineAt);
+        } else {
+          // Countdown already finished, go to selecting
+          const moveDeadlineAt = state.moveDeadlineAt ? new Date(state.moveDeadlineAt).getTime() : now + 20000;
+          this.moveDeadlineAt = moveDeadlineAt;
+          if (moveDeadlineAt > now) {
+            this.startSynchronizedSelectionPhase(moveDeadlineAt);
+          } else {
+            // Timer expired, wait for server
+            this.phase = "waiting";
+            this.turnIndicatorText.setText("Waiting for round to start...");
+            this.turnIndicatorText.setColor("#f97316");
+          }
+        }
+        break;
+      }
+
+      case "selecting": {
+        // We're in selection phase - resume with remaining time
+        const moveDeadlineAt = state.moveDeadlineAt ? new Date(state.moveDeadlineAt).getTime() : now;
+        this.moveDeadlineAt = moveDeadlineAt;
+        
+        if (moveDeadlineAt > now) {
+          // Check if we already submitted
+          const myRole = this.config.playerRole;
+          const hasSubmittedMove = myRole === "player1" ? state.player1HasSubmittedMove : state.player2HasSubmittedMove;
+          
+          if (hasSubmittedMove) {
+            // We already submitted - show waiting state
+            this.phase = "selecting";
+            this.isWaitingForOpponent = true;
+            this.turnIndicatorText.setText("Waiting for opponent...");
+            this.turnIndicatorText.setColor("#f97316");
+          } else {
+            // We need to make a move
+            this.startSynchronizedSelectionPhase(moveDeadlineAt);
+          }
+        } else {
+          // Timer expired, wait for resolution
+          this.phase = "waiting";
+          this.turnIndicatorText.setText("Waiting for resolution...");
+          this.turnIndicatorText.setColor("#f97316");
+        }
+        break;
+      }
+
+      case "resolving": {
+        // We're in resolving phase - animations are playing
+        const animationEndsAt = state.animationEndsAt ? new Date(state.animationEndsAt).getTime() : now;
+        
+        if (animationEndsAt > now) {
+          // Wait for animation to finish, then next phase
+          this.phase = "resolving";
+          this.isResolving = true;
+          this.turnIndicatorText.setText("Resolving turn...");
+          this.turnIndicatorText.setColor("#f97316");
+          
+          // Set a timeout to request next state after animation completes
+          const waitMs = animationEndsAt - now + 500; // Add 500ms buffer
+          this.time.delayedCall(waitMs, () => {
+            if (this.phase === "resolving") {
+              EventBus.emit("fight:requestRoundState", { matchId: this.config.matchId });
+            }
+          });
+        } else {
+          // Animation finished, wait for next phase
+          this.phase = "waiting";
+          this.turnIndicatorText.setText("Waiting for next turn...");
+          this.turnIndicatorText.setColor("#f97316");
+          EventBus.emit("fight:requestRoundState", { matchId: this.config.matchId });
+        }
+        break;
+      }
+
+      case "round_end": {
+        // Round just ended - show round end UI
+        this.phase = "round_end";
+        this.turnIndicatorText.setText("Round over!");
+        this.turnIndicatorText.setColor("#f97316");
+        
+        // The server will broadcast round_starting when next round begins
+        // Just wait for that event
+        break;
+      }
+
+      case "match_end": {
+        // Match is over
+        this.phase = "match_end";
+        this.turnIndicatorText.setText("Match over!");
+        this.turnIndicatorText.setColor("#22c55e");
+        
+        // Fetch final match results
+        this.fetchFinalMatchState();
+        break;
+      }
+
+      default:
+        // Unknown phase - wait for server
+        this.phase = "waiting";
+        this.turnIndicatorText.setText("Synchronizing...");
+        this.turnIndicatorText.setColor("#f97316");
+        EventBus.emit("fight:requestRoundState", { matchId: this.config.matchId });
     }
   }
 
@@ -776,6 +978,12 @@ export class FightScene extends Phaser.Scene {
    * Sync client state with server game state after reconnection.
    */
   private syncWithServerState(gameState: any): void {
+    // Don't sync state during animations - it would show HP/energy changes prematurely
+    if (this.phase === "resolving") {
+      console.log("[FightScene] Ignoring syncWithServerState during resolving phase to prevent premature UI updates");
+      return;
+    }
+
     // Update server state
     if (this.serverState) {
       this.serverState.player1Health = gameState.player1Health;
@@ -2406,6 +2614,14 @@ export class FightScene extends Phaser.Scene {
   // ===========================================================================
 
   private syncUIWithCombatState(): void {
+    // If there's a pending server state (set during animation resolution),
+    // apply it now - this is when we want the UI to show the new values
+    if (this.pendingServerState) {
+      console.log("[FightScene] Applying pendingServerState to serverState");
+      this.serverState = this.pendingServerState;
+      this.pendingServerState = null;
+    }
+    
     // Prefer server state if available
     if (this.serverState) {
       // Use server-provided state (authoritative)
@@ -2780,6 +2996,28 @@ export class FightScene extends Phaser.Scene {
       this.handleStateSync(state);
     });
 
+    // Listen for comprehensive fight state updates from server
+    EventBus.on("game:fightStateUpdate", (data: unknown) => {
+      const payload = data as { matchId: string; update: any; timestamp: number };
+      console.log("[FightScene] Received fight state update:", payload);
+      
+      // Only process updates for our match
+      if (payload.matchId !== this.config.matchId) return;
+      
+      // If we receive a phase update, sync appropriately
+      if (payload.update && payload.update.phase) {
+        // Use the comprehensive sync method
+        this.syncWithFightState({
+          ...this.serverState,
+          ...payload.update,
+          // Convert timestamps
+          moveDeadlineAt: payload.update.moveDeadlineAt,
+          countdownEndsAt: payload.update.countdownEndsAt,
+          animationEndsAt: payload.update.animationEndsAt,
+        });
+      }
+    });
+
     // Listen for local rejection waiting (we rejected, waiting for opponent)
     EventBus.on("game:rejectionWaiting", (data: unknown) => {
       const payload = data as { message: string };
@@ -2994,6 +3232,12 @@ export class FightScene extends Phaser.Scene {
   }): void {
     console.log("[FightScene] Restoring state from sync:", state);
 
+    // Don't sync state during animations - it would show HP/energy changes prematurely
+    if (this.phase === "resolving") {
+      console.log("[FightScene] Ignoring handleStateSync during resolving phase to prevent premature UI updates");
+      return;
+    }
+
     // Get max values from local engine for defaults
     const localState = this.combatEngine.getState();
 
@@ -3086,15 +3330,25 @@ export class FightScene extends Phaser.Scene {
     player2IsStunned?: boolean;
   }, skipCountdown: boolean = false): void {
     console.log(`[FightScene] *** startRoundFromServer called - Round ${payload.roundNumber}, Turn ${payload.turnNumber}`);
-    console.log(`[FightScene] *** Current phase: ${this.phase}, skipCountdown: ${skipCountdown}, Timestamp: ${Date.now()}`);
+    console.log(`[FightScene] *** Current phase: ${this.phase}, skipCountdown: ${skipCountdown}, isResolving: ${this.isResolving}, Timestamp: ${Date.now()}`);
     console.log(`[FightScene] *** Timer exists: ${!!this.timerEvent}, pendingRoundStart exists: ${!!this.pendingRoundStart}`);
 
-    // If we're in resolving phase (playing attack animations) or round_end phase 
-    // (playing death animation, showing text, countdown), queue this payload 
-    // and process it after the sequence finishes.
-    // The round_starting event arrives from server while we're still animating.
-    if (this.phase === "resolving" || this.phase === "round_end") {
-      console.log(`[FightScene] *** QUEUEING round start - currently in ${this.phase} phase`);
+    // Queue the round_starting event if we're currently in an animation sequence.
+    // Use isResolving flag to detect active animations (set in handleServerRoundResolved).
+    // Also queue during specific phases that have pending animations:
+    // - "resolving": attack animations playing
+    // - "round_end": death animation, result text, or round countdown showing
+    // - "countdown": already showing 3-2-1 FIGHT (avoid double countdown)
+    // 
+    // NOTE: Do NOT queue during initial "waiting" phase (scene just loaded, waiting for first round_starting)
+    // because there's no animation sequence to process the queue.
+    const shouldQueue = this.isResolving || 
+                        this.phase === "resolving" || 
+                        this.phase === "round_end" || 
+                        this.phase === "countdown";
+    
+    if (shouldQueue) {
+      console.log(`[FightScene] *** QUEUEING round start - isResolving: ${this.isResolving}, phase: ${this.phase}`);
       this.pendingRoundStart = payload;
       return;
     }
@@ -3366,8 +3620,11 @@ export class FightScene extends Phaser.Scene {
     const prevP1Health = this.serverState?.player1Health ?? payload.player1Health;
     const prevP2Health = this.serverState?.player2Health ?? payload.player2Health;
 
-    // Store server state (authoritative)
-    this.serverState = {
+    // Store PENDING server state - don't apply to serverState yet!
+    // This prevents UI from showing new HP/energy values before animations complete.
+    // The pendingServerState will be applied when syncUIWithCombatState() is called
+    // after the attack animations finish.
+    this.pendingServerState = {
       player1Health: payload.player1Health,
       player1MaxHealth: payload.player1MaxHealth ?? localState.player1.maxHp,
       player2Health: payload.player2Health,
@@ -3673,7 +3930,9 @@ export class FightScene extends Phaser.Scene {
                   console.log(`[FightScene] *** Processing queued pendingRoundStart after animations`);
                   const queuedPayload = this.pendingRoundStart;
                   this.pendingRoundStart = null;
-                  this.phase = "countdown";
+                  // Reset phase to neutral state so startRoundFromServer doesn't re-queue
+                  // (the queuing check looks at isResolving and phase)
+                  this.phase = "selecting";
                   this.startRoundFromServer(queuedPayload, false);
                 } else {
                   console.warn(`[FightScene] *** WARNING: No pendingRoundStart after animations! Setting phase to 'selecting' and waiting for round_starting event`);

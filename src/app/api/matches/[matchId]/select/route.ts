@@ -243,6 +243,27 @@ export async function POST(
           // Continue execution - client will sync via polling or database changes
         }
 
+        // Initialize fight state snapshot for full synchronization
+        try {
+          const { initializeFightState } = await import("@/lib/game/fight-state-service");
+          const p1Stats = getCharacterCombatStats(match.player1_character_id || "dag-warrior");
+          const p2Stats = getCharacterCombatStats(match.player2_character_id || "dag-warrior");
+          await initializeFightState(
+            supabase,
+            matchId,
+            p1Stats.maxHp,
+            p1Stats.maxEnergy,
+            p2Stats.maxHp,
+            p2Stats.maxEnergy,
+            Math.floor(ROUND_COUNTDOWN_MS / 1000),
+            MOVE_TIMER_MS
+          );
+          console.log("[Select API] Fight state initialized");
+        } catch (fightStateError) {
+          console.error("[Select API] Failed to initialize fight state:", fightStateError);
+          // Don't throw - fight state is supplementary to main game flow
+        }
+
         const character = getCharacter(existingCharacterId);
         const response: ApiSuccessResponse<SelectionResponse> = {
           success: true,
@@ -403,6 +424,21 @@ export async function POST(
               },
             ]);
             console.log("[Select API] Broadcast complete");
+            
+            // Initialize fight state for server-side synchronization (normal flow)
+            const p1Stats2 = getCharacterCombatStats(updatedMatch.player1_character_id || "dag-warrior");
+            const p2Stats2 = getCharacterCombatStats(updatedMatch.player2_character_id || "dag-warrior");
+            const { initializeFightState } = await import("@/lib/game/fight-state-service");
+            await initializeFightState(
+              supabase,
+              matchId,
+              p1Stats2.maxHp,
+              p1Stats2.maxEnergy,
+              p2Stats2.maxHp,
+              p2Stats2.maxEnergy,
+              Math.floor(ROUND_COUNTDOWN_MS / 1000), // countdownSeconds
+              MOVE_TIMER_MS // moveTimerMs
+            );
           } catch (broadcastError) {
             console.error("[Select API] Match starting broadcast failed (non-fatal):", broadcastError);
             // Continue execution - client will sync via polling or database changes

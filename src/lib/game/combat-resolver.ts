@@ -1,6 +1,9 @@
 /**
  * Combat Resolver - Server-side turn resolution
  * Resolves rounds when both players have submitted moves
+ * 
+ * All state changes are persisted to fight_state_snapshots table
+ * for full synchronization across all connected clients.
  */
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -19,6 +22,13 @@ import {
 import { updateWinStreakAfterMatch } from "@/lib/quests/win-streak-service";
 import { broadcastToChannel } from "@/lib/supabase/broadcast";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+    updateAfterRoundResolution,
+    startNextTurn,
+    updateAnimationState,
+    deleteFightState,
+} from "./fight-state-service";
+import { ANIMATION_TIMING, calculateResolutionDuration } from "@/types/fight-state";
 
 /**
  * Helper function to submit a bot move
@@ -354,6 +364,31 @@ export async function resolveRound(
             narrative: result.narrative,
         });
 
+        // Update fight state snapshot for synchronization
+        try {
+            await updateAfterRoundResolution(
+                supabase,
+                matchId,
+                state.player1.hp,
+                state.player2.hp,
+                state.player1.energy,
+                state.player2.energy,
+                state.player1.guardMeter,
+                state.player2.guardMeter,
+                state.player1.roundsWon,
+                state.player2.roundsWon,
+                currentRound.player1_move,
+                currentRound.player2_move,
+                result.narrative,
+                state.roundWinner,
+                state.isRoundOver,
+                state.isMatchOver
+            );
+        } catch (fightStateError) {
+            console.error("[CombatResolver] Failed to update fight state:", fightStateError);
+            // Don't throw - fight state is supplementary to main game flow
+        }
+
         // If match is over, broadcast match_ended
         if (state.isMatchOver) {
             await broadcastToChannel(supabase, `game:${matchId}`, "match_ended", {
@@ -379,19 +414,36 @@ export async function resolveRound(
                     },
                 } : undefined,
             });
+            
+            // Clean up fight state snapshot when match ends
+            try {
+                await deleteFightState(supabase, matchId);
+                console.log("[CombatResolver] Fight state cleaned up for completed match");
+            } catch (cleanupError) {
+                console.error("[CombatResolver] Failed to cleanup fight state:", cleanupError);
+            }
         } else {
             // Broadcast round_starting for next turn with synchronized deadline
-            // When a round ends (someone KO'd), add extra time for client death animation sequence:
-            // - Death animation: 1.5s
-            // - Result text display: 1.5s
-            // - 5-second countdown: 5s
-            // - Buffer: 1s
-            // Total: 9 seconds extra when round is over
-            const ROUND_END_ANIMATION_MS = 9000; // Extra time for death animation + text + countdown
+            // Calculate animation time based on the moves that were just resolved
+            // This accounts for:
+            // - Run to center: 600ms
+            // - Attack animations: 1200ms each (sequential) or 1200ms (concurrent with block)
+            // - Run back: 600ms
+            // - Round end sequence (if applicable): death anim + text + countdown
+            const p1Move = currentRound.player1_move || "punch";
+            const p2Move = currentRound.player2_move || "punch";
+            // A player was stunned this turn if their outcome indicates they couldn't act
+            const p1Stunned = result.player1.outcome === "stunned" || result.player1.outcome === "missed";
+            const p2Stunned = result.player2.outcome === "stunned" || result.player2.outcome === "missed";
+            
+            // Use the centralized animation timing calculator
+            const animationTime = calculateResolutionDuration(p1Move, p2Move, p1Stunned, p2Stunned, state.isRoundOver);
+            
+            // Add buffer for safety (prevents countdown from starting too early)
+            const ANIMATION_BUFFER_MS = 500;
             const ROUND_COUNTDOWN_MS = 3000;
             const MOVE_TIMER_MS = 20000;
-            const animationTime = state.isRoundOver ? ROUND_END_ANIMATION_MS : 0;
-            const moveDeadlineAt = Date.now() + animationTime + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
+            const moveDeadlineAt = Date.now() + animationTime + ANIMATION_BUFFER_MS + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
 
             // If round is over (someone KO'd), start new round in engine
             if (state.isRoundOver) {
@@ -484,6 +536,29 @@ export async function resolveRound(
                 player1IsStunned: newState.player1.isStunned,
                 player2IsStunned: newState.player2.isStunned,
             });
+
+            // Update fight state snapshot for next turn synchronization
+            const countdownEndsAt = Date.now() + ROUND_COUNTDOWN_MS;
+            try {
+                await startNextTurn(
+                    supabase,
+                    matchId,
+                    newState.currentRound,
+                    newState.currentTurn,
+                    moveDeadlineAt,
+                    countdownEndsAt,
+                    newState.player1.hp,
+                    newState.player2.hp,
+                    newState.player1.energy,
+                    newState.player2.energy,
+                    newState.player1.guardMeter,
+                    newState.player2.guardMeter,
+                    newState.player1.isStunned || false,
+                    newState.player2.isStunned || false
+                );
+            } catch (fightStateError) {
+                console.error("[CombatResolver] Failed to start next turn in fight state:", fightStateError);
+            }
         }
 
         console.log(`[CombatResolver] ⚡ Broadcast done in ${Date.now() - broadcastStartTime}ms`);

@@ -574,6 +574,10 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
         })
         .on("broadcast", { event: "ban_confirmed" }, ({ payload }) => {
           handleBanConfirmed(payload as { player: PlayerRole; characterId: string });
+        })
+        .on("broadcast", { event: "fight_state_update" }, ({ payload }) => {
+          console.log("[GameChannel] fight_state_update received:", payload);
+          EventBus.emit("game:fightStateUpdate", payload);
         });
 
       // Set up presence listeners
