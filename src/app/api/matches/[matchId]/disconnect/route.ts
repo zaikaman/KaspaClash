@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ApiError, ErrorCodes, createErrorResponse } from "@/lib/api/errors";
+import { updateMatchRatings } from "@/lib/rating/elo";
 import type { ApiSuccessResponse } from "@/types/api";
 
 /**
@@ -32,6 +33,8 @@ interface MatchWithDisconnect {
   player1_disconnected_at: string | null;
   player2_disconnected_at: string | null;
   disconnect_timeout_seconds: number | null;
+  // Bot match flag
+  is_bot: boolean | null;
 }
 
 /**
@@ -345,7 +348,93 @@ export async function POST(
 
       return NextResponse.json(response);
     } else {
-      // Reconnect - clear disconnect timestamp
+      // Reconnect - first check if player was disconnected too long (especially for bot matches)
+      const DISCONNECT_TIMEOUT_MS = (match.disconnect_timeout_seconds || 30) * 1000;
+      const currentDisconnectTime = isPlayer1 ? match.player1_disconnected_at : match.player2_disconnected_at;
+      
+      if (currentDisconnectTime) {
+        const disconnectedDuration = Date.now() - new Date(currentDisconnectTime).getTime();
+        
+        // For bot matches, if player was disconnected for 30+ seconds, bot wins automatically
+        if (match.is_bot && disconnectedDuration >= DISCONNECT_TIMEOUT_MS) {
+          console.log(`[Disconnect API] Bot match timeout - Player ${body.address} was disconnected for ${Math.floor(disconnectedDuration / 1000)}s`);
+          
+          // Determine the bot's address (the opponent)
+          const botAddress = isPlayer1 ? match.player2_address : match.player1_address;
+          const botRole = isPlayer1 ? "player2" : "player1";
+          const playerAddress = body.address;
+          
+          // Update match as completed with bot as winner
+          const { error: updateError } = await supabase
+            .from("matches")
+            .update({
+              status: "completed",
+              winner_address: botAddress,
+              completed_at: new Date().toISOString(),
+              player1_disconnected_at: null,
+              player2_disconnected_at: null,
+            })
+            .eq("id", matchId);
+          
+          if (updateError) {
+            console.error("Failed to complete bot match:", updateError);
+            return createErrorResponse(
+              new ApiError(ErrorCodes.INTERNAL_ERROR, "Failed to complete match")
+            );
+          }
+          
+          // Update ELO ratings - bot wins, player loses
+          let ratingResult = null;
+          if (botAddress && playerAddress) {
+            try {
+              ratingResult = await updateMatchRatings(botAddress, playerAddress);
+              console.log(`[Disconnect API] Bot match ratings updated:`, ratingResult);
+            } catch (error) {
+              console.error("[Disconnect API] Failed to update ratings:", error);
+            }
+          }
+          
+          // Broadcast match_ended event
+          const gameChannel = supabase.channel(`game:${matchId}`);
+          await gameChannel.send({
+            type: "broadcast",
+            event: "match_ended",
+            payload: {
+              matchId,
+              winner: botRole,
+              winnerAddress: botAddress,
+              reason: "opponent_disconnected",
+              finalScore: {
+                player1RoundsWon: match.player1_rounds_won || 0,
+                player2RoundsWon: match.player2_rounds_won || 0,
+              },
+              ratingChanges: ratingResult ? {
+                winner: {
+                  before: ratingResult.winner.ratingBefore,
+                  after: ratingResult.winner.ratingAfter,
+                  change: ratingResult.winner.change,
+                },
+                loser: {
+                  before: ratingResult.loser.ratingBefore,
+                  after: ratingResult.loser.ratingAfter,
+                  change: ratingResult.loser.change,
+                },
+              } : undefined,
+            },
+          });
+          await supabase.removeChannel(gameChannel);
+          
+          // Return error indicating match was completed due to timeout
+          return createErrorResponse(
+            new ApiError(
+              ErrorCodes.CONFLICT,
+              `Match ended due to disconnect timeout. You were disconnected for ${Math.floor(disconnectedDuration / 1000)} seconds.`
+            )
+          );
+        }
+      }
+      
+      // Clear disconnect timestamp (player reconnected in time)
       const { error: updateError } = await supabase
         .from("matches")
         .update({

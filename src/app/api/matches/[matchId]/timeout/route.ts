@@ -44,6 +44,24 @@ interface TimeoutRequest {
 }
 
 /**
+ * Match ended payload for client-side event emission.
+ */
+interface MatchEndedPayload {
+  matchId: string;
+  winner: "player1" | "player2";
+  winnerAddress: string;
+  reason: string;
+  finalScore: {
+    player1RoundsWon: number;
+    player2RoundsWon: number;
+  };
+  ratingChanges?: {
+    winner: { before: number; after: number; change: number };
+    loser: { before: number; after: number; change: number };
+  };
+}
+
+/**
  * Timeout response data.
  */
 interface TimeoutResponse {
@@ -51,6 +69,7 @@ interface TimeoutResponse {
   result: "win" | "cancelled" | "no_action";
   winnerAddress?: string;
   reason: string;
+  matchEndedPayload?: MatchEndedPayload;
 }
 
 /**
@@ -282,6 +301,29 @@ export async function POST(
         result: "win",
         winnerAddress,
         reason: `Opponent disconnected and timed out after ${timeoutSeconds} seconds`,
+        // Include full match_ended payload for client-side handling
+        matchEndedPayload: {
+          matchId,
+          winner: winnerRole,
+          winnerAddress,
+          reason: "opponent_disconnected",
+          finalScore: {
+            player1RoundsWon: match.player1_rounds_won,
+            player2RoundsWon: match.player2_rounds_won,
+          },
+          ratingChanges: ratingResult ? {
+            winner: {
+              before: ratingResult.winner.ratingBefore,
+              after: ratingResult.winner.ratingAfter,
+              change: ratingResult.winner.change,
+            },
+            loser: {
+              before: ratingResult.loser.ratingBefore,
+              after: ratingResult.loser.ratingAfter,
+              change: ratingResult.loser.change,
+            },
+          } : undefined,
+        },
       },
     };
 

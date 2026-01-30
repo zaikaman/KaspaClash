@@ -9,6 +9,7 @@ import RoomCreate from "@/components/matchmaking/RoomCreate";
 import RoomJoin from "@/components/matchmaking/RoomJoin";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
+import { useAbandonedMatchCleanup } from "@/hooks/useAbandonedMatchCleanup";
 
 type ViewState = "main" | "create" | "join";
 
@@ -16,6 +17,9 @@ export default function MatchmakingPage() {
     const [view, setView] = useState<ViewState>("main");
     const [isTransitioning, setIsTransitioning] = useState(false);
     const router = useRouter();
+
+    // Clean up any abandoned bot matches
+    useAbandonedMatchCleanup();
 
     const handleQuickMatch = () => {
         setIsTransitioning(true);

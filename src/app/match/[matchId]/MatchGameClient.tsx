@@ -739,8 +739,24 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
           console.log("[MatchGameClient] Timeout claim result:", result);
 
           if (result.data?.result === "win") {
-            // Victory! Reload to show results scene
-            window.location.reload();
+            // Victory! Emit match ended event with full payload including ratingChanges
+            // The server broadcasts this too, but we emit locally to ensure it's received
+            if (result.data?.matchEndedPayload) {
+              console.log("[MatchGameClient] Emitting game:matchEnded with ratingChanges");
+              EventBus.emit("game:matchEnded", result.data.matchEndedPayload);
+            } else {
+              // Fallback - construct minimal payload if server didn't include it
+              console.warn("[MatchGameClient] No matchEndedPayload in response, using fallback");
+              EventBus.emit("game:matchEnded", {
+                matchId: payload.matchId,
+                winner: result.data.winnerAddress === currentAddress ? 
+                  (playerRole || "player1") : 
+                  (playerRole === "player1" ? "player2" : "player1"),
+                winnerAddress: result.data.winnerAddress,
+                reason: "opponent_disconnected",
+                finalScore: { player1RoundsWon: 0, player2RoundsWon: 0 },
+              });
+            }
           } else if (result.data?.result === "cancelled") {
             // Both disconnected - redirect
             window.location.href = "/matchmaking";

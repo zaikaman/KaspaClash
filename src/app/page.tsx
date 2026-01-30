@@ -5,8 +5,12 @@ import DecorativeLine from "@/components/landing/DecorativeLine";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import { useAbandonedMatchCleanup } from "@/hooks/useAbandonedMatchCleanup";
 
 export default function Home() {
+  // Clean up any abandoned bot matches
+  useAbandonedMatchCleanup();
+
   const fadeInUp = {
     hidden: { opacity: 0, y: 20 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.6 } },

@@ -736,6 +736,17 @@ export class FightScene extends Phaser.Scene {
           this.fetchFinalMatchState();
           return;
         }
+      } else {
+        // Reconnect failed - could be due to timeout (match ended)
+        const errorData = await disconnectResponse.json().catch(() => null);
+        console.warn("[FightScene] Reconnect failed:", errorData);
+        
+        // If match ended due to disconnect timeout, fetch final state
+        if (disconnectResponse.status === 409) { // CONFLICT status
+          console.log("[FightScene] Match ended due to disconnect timeout, fetching final state");
+          this.fetchFinalMatchState();
+          return;
+        }
       }
 
       // Fetch comprehensive fight state from new API
@@ -939,14 +950,45 @@ export class FightScene extends Phaser.Scene {
       const data = await response.json();
       if (data.status === "completed" || data.status === "cancelled") {
         console.log("[FightScene] Match ended, triggering end screen");
+        
+        // Determine winner role based on winner address
+        let winner: "player1" | "player2" | null = null;
+        if (data.winnerAddress === this.config.player1Address) {
+          winner = "player1";
+        } else if (data.winnerAddress === this.config.player2Address) {
+          winner = "player2";
+        }
+        
+        // Construct rating changes from player data if available
+        // Note: This uses current ratings, not the actual match rating changes
+        // For accurate rating changes, the match_ended broadcast should be the source of truth
+        let ratingChanges = undefined;
+        if (data.player1?.rating !== undefined && data.player2?.rating !== undefined && winner) {
+          // We can't accurately compute historical rating changes here,
+          // but we can provide approximate values using current ratings
+          // The ResultsScene will show these if no better data is available
+          const winnerRating = winner === "player1" ? data.player1.rating : data.player2.rating;
+          const loserRating = winner === "player1" ? data.player2.rating : data.player1.rating;
+          ratingChanges = {
+            winner: { before: winnerRating, after: winnerRating, change: 0 },
+            loser: { before: loserRating, after: loserRating, change: 0 },
+          };
+        }
+        
         EventBus.emit("game:matchEnded", {
+          matchId: this.config.matchId,
+          winner,
           winnerAddress: data.winnerAddress || null,
-          player1RoundsWon: data.player1RoundsWon || 0,
-          player2RoundsWon: data.player2RoundsWon || 0,
-          cancelled: data.status === "cancelled",
+          reason: data.status === "cancelled" ? "forfeit" : "knockout",
+          finalScore: {
+            player1RoundsWon: data.player1RoundsWon || 0,
+            player2RoundsWon: data.player2RoundsWon || 0,
+          },
+          ratingChanges,
         });
       }
     } catch (error) {
+      console.error("[FightScene] Failed to fetch final match state:", error);
     }
   }
 
