@@ -103,8 +103,8 @@ export class StickerPicker extends Phaser.GameObjects.Container {
 
         // Emoji icon
         const icon = this.scene.add.text(0, 0, "😀", {
-            fontSize: "24px",
-        }).setOrigin(0.5);
+            fontSize: "22px",
+        }).setOrigin(0.5).setPadding(4);
 
         this.toggleButton.add([bg, icon]);
         this.toggleButton.setSize(this.BUTTON_SIZE, this.BUTTON_SIZE);
