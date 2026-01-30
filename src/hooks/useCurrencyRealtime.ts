@@ -45,6 +45,10 @@ export function useCurrencyRealtime({
   const errorRef = useRef<Error | null>(null);
   const { setCurrency } = useShopStore();
 
+  // Use a ref to hold the callback to avoid dependency instability
+  const onCurrencyUpdateRef = useRef(onCurrencyUpdate);
+  onCurrencyUpdateRef.current = onCurrencyUpdate;
+
   useEffect(() => {
     if (!enabled || !playerId) {
       return;
@@ -83,9 +87,9 @@ export function useCurrencyRealtime({
               lastUpdated: new Date(),
             });
 
-            // Notify callback
-            if (onCurrencyUpdate) {
-              onCurrencyUpdate(newData);
+            // Notify callback (using ref to avoid dependency issues)
+            if (onCurrencyUpdateRef.current) {
+              onCurrencyUpdateRef.current(newData);
             }
           } else if (payload.eventType === 'DELETE') {
             // Currency deleted - reset to 0
@@ -125,7 +129,7 @@ export function useCurrencyRealtime({
         isSubscribed.current = false;
       }
     };
-  }, [playerId, enabled, setCurrency, onCurrencyUpdate]);
+  }, [playerId, enabled, setCurrency]);
 
   return {
     isSubscribed: isSubscribed.current,
@@ -133,23 +137,59 @@ export function useCurrencyRealtime({
   };
 }
 
+// Cache for currency fetches to prevent redundant API calls
+const currencyCache = new Map<string, {
+  data: { clash_shards: number; total_earned: number; total_spent: number };
+  timestamp: number;
+}>();
+const CACHE_TTL_MS = 5000; // Cache for 5 seconds
+const pendingFetches = new Map<string, Promise<{ clash_shards: number; total_earned: number; total_spent: number } | null>>();
+
 /**
  * Helper function to manually fetch current currency (for initial load)
  * Uses lightweight currency endpoint instead of heavy progression endpoint
+ * Includes caching and request deduplication to prevent excessive API calls
  */
 export async function fetchCurrentCurrency(playerId: string): Promise<{
   clash_shards: number;
   total_earned: number;
   total_spent: number;
 } | null> {
-  try {
-    const response = await fetch(`/api/currency/${encodeURIComponent(playerId)}`);
-    if (!response.ok) return null;
+  if (!playerId) return null;
 
-    const data = await response.json();
-    return data || null;
-  } catch (error) {
-    console.error('[Currency Realtime] Failed to fetch current currency:', error);
-    return null;
+  // Check cache first
+  const cached = currencyCache.get(playerId);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return cached.data;
   }
+
+  // Check if there's already a pending fetch for this player
+  const pending = pendingFetches.get(playerId);
+  if (pending) {
+    return pending;
+  }
+
+  // Create new fetch promise
+  const fetchPromise = (async () => {
+    try {
+      const response = await fetch(`/api/currency/${encodeURIComponent(playerId)}`);
+      if (!response.ok) return null;
+
+      const data = await response.json();
+      if (data) {
+        // Store in cache
+        currencyCache.set(playerId, { data, timestamp: Date.now() });
+      }
+      return data || null;
+    } catch (error) {
+      console.error('[Currency Realtime] Failed to fetch current currency:', error);
+      return null;
+    } finally {
+      // Clean up pending fetch
+      pendingFetches.delete(playerId);
+    }
+  })();
+
+  pendingFetches.set(playerId, fetchPromise);
+  return fetchPromise;
 }

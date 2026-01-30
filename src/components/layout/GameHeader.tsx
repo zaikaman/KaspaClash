@@ -35,9 +35,6 @@ export function GameHeader() {
     const { isSubscribed: isCurrencySubscribed } = useCurrencyRealtime({
         playerId: address || '',
         enabled: isConnected && !!address,
-        onCurrencyUpdate: (updatedCurrency) => {
-            console.log('[GameHeader] Real-time currency update:', updatedCurrency);
-        },
     });
 
     // Initial currency fetch on connect
