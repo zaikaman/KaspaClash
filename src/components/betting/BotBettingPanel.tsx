@@ -13,7 +13,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { sendKaspa } from "@/lib/kaspa/wallet";
 import { kasToSompi } from "@/lib/betting/betting-service";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { LockKeyIcon, Tick02Icon, Time03Icon, RoboticIcon } from "@hugeicons/core-free-icons";
+import { LockKeyIcon, Tick02Icon, Time03Icon, RoboticIcon, BankIcon, AlertCircleIcon } from "@hugeicons/core-free-icons";
 import { ClashShardsIcon } from "@/components/currency/ClashShardsIcon";
 import { EventBus } from "@/game/EventBus";
 
@@ -23,6 +23,14 @@ const HOUSE_FEE_PERCENT = 1; // 1% fee
 
 // Quick bet amounts in KAS
 const QUICK_BETS = [1, 5, 10, 25, 50];
+
+// Vault balance interface
+interface VaultBalanceInfo {
+    balanceKAS: number;
+    network: "mainnet" | "testnet";
+    isLoading: boolean;
+    error: string | null;
+}
 
 interface BotBettingPanelProps {
     matchId: string;
@@ -38,7 +46,7 @@ interface BettingStatus {
 }
 
 export function BotBettingPanel({ matchId, bot1Name, bot2Name, onBettingStatusChange }: BotBettingPanelProps) {
-    const { address, isConnected, balance } = useWallet();
+    const { address, isConnected, balance, network } = useWallet();
 
     const [bettingStatus, setBettingStatus] = useState<BettingStatus>({
         isOpen: true,
@@ -51,6 +59,55 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name, onBettingStatusCh
     const [isPlacing, setIsPlacing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+
+    // Vault balance state
+    const [vaultBalance, setVaultBalance] = useState<VaultBalanceInfo>({
+        balanceKAS: 0,
+        network: "testnet",
+        isLoading: true,
+        error: null,
+    });
+
+    // Fetch vault balance
+    const fetchVaultBalance = useCallback(async () => {
+        // Determine network from address or wallet
+        const isTestnet = address?.startsWith("kaspatest:");
+        const networkType = isTestnet ? "testnet" : (network || "testnet");
+        
+        try {
+            const response = await fetch(`/api/treasury/balance?network=${networkType}`);
+            if (response.ok) {
+                const data = await response.json();
+                setVaultBalance({
+                    balanceKAS: data.balanceKAS || 0,
+                    network: data.network || networkType,
+                    isLoading: false,
+                    error: null,
+                });
+            } else {
+                setVaultBalance(prev => ({
+                    ...prev,
+                    isLoading: false,
+                    error: "Failed to fetch vault balance",
+                }));
+            }
+        } catch (err) {
+            console.error("Failed to fetch vault balance:", err);
+            setVaultBalance(prev => ({
+                ...prev,
+                isLoading: false,
+                error: "Failed to fetch vault balance",
+            }));
+        }
+    }, [address, network]);
+
+    // Fetch vault balance on mount and periodically
+    useEffect(() => {
+        fetchVaultBalance();
+        // Refresh every 30 seconds
+        const interval = setInterval(fetchVaultBalance, 30000);
+        return () => clearInterval(interval);
+    }, [fetchVaultBalance]);
 
     // Fetch betting status
     const fetchBettingStatus = useCallback(async () => {
@@ -127,6 +184,10 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name, onBettingStatusCh
     const totalToSend = betAmountNum + fee;
     const potentialPayout = betAmountNum * HOUSE_ODDS; // 2x the bet, not the fee
 
+    // Check if house can afford the payout
+    const canHouseAfford = vaultBalance.balanceKAS >= potentialPayout;
+    const maxAffordableBet = vaultBalance.balanceKAS / HOUSE_ODDS; // Maximum bet the house can cover
+
     // Vault address
     const isTestnet = address?.startsWith("kaspatest:");
     const vaultAddress = isTestnet
@@ -154,6 +215,13 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name, onBettingStatusCh
         const amount = parseFloat(betAmount);
         if (isNaN(amount) || amount < 1) {
             setError("Minimum bet is 1 KAS");
+            return;
+        }
+
+        // Check if house can afford the potential payout
+        const payout = amount * HOUSE_ODDS;
+        if (!vaultBalance.isLoading && payout > vaultBalance.balanceKAS) {
+            setError(`Bet too large! House can only cover ${maxAffordableBet.toFixed(2)} KAS max bet`);
             return;
         }
 
@@ -210,7 +278,7 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name, onBettingStatusCh
         } finally {
             setIsPlacing(false);
         }
-    }, [selectedBot, betAmount, matchId, isConnected, address, vaultAddress, bettingStatus]);
+    }, [selectedBot, betAmount, matchId, isConnected, address, vaultAddress, bettingStatus, vaultBalance, maxAffordableBet]);
 
     // Loading state
     if (isLoading) {
@@ -278,6 +346,60 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name, onBettingStatusCh
                     <div className="text-xs text-gray-400">Fixed odds • 1% fee • Win double your bet!</div>
                 </div>
             </div>
+
+            {/* House Vault Balance Display */}
+            <div className="mb-4 p-2 bg-gradient-to-r from-purple-500/10 to-indigo-500/10 rounded-lg border border-purple-500/30">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <HugeiconsIcon icon={BankIcon} className="w-4 h-4 text-purple-400" />
+                        <span className="text-xs text-gray-400">House Balance</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {vaultBalance.isLoading ? (
+                            <div className="w-3 h-3 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+                        ) : vaultBalance.error ? (
+                            <span className="text-xs text-red-400">Error</span>
+                        ) : (
+                            <>
+                                <span className="text-purple-400 font-orbitron text-sm font-bold">
+                                    {vaultBalance.balanceKAS.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KAS
+                                </span>
+                                <span className={`text-xs px-1.5 py-0.5 rounded ${vaultBalance.network === "mainnet" ? "bg-green-500/20 text-green-400" : "bg-yellow-500/20 text-yellow-400"}`}>
+                                    {vaultBalance.network === "mainnet" ? "Mainnet" : "Testnet"}
+                                </span>
+                            </>
+                        )}
+                    </div>
+                </div>
+                <div className="mt-1 text-center">
+                    <span className="text-xs text-gray-500">
+                        Max bet: <span className="text-purple-300 font-mono">{maxAffordableBet.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KAS</span>
+                    </span>
+                </div>
+            </div>
+
+            {/* Bet exceeds vault warning */}
+            <AnimatePresence>
+                {selectedBot && betAmountNum > 0 && !canHouseAfford && !vaultBalance.isLoading && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mb-4 p-2 bg-red-500/10 rounded-lg border border-red-500/40 overflow-hidden"
+                    >
+                        <div className="flex items-start gap-2">
+                            <HugeiconsIcon icon={AlertCircleIcon} className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                            <div>
+                                <div className="text-red-400 text-xs font-bold">Bet Too Large!</div>
+                                <div className="text-xs text-gray-400 mt-0.5">
+                                    The house can&apos;t afford to pay {potentialPayout.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KAS. 
+                                    Max bet: <span className="text-red-300 font-mono">{maxAffordableBet.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KAS</span>
+                                </div>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Bot Selection */}
             <div className="grid grid-cols-2 xs:grid-cols-2 gap-2 sm:gap-3 mb-4">
@@ -394,7 +516,7 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name, onBettingStatusCh
             {/* Place Bet Button */}
             <Button
                 onClick={handlePlaceBet}
-                disabled={!isConnected || !selectedBot || isPlacing}
+                disabled={!isConnected || !selectedBot || isPlacing || (!vaultBalance.isLoading && !canHouseAfford && betAmountNum > 0)}
                 className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white font-orbitron hover:opacity-90 disabled:opacity-50"
             >
                 {!isConnected ? (
@@ -406,6 +528,8 @@ export function BotBettingPanel({ matchId, bot1Name, bot2Name, onBettingStatusCh
                     </>
                 ) : !selectedBot ? (
                     "Select a Bot"
+                ) : !canHouseAfford && betAmountNum > 0 && !vaultBalance.isLoading ? (
+                    "Bet Exceeds House Limit"
                 ) : (
                     `Bet ${betAmount} KAS on ${selectedBot === 'bot1' ? bot1Name : bot2Name}`
                 )}
