@@ -376,9 +376,10 @@ export async function POST(
     const countdownSeconds = body.countdownSeconds ?? 3;
     const countdownEndsAt = new Date(Date.now() + countdownSeconds * 1000).toISOString();
     
-    // Calculate move deadline (after countdown)
+    // Calculate move deadline (after countdown + power surge selection)
+    const powerSurgeSelectionMs = 15000; // Time allocated for Power Surge card selection
     const moveTimerMs = body.moveTimerMs ?? 20000;
-    const moveDeadlineAt = new Date(Date.now() + countdownSeconds * 1000 + moveTimerMs).toISOString();
+    const moveDeadlineAt = new Date(Date.now() + countdownSeconds * 1000 + powerSurgeSelectionMs + moveTimerMs).toISOString();
 
     // Create initial fight state
     // Note: TypeScript types will be updated after migration runs

@@ -194,6 +194,18 @@ export async function resolveRound(
         // Create combat engine and initialize with character stats
         const engine = new CombatEngine(player1CharId, player2CharId, "best_of_5");
 
+        // Fetch Power Surge cards for all rounds to apply their effects
+        const { data: powerSurges } = await supabase
+            .from("power_surges")
+            .select("*")
+            .eq("match_id", matchId);
+
+        // Map surges by round number for quick lookup
+        const surgeMap = new Map();
+        powerSurges?.forEach(ps => {
+            surgeMap.set(ps.round_number, ps);
+        });
+
         // Fetch all previous resolved rounds to rebuild state
         const { data: previousRounds } = await supabase
             .from("rounds")
@@ -203,12 +215,20 @@ export async function resolveRound(
             .order("round_number", { ascending: true });
 
         // Replay previous rounds (if any) to get current health/energy state
-        // For now, we're using a simplified model where each "round" is actually a "turn"
-        // within the same health pool until someone is KO'd
         if (previousRounds) {
             for (const prevRound of previousRounds) {
                 if (isValidMove(prevRound.player1_move) && isValidMove(prevRound.player2_move)) {
-                    engine.resolveTurn(prevRound.player1_move, prevRound.player2_move);
+                    // Get surge cards for THIS combat round (turn/round mapping)
+                    // We use the character round number from the engine state
+                    const combatRound = engine.getState().currentRound;
+                    const surge = surgeMap.get(combatRound);
+
+                    engine.resolveTurn(
+                        prevRound.player1_move, 
+                        prevRound.player2_move,
+                        surge?.player1_card_id || null,
+                        surge?.player2_card_id || null
+                    );
 
                     // If a round ended, start new round
                     const prevState = engine.getState();
@@ -220,9 +240,14 @@ export async function resolveRound(
         }
 
         // Now resolve the current turn
+        const currentCombatRound = engine.getState().currentRound;
+        const currentSurge = surgeMap.get(currentCombatRound);
+
         const result = engine.resolveTurn(
             currentRound.player1_move,
-            currentRound.player2_move
+            currentRound.player2_move,
+            currentSurge?.player1_card_id || null,
+            currentSurge?.player2_card_id || null
         );
 
         const state = engine.getState();
@@ -442,8 +467,9 @@ export async function resolveRound(
             // Add buffer for safety (prevents countdown from starting too early)
             const ANIMATION_BUFFER_MS = 500;
             const ROUND_COUNTDOWN_MS = 3000;
+            const POWER_SURGE_SELECTION_MS = 15000; // Time allocated for Power Surge card selection
             const MOVE_TIMER_MS = 20000;
-            const moveDeadlineAt = Date.now() + animationTime + ANIMATION_BUFFER_MS + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
+            const moveDeadlineAt = Date.now() + animationTime + ANIMATION_BUFFER_MS + ROUND_COUNTDOWN_MS + POWER_SURGE_SELECTION_MS + MOVE_TIMER_MS;
 
             // If round is over (someone KO'd), start new round in engine
             if (state.isRoundOver) {

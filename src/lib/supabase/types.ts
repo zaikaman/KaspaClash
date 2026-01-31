@@ -289,6 +289,61 @@ export interface Database {
           }
         ];
       };
+      power_surges: {
+        Row: {
+          id: string;
+          match_id: string;
+          round_number: number;
+          offered_cards: Json;
+          player1_card_id: string | null;
+          player1_tx_id: string | null;
+          player1_selected_at: string | null;
+          player2_card_id: string | null;
+          player2_tx_id: string | null;
+          player2_selected_at: string | null;
+          revealed_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          match_id: string;
+          round_number: number;
+          offered_cards?: Json;
+          player1_card_id?: string | null;
+          player1_tx_id?: string | null;
+          player1_selected_at?: string | null;
+          player2_card_id?: string | null;
+          player2_tx_id?: string | null;
+          player2_selected_at?: string | null;
+          revealed_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          match_id?: string;
+          round_number?: number;
+          offered_cards?: Json;
+          player1_card_id?: string | null;
+          player1_tx_id?: string | null;
+          player1_selected_at?: string | null;
+          player2_card_id?: string | null;
+          player2_tx_id?: string | null;
+          player2_selected_at?: string | null;
+          revealed_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "power_surges_match_fkey";
+            columns: ["match_id"];
+            referencedRelation: "matches";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
     Views: {};
     Functions: {};

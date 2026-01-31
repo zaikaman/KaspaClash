@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { CHARACTER_ROSTER } from "@/data/characters";
 import type { Character } from "@/types";
 import { useWalletStore, selectPersistedAddress, selectIsConnected } from "@/stores/wallet-store";
+import { useOwnedCharacters } from "@/hooks/useOwnedCharacters";
 import { TOTAL_WAVES, MAX_DAILY_PLAYS } from "@/lib/survival/wave-generator";
 import { getMaxPossibleShards } from "@/lib/survival/score-calculator";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -20,8 +21,6 @@ import { ClashShardsIcon } from "@/components/currency/ClashShardsIcon";
 interface SurvivalMenuProps {
     onStart: (characterId: string) => void;
 }
-
-const STARTERS = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
 
 interface SurvivalStatus {
     canPlay: boolean;
@@ -40,53 +39,37 @@ export default function SurvivalMenu({ onStart }: SurvivalMenuProps) {
     const address = useWalletStore(selectPersistedAddress);
     const isConnected = useWalletStore(selectIsConnected);
     const [selectedChar, setSelectedChar] = useState<string>(CHARACTER_ROSTER[0].id);
-    const [ownedCharacterIds, setOwnedCharacterIds] = useState<string[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
     const [status, setStatus] = useState<SurvivalStatus | null>(null);
+    const [isLoadingStatus, setIsLoadingStatus] = useState(true);
+    
+    // Use robust hook for owned characters with retry logic and caching
+    const { ownedCharacterIds, isLoading: isLoadingCharacters } = useOwnedCharacters(address);
 
-    // Fetch status and inventory
+    // Fetch survival status (separate from character loading)
     useEffect(() => {
-        const fetchData = async () => {
-            const defaultOwned = [...STARTERS];
-
+        const fetchStatus = async () => {
             if (!address) {
-                setOwnedCharacterIds(defaultOwned);
-                setIsLoading(false);
+                setIsLoadingStatus(false);
                 return;
             }
 
             try {
-                // Fetch survival status
                 const statusRes = await fetch(`/api/survival/status?playerAddress=${encodeURIComponent(address)}`);
                 if (statusRes.ok) {
                     const data = await statusRes.json();
                     setStatus(data);
                 }
-
-                // Fetch inventory
-                const invRes = await fetch(`/api/shop/inventory?playerId=${encodeURIComponent(address)}&pageSize=100&category=character`);
-                if (invRes.ok) {
-                    const data = await invRes.json();
-                    const ownedIds = new Set(data.ownedIds as string[]);
-                    const characters = (data.items as any[])
-                        .filter(item => item.category === 'character' && ownedIds.has(item.id))
-                        .map(item => item.characterId)
-                        .filter(Boolean) as string[];
-                    setOwnedCharacterIds([...new Set([...defaultOwned, ...characters])]);
-                } else {
-                    setOwnedCharacterIds(defaultOwned);
-                }
             } catch (err) {
-                console.error("Error fetching data:", err);
-                setOwnedCharacterIds(defaultOwned);
+                console.error("Error fetching survival status:", err);
             } finally {
-                setIsLoading(false);
+                setIsLoadingStatus(false);
             }
         };
 
-        fetchData();
+        fetchStatus();
     }, [address]);
 
+    const isLoading = isLoadingCharacters || isLoadingStatus;
     const selectedCharacter = CHARACTER_ROSTER.find(c => c.id === selectedChar);
     const canStart = status?.canPlay ?? true;
     const playsRemaining = status?.playsRemaining ?? MAX_DAILY_PLAYS;

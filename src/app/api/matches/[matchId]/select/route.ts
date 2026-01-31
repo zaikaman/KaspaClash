@@ -10,6 +10,20 @@ import { ApiError, ErrorCodes, createErrorResponse } from "@/lib/api/errors";
 import { isValidCharacterId, getCharacter } from "@/data/characters";
 import type { ApiSuccessResponse } from "@/types/api";
 import { getCharacterCombatStats } from "@/game/combat";
+import { getRandomPowerSurgeCards, PowerSurgeCardId } from "@/types/power-surge";
+
+/**
+ * Generate pre-computed Power Surge deck for all 5 rounds.
+ * Each round gets 3 random cards.
+ */
+function generatePowerSurgeDeck(): Record<string, PowerSurgeCardId[]> {
+  const deck: Record<string, PowerSurgeCardId[]> = {};
+  for (let round = 1; round <= 5; round++) {
+    const cards = getRandomPowerSurgeCards(3);
+    deck[round.toString()] = cards.map(c => c.id);
+  }
+  return deck;
+}
 
 /**
  * Selection request body.
@@ -147,11 +161,16 @@ export async function POST(
         // Cast to string to avoid TypeScript narrowing issues
         const currentStatus = match.status as string;
         if (currentStatus !== "in_progress") {
-          const { data: updateResult } = await supabase
-            .from("matches")
+          // Generate Power Surge deck for all 5 rounds
+          const powerSurgeDeck = generatePowerSurgeDeck();
+          console.log("[Select API] Generated Power Surge deck:", powerSurgeDeck);
+
+          const { data: updateResult } = await (supabase
+            .from("matches") as any)
             .update({
               status: "in_progress",
               started_at: new Date().toISOString(),
+              power_surge_deck: powerSurgeDeck,
             })
             .eq("id", matchId)
             .neq("status", "in_progress") // Only update if not already in_progress
@@ -185,8 +204,9 @@ export async function POST(
 
         // Broadcast match_starting and round_starting events using proper subscription
         const ROUND_COUNTDOWN_MS = 3000;
+        const POWER_SURGE_SELECTION_MS = 15000; // Time allocated for Power Surge card selection
         const MOVE_TIMER_MS = 20000;
-        const moveDeadlineAt = Date.now() + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
+        const moveDeadlineAt = Date.now() + ROUND_COUNTDOWN_MS + POWER_SURGE_SELECTION_MS + MOVE_TIMER_MS;
 
         // Create initial round with server-side deadline
         await supabase
@@ -352,11 +372,16 @@ export async function POST(
 
         // If both ready, update match status to in_progress and broadcast match_starting
         if (matchReady) {
-          const { error: startError } = await supabase
-            .from("matches")
+          // Generate Power Surge deck for all 5 rounds
+          const powerSurgeDeck = generatePowerSurgeDeck();
+          console.log("[Select API] Generated Power Surge deck:", powerSurgeDeck);
+
+          const { error: startError } = await (supabase
+            .from("matches") as any)
             .update({
               status: "in_progress",
               started_at: new Date().toISOString(),
+              power_surge_deck: powerSurgeDeck,
             })
             .eq("id", matchId);
 
@@ -369,8 +394,9 @@ export async function POST(
 
           // Broadcast match_starting event to both players
           const ROUND_COUNTDOWN_MS = 3000;
+          const POWER_SURGE_SELECTION_MS = 15000; // Time allocated for Power Surge card selection
           const MOVE_TIMER_MS = 20000;
-          const moveDeadlineAt = Date.now() + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
+          const moveDeadlineAt = Date.now() + ROUND_COUNTDOWN_MS + POWER_SURGE_SELECTION_MS + MOVE_TIMER_MS;
 
           // Create initial round with server-side deadline
           await supabase

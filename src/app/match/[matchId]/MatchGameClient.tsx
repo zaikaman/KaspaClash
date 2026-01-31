@@ -12,6 +12,7 @@ import { useWalletStore } from "@/stores/wallet-store";
 import { useMatchStore, useMatchActions } from "@/stores/match-store";
 import { useGameChannel } from "@/hooks/useGameChannel";
 import { useWallet } from "@/hooks/useWallet";
+import { useOwnedCharacters } from "@/hooks/useOwnedCharacters";
 import { EventBus } from "@/game/EventBus";
 import { ConnectWalletButton } from "@/components/wallet/ConnectWalletButton";
 import StakeDeposit from "@/components/matchmaking/StakeDeposit";
@@ -82,7 +83,8 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
   const [isReconnecting, setIsReconnecting] = useState(needsReconnect);
   // Stake deposit tracking
   const [stakesReady, setStakesReady] = useState(match.stakesConfirmed ?? false);
-  const [ownedCharacterIds, setOwnedCharacterIds] = useState<string[]>([]);
+  // Use robust hook for owned characters with retry logic and caching
+  const { ownedCharacterIds, isLoading: isLoadingCharacters } = useOwnedCharacters(address);
   const router = useRouter();
   const [reconnectState, setReconnectState] = useState<{
     gameState?: {
@@ -119,32 +121,6 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       setStakesReady(true);
     }
   }, [match.stakesConfirmed]);
-
-  // Fetch owned characters
-  useEffect(() => {
-    const fetchInventory = async () => {
-      if (!address) return;
-      try {
-        const response = await fetch(`/api/shop/inventory?playerId=${encodeURIComponent(address)}&pageSize=100&category=character`);
-        if (response.ok) {
-          const data = await response.json();
-          const items = data.items as any[];
-          const ownedIds = new Set(data.ownedIds as string[]);
-
-          const characters = items
-            .filter(item => item.category === 'character' && ownedIds.has(item.id))
-            .map(item => item.characterId)
-            .filter(Boolean) as string[];
-
-          setOwnedCharacterIds(characters);
-        }
-      } catch (err) {
-        console.error("Error fetching inventory:", err);
-      }
-    };
-
-    fetchInventory();
-  }, [address]);
 
 
   // Determine player role
@@ -925,6 +901,17 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       <div className="flex flex-col items-center justify-center min-h-screen bg-[#0a0a0a] p-4">
         <div className="w-16 h-16 border-4 border-[#F0B71F] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
         <p className="text-cyber-gold text-lg font-medium font-orbitron tracking-widest uppercase">Reconnecting to match...</p>
+      </div>
+    );
+  }
+
+  // Wait for characters to load before showing CharacterSelectScene
+  // This prevents the fallback to default characters issue
+  if (initialScene === "CharacterSelectScene" && isLoadingCharacters) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#0a0a0a] p-4">
+        <div className="w-16 h-16 border-4 border-[#F0B71F] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-cyber-gold text-lg font-medium font-orbitron tracking-widest uppercase">Loading roster...</p>
       </div>
     );
   }

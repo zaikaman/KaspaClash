@@ -77,6 +77,7 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 
 ### 🎮 Core Gameplay
 - **Turn-Based Combat System:** Strategic rock-paper-scissors style fighting where **every move is a Kaspa transaction that is verified and confirmed in a block before the round resolves**—the game literally waits for blockchain confirmation (typically ~1 second with Kaspa's 10 BPS)
+- **Power Surge Cards:** Choose from 3 random round boosts at the start of each round (15 unique cards, 1 KAS per selection). Balanced effects with strategic trade-offs—no auto-pick legendaries
 - **20 Unique Characters:** Diverse roster with **Tier-Based Scaling** (Common to Legendary). Higher tiers possess reinforced stats and stronger counters.
 - **Multiple Game Modes:**
   - **Ranked Matchmaking:** ELO-based competitive queue with a **30-second failover to Smart Bots** to ensure near-instant entry into combat.
@@ -883,6 +884,54 @@ Special  Stunned    Hit        Shatter    Both Hit
 - **Double KO:** If both players reach 0 HP simultaneously, player with higher HP percentage wins
 - **Timeout:** If move not submitted within 20 seconds, the match is cancelled
 - **Disconnect:** If player disconnects for 30+ seconds, opponent wins by forfeit
+
+### Power Surge Cards ⚡
+
+At the start of each round, players are offered **3 randomly selected Power Surge cards** from a pool of 15 unique abilities. These powerful round-specific boosts add strategic depth and unpredictability to every match.
+
+#### How It Works
+1. **Card Selection:** Both players see the same 3 cards at the beginning of each round
+2. **15-Second Window:** Players have 15 seconds to select one card or skip
+3. **Blockchain Transaction:** Selecting a card costs **1 KAS** and must be confirmed in a block
+4. **Synchronized Phase:** The game waits for BOTH players to complete their selections before starting the round timer
+5. **Round Duration:** Card effects last for ONE round only
+6. **Strategic Choice:** All 15 cards are balanced with trade-offs—no "auto-pick" legendary cards
+
+#### Card Catalog (15 Unique Cards)
+
+Each card features balanced effects with strategic considerations:
+
+| Card Name | Effect | Strategic Notes |
+|-----------|--------|-----------------|
+| **DAG Overclock** | +85% damage | High risk, high reward damage boost |
+| **Block Fortress** | Blocks reflect 1050% damage | Punishes aggressive opponents severely |
+| **Tx Storm** | +38 energy, lose 5 HP | Trade health for tactical resource advantage |
+| **Mempool Congest** | Stun opponent (costs 7 HP) | Pay HP to guarantee your turn goes first |
+| **Blue Set Heal** | Restore 6.5 HP over time | Sustain and survival for close matches |
+| **Orphan Smasher** | Counter deals +125% damage | Rewards high-skill prediction plays |
+| **10BPS Barrage** | Light attacks cost 0 energy (+22 regen) | Continuous pressure without depletion |
+| **Pruned Rage** | +60% damage, can't block | Ultimate aggression at the cost of defense |
+| **Sompi Shield** | Take 82% less damage | Extreme damage mitigation for one round |
+| **Hash Hurricane** | 82% chance to dodge attack | High-stakes RNG defensive maneuver |
+| **GhostDAG** | Move undetectable (83% Check) | Disrupt opponent counters and blocks |
+| **Finality Fist** | Special +125% dmg, costs +15 energy | Turn your special into a match-ender |
+| **BPS Syphon** | Heal for 82% of damage dealt | Life-steal to swing health advantage |
+| **Vaultbreaker** | Steal 35 energy on hit | Deprive opponent while boosting yourself |
+| **Chainbreaker** | Break guard on any hit. +53% Dmg | Bypass blocks completely |
+
+#### Design Philosophy
+- **No Tiers:** Unlike character rarities, all Power Surge cards are presented equally—no "common" vs "legendary" visual hierarchy
+- **Balanced Trade-offs:** Every card has strategic pros and cons (e.g., +damage but -defense, +energy but -HP)
+- **Pre-computed Decks:** Cards are generated when the match starts and stored in the database to prevent race conditions
+- **Synchronized Exit:** Both players remain on the selection screen until BOTH transactions confirm, ensuring fair simultaneous gameplay
+- **Round-Only Duration:** Effects reset between rounds, preventing snowballing
+
+#### Technical Implementation
+Power Surge cards are fully integrated into the combat engine:
+- Pre-computed deck stored in `matches.power_surge_deck` (JSONB column)
+- Selection recorded in `power_surges` table with transaction IDs
+- Combat engine applies effects during damage calculation
+- Real-time sync ensures both players see the same cards
 
 ### Counter & Tier System
 

@@ -331,6 +331,7 @@ CREATE TABLE public.matches (
   player2_ban_id text,
   fight_phase text DEFAULT 'waiting'::text CHECK (fight_phase IS NULL OR (fight_phase = ANY (ARRAY['waiting'::text, 'countdown'::text, 'selecting'::text, 'resolving'::text, 'round_end'::text, 'match_end'::text]))),
   fight_phase_started_at timestamp with time zone,
+  power_surge_deck jsonb,
   CONSTRAINT matches_pkey PRIMARY KEY (id),
   CONSTRAINT matches_player1_address_fkey FOREIGN KEY (player1_address) REFERENCES public.players(address),
   CONSTRAINT matches_player2_address_fkey FOREIGN KEY (player2_address) REFERENCES public.players(address),
@@ -445,6 +446,23 @@ CREATE TABLE public.players (
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   avatar_url text,
   CONSTRAINT players_pkey PRIMARY KEY (address)
+);
+CREATE TABLE public.power_surges (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  match_id uuid NOT NULL,
+  round_number integer NOT NULL CHECK (round_number >= 1 AND round_number <= 5),
+  offered_cards jsonb NOT NULL DEFAULT '[]'::jsonb,
+  player1_card_id text,
+  player1_tx_id text,
+  player1_selected_at timestamp with time zone,
+  player2_card_id text,
+  player2_tx_id text,
+  player2_selected_at timestamp with time zone,
+  revealed_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT power_surges_pkey PRIMARY KEY (id),
+  CONSTRAINT power_surges_match_fkey FOREIGN KEY (match_id) REFERENCES public.matches(id)
 );
 CREATE TABLE public.quest_statistics (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),

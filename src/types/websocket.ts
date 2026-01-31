@@ -314,6 +314,44 @@ export interface StickerPayload {
 }
 
 // =============================================================================
+// POWER SURGE EVENTS
+// =============================================================================
+
+/**
+ * Event: power_surge_cards
+ * Broadcast when surge cards are available for a round.
+ */
+export interface PowerSurgeCardsPayload {
+  /** Match ID */
+  matchId: string;
+  /** Round number (1-5) */
+  roundNumber: number;
+  /** Offered card IDs */
+  cardIds: string[];
+  /** Selection deadline timestamp */
+  deadline: number;
+}
+
+/**
+ * Event: power_surge_selected
+ * Broadcast when a player selects a surge card.
+ */
+export interface PowerSurgeSelectedPayload {
+  /** Match ID */
+  matchId: string;
+  /** Round number */
+  roundNumber: number;
+  /** Player who selected */
+  player: "player1" | "player2";
+  /** Selected card ID */
+  cardId: string;
+  /** Transaction ID confirming the selection */
+  txId: string;
+  /** Timestamp of selection */
+  timestamp: number;
+}
+
+// =============================================================================
 // TYPED EVENT MAP
 // =============================================================================
 
@@ -333,6 +371,8 @@ export interface WebSocketEventMap {
   state_sync: StateSyncPayload;
   chat_message: ChatMessagePayload;
   sticker_displayed: StickerPayload;
+  power_surge_cards: PowerSurgeCardsPayload;
+  power_surge_selected: PowerSurgeSelectedPayload;
 }
 
 /**

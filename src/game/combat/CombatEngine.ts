@@ -16,6 +16,20 @@ import {
     COMBAT_CONSTANTS,
 } from "./types";
 import { getCharacterCombatStats } from "./CharacterStats";
+import {
+  calculateSurgeEffects,
+  applyDamageModifiers,
+  applyDefensiveModifiers,
+  applyEnergyEffects,
+  applyHpEffects,
+  checkRandomWin,
+  isInvisibleMove,
+  shouldStunOpponent,
+  shouldBreakGuard,
+  isBlockDisabled,
+  type SurgeModifiers,
+} from "./SurgeEffects";
+import { PowerSurgeCardId } from "@/types/power-surge";
 
 // =============================================================================
 // COMBAT ENGINE
@@ -128,15 +142,23 @@ export class CombatEngine {
     // ===========================================================================
 
     /**
-     * Resolve a turn with both players' moves.
-     * This is the core game logic.
+     * Resolve a single turn of combat for both players.
      */
-    resolveTurn(player1Move: MoveType, player2Move: MoveType): TurnResult {
+    resolveTurn(
+        player1Move: MoveType,
+        player2Move: MoveType,
+        player1Surge: PowerSurgeCardId | null = null,
+        player2Surge: PowerSurgeCardId | null = null
+    ): TurnResult {
         const p1State = this.state.player1;
         const p2State = this.state.player2;
 
+        // Calculate Surge Effects for this round
+        const surgeResults = calculateSurgeEffects(player1Surge, player2Surge);
+        const p1SurgeMods = surgeResults.player1Modifiers;
+        const p2SurgeMods = surgeResults.player2Modifiers;
+
         // Track if players were stunned at the START of this turn
-        // If they were, they'll miss this turn and the stun should be cleared after
         const p1WasStunned = p1State.isStunned;
         const p2WasStunned = p2State.isStunned;
 
@@ -150,27 +172,70 @@ export class CombatEngine {
             effectiveP2Move,
             p1State,
             p2State,
-            "player1"
+            "player1",
+            p1SurgeMods,
+            p2SurgeMods
         );
         const p2Result = this.resolvePlayerTurn(
             effectiveP2Move,
             effectiveP1Move,
             p2State,
             p1State,
-            "player2"
+            "player2",
+            p2SurgeMods,
+            p1SurgeMods
         );
+
+        // Apply Surge Energy Effects (Burn/Steal)
+        const p1DidHit = p1Result.outcome === "hit";
+        const p2DidHit = p2Result.outcome === "hit";
+        const p1EnergyEffects = applyEnergyEffects(p1SurgeMods, p2State.energy, p1DidHit);
+        const p2EnergyEffects = applyEnergyEffects(p2SurgeMods, p1State.energy, p2DidHit);
+
+        // Apply Global Modifiers (Random Win, Invisible, Stun)
+        if (checkRandomWin(p1SurgeMods)) p1Result.outcome = "hit";
+        if (checkRandomWin(p2SurgeMods)) p2Result.outcome = "hit";
 
         // Apply damage
         // Handle normal damage + reflection (self-damage)
         const p1SelfDamage = (p1Result as any).selfDamage || 0;
         const p2SelfDamage = (p2Result as any).selfDamage || 0;
 
-        this.state.player1.hp = Math.max(0, p1State.hp - p1Result.damageTaken - p1SelfDamage);
-        this.state.player2.hp = Math.max(0, p2State.hp - p2Result.damageTaken - p2SelfDamage);
+        // Apply defensive surge modifiers (damage reduction/amplification)
+        const p1DefensiveResult = applyDefensiveModifiers(p1Result.damageTaken, p1SurgeMods);
+        const p2DefensiveResult = applyDefensiveModifiers(p2Result.damageTaken, p2SurgeMods);
 
-        // Apply energy costs
-        this.state.player1.energy = Math.max(0, p1State.energy - p1Result.energySpent);
-        this.state.player2.energy = Math.max(0, p2State.energy - p2Result.energySpent);
+        let p1DamageTaken = p1DefensiveResult.actualDamage + p1SelfDamage;
+        let p2DamageTaken = p2DefensiveResult.actualDamage + p2SelfDamage;
+
+        // Add reflected damage to the attacker
+        p2DamageTaken += p1DefensiveResult.reflectedDamage; // P1's reflection hits P2
+        p1DamageTaken += p2DefensiveResult.reflectedDamage; // P2's reflection hits P1
+
+        // Apply Surge Damage Immunity (should already be handled in applyDefensiveModifiers, but double-check)
+        if (p1SurgeMods.damageImmunity) p1DamageTaken = 0;
+        if (p2SurgeMods.damageImmunity) p2DamageTaken = 0;
+
+        this.state.player1.hp = Math.max(0, p1State.hp - p1DamageTaken);
+        this.state.player2.hp = Math.max(0, p2State.hp - p2DamageTaken);
+
+        // Apply HP Effects (Regen / Full Heal)
+        this.state.player1.hp = applyHpEffects(p1SurgeMods, this.state.player1.hp, this.state.player1.maxHp);
+        this.state.player2.hp = applyHpEffects(p2SurgeMods, this.state.player2.hp, this.state.player2.maxHp);
+
+        // Apply energy costs and surge energy effects
+        // P1 loses energy from move cost + what P2 burned, but gains what P1 stole from P2
+        let p1NewEnergy = p1State.energy - p1Result.energySpent - p2EnergyEffects.energyBurned + p1EnergyEffects.energyStolen;
+        // P2 loses energy from move cost + what P1 burned, but gains what P2 stole from P1
+        let p2NewEnergy = p2State.energy - p2Result.energySpent - p1EnergyEffects.energyBurned + p2EnergyEffects.energyStolen;
+
+        // Apply energy regen bonus from surge
+        p1NewEnergy += p1EnergyEffects.energyRegenBonus;
+        p2NewEnergy += p2EnergyEffects.energyRegenBonus;
+
+        // Clamp to valid range
+        this.state.player1.energy = Math.max(0, Math.min(this.state.player1.maxEnergy, p1NewEnergy));
+        this.state.player2.energy = Math.max(0, Math.min(this.state.player2.maxEnergy, p2NewEnergy));
 
         // Apply guard buildup
         this.state.player1.guardMeter = Math.min(
@@ -181,6 +246,16 @@ export class CombatEngine {
             COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD,
             p2State.guardMeter + p2Result.guardBuildup
         );
+
+        // Chainbreaker: Instant guard break on hit
+        // P1 hits P2 with guard break surge -> break P2's guard
+        if (shouldBreakGuard(p1SurgeMods) && p1Result.outcome === "hit") {
+            this.state.player2.guardMeter = COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD;
+        }
+        // P2 hits P1 with guard break surge -> break P1's guard
+        if (shouldBreakGuard(p2SurgeMods) && p2Result.outcome === "hit") {
+            this.state.player1.guardMeter = COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD;
+        }
 
         // Track if guard break happens THIS turn (before we modify isStunned)
         const p1GuardBreak = this.state.player1.guardMeter >= COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD;
@@ -195,6 +270,16 @@ export class CombatEngine {
         if (p2GuardBreak) {
             this.state.player2.guardMeter = 0;
             p2Result.effects.push("guard_break"); // Add effect for UI
+        }
+
+        // Apply Stun from Surge Card
+        if (shouldStunOpponent(p1SurgeMods) && p1Result.outcome === "hit") {
+            this.state.player2.isStunned = true;
+            if (!p2Result.effects.includes("stun")) p2Result.effects.push("stun");
+        }
+        if (shouldStunOpponent(p2SurgeMods) && p2Result.outcome === "hit") {
+            this.state.player1.isStunned = true;
+            if (!p1Result.effects.includes("stun")) p1Result.effects.push("stun");
         }
 
         // Apply effects
@@ -246,7 +331,9 @@ export class CombatEngine {
         opponentMove: MoveType | null,
         myState: PlayerCombatState,
         opponentState: PlayerCombatState,
-        player: "player1" | "player2"
+        playerRole: "player1" | "player2",
+        mySurgeMods: SurgeModifiers,
+        opponentSurgeMods: SurgeModifiers
     ): PlayerTurnResult {
         // Handle stunned player - they can't act but still take damage
         if (myMove === null) {
@@ -256,14 +343,17 @@ export class CombatEngine {
                 const opponentStats = getCharacterCombatStats(opponentState.characterId);
                 const baseDamage = BASE_MOVE_STATS[opponentMove].damage;
                 const modifier = opponentStats.damageModifiers[opponentMove];
-                damageTaken = Math.floor(baseDamage * modifier);
+                const rawDamage = Math.floor(baseDamage * modifier);
+
+                // Apply Surge Damage Multiplier from opponent
+                damageTaken = applyDamageModifiers(rawDamage, opponentSurgeMods, opponentMove, false);
             }
 
             return {
                 move: "punch", // placeholder
                 outcome: "stunned",
                 damageDealt: 0,
-                damageTaken,  // Now properly calculates damage from opponent
+                damageTaken,
                 energySpent: 0,
                 guardBuildup: 0,
                 effects: [],
@@ -273,10 +363,42 @@ export class CombatEngine {
         const myStats = getCharacterCombatStats(myState.characterId);
         const opponentStats = getCharacterCombatStats(opponentState.characterId);
 
+        // Handle block disabled (Pruned Rage)
+        // If player has block disabled and uses block, it fails completely
+        const effectiveMove = (myMove === "block" && isBlockDisabled(mySurgeMods)) 
+            ? null // Block fails, treated as if stunned
+            : myMove;
+        
+        if (effectiveMove === null && myMove === "block") {
+            // Block was disabled - take full damage from opponent
+            let damageTaken = 0;
+            if (opponentMove) {
+                const baseDamage = BASE_MOVE_STATS[opponentMove].damage;
+                const modifier = opponentStats.damageModifiers[opponentMove];
+                const rawDamage = Math.floor(baseDamage * modifier);
+                damageTaken = applyDamageModifiers(rawDamage, opponentSurgeMods, opponentMove, false);
+            }
+
+            return {
+                move: myMove,
+                outcome: "missed", // Block failed
+                damageDealt: 0,
+                damageTaken,
+                energySpent: this.getMoveCost(myState.characterId, myMove),
+                guardBuildup: 0,
+                effects: [],
+            };
+        }
+
         // Get outcome from resolution matrix
-        const outcome = opponentMove
+        let outcome = opponentMove
             ? RESOLUTION_MATRIX[myMove][opponentMove]
             : "hit"; // If opponent is stunned, we hit
+
+        // Apply Surge Invisible Move (Cannot be countered)
+        if (isInvisibleMove(mySurgeMods)) {
+            outcome = "hit";
+        }
 
         // Calculate damage dealt
         let damageDealt = 0;
@@ -287,7 +409,10 @@ export class CombatEngine {
             // Calculate Counter Multiplier
             const counterMult = this.getArchetypeMultiplier(myState.characterId, opponentState.characterId);
 
-            damageDealt = Math.floor(baseDamage * modifier * counterMult);
+            const rawDamage = Math.floor(baseDamage * modifier * counterMult);
+
+            // Apply Surge Damage Multipliers
+            damageDealt = applyDamageModifiers(rawDamage, mySurgeMods, myMove, false);
 
             // Apply stagger penalty
             if (myState.isStaggered) {
@@ -306,7 +431,10 @@ export class CombatEngine {
             if (opponentOutcome === "hit") {
                 const baseDamage = BASE_MOVE_STATS[opponentMove].damage;
                 const modifier = opponentStats.damageModifiers[opponentMove];
-                damageTaken = Math.floor(baseDamage * modifier);
+                const rawDamage = Math.floor(baseDamage * modifier);
+
+                // Apply Surge Damage Multiplier from opponent
+                damageTaken = applyDamageModifiers(rawDamage, opponentSurgeMods, opponentMove, false);
 
                 // Apply block damage reduction
                 if (myMove === "block" && outcome === "shattered") {
@@ -318,7 +446,11 @@ export class CombatEngine {
             // We're blocking, take reduced damage
             const baseDamage = BASE_MOVE_STATS[opponentMove].damage;
             const modifier = opponentStats.damageModifiers[opponentMove];
-            const fullDamage = baseDamage * modifier;
+            const rawFullDamage = baseDamage * modifier;
+
+            // Apply Surge Damage Multiplier from opponent
+            const fullDamage = applyDamageModifiers(rawFullDamage, opponentSurgeMods, opponentMove, false);
+
             damageTaken = Math.floor(fullDamage * (1 - myStats.blockEffectiveness));
         }
 

@@ -8,9 +8,13 @@ import { EventBus } from "../EventBus";
 import { GAME_DIMENSIONS, CHARACTER_POSITIONS, UI_POSITIONS } from "../config";
 import { getCharacterScale, getCharacterYOffset, getAnimationScale, getSoundDelay, getSFXKey } from "../config/sprite-config";
 import { CombatEngine, BASE_MOVE_STATS } from "../combat";
+import { calculateSurgeEffects, isBlockDisabled } from "../combat/SurgeEffects";
 import { ChatPanel } from "../ui/ChatPanel";
 import { StickerPicker, STICKER_LIST, type StickerId } from "../ui/StickerPicker";
 import { TransactionToast } from "../ui/TransactionToast";
+import { PowerSurgeCards } from "../ui/PowerSurgeCards";
+import type { PowerSurgeCardId } from "@/types/power-surge";
+import { getRandomPowerSurgeCards, getPowerSurgeCard } from "@/types/power-surge";
 import { SmartBotOpponent } from "@/lib/game/smart-bot-opponent";
 import type { MoveType, PlayerRole } from "@/types";
 import type { CombatState } from "../combat";
@@ -163,7 +167,7 @@ export class FightScene extends Phaser.Scene {
 
   // Transaction toast for showing confirmed transactions
   private activeTransactionToast?: TransactionToast;
-  
+
   // Pending server state - holds the new HP/energy values during animations
   // This prevents the UI from showing new values before animations complete
   private pendingServerState: {
@@ -186,6 +190,15 @@ export class FightScene extends Phaser.Scene {
 
   // Track stun visual effects
   private stunTweens: Map<"player1" | "player2", Phaser.Tweens.Tween> = new Map();
+
+  // Power Surge state
+  private powerSurgeUI?: PowerSurgeCards;
+  private activeSurges: {
+    player1: PowerSurgeCardId | null;
+    player2: PowerSurgeCardId | null;
+  } = { player1: null, player2: null };
+  private surgeCardsShownThisRound: boolean = false;
+  private lastSurgeRound: number = 0;
 
   constructor() {
     super({ key: "FightScene" });
@@ -740,7 +753,7 @@ export class FightScene extends Phaser.Scene {
         // Reconnect failed - could be due to timeout (match ended)
         const errorData = await disconnectResponse.json().catch(() => null);
         console.warn("[FightScene] Reconnect failed:", errorData);
-        
+
         // If match ended due to disconnect timeout, fetch final state
         if (disconnectResponse.status === 409) { // CONFLICT status
           console.log("[FightScene] Match ended due to disconnect timeout, fetching final state");
@@ -752,11 +765,11 @@ export class FightScene extends Phaser.Scene {
       // Fetch comprehensive fight state from new API
       console.log("[FightScene] Fetching comprehensive fight state from server");
       const fightStateResponse = await fetch(`/api/matches/${this.config.matchId}/fight-state`);
-      
+
       if (fightStateResponse.ok) {
         const fightStateData = await fightStateResponse.json();
         console.log("[FightScene] Got fight state from server:", fightStateData);
-        
+
         if (fightStateData.success && fightStateData.state) {
           this.syncWithFightState(fightStateData.state);
         } else {
@@ -827,7 +840,7 @@ export class FightScene extends Phaser.Scene {
         // We're in countdown phase - calculate remaining countdown time
         const countdownEndsAt = state.countdownEndsAt ? new Date(state.countdownEndsAt).getTime() : now;
         const remainingCountdownMs = countdownEndsAt - now;
-        
+
         if (remainingCountdownMs > 0) {
           // Resume countdown
           const remainingSeconds = Math.ceil(remainingCountdownMs / 1000);
@@ -855,12 +868,12 @@ export class FightScene extends Phaser.Scene {
         // We're in selection phase - resume with remaining time
         const moveDeadlineAt = state.moveDeadlineAt ? new Date(state.moveDeadlineAt).getTime() : now;
         this.moveDeadlineAt = moveDeadlineAt;
-        
+
         if (moveDeadlineAt > now) {
           // Check if we already submitted
           const myRole = this.config.playerRole;
           const hasSubmittedMove = myRole === "player1" ? state.player1HasSubmittedMove : state.player2HasSubmittedMove;
-          
+
           if (hasSubmittedMove) {
             // We already submitted - show waiting state
             this.phase = "selecting";
@@ -883,14 +896,14 @@ export class FightScene extends Phaser.Scene {
       case "resolving": {
         // We're in resolving phase - animations are playing
         const animationEndsAt = state.animationEndsAt ? new Date(state.animationEndsAt).getTime() : now;
-        
+
         if (animationEndsAt > now) {
           // Wait for animation to finish, then next phase
           this.phase = "resolving";
           this.isResolving = true;
           this.turnIndicatorText.setText("Resolving turn...");
           this.turnIndicatorText.setColor("#f97316");
-          
+
           // Set a timeout to request next state after animation completes
           const waitMs = animationEndsAt - now + 500; // Add 500ms buffer
           this.time.delayedCall(waitMs, () => {
@@ -913,7 +926,7 @@ export class FightScene extends Phaser.Scene {
         this.phase = "round_end";
         this.turnIndicatorText.setText("Round over!");
         this.turnIndicatorText.setColor("#f97316");
-        
+
         // The server will broadcast round_starting when next round begins
         // Just wait for that event
         break;
@@ -924,7 +937,7 @@ export class FightScene extends Phaser.Scene {
         this.phase = "match_end";
         this.turnIndicatorText.setText("Match over!");
         this.turnIndicatorText.setColor("#22c55e");
-        
+
         // Fetch final match results
         this.fetchFinalMatchState();
         break;
@@ -950,7 +963,7 @@ export class FightScene extends Phaser.Scene {
       const data = await response.json();
       if (data.status === "completed" || data.status === "cancelled") {
         console.log("[FightScene] Match ended, triggering end screen");
-        
+
         // Determine winner role based on winner address
         let winner: "player1" | "player2" | null = null;
         if (data.winnerAddress === this.config.player1Address) {
@@ -958,7 +971,7 @@ export class FightScene extends Phaser.Scene {
         } else if (data.winnerAddress === this.config.player2Address) {
           winner = "player2";
         }
-        
+
         // Construct rating changes from player data if available
         // Note: This uses current ratings, not the actual match rating changes
         // For accurate rating changes, the match_ended broadcast should be the source of truth
@@ -974,7 +987,7 @@ export class FightScene extends Phaser.Scene {
             loser: { before: loserRating, after: loserRating, change: 0 },
           };
         }
-        
+
         EventBus.emit("game:matchEnded", {
           matchId: this.config.matchId,
           winner,
@@ -2159,13 +2172,25 @@ export class FightScene extends Phaser.Scene {
       ? (this.serverState.player1Energy ?? 0)
       : (this.serverState.player2Energy ?? 0);
 
+    // Check if block is disabled due to pruned-rage surge
+    const playerSurge = role === "player1" ? this.activeSurges.player1 : this.activeSurges.player2;
+    const surgeEffects = calculateSurgeEffects(
+      role === "player1" ? playerSurge : null,
+      role === "player2" ? playerSurge : null
+    );
+    const playerMods = role === "player1" ? surgeEffects.player1Modifiers : surgeEffects.player2Modifiers;
+    const blockDisabled = isBlockDisabled(playerMods);
+
     // Update each move button based on affordability
     this.moveButtons.forEach((button, move) => {
       const moveCost = BASE_MOVE_STATS[move].energyCost;
       const isAffordable = currentEnergy >= moveCost;
 
-      // Apply visual feedback for unaffordable moves (same as stunned)
-      if (!isAffordable) {
+      // Check if this specific move should be disabled
+      const shouldDisable = !isAffordable || (move === "block" && blockDisabled);
+
+      // Apply visual feedback for unaffordable/disabled moves (same as stunned)
+      if (shouldDisable) {
         button.setAlpha(0.3);
         button.disableInteractive();
         // Tint children to grayscale
@@ -2667,7 +2692,7 @@ export class FightScene extends Phaser.Scene {
       this.serverState = this.pendingServerState;
       this.pendingServerState = null;
     }
-    
+
     // Prefer server state if available
     if (this.serverState) {
       // Use server-provided state (authoritative)
@@ -2934,6 +2959,18 @@ export class FightScene extends Phaser.Scene {
       }
     });
 
+    // Listen for Power Surge selections (from realtime channel)
+    EventBus.on("game:powerSurgeSelected", (data: unknown) => {
+      const payload = data as {
+        player: "player1" | "player2";
+        cardId: PowerSurgeCardId;
+        roundNumber: number;
+        txId: string;
+      };
+      console.log("[FightScene] Power Surge selected event:", payload);
+      this.handleOpponentSurgeSelected(payload);
+    });
+
     // Listen for match cancellation (both players rejected OR both disconnected)
     EventBus.on("game:matchCancelled", (data: unknown) => {
       const payload = data as {
@@ -3052,10 +3089,10 @@ export class FightScene extends Phaser.Scene {
     EventBus.on("game:fightStateUpdate", (data: unknown) => {
       const payload = data as { matchId: string; update: any; timestamp: number };
       console.log("[FightScene] Received fight state update:", payload);
-      
+
       // Only process updates for our match
       if (payload.matchId !== this.config.matchId) return;
-      
+
       // If we receive a phase update, sync appropriately
       if (payload.update && payload.update.phase) {
         // Use the comprehensive sync method
@@ -3156,8 +3193,8 @@ export class FightScene extends Phaser.Scene {
     }
 
     // Determine player address for network detection
-    const playerAddress = this.config.playerRole === "player1" 
-      ? this.config.player1Address 
+    const playerAddress = this.config.playerRole === "player1"
+      ? this.config.player1Address
       : this.config.player2Address;
 
     // Position toast in top-right corner with some padding
@@ -3427,11 +3464,11 @@ export class FightScene extends Phaser.Scene {
     // 
     // NOTE: Do NOT queue during initial "waiting" phase (scene just loaded, waiting for first round_starting)
     // because there's no animation sequence to process the queue.
-    const shouldQueue = this.isResolving || 
-                        this.phase === "resolving" || 
-                        this.phase === "round_end" || 
-                        this.phase === "countdown";
-    
+    const shouldQueue = this.isResolving ||
+      this.phase === "resolving" ||
+      this.phase === "round_end" ||
+      this.phase === "countdown";
+
     if (shouldQueue) {
       console.log(`[FightScene] *** QUEUEING round start - isResolving: ${this.isResolving}, phase: ${this.phase}`);
       this.pendingRoundStart = payload;
@@ -3496,8 +3533,9 @@ export class FightScene extends Phaser.Scene {
     if (skipCountdown) {
       // Skip the 3-2-1 FIGHT countdown - go directly to selection phase
       // This is used when we already showed our own 5-second countdown
-      console.log("[FightScene] Skipping countdown - going straight to selection phase");
-      this.startSynchronizedSelectionPhase(payload.moveDeadlineAt);
+      // BUT we still need to show Power Surge cards for the new round!
+      console.log("[FightScene] Skipping countdown - but still need to show Power Surge cards");
+      this.showPowerSurgeCardsAndStartSelection(payload.roundNumber, payload.moveDeadlineAt);
     } else {
       // Show the 3-2-1 FIGHT countdown
       this.phase = "countdown";
@@ -3506,9 +3544,39 @@ export class FightScene extends Phaser.Scene {
   }
 
   /**
-   * Show countdown then start synchronized selection phase.
+   * Show Power Surge cards and then start selection phase (used when skipping countdown).
+   * This ensures Power Surge cards are shown even when we skip the 3-2-1 FIGHT countdown.
    */
-  private showCountdownThenSync(countdownSeconds: number, moveDeadlineAt: number): void {
+  private async showPowerSurgeCardsAndStartSelection(roundNumber: number, moveDeadlineAt: number): Promise<void> {
+    // Check if we need to show Power Surge cards for this round
+    const shouldShowSurge = !this.surgeCardsShownThisRound && this.lastSurgeRound !== roundNumber;
+
+    if (shouldShowSurge) {
+      console.log(`[FightScene] Showing Power Surge cards for round ${roundNumber} (skip countdown path)`);
+      await this.showPowerSurgeCards(roundNumber, moveDeadlineAt);
+    }
+
+    // Now start the selection phase
+    this.startSynchronizedSelectionPhase(moveDeadlineAt);
+  }
+
+  /**
+   * Show countdown then start synchronized selection phase.
+   * At the START of each round (turn 1), show Power Surge cards first.
+   */
+  private async showCountdownThenSync(countdownSeconds: number, moveDeadlineAt: number): Promise<void> {
+    // Check if this is the start of a new round (turn 1)
+    // We show Power Surge cards before the countdown
+    const currentRound = this.serverState?.currentRound ?? 1;
+    const shouldShowSurge = !this.surgeCardsShownThisRound && this.lastSurgeRound !== currentRound;
+
+    if (shouldShowSurge) {
+      console.log(`[FightScene] Showing Power Surge cards for round ${currentRound} before countdown`);
+
+      // Show Power Surge cards (this blocks until complete or timeout)
+      await this.showPowerSurgeCards(currentRound, moveDeadlineAt);
+    }
+
     let count = countdownSeconds;
 
     // Play SFX first (0.3s before "3" appears)
@@ -3558,7 +3626,7 @@ export class FightScene extends Phaser.Scene {
   /**
    * Start selection phase with synchronized timer from server deadline.
    */
-  private startSynchronizedSelectionPhase(moveDeadlineAt: number): void {
+  private async startSynchronizedSelectionPhase(moveDeadlineAt: number): Promise<void> {
     console.log(`[FightScene] *** startSynchronizedSelectionPhase called - deadline: ${moveDeadlineAt}, Timestamp: ${Date.now()}`);
     console.log(`[FightScene] *** Time until deadline: ${Math.floor((moveDeadlineAt - Date.now()) / 1000)}s`);
 
@@ -3569,6 +3637,23 @@ export class FightScene extends Phaser.Scene {
       this.timerEvent = undefined;
     }
 
+    // Check if Power Surge selection is still ongoing - BOTH players must complete
+    const currentRound = this.serverState?.currentRound ?? 1;
+
+    // Check database to see if both players have submitted their Power Surge selections
+    const areBothSurgesComplete = await this.checkBothSurgesComplete(currentRound);
+
+    if (!areBothSurgesComplete) {
+      console.log(`[FightScene] *** Waiting for both players to complete Power Surge selections`);
+      // Retry after 500ms
+      this.time.delayedCall(500, () => {
+        this.startSynchronizedSelectionPhase(moveDeadlineAt);
+      });
+      return;
+    }
+
+    console.log(`[FightScene] *** Both players completed Power Surge or no surge this round - starting timer`);
+
     this.phase = "selecting";
     this.selectedMove = null;
     this.isWaitingForOpponent = false;
@@ -3577,11 +3662,20 @@ export class FightScene extends Phaser.Scene {
 
     // React UI handles button state and affordability
 
-    // Calculate initial remaining time from server deadline
-    const remainingMs = moveDeadlineAt - Date.now();
-    this.turnTimer = Math.max(1, Math.floor(remainingMs / 1000));
-    console.log(`[FightScene] *** Initial timer value: ${this.turnTimer}s`);
-    console.log(`[FightScene] *** Initial timer value: ${this.turnTimer}s`);
+    // SAFETY FALLBACK: The server should already account for Power Surge selection time (15s)
+    // in the move deadline, but this check protects against clock sync issues or edge cases
+    // where the client's Power Surge selection took longer than expected.
+    const now = Date.now();
+    const remainingMs = moveDeadlineAt - now;
+
+    // If less than 18 seconds remaining (shouldn't happen with proper server timing), extend the deadline
+    if (remainingMs < 18000) {
+      console.warn(`[FightScene] *** SAFETY FALLBACK: Deadline too close (${Math.floor(remainingMs / 1000)}s), extending by 20s`);
+      moveDeadlineAt = now + 20000; // Give full 20 seconds
+    }
+
+    this.turnTimer = Math.max(1, Math.floor((moveDeadlineAt - now) / 1000));
+    console.log(`[FightScene] *** Initial timer value: ${this.turnTimer}s, deadline: ${moveDeadlineAt}`);
 
     // Reset button visuals and affordability (default state)
     this.resetButtonVisuals();
@@ -4205,6 +4299,10 @@ export class FightScene extends Phaser.Scene {
           // Reset selected move for next round
           this.selectedMove = null;
 
+          // Clear active surges from previous round
+          this.activeSurges = { player1: null, player2: null };
+          this.surgeCardsShownThisRound = false;
+
           // Change phase to allow processing queued events
           this.phase = "selecting";
 
@@ -4227,6 +4325,410 @@ export class FightScene extends Phaser.Scene {
     };
 
     updateRoundCountdown();
+  }
+
+  // ===========================================================================
+  // POWER SURGE SYSTEM
+  // ===========================================================================
+
+  /**
+   * Check if both players have completed their Power Surge selections for this round.
+   * Returns true if both players submitted, or if no surge exists for this round.
+   */
+  private async checkBothSurgesComplete(roundNumber: number): Promise<boolean> {
+    try {
+      const { getSupabaseClient } = await import("@/lib/supabase/client");
+      const supabase = getSupabaseClient();
+
+      const { data: surge, error } = await supabase
+        .from("power_surges")
+        .select("player1_card_id, player2_card_id")
+        .eq("match_id", this.config.matchId)
+        .eq("round_number", roundNumber)
+        .single();
+
+      if (error) {
+        // No surge row exists yet - this means no surge for this round
+        console.log(`[FightScene] No surge row found for round ${roundNumber}, proceeding`);
+        return true;
+      }
+
+      if (!surge) {
+        // No surge for this round
+        return true;
+      }
+
+      // Check if both players have selected (both card_id fields are set)
+      const bothComplete = !!(surge.player1_card_id && surge.player2_card_id);
+      console.log(`[FightScene] Surge completion check: p1=${!!surge.player1_card_id}, p2=${!!surge.player2_card_id}, both=${bothComplete}`);
+
+      return bothComplete;
+    } catch (error) {
+      console.error("[FightScene] Error checking surge completion:", error);
+      // On error, assume complete to not block gameplay
+      return true;
+    }
+  }
+
+  /**
+   * Show Power Surge card selection UI at the start of a round.
+   * Called when turn 1 of a new round begins.
+   * 
+   * @param roundNumber - Current round number (1-5)
+   * @param moveDeadlineAt - Server's move deadline timestamp
+   * @returns Promise that resolves when surge selection is complete or times out
+   */
+  private async showPowerSurgeCards(roundNumber: number, moveDeadlineAt: number): Promise<void> {
+    // Don't show surge cards for spectators or bot matches (optional)
+    if (this.config.isSpectator) {
+      console.log("[FightScene] Skipping Power Surge for spectator");
+      return;
+    }
+
+    // Avoid showing twice for the same round
+    if (this.surgeCardsShownThisRound && this.lastSurgeRound === roundNumber) {
+      console.log("[FightScene] Power Surge already shown for this round");
+      return;
+    }
+
+    this.surgeCardsShownThisRound = true;
+    this.lastSurgeRound = roundNumber;
+
+    // Fetch surge cards from API or generate locally
+    let cardIds: PowerSurgeCardId[] = [];
+    let fetchedFromServer = false;
+
+    // Try fetching multiple times with a small delay to handle race conditions
+    // (in case opponent is creating the row right now)
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const response = await fetch(`/api/matches/${this.config.matchId}/power-surge?round=${roundNumber}`);
+        if (response.ok) {
+          const data = await response.json();
+          cardIds = data.data?.offeredCards || [];
+          if (cardIds.length > 0) {
+            fetchedFromServer = true;
+            console.log(`[FightScene] Fetched surge cards from server (attempt ${attempt + 1}):`, cardIds);
+            break;
+          }
+        }
+      } catch (error) {
+        console.error("[FightScene] Failed to fetch surge cards:", error);
+      }
+
+      // If no cards yet and not the last attempt, wait a bit and retry
+      if (!fetchedFromServer && attempt < 2) {
+        await new Promise(resolve => setTimeout(resolve, 300)); // Wait 300ms before retry
+      }
+    }
+
+    // If no cards from server after retries, generate locally
+    if (!fetchedFromServer || cardIds.length === 0) {
+      console.log("[FightScene] No cards from server after retries, generating locally");
+      const cards = getRandomPowerSurgeCards(3);
+      cardIds = cards.map(c => c.id);
+    }
+
+    if (cardIds.length === 0) {
+      console.log("[FightScene] No surge cards available");
+      return;
+    }
+
+    console.log(`[FightScene] Showing Power Surge cards for round ${roundNumber}:`, cardIds);
+
+    // Calculate deadline (7 seconds from now, but not exceeding move deadline)
+    const surgeDeadline = Math.min(Date.now() + 15000, moveDeadlineAt - 1000);
+
+    const playerAddress = this.config.playerRole === "player1"
+      ? this.config.player1Address
+      : this.config.player2Address;
+
+    return new Promise((resolve) => {
+      // Create and show the Power Surge UI
+      this.powerSurgeUI = new PowerSurgeCards({
+        scene: this,
+        matchId: this.config.matchId,
+        roundNumber,
+        cardIds,
+        playerAddress,
+        deadline: surgeDeadline,
+        onCardSelected: async (cardId: PowerSurgeCardId) => {
+          // Import the service
+          const { claimPowerSurge } = await import("@/lib/game/power-surge-service");
+
+          // Claim the card (sends transaction, passing the offered cards)
+          const result = await claimPowerSurge(
+            this.config.matchId,
+            roundNumber,
+            cardId,
+            playerAddress,
+            cardIds  // Pass the cards shown to this player
+          );
+
+          if (!result.success) {
+            throw new Error(result.error || "Failed to claim surge");
+          }
+
+          // Store local active surge
+          this.activeSurges[this.config.playerRole] = cardId;
+
+          // Emit event for combat engine
+          EventBus.emit("surge:applied", {
+            player: this.config.playerRole,
+            cardId,
+            roundNumber,
+          });
+        },
+        onTimeout: () => {
+          console.log("[FightScene] Power Surge selection timed out");
+          // No surge selected - that's okay
+        },
+        onClose: () => {
+          this.powerSurgeUI = undefined;
+
+          // REVEAL: Now that the UI is closed, reveal opponent's surge if they chose one
+          const opponentRole = this.config.playerRole === "player1" ? "player2" : "player1";
+          const opponentSurgeId = this.activeSurges[opponentRole];
+
+          if (opponentSurgeId) {
+            const card = getPowerSurgeCard(opponentSurgeId);
+            if (card) {
+              console.log(`[FightScene] REVEALING opponent surge: ${card.name}`);
+              this.showSurgeCardReveal(opponentRole, opponentSurgeId);
+              this.applySurgeVisualEffect(opponentRole, card);
+            }
+          }
+
+          resolve();
+        },
+      });
+    });
+  }
+
+  /**
+   * Handle power surge selection from opponent (via realtime broadcast).
+   */
+  private async handleOpponentSurgeSelected(payload: {
+    player: "player1" | "player2";
+    cardId: PowerSurgeCardId;
+    roundNumber: number;
+  }): Promise<void> {
+    const isOpponent = payload.player !== this.config.playerRole;
+
+    // Store selection
+    this.activeSurges[payload.player] = payload.cardId;
+
+    if (isOpponent) {
+      console.log(`[FightScene] Opponent surge recorded: ${payload.player} chose ${payload.cardId}`);
+
+      // Fetch the authoritative cards from the server now that opponent has selected
+      // This ensures we're working with the same card set
+      if (this.powerSurgeUI) {
+        try {
+          const response = await fetch(`/api/matches/${this.config.matchId}/power-surge?round=${payload.roundNumber}`);
+          if (response.ok) {
+            const data = await response.json();
+            const serverCards = data.data?.offeredCards || [];
+            if (serverCards.length > 0) {
+              console.log(`[FightScene] Refreshing UI with server cards:`, serverCards);
+              this.powerSurgeUI.refreshCards(serverCards);
+            }
+          }
+        } catch (error) {
+          console.error("[FightScene] Failed to fetch server cards:", error);
+        }
+
+        this.powerSurgeUI.showOpponentReady(true);
+      }
+      return;
+    }
+
+    // Handle our own selection display
+    const card = getPowerSurgeCard(payload.cardId);
+    if (card) {
+      const message = `You activated ${card.name}!`;
+
+      this.showSurgeCardReveal(payload.player, payload.cardId);
+
+      // Apply visual effect overlay based on card type
+      this.applySurgeVisualEffect(payload.player, card);
+    }
+  }
+
+  /**
+   * Show a card reveal popup above the character's head.
+   * Replaces the old text-only reveal.
+   */
+  private showSurgeCardReveal(player: "player1" | "player2", cardId: string): void {
+    const card = getPowerSurgeCard(cardId as PowerSurgeCardId);
+    if (!card) return;
+
+    const targetSprite = player === "player1" ? this.player1Sprite : this.player2Sprite;
+    if (!targetSprite) return;
+
+    // Create container above character
+    const container = this.add.container(targetSprite.x, targetSprite.y - 280);
+    container.setDepth(2000); // Higher than standard UI but lower than overlays
+    container.setScale(0); // Start hidden for pop-up
+
+    // Card dimensions
+    const width = 140;
+    const height = 200;
+
+    // 1. Background with glow
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.95);
+    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 12);
+    bg.lineStyle(3, card.glowColor, 1);
+    bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 12);
+    container.add(bg);
+
+    // 2. Card Image
+    if (this.textures.exists(card.iconKey)) {
+      const img = this.add.image(0, -20, card.iconKey);
+      img.setDisplaySize(width - 10, width - 10); // Square-ish image at top
+      container.add(img);
+    }
+
+    // 3. Text Name
+    const nameText = this.add.text(0, 50, card.name, {
+      fontFamily: "monospace",
+      fontSize: "16px",
+      color: "#ffffff",
+      align: "center",
+      wordWrap: { width: width - 10 },
+      fontStyle: "bold",
+    });
+    nameText.setOrigin(0.5);
+    container.add(nameText);
+
+    // 4. "OPPONENT SURGE" or "YOUR SURGE" label
+    const isOpponent = player !== this.config.playerRole;
+    const labelText = isOpponent ? "OPPONENT SURGE" : "YOUR SURGE";
+    const labelColor = isOpponent ? "#ff4444" : "#22c55e";
+
+    const label = this.add.text(0, -height / 2 - 20, labelText, {
+      fontFamily: "monospace",
+      fontSize: "20px",
+      color: labelColor,
+      fontStyle: "bold",
+      stroke: "#000000",
+      strokeThickness: 4,
+    });
+    label.setOrigin(0.5);
+    container.add(label);
+
+    // Animation: Pop in
+    this.tweens.add({
+      targets: container,
+      scaleX: 1,
+      scaleY: 1,
+      duration: 500,
+      ease: "Back.easeOut",
+      onComplete: () => {
+        // Hold for 5 seconds
+        this.time.delayedCall(5000, () => {
+          if (container && container.active) {
+            // Fade out
+            this.tweens.add({
+              targets: container,
+              alpha: 0,
+              y: container.y - 50,
+              duration: 500,
+              onComplete: () => container.destroy(),
+            });
+          }
+        });
+      },
+    });
+  }
+
+  /**
+   * Apply visual effects for an active surge.
+   */
+  private applySurgeVisualEffect(
+    player: "player1" | "player2",
+    card: ReturnType<typeof getPowerSurgeCard>
+  ): void {
+    if (!card) return;
+
+    const sprite = player === "player1" ? this.player1Sprite : this.player2Sprite;
+
+    // Apply a colored tint based on the card's glow color
+    const tintColor = card.glowColor;
+
+    // Flash effect
+    this.tweens.add({
+      targets: sprite,
+      tint: tintColor,
+      duration: 200,
+      yoyo: true,
+      repeat: 2,
+      onComplete: () => {
+        // Keep a subtle persistent tint for the round
+        sprite.setTint(Phaser.Display.Color.Interpolate.ColorWithColor(
+          Phaser.Display.Color.IntegerToColor(0xffffff),
+          Phaser.Display.Color.IntegerToColor(tintColor),
+          100,
+          20 // 20% blend
+        ).color);
+      },
+    });
+
+    // Particle burst at character position
+    this.createSurgeParticles(sprite.x, sprite.y, tintColor);
+  }
+
+  /**
+   * Create particle effect for surge activation.
+   */
+  private createSurgeParticles(x: number, y: number, color: number): void {
+    for (let i = 0; i < 15; i++) {
+      const particle = this.add.graphics();
+      particle.fillStyle(color, 1);
+      particle.fillCircle(0, 0, 3 + Math.random() * 3);
+      particle.setPosition(x, y);
+      particle.setDepth(500);
+
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 50 + Math.random() * 100;
+      const targetX = x + Math.cos(angle) * speed;
+      const targetY = y + Math.sin(angle) * speed - 50; // Upward bias
+
+      this.tweens.add({
+        targets: particle,
+        x: targetX,
+        y: targetY,
+        alpha: 0,
+        scale: 0,
+        duration: 600 + Math.random() * 400,
+        ease: "Quad.easeOut",
+        onComplete: () => particle.destroy(),
+      });
+    }
+  }
+
+  /**
+   * Get active surge effects for combat resolution.
+   * Called by combat engine to apply surge modifiers.
+   */
+  public getActiveSurgeEffects(): {
+    player1: PowerSurgeCardId | null;
+    player2: PowerSurgeCardId | null;
+  } {
+    return { ...this.activeSurges };
+  }
+
+  /**
+   * Clear surge effects at end of round.
+   */
+  private clearSurgeEffects(): void {
+    this.activeSurges = { player1: null, player2: null };
+    this.surgeCardsShownThisRound = false;
+
+    // Clear any visual tints
+    this.player1Sprite.clearTint();
+    this.player2Sprite.clearTint();
   }
 }
 

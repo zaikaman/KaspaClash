@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import GameLayout from "@/components/layout/GameLayout";
 import DecorativeLine from "@/components/landing/DecorativeLine";
 import Link from "next/link";
@@ -10,6 +10,8 @@ import RoomJoin from "@/components/matchmaking/RoomJoin";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { useAbandonedMatchCleanup } from "@/hooks/useAbandonedMatchCleanup";
+import { useWalletStore } from "@/stores/wallet-store";
+import { prefetchOwnedCharacters } from "@/hooks/useOwnedCharacters";
 
 type ViewState = "main" | "create" | "join";
 
@@ -17,9 +19,17 @@ export default function MatchmakingPage() {
     const [view, setView] = useState<ViewState>("main");
     const [isTransitioning, setIsTransitioning] = useState(false);
     const router = useRouter();
+    const { address } = useWalletStore();
 
     // Clean up any abandoned bot matches
     useAbandonedMatchCleanup();
+
+    // Prefetch owned characters to warm the cache for CharacterSelectScene
+    useEffect(() => {
+        if (address) {
+            prefetchOwnedCharacters(address);
+        }
+    }, [address]);
 
     const handleQuickMatch = () => {
         setIsTransitioning(true);

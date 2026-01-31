@@ -25,6 +25,23 @@ const UI_ASSETS = {
     { key: "move_block", path: "/assets/icons/block.webp" },
     { key: "move_special", path: "/assets/icons/special.webp" },
   ],
+  powerSurgeCards: [
+    { key: "surge_10bps-barrage", path: "/cards/10bps-barrage.webp" },
+    { key: "surge_block-fortress", path: "/cards/block-fortress.webp" },
+    { key: "surge_blue-set-heal", path: "/cards/blueset-heal.webp" },
+    { key: "surge_bps-blitz", path: "/cards/bps-blitz.webp" },
+    { key: "surge_chainbreaker", path: "/cards/chain-breaker.webp" },
+    { key: "surge_dag-overclock", path: "/cards/dag-overclock.webp" },
+    { key: "surge_finality-fist", path: "/cards/finality-fist.webp" },
+    { key: "surge_ghost-dag", path: "/cards/ghostdag.webp" },
+    { key: "surge_hash-hurricane", path: "/cards/hash-hurricane.webp" },
+    { key: "surge_mempool-burn", path: "/cards/mempool-burn.webp" },
+    { key: "surge_orphan-smasher", path: "/cards/orphan-smasher.webp" },
+    { key: "surge_pruned-rage", path: "/cards/pruned-rage.webp" },
+    { key: "surge_sompi-shield", path: "/cards/sompi-shield.webp" },
+    { key: "surge_tx-storm", path: "/cards/tx-storm.webp" },
+    { key: "surge_vaultbreaker", path: "/cards/vault-breaker.webp" },
+  ],
 };
 
 // Audio assets
@@ -90,6 +107,13 @@ export function loadUIAssets(scene: Phaser.Scene): void {
   }
 
   UI_ASSETS.moveIcons.forEach(({ key, path }) => {
+    if (!isTextureLoaded(scene, key)) {
+      scene.load.image(key, path);
+    }
+  });
+
+  // Load Power Surge Cards
+  UI_ASSETS.powerSurgeCards.forEach(({ key, path }) => {
     if (!isTextureLoaded(scene, key)) {
       scene.load.image(key, path);
     }

@@ -578,6 +578,14 @@ export function useGameChannel(options: UseGameChannelOptions): UseGameChannelRe
         .on("broadcast", { event: "fight_state_update" }, ({ payload }) => {
           console.log("[GameChannel] fight_state_update received:", payload);
           EventBus.emit("game:fightStateUpdate", payload);
+        })
+        .on("broadcast", { event: "power_surge_selected" }, ({ payload }) => {
+          console.log("[GameChannel] power_surge_selected received:", payload);
+          EventBus.emit("game:powerSurgeSelected", payload);
+        })
+        .on("broadcast", { event: "power_surge_cards" }, ({ payload }) => {
+          console.log("[GameChannel] power_surge_cards received:", payload);
+          EventBus.emit("game:powerSurgeCards", payload);
         });
 
       // Set up presence listeners

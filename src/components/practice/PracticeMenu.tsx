@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CHARACTER_ROSTER } from "@/data/characters";
 import type { Character } from "@/types";
 import { useWalletStore, selectPersistedAddress } from "@/stores/wallet-store";
+import { useOwnedCharacters } from "@/hooks/useOwnedCharacters";
 import {
     Loading03Icon,
     LockIcon,
@@ -22,55 +23,13 @@ const DIFFICULTIES = [
     { id: "hard", label: "CHAMPION", color: "bg-red-600", icon: ChampionIcon },
 ];
 
-const STARTERS = ["cyber-ninja", "block-bruiser", "dag-warrior", "hash-hunter"];
-
 export default function PracticeMenu({ onStart }: PracticeMenuProps) {
     const address = useWalletStore(selectPersistedAddress);
     const [selectedChar, setSelectedChar] = useState<string>(CHARACTER_ROSTER[0].id);
     const [difficulty, setDifficulty] = useState<string>("medium");
-    const [ownedCharacterIds, setOwnedCharacterIds] = useState<string[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-
-    // Fetch owned characters
-    useEffect(() => {
-        const fetchInventory = async () => {
-            // Defaults if not connected, but let's try to fetch if we have an address
-            const defaultOwned = [...STARTERS];
-
-            if (!address) {
-                setOwnedCharacterIds(defaultOwned);
-                setIsLoading(false);
-                return;
-            }
-
-            try {
-                const response = await fetch(`/api/shop/inventory?playerId=${encodeURIComponent(address)}&pageSize=100&category=character`);
-                if (response.ok) {
-                    const data = await response.json();
-                    const items = data.items as any[];
-                    const ownedIds = new Set(data.ownedIds as string[]);
-
-                    const characters = items
-                        .filter(item => item.category === 'character' && ownedIds.has(item.id))
-                        .map(item => item.characterId)
-                        .filter(Boolean) as string[];
-
-                    // Combine with starters (just in case API doesn't return them as "owned" if they are default)
-                    const distinctOwned = Array.from(new Set([...defaultOwned, ...characters]));
-                    setOwnedCharacterIds(distinctOwned);
-                } else {
-                    setOwnedCharacterIds(defaultOwned);
-                }
-            } catch (err) {
-                console.error("Error fetching inventory:", err);
-                setOwnedCharacterIds(defaultOwned);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchInventory();
-    }, [address]);
+    
+    // Use robust hook for owned characters with retry logic and caching
+    const { ownedCharacterIds, isLoading } = useOwnedCharacters(address);
 
 
     const selectedCharacter = CHARACTER_ROSTER.find(c => c.id === selectedChar);
@@ -79,14 +38,6 @@ export default function PracticeMenu({ onStart }: PracticeMenuProps) {
         // In Practice mode, allow all characters to be selected
         setSelectedChar(charId);
     };
-
-    console.log("PracticeMenu Debug:", {
-        address,
-        starters: STARTERS,
-        ownedCount: ownedCharacterIds.length,
-        ownedIds: ownedCharacterIds,
-        firstChar: CHARACTER_ROSTER[0]?.id
-    });
 
     return (
         <div className="flex flex-col md:flex-row gap-8 md:gap-12 w-full max-w-6xl mx-auto items-start">

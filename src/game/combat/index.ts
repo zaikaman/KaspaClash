@@ -17,3 +17,20 @@ export {
     COMBAT_CONSTANTS,
     RESOLUTION_MATRIX,
 } from "./types";
+
+// Power Surge combat effects
+export {
+    calculateSurgeEffects,
+    applyDamageModifiers,
+    applyDefensiveModifiers,
+    applyEnergyEffects,
+    applyHpEffects,
+    checkRandomWin,
+    isInvisibleMove,
+    shouldStunOpponent,
+    shouldBreakGuard,
+    isBlockDisabled,
+    comparePriority,
+    type SurgeModifiers,
+    type SurgeEffectResult,
+} from "./SurgeEffects";
