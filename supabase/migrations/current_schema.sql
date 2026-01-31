@@ -332,6 +332,7 @@ CREATE TABLE public.matches (
   fight_phase text DEFAULT 'waiting'::text CHECK (fight_phase IS NULL OR (fight_phase = ANY (ARRAY['waiting'::text, 'countdown'::text, 'selecting'::text, 'resolving'::text, 'round_end'::text, 'match_end'::text]))),
   fight_phase_started_at timestamp with time zone,
   power_surge_deck jsonb,
+  bot_power_surge_choices jsonb,
   CONSTRAINT matches_pkey PRIMARY KEY (id),
   CONSTRAINT matches_player1_address_fkey FOREIGN KEY (player1_address) REFERENCES public.players(address),
   CONSTRAINT matches_player2_address_fkey FOREIGN KEY (player2_address) REFERENCES public.players(address),

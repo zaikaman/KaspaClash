@@ -364,6 +364,8 @@ export async function resolveRound(
                 damageTaken: result.player1.damageTaken,
                 outcome: result.player1.outcome,
                 effects: result.player1.effects,
+                hpRegen: result.player1.hpRegen || 0,
+                lifesteal: result.player1.lifesteal || 0,
             },
             player2: {
                 move: currentRound.player2_move,
@@ -371,6 +373,8 @@ export async function resolveRound(
                 damageTaken: result.player2.damageTaken,
                 outcome: result.player2.outcome,
                 effects: result.player2.effects,
+                hpRegen: result.player2.hpRegen || 0,
+                lifesteal: result.player2.lifesteal || 0,
             },
             player1Health: state.player1.hp,
             player2Health: state.player2.hp,
@@ -464,18 +468,24 @@ export async function resolveRound(
             // Use the centralized animation timing calculator
             const animationTime = calculateResolutionDuration(p1Move, p2Move, p1Stunned, p2Stunned, state.isRoundOver);
             
-            // Add buffer for safety (prevents countdown from starting too early)
-            const ANIMATION_BUFFER_MS = 500;
-            const ROUND_COUNTDOWN_MS = 3000;
-            const POWER_SURGE_SELECTION_MS = 15000; // Time allocated for Power Surge card selection
-            const MOVE_TIMER_MS = 20000;
-            const moveDeadlineAt = Date.now() + animationTime + ANIMATION_BUFFER_MS + ROUND_COUNTDOWN_MS + POWER_SURGE_SELECTION_MS + MOVE_TIMER_MS;
-
             // If round is over (someone KO'd), start new round in engine
+            // We need to do this BEFORE calculating the deadline to know if Power Surge is needed
             if (state.isRoundOver) {
                 engine.startNewRound();
             }
             const newState = engine.getState();
+
+            // Add buffer for safety (prevents countdown from starting too early)
+            const ANIMATION_BUFFER_MS = 500;
+            const ROUND_COUNTDOWN_MS = 3000;
+            const MOVE_TIMER_MS = 20000;
+            
+            // Only add Power Surge selection time on the FIRST turn of each round (when cards are shown)
+            // Not on subsequent turns within the same round
+            const isFirstTurnOfRound = newState.currentTurn === 1;
+            const POWER_SURGE_SELECTION_MS = isFirstTurnOfRound ? 15000 : 0;
+            
+            const moveDeadlineAt = Date.now() + animationTime + ANIMATION_BUFFER_MS + ROUND_COUNTDOWN_MS + POWER_SURGE_SELECTION_MS + MOVE_TIMER_MS;
 
 
             // Create/update next round with server-side deadline
@@ -538,9 +548,26 @@ export async function resolveRound(
                     await supabase.from("moves").insert(movesToInsert);
                     await supabase.from("rounds").update(roundUpdates).eq("id", roundData.id);
 
-                    // Note: Bot move submission will be handled by a scheduled task after the countdown
-                    // This ensures proper timing - the bot "thinks" after seeing "3 2 1 FIGHT"
-                    console.log(`[CombatResolver] *** Stunned moves pre-filled. Bot will auto-submit after round countdown.`);
+                    // Check if BOTH players are stunned - need to auto-resolve after a delay
+                    if (movesToInsert.length === 2) {
+                        console.log(`[CombatResolver] *** BOTH PLAYERS STUNNED - scheduling auto-resolution`);
+                        // Schedule auto-resolution after countdown + brief stun display time (5 seconds total)
+                        const AUTO_RESOLVE_DELAY_MS = 5000;
+                        const roundIdForAutoResolve = roundData.id;
+                        const matchIdForAutoResolve = matchId;
+                        
+                        setTimeout(async () => {
+                            try {
+                                console.log(`[CombatResolver] *** Auto-resolving stunned round ${roundIdForAutoResolve}`);
+                                await resolveRound(matchIdForAutoResolve, roundIdForAutoResolve);
+                            } catch (err) {
+                                console.error(`[CombatResolver] *** Auto-resolve failed:`, err);
+                            }
+                        }, AUTO_RESOLVE_DELAY_MS);
+                    } else {
+                        // Only one player stunned - bot move submission will be handled by a scheduled task
+                        console.log(`[CombatResolver] *** Stunned moves pre-filled. Bot will auto-submit after round countdown.`);
+                    }
                 } else {
                     console.log(`[CombatResolver] *** No stunned players, round ${nextRoundNumber} has no pre-filled moves`);
                 }

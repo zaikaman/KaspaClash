@@ -188,6 +188,12 @@ export class FightScene extends Phaser.Scene {
     player2IsStunned?: boolean;
   } | null = null;
 
+  // Pending HP heal amounts to animate after combat
+  private pendingHeal: {
+    player1: number;
+    player2: number;
+  } | null = null;
+
   // Track stun visual effects
   private stunTweens: Map<"player1" | "player2", Phaser.Tweens.Tween> = new Map();
 
@@ -2830,6 +2836,63 @@ export class FightScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * Show a healing effect with floating text and HP bar glow
+   */
+  private showHealEffect(player: "player1" | "player2", amount: number): void {
+    if (amount <= 0) return;
+
+    // Get position near the HP bar
+    const hpBarX = player === "player1" 
+      ? UI_POSITIONS.HEALTH_BAR.PLAYER1.X + 50
+      : UI_POSITIONS.HEALTH_BAR.PLAYER2.X + UI_POSITIONS.HEALTH_BAR.PLAYER2.WIDTH - 50;
+    const hpBarY = UI_POSITIONS.HEALTH_BAR.PLAYER1.Y;
+
+    // Show floating "+X HP" text in green
+    const healText = this.add.text(hpBarX, hpBarY + 20, `+${amount.toFixed(1)} HP`, {
+      fontFamily: "monospace",
+      fontSize: "20px",
+      color: "#00ff88",
+      fontStyle: "bold",
+      stroke: "#003311",
+      strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(100);
+
+    // Animate the heal text floating up
+    this.tweens.add({
+      targets: healText,
+      y: hpBarY - 30,
+      alpha: { from: 1, to: 0 },
+      scale: { from: 1.2, to: 0.8 },
+      duration: 1500,
+      ease: "Power2",
+      onComplete: () => healText.destroy(),
+    });
+
+    // Flash the HP bar green briefly
+    const hpBar = player === "player1" ? this.player1HealthBar : this.player2HealthBar;
+    const originalColor = hpBar.defaultFillColor;
+    
+    // Create a green flash overlay
+    const flashX = player === "player1" 
+      ? UI_POSITIONS.HEALTH_BAR.PLAYER1.X 
+      : UI_POSITIONS.HEALTH_BAR.PLAYER2.X;
+    const flashGraphics = this.add.graphics();
+    flashGraphics.fillStyle(0x00ff88, 0.5);
+    flashGraphics.fillRoundedRect(flashX, hpBarY, UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH, 25, 5);
+    flashGraphics.setDepth(99);
+
+    // Fade out the flash
+    this.tweens.add({
+      targets: flashGraphics,
+      alpha: 0,
+      duration: 500,
+      onComplete: () => flashGraphics.destroy(),
+    });
+
+    console.log(`[FightScene] Showing heal effect for ${player}: +${amount.toFixed(1)} HP`);
+  }
+
   private setupEventListeners(): void {
     // Listen for round start (triggered by React wrapper)
     EventBus.onEvent("round:start", ({ roundNumber }) => {
@@ -3662,14 +3725,13 @@ export class FightScene extends Phaser.Scene {
 
     // React UI handles button state and affordability
 
-    // SAFETY FALLBACK: The server should already account for Power Surge selection time (15s)
-    // in the move deadline, but this check protects against clock sync issues or edge cases
-    // where the client's Power Surge selection took longer than expected.
+    // SAFETY FALLBACK: Protects against clock sync issues or edge cases
+    // Server now only adds Power Surge time (15s) on the first turn of each round.
     const now = Date.now();
     const remainingMs = moveDeadlineAt - now;
 
-    // If less than 18 seconds remaining (shouldn't happen with proper server timing), extend the deadline
-    if (remainingMs < 18000) {
+    // If less than 15 seconds remaining (shouldn't happen with proper server timing), extend the deadline
+    if (remainingMs < 15000) {
       console.warn(`[FightScene] *** SAFETY FALLBACK: Deadline too close (${Math.floor(remainingMs / 1000)}s), extending by 20s`);
       moveDeadlineAt = now + 20000; // Give full 20 seconds
     }
@@ -3686,8 +3748,37 @@ export class FightScene extends Phaser.Scene {
     const amIStunned = isPlayer1
       ? this.serverState?.player1IsStunned
       : this.serverState?.player2IsStunned;
+    const isOpponentStunned = isPlayer1
+      ? this.serverState?.player2IsStunned
+      : this.serverState?.player1IsStunned;
+    const bothStunned = amIStunned && isOpponentStunned;
 
-    if (amIStunned) {
+    if (bothStunned) {
+      // BOTH players are stunned - show special message
+      this.turnIndicatorText.setText("BOTH PLAYERS STUNNED!");
+      this.turnIndicatorText.setColor("#ff4444");
+      this.roundTimerText.setText("SKIPPING...");
+      this.roundTimerText.setColor("#ff4444");
+
+      // Flash the stun message
+      this.tweens.add({
+        targets: this.turnIndicatorText,
+        alpha: { from: 1, to: 0.5 },
+        duration: 300,
+        yoyo: true,
+        repeat: 2,
+      });
+
+      // Disable all buttons
+      this.moveButtons.forEach(btn => {
+        btn.setAlpha(0.3);
+        btn.disableInteractive();
+      });
+
+      console.log(`[FightScene] Both players stunned - waiting for auto-resolution`);
+      // Server will auto-resolve this round, no timer needed
+      return;
+    } else if (amIStunned) {
       // Player is stunned - show message and disable buttons
       this.turnIndicatorText.setText("YOU ARE STUNNED!");
       this.turnIndicatorText.setColor("#ff4444");
@@ -3740,7 +3831,7 @@ export class FightScene extends Phaser.Scene {
           this.roundTimerText.setColor("#40e0d0");
         }
 
-        // Only trigger expiry logic if NOT stunned
+        // Only trigger expiry logic if NOT stunned (including when opponent is stunned)
         if (this.turnTimer <= 0 && !this.selectedMove && !amIStunned) {
           this.onTimerExpired();
         }
@@ -3758,8 +3849,8 @@ export class FightScene extends Phaser.Scene {
    * Handle server-resolved round (production mode).
    */
   private handleServerRoundResolved(payload: {
-    player1: { move: MoveType; damageDealt: number; damageTaken: number; outcome?: string };
-    player2: { move: MoveType; damageDealt: number; damageTaken: number; outcome?: string };
+    player1: { move: MoveType; damageDealt: number; damageTaken: number; outcome?: string; hpRegen?: number; lifesteal?: number };
+    player2: { move: MoveType; damageDealt: number; damageTaken: number; outcome?: string; hpRegen?: number; lifesteal?: number };
     player1Health: number;
     player2Health: number;
     player1MaxHealth?: number;
@@ -3798,6 +3889,16 @@ export class FightScene extends Phaser.Scene {
     // Store previous health for damage calculation
     const prevP1Health = this.serverState?.player1Health ?? payload.player1Health;
     const prevP2Health = this.serverState?.player2Health ?? payload.player2Health;
+
+    // Calculate total healing for each player (regen + lifesteal)
+    const p1TotalHeal = (payload.player1.hpRegen || 0) + (payload.player1.lifesteal || 0);
+    const p2TotalHeal = (payload.player2.hpRegen || 0) + (payload.player2.lifesteal || 0);
+
+    // Store pending heals for animation after combat
+    this.pendingHeal = {
+      player1: p1TotalHeal,
+      player2: p2TotalHeal,
+    };
 
     // Store PENDING server state - don't apply to serverState yet!
     // This prevents UI from showing new HP/energy values before animations complete.
@@ -4031,6 +4132,18 @@ export class FightScene extends Phaser.Scene {
 
           // Update UI/Health Bars
           this.syncUIWithCombatState();
+
+          // Show heal animation if any player healed this turn
+          if (this.pendingHeal) {
+            if (this.pendingHeal.player1 > 0) {
+              this.showHealEffect("player1", this.pendingHeal.player1);
+            }
+            if (this.pendingHeal.player2 > 0) {
+              this.showHealEffect("player2", this.pendingHeal.player2);
+            }
+            this.pendingHeal = null;
+          }
+
           this.roundScoreText.setText(
             `Round ${this.serverState?.currentRound ?? 1}  •  ${payload.player1RoundsWon} - ${payload.player2RoundsWon}  (First to 3)`
           );
@@ -4483,12 +4596,32 @@ export class FightScene extends Phaser.Scene {
           console.log("[FightScene] Power Surge selection timed out");
           // No surge selected - that's okay
         },
-        onClose: () => {
+        onClose: async () => {
           this.powerSurgeUI = undefined;
 
           // REVEAL: Now that the UI is closed, reveal opponent's surge if they chose one
           const opponentRole = this.config.playerRole === "player1" ? "player2" : "player1";
-          const opponentSurgeId = this.activeSurges[opponentRole];
+          let opponentSurgeId = this.activeSurges[opponentRole];
+
+          // If we don't have opponent's surge from broadcast, fetch from database
+          if (!opponentSurgeId) {
+            console.log(`[FightScene] No opponent surge in memory, fetching from database...`);
+            try {
+              const response = await fetch(`/api/matches/${this.config.matchId}/power-surge?round=${roundNumber}&reveal=true`);
+              if (response.ok) {
+                const data = await response.json();
+                const opponentKey = opponentRole === "player1" ? "player1Selection" : "player2Selection";
+                const opponentSelection = data.data?.[opponentKey];
+                if (opponentSelection && opponentSelection.cardId && opponentSelection.cardId !== "hidden") {
+                  opponentSurgeId = opponentSelection.cardId as PowerSurgeCardId;
+                  this.activeSurges[opponentRole] = opponentSurgeId;
+                  console.log(`[FightScene] Fetched opponent surge from DB: ${opponentSurgeId}`);
+                }
+              }
+            } catch (error) {
+              console.error("[FightScene] Failed to fetch opponent surge:", error);
+            }
+          }
 
           if (opponentSurgeId) {
             const card = getPowerSurgeCard(opponentSurgeId);

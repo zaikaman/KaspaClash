@@ -49,6 +49,98 @@ interface PowerSurgeRow {
   updated_at: string;
 }
 
+/**
+ * Auto-submit bot's power surge choice for a given round.
+ * Uses pre-computed choices from the match's bot_power_surge_choices column.
+ */
+async function autoSubmitBotPowerSurge(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  matchId: string,
+  roundNumber: number,
+  match: { bot_power_surge_choices?: Record<string, string>; power_surge_deck?: Record<string, PowerSurgeCardId[]> },
+  offeredCards: PowerSurgeCardId[],
+  surgeRowId?: string
+): Promise<void> {
+  console.log(`[PowerSurge API] Auto-submitting bot power surge for round ${roundNumber}`);
+  
+  // Get bot's pre-computed choice
+  const botChoices = match.bot_power_surge_choices as Record<string, string> | null;
+  if (!botChoices || !botChoices[roundNumber.toString()]) {
+    // Fallback: randomly pick one of the offered cards
+    console.log(`[PowerSurge API] No pre-computed bot choice, picking randomly`);
+    const randomIndex = Math.floor(Math.random() * offeredCards.length);
+    const botCardId = offeredCards[randomIndex];
+    await saveBotSelection(supabase, matchId, roundNumber, botCardId, offeredCards, surgeRowId);
+    return;
+  }
+  
+  const botCardId = botChoices[roundNumber.toString()] as PowerSurgeCardId;
+  
+  // Validate the bot's choice is in the offered cards
+  if (!offeredCards.includes(botCardId)) {
+    console.warn(`[PowerSurge API] Bot's pre-computed choice ${botCardId} not in offered cards, picking randomly`);
+    const randomIndex = Math.floor(Math.random() * offeredCards.length);
+    const fallbackCardId = offeredCards[randomIndex];
+    await saveBotSelection(supabase, matchId, roundNumber, fallbackCardId, offeredCards, surgeRowId);
+    return;
+  }
+  
+  await saveBotSelection(supabase, matchId, roundNumber, botCardId, offeredCards, surgeRowId);
+}
+
+/**
+ * Save bot's power surge selection to database and broadcast.
+ */
+async function saveBotSelection(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  matchId: string,
+  roundNumber: number,
+  cardId: PowerSurgeCardId,
+  offeredCards: PowerSurgeCardId[],
+  surgeRowId?: string
+): Promise<void> {
+  console.log(`[PowerSurge API] Saving bot selection: ${cardId} for round ${roundNumber}`);
+  
+  // Generate a fake transaction ID for the bot
+  const botTxId = `bot-surge-${matchId}-r${roundNumber}-${Date.now()}`;
+  
+  if (surgeRowId) {
+    // Update existing row
+    await supabase
+      .from("power_surges")
+      .update({
+        player2_card_id: cardId,
+        player2_tx_id: botTxId,
+        player2_selected_at: new Date().toISOString(),
+      })
+      .eq("id", surgeRowId);
+  } else {
+    // Insert new row with bot's selection
+    await supabase
+      .from("power_surges")
+      .upsert({
+        match_id: matchId,
+        round_number: roundNumber,
+        offered_cards: offeredCards,
+        player2_card_id: cardId,
+        player2_tx_id: botTxId,
+        player2_selected_at: new Date().toISOString(),
+      }, { onConflict: "match_id,round_number" });
+  }
+  
+  // Broadcast bot's selection immediately so polling picks it up fast
+  await broadcastSurgeSelection(supabase, matchId, {
+    matchId,
+    roundNumber,
+    player: "player2",
+    cardId,
+    txId: botTxId,
+    timestamp: Date.now(),
+  });
+  
+  console.log(`[PowerSurge API] Bot selection saved and broadcast: ${cardId}`);
+}
+
 // =============================================================================
 // HANDLER: POST - Submit surge selection
 // =============================================================================
@@ -230,6 +322,26 @@ export async function POST(
           timestamp: Date.now(),
         });
 
+        // If this is a bot match and player1 submitted, auto-submit bot's choice
+        const isBotMatch = (match as any).is_bot === true;
+        if (isBotMatch && isPlayer1 && newRow) {
+          console.log(`[PowerSurge API] Bot match detected, auto-submitting bot's choice...`);
+          // Await to ensure bot's selection is saved before response returns
+          // This ensures the UI polling will find both selections
+          try {
+            await autoSubmitBotPowerSurge(
+              supabase,
+              matchId,
+              roundNumber,
+              match as any,
+              offeredCards,
+              newRow.id
+            );
+          } catch (err) {
+            console.error("[PowerSurge API] Bot auto-submit error:", err);
+          }
+        }
+
         return NextResponse.json({
           success: true,
           data: {
@@ -285,6 +397,25 @@ export async function POST(
       txId,
       timestamp: Date.now(),
     });
+
+    // If this is a bot match and player1 submitted, auto-submit bot's choice
+    const isBotMatch = (match as any).is_bot === true;
+    if (isBotMatch && isPlayer1 && surgeRow && !surgeRow.player2_card_id) {
+      console.log(`[PowerSurge API] Bot match detected (update path), auto-submitting bot's choice...`);
+      // Await to ensure bot's selection is saved before response returns
+      try {
+        await autoSubmitBotPowerSurge(
+          supabase,
+          matchId,
+          roundNumber,
+          match as any,
+          offeredCards,
+          surgeRow.id
+        );
+      } catch (err) {
+        console.error("[PowerSurge API] Bot auto-submit error:", err);
+      }
+    }
 
     return NextResponse.json({
       success: true,

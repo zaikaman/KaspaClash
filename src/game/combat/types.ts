@@ -88,6 +88,10 @@ export interface PlayerTurnResult {
     energySpent: number;
     guardBuildup: number;
     effects: TurnEffect[];
+    /** HP regenerated this turn (from Blue Set Heal, etc.) */
+    hpRegen?: number;
+    /** HP gained from lifesteal this turn */
+    lifesteal?: number;
 }
 
 /**

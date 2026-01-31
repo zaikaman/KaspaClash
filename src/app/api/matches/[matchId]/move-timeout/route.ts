@@ -159,13 +159,46 @@ export async function POST(
         }
 
         // Deadline has passed - determine consequence
-        const p1HasMove = !!round.player1_move;
-        const p2HasMove = !!round.player2_move;
+        let p1HasMove = !!round.player1_move;
+        let p2HasMove = !!round.player2_move;
 
         console.log(`[MoveTimeout] Match ${matchId}, Round ${round.round_number}`);
         console.log(`[MoveTimeout] Deadline: ${deadline}, Now: ${now}, Passed by: ${Math.floor((now - deadline) / 1000)}s`);
         console.log(`[MoveTimeout] P1 has move: ${p1HasMove} (${round.player1_move}), P2 has move: ${p2HasMove} (${round.player2_move})`);
-        console.log(`[MoveTimeout] Request from address: ${body.address}`);
+        console.log(`[MoveTimeout] Request from address: ${body.address}, is_bot match: ${match.is_bot}`);
+
+        // SPECIAL CASE: Bot match where player timed out - submit bot move first
+        if (match.is_bot && !p1HasMove && !p2HasMove) {
+            console.log(`[MoveTimeout] *** Bot match with no moves - submitting bot move before handling timeout`);
+            
+            // Determine which player is the bot (typically player2 in our system)
+            const { data: player2Profile } = await supabase
+                .from("players")
+                .select("display_name")
+                .eq("address", match.player2_address)
+                .single();
+            
+            const player2IsBot = player2Profile?.display_name?.includes("Bot") || true; // Default to player2 being bot
+            const botPlayer = player2IsBot ? "player2" : "player1";
+            
+            console.log(`[MoveTimeout] Bot is ${botPlayer}, submitting bot move now`);
+            
+            try {
+                const { submitBotMoveForMatch } = await import("@/lib/game/bot-move-helper");
+                await submitBotMoveForMatch(matchId, round.id, botPlayer);
+                console.log(`[MoveTimeout] Bot move submitted successfully`);
+                
+                // Update our tracking - bot now has a move
+                if (botPlayer === "player1") {
+                    p1HasMove = true;
+                } else {
+                    p2HasMove = true;
+                }
+            } catch (botMoveError) {
+                console.error(`[MoveTimeout] Failed to submit bot move:`, botMoveError);
+                // Fall through to normal handling
+            }
+        }
 
         // CASE 1: Neither player submitted - cancel match and refund
         if (!p1HasMove && !p2HasMove) {

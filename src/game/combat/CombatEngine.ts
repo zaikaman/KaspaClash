@@ -192,18 +192,24 @@ export class CombatEngine {
         const p1EnergyEffects = applyEnergyEffects(p1SurgeMods, p2State.energy, p1DidHit);
         const p2EnergyEffects = applyEnergyEffects(p2SurgeMods, p1State.energy, p2DidHit);
 
-        // Apply Global Modifiers (Random Win, Invisible, Stun)
-        if (checkRandomWin(p1SurgeMods)) p1Result.outcome = "hit";
-        if (checkRandomWin(p2SurgeMods)) p2Result.outcome = "hit";
+        // Apply Global Modifiers (Random Win / Dodge)
+        // Hash Hurricane: Chance to dodge opponent's attack (reduce damageTaken to 0)
+        // Note: This is applied as damage reduction, not as a hit modifier
+        const p1Dodged = checkRandomWin(p1SurgeMods);
+        const p2Dodged = checkRandomWin(p2SurgeMods);
 
         // Apply damage
         // Handle normal damage + reflection (self-damage)
         const p1SelfDamage = (p1Result as any).selfDamage || 0;
         const p2SelfDamage = (p2Result as any).selfDamage || 0;
 
+        // Check if players are blocking (for Block Fortress reflection)
+        const p1IsBlocking = effectiveP1Move === "block" && p1Result.outcome === "guarding";
+        const p2IsBlocking = effectiveP2Move === "block" && p2Result.outcome === "guarding";
+
         // Apply defensive surge modifiers (damage reduction/amplification)
-        const p1DefensiveResult = applyDefensiveModifiers(p1Result.damageTaken, p1SurgeMods);
-        const p2DefensiveResult = applyDefensiveModifiers(p2Result.damageTaken, p2SurgeMods);
+        const p1DefensiveResult = applyDefensiveModifiers(p1Result.damageTaken, p1SurgeMods, p1IsBlocking);
+        const p2DefensiveResult = applyDefensiveModifiers(p2Result.damageTaken, p2SurgeMods, p2IsBlocking);
 
         let p1DamageTaken = p1DefensiveResult.actualDamage + p1SelfDamage;
         let p2DamageTaken = p2DefensiveResult.actualDamage + p2SelfDamage;
@@ -216,18 +222,57 @@ export class CombatEngine {
         if (p1SurgeMods.damageImmunity) p1DamageTaken = 0;
         if (p2SurgeMods.damageImmunity) p2DamageTaken = 0;
 
+        // Apply Hash Hurricane dodge - if dodge triggers, take no damage
+        if (p1Dodged) p1DamageTaken = 0;
+        if (p2Dodged) p2DamageTaken = 0;
+
         this.state.player1.hp = Math.max(0, p1State.hp - p1DamageTaken);
         this.state.player2.hp = Math.max(0, p2State.hp - p2DamageTaken);
+
+        // Track HP before regen for animation purposes
+        const p1HpBeforeRegen = this.state.player1.hp;
+        const p2HpBeforeRegen = this.state.player2.hp;
 
         // Apply HP Effects (Regen / Full Heal)
         this.state.player1.hp = applyHpEffects(p1SurgeMods, this.state.player1.hp, this.state.player1.maxHp);
         this.state.player2.hp = applyHpEffects(p2SurgeMods, this.state.player2.hp, this.state.player2.maxHp);
+
+        // Calculate actual HP regen applied (for visual feedback)
+        const p1HpRegen = this.state.player1.hp - p1HpBeforeRegen;
+        const p2HpRegen = this.state.player2.hp - p2HpBeforeRegen;
+
+        // Apply Lifesteal (BPS Syphon) - heal for % of damage dealt
+        // Only applies if player is still alive and dealt damage
+        let p1Lifesteal = 0;
+        let p2Lifesteal = 0;
+        if (p1SurgeMods.lifestealPercent > 0 && p1Result.damageDealt > 0 && this.state.player1.hp > 0) {
+            p1Lifesteal = Math.floor(p1Result.damageDealt * p1SurgeMods.lifestealPercent);
+            this.state.player1.hp = Math.min(this.state.player1.maxHp, this.state.player1.hp + p1Lifesteal);
+        }
+        if (p2SurgeMods.lifestealPercent > 0 && p2Result.damageDealt > 0 && this.state.player2.hp > 0) {
+            p2Lifesteal = Math.floor(p2Result.damageDealt * p2SurgeMods.lifestealPercent);
+            this.state.player2.hp = Math.min(this.state.player2.maxHp, this.state.player2.hp + p2Lifesteal);
+        }
+
+        // Add regen/lifesteal info to results for visual feedback
+        p1Result.hpRegen = p1HpRegen > 0 ? p1HpRegen : 0;
+        p1Result.lifesteal = p1Lifesteal;
+        p2Result.hpRegen = p2HpRegen > 0 ? p2HpRegen : 0;
+        p2Result.lifesteal = p2Lifesteal;
 
         // Apply energy costs and surge energy effects
         // P1 loses energy from move cost + what P2 burned, but gains what P1 stole from P2
         let p1NewEnergy = p1State.energy - p1Result.energySpent - p2EnergyEffects.energyBurned + p1EnergyEffects.energyStolen;
         // P2 loses energy from move cost + what P1 burned, but gains what P2 stole from P1
         let p2NewEnergy = p2State.energy - p2Result.energySpent - p1EnergyEffects.energyBurned + p2EnergyEffects.energyStolen;
+
+        // Apply Finality Fist extra special energy cost
+        if (effectiveP1Move === "special" && p1SurgeMods.specialEnergyCost > 0) {
+            p1NewEnergy -= p1SurgeMods.specialEnergyCost;
+        }
+        if (effectiveP2Move === "special" && p2SurgeMods.specialEnergyCost > 0) {
+            p2NewEnergy -= p2SurgeMods.specialEnergyCost;
+        }
 
         // Apply energy regen bonus from surge
         p1NewEnergy += p1EnergyEffects.energyRegenBonus;
@@ -272,13 +317,24 @@ export class CombatEngine {
             p2Result.effects.push("guard_break"); // Add effect for UI
         }
 
-        // Apply Stun from Surge Card
-        if (shouldStunOpponent(p1SurgeMods) && p1Result.outcome === "hit") {
-            this.state.player2.isStunned = true;
+        // Handle stun state:
+        // 1. If player WAS stunned at turn start, they missed this turn - stun will be cleared below
+        // 2. If player got stunned THIS turn (by move outcome or guard break), SET the stun for next turn
+        // NOTE: Check for stun effects BEFORE applying surge stuns, to avoid counting surge stun twice
+        const p1StunnedByMove = p1Result.effects.includes("stun");
+        const p2StunnedByMove = p2Result.effects.includes("stun");
+
+        // Apply Stun from Surge Card (Mempool Congest)
+        // Note: This stuns unconditionally - the HP cost is the trade-off
+        // Track surge stuns separately so we don't double-count them
+        let p1StunnedBySurge = false;
+        let p2StunnedBySurge = false;
+        if (shouldStunOpponent(p1SurgeMods)) {
+            p2StunnedBySurge = true;
             if (!p2Result.effects.includes("stun")) p2Result.effects.push("stun");
         }
-        if (shouldStunOpponent(p2SurgeMods) && p2Result.outcome === "hit") {
-            this.state.player1.isStunned = true;
+        if (shouldStunOpponent(p2SurgeMods)) {
+            p1StunnedBySurge = true;
             if (!p1Result.effects.includes("stun")) p1Result.effects.push("stun");
         }
 
@@ -289,17 +345,13 @@ export class CombatEngine {
         // Regenerate energy
         this.regenerateEnergy();
 
-        // Handle stun state:
-        // 1. If player WAS stunned at turn start, they missed this turn - CLEAR the stun
-        // 2. If player got stunned THIS turn (by move outcome or guard break), SET the stun for next turn
-        const p1StunnedByMove = p1Result.effects.includes("stun");
-        const p2StunnedByMove = p2Result.effects.includes("stun");
-
         // Clear old stun (player paid the penalty), then apply new stun if applicable
-        this.state.player1.isStunned = p1StunnedByMove || p1GuardBreak;
+        // p1StunnedByMove/p2StunnedByMove was calculated BEFORE surge effects, 
+        // so we add surge stuns separately here
+        this.state.player1.isStunned = p1StunnedByMove || p1GuardBreak || p1StunnedBySurge;
         this.state.player1.isStaggered = p1Result.effects.includes("stagger");
 
-        this.state.player2.isStunned = p2StunnedByMove || p2GuardBreak;
+        this.state.player2.isStunned = p2StunnedByMove || p2GuardBreak || p2StunnedBySurge;
         this.state.player2.isStaggered = p2Result.effects.includes("stagger");
 
         // Check for round end
@@ -400,19 +452,27 @@ export class CombatEngine {
             outcome = "hit";
         }
 
+        // Detect counter-hit: when your move beats the opponent's move in RPS
+        // Punch > Special, Kick > Punch, Special > Block
+        const isCounterHit = !!(opponentMove && (
+            (myMove === "punch" && opponentMove === "special") ||
+            (myMove === "kick" && opponentMove === "punch") ||
+            (myMove === "special" && opponentMove === "block")
+        ));
+
         // Calculate damage dealt
         let damageDealt = 0;
         if (outcome === "hit") {
             const baseDamage = BASE_MOVE_STATS[myMove].damage;
             const modifier = myStats.damageModifiers[myMove];
 
-            // Calculate Counter Multiplier
+            // Calculate Counter Multiplier (archetype-based)
             const counterMult = this.getArchetypeMultiplier(myState.characterId, opponentState.characterId);
 
             const rawDamage = Math.floor(baseDamage * modifier * counterMult);
 
-            // Apply Surge Damage Multipliers
-            damageDealt = applyDamageModifiers(rawDamage, mySurgeMods, myMove, false);
+            // Apply Surge Damage Multipliers (with counter-hit for Orphan Smasher)
+            damageDealt = applyDamageModifiers(rawDamage, mySurgeMods, myMove, isCounterHit);
 
             // Apply stagger penalty
             if (myState.isStaggered) {

@@ -161,9 +161,14 @@ export async function POST(
         // Cast to string to avoid TypeScript narrowing issues
         const currentStatus = match.status as string;
         if (currentStatus !== "in_progress") {
-          // Generate Power Surge deck for all 5 rounds
-          const powerSurgeDeck = generatePowerSurgeDeck();
-          console.log("[Select API] Generated Power Surge deck:", powerSurgeDeck);
+          // Only generate Power Surge deck if not already present (bot matches pre-compute it)
+          const existingDeck = (match as any).power_surge_deck;
+          const powerSurgeDeck = existingDeck || generatePowerSurgeDeck();
+          if (existingDeck) {
+            console.log("[Select API] Using existing Power Surge deck (bot match)");
+          } else {
+            console.log("[Select API] Generated Power Surge deck:", powerSurgeDeck);
+          }
 
           const { data: updateResult } = await (supabase
             .from("matches") as any)
@@ -372,9 +377,14 @@ export async function POST(
 
         // If both ready, update match status to in_progress and broadcast match_starting
         if (matchReady) {
-          // Generate Power Surge deck for all 5 rounds
-          const powerSurgeDeck = generatePowerSurgeDeck();
-          console.log("[Select API] Generated Power Surge deck:", powerSurgeDeck);
+          // Only generate Power Surge deck if not already present (bot matches pre-compute it)
+          const existingDeck = (match as any).power_surge_deck;
+          const powerSurgeDeck = existingDeck || generatePowerSurgeDeck();
+          if (existingDeck) {
+            console.log("[Select API] Using existing Power Surge deck (bot match)");
+          } else {
+            console.log("[Select API] Generated Power Surge deck:", powerSurgeDeck);
+          }
 
           const { error: startError } = await (supabase
             .from("matches") as any)

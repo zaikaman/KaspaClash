@@ -81,7 +81,7 @@ CARDS = [
     {"id": "pruned-rage", "type": "fury_boost", "params": {"damageMultiplier": 1.6, "blockDisabled": True}}, # Keep (6.60)
     {"id": "sompi-shield", "type": "damage_reduction", "params": {"incomingDamageReduction": 0.82}}, # Reduced from 0.85
     {"id": "hash-hurricane", "type": "random_win", "params": {"randomWinChance": 0.82}}, # Reduced from 0.85
-    {"id": "ghost-dag", "type": "invisible_move", "params": {"randomWinChance": 0.83}}, # Increased from 0.80
+    {"id": "ghost-dag", "type": "energy_drain", "params": {"energyDrain": 22}}, # New Effect
     {"id": "finality-fist", "type": "critical_special", "params": {"damageMultiplier": 2.25}}, # Increased from 2.2
     {"id": "bps-blitz", "type": "lifesteal", "params": {"lifestealPercent": 0.82}}, # Increased from 0.75
     {"id": "vaultbreaker", "type": "energy_steal", "params": {"energySteal": 35}}, # Keep (6.56)
@@ -134,6 +134,7 @@ def simulate_round_move_outcome(att_char_id, def_char_id, att_move, def_move, at
     hp_cost_instant = 0
     hp_regen_instant = 0
     att_lifesteal_percent = 0.0
+    att_energy_drain_passive = 0
     
     if att_card:
         ctype = att_card["type"]
@@ -146,6 +147,7 @@ def simulate_round_move_outcome(att_char_id, def_char_id, att_move, def_move, at
         hp_regen_instant = params.get("hpRegen", hp_regen_instant)
         hp_cost_instant = params.get("hpCost", hp_cost_instant)
         att_lifesteal_percent = params.get("lifestealPercent", 0.0)
+        att_energy_drain_passive = params.get("energyDrain", 0)
         
         # --- TYPE SPECIFIC LOGIC ---
         if ctype == "counter_multiplier":
@@ -248,6 +250,10 @@ def simulate_round_move_outcome(att_char_id, def_char_id, att_move, def_move, at
         if att_card["type"] == "energy_steal":
              if att_wins:
                  att_energy_change += params.get("energySteal", 0)
+
+        # Passive Drain (GhostDAG)
+        # Treat opponent loss as our gain for simple balance score
+        att_energy_change += att_energy_drain_passive
                  
     return (final_att_dmg, final_def_dmg, att_hp_change, def_hp_change, att_energy_change)
 

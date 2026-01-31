@@ -1,10 +1,46 @@
 /**
  * API Route: Create Bot Match
  * Creates a fake match entry with a bot opponent when queue timeout occurs
+ * 
+ * Pre-computes:
+ * - Bot's character selection
+ * - Bot's character ban
+ * - Power surge deck for all rounds
+ * - Bot's power surge choices for each round
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getRandomPowerSurgeCards, PowerSurgeCardId } from "@/types/power-surge";
+
+/**
+ * Generate pre-computed Power Surge deck for all 5 rounds.
+ * Each round gets 3 random cards.
+ */
+function generatePowerSurgeDeck(): Record<string, PowerSurgeCardId[]> {
+    const deck: Record<string, PowerSurgeCardId[]> = {};
+    for (let round = 1; round <= 5; round++) {
+        const cards = getRandomPowerSurgeCards(3);
+        deck[round.toString()] = cards.map(c => c.id);
+    }
+    return deck;
+}
+
+/**
+ * Generate bot's power surge choices from the pre-computed deck.
+ * Bot will randomly pick one of the 3 offered cards for each round.
+ */
+function generateBotPowerSurgeChoices(
+    deck: Record<string, PowerSurgeCardId[]>
+): Record<string, PowerSurgeCardId> {
+    const choices: Record<string, PowerSurgeCardId> = {};
+    for (const [round, cards] of Object.entries(deck)) {
+        // Bot randomly picks one of the 3 offered cards
+        const randomIndex = Math.floor(Math.random() * cards.length);
+        choices[round] = cards[randomIndex];
+    }
+    return choices;
+}
 
 export async function POST(request: NextRequest) {
     try {
@@ -65,7 +101,13 @@ export async function POST(request: NextRequest) {
         const availableForBan = botCharacters.filter(c => c !== botCharacterId);
         const botBanId = availableForBan[Math.floor(Math.random() * availableForBan.length)];
 
-        // Create match entry with bot character and ban already selected
+        // Pre-compute Power Surge deck and bot's choices
+        const powerSurgeDeck = generatePowerSurgeDeck();
+        const botPowerSurgeChoices = generateBotPowerSurgeChoices(powerSurgeDeck);
+        console.log("[create-bot-match] Generated Power Surge deck:", powerSurgeDeck);
+        console.log("[create-bot-match] Bot's Power Surge choices:", botPowerSurgeChoices);
+
+        // Create match entry with bot character, ban, and power surge already selected
         const { data: match, error: matchError } = await supabase
             .from("matches")
             .insert({
@@ -77,6 +119,8 @@ export async function POST(request: NextRequest) {
                 status: "character_select",
                 selection_deadline_at: new Date(Date.now() + 30000).toISOString(), // 30 seconds
                 is_bot: true, // Mark as bot match
+                power_surge_deck: powerSurgeDeck, // Pre-computed deck for all rounds
+                bot_power_surge_choices: botPowerSurgeChoices, // Bot's pre-selected choices
             })
             .select()
             .single();

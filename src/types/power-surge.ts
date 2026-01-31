@@ -83,6 +83,7 @@ export type PowerSurgeEffectType =
   | "energy_steal"        // Steal opponent energy
   | "opponent_stun"       // Stun opponent next move
   | "lifesteal"           // Heal for % of damage dealt
+  | "energy_drain"        // Passive energy drain from opponent
   | "guard_break";        // Break guard on any hit
 
 /**
@@ -121,6 +122,8 @@ export interface PowerSurgeEffectParams {
   blockDisabled?: boolean;
   /** Percentage of damage converted to HP */
   lifestealPercent?: number;
+  /** Energy drained from opponent */
+  energyDrain?: number;
 }
 
 // =============================================================================
@@ -188,7 +191,7 @@ export const POWER_SURGE_CARDS: readonly PowerSurgeCard[] = [
   {
     id: "10bps-barrage",
     name: "10BPS Barrage",
-    description: "Light attacks cost 0 energy (+22 regen)",
+    description: "Punch and kick cost 0 energy (+22 regen)",
     glowColor: 0x00ff44,
     iconKey: "surge_10bps-barrage",
     effectType: "energy_regen",
@@ -224,16 +227,16 @@ export const POWER_SURGE_CARDS: readonly PowerSurgeCard[] = [
   {
     id: "ghost-dag",
     name: "GhostDAG",
-    description: "Move undetectable (83% Check)",
+    description: "Opponent loses 22 Energy every turn",
     glowColor: 0x666699,
     iconKey: "surge_ghost-dag",
-    effectType: "invisible_move",
-    effectParams: { randomWinChance: 0.83 }, // Increased to 0.83
+    effectType: "energy_drain",
+    effectParams: { energyDrain: 22 },
   },
   {
     id: "finality-fist",
     name: "Finality Fist",
-    description: "Special +125% dmg, costs +15",
+    description: "Special +125% dmg, costs +15 energy",
     glowColor: 0xff00ff,
     iconKey: "surge_finality-fist",
     effectType: "critical_special",
@@ -260,7 +263,7 @@ export const POWER_SURGE_CARDS: readonly PowerSurgeCard[] = [
   {
     id: "chainbreaker",
     name: "Chainbreaker",
-    description: "Break guard on any hit. +53% Dmg",
+    description: "Bypass block on any hit. +53% Dmg",
     glowColor: 0xff0000,
     iconKey: "surge_chainbreaker",
     effectType: "guard_break",

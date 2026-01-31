@@ -29,6 +29,8 @@ export interface SurgeModifiers {
   energyBurn: number;
   /** Energy steal on hit */
   energySteal: number;
+  /** Passive energy drain (always applies) */
+  energyDrain: number;
   /** HP regen this turn */
   hpRegen: number;
   /** HP cost to pay when using this surge */
@@ -59,6 +61,10 @@ export interface SurgeModifiers {
   doubleHitMoves: MoveType[];
   /** Block is disabled (cannot use block effectively) */
   blockDisabled: boolean;
+  /** Lifesteal percentage */
+  lifestealPercent: number;
+  /** Extra energy cost for special move (Finality Fist) */
+  specialEnergyCost: number;
 }
 
 export interface SurgeEffectResult {
@@ -77,6 +83,7 @@ function getDefaultModifiers(): SurgeModifiers {
     priorityBoost: 0,
     energyBurn: 0,
     energySteal: 0,
+    energyDrain: 0,
     hpRegen: 0,
     hpCost: 0,
     fullHeal: false,
@@ -92,6 +99,8 @@ function getDefaultModifiers(): SurgeModifiers {
     energyRegenBonus: 0,
     doubleHitMoves: [],
     blockDisabled: false,
+    lifestealPercent: 0,
+    specialEnergyCost: 0,
   };
 }
 
@@ -161,6 +170,10 @@ function calculateCardModifiers(card: PowerSurgeCard | null): SurgeModifiers {
       mods.energyBurn = params.energyBurn ?? 0;
       break;
 
+    case "energy_drain":
+      mods.energyDrain = params.energyDrain ?? 0;
+      break;
+
     case "conditional_heal":
       // Blue Set Heal - full heal if tx confirms first
       // For simplicity, we grant full heal since we can't verify tx order easily
@@ -198,6 +211,7 @@ function calculateCardModifiers(card: PowerSurgeCard | null): SurgeModifiers {
     case "critical_special":
       mods.criticalHit = true;
       mods.damageMultiplier = params.damageMultiplier ?? 2.0;
+      mods.specialEnergyCost = 15; // Finality Fist costs +15 energy for special
       break;
 
     case "energy_regen":
@@ -216,11 +230,17 @@ function calculateCardModifiers(card: PowerSurgeCard | null): SurgeModifiers {
 
     case "opponent_stun":
       mods.opponentStun = true;
+      mods.hpCost = params.hpCost ?? 0; // Mempool Congest HP cost
+      break;
+
+    case "lifesteal":
+      mods.lifestealPercent = params.lifestealPercent ?? 0;
       break;
 
     case "guard_break":
-      // Chainbreaker: break guard on any hit
+      // Chainbreaker: break guard on any hit + damage bonus
       mods.guardBreakOnHit = true;
+      mods.damageMultiplier = params.damageMultiplier ?? 1.0;
       break;
   }
 
@@ -261,10 +281,8 @@ export function applyDamageModifiers(
     damage *= 2;
   }
 
-  // Apply critical hit (for special moves with Finality Fist)
-  if (modifiers.criticalHit && move === "special") {
-    damage *= 2; // Already applied via damageMultiplier, but can stack if needed
-  }
+  // Note: criticalHit flag is informational only - the damage bonus is already
+  // applied via damageMultiplier for Finality Fist (critical_special effect type)
 
   return Math.floor(damage);
 }
@@ -285,11 +303,13 @@ export function checkRandomWin(modifiers: SurgeModifiers): boolean {
  * 
  * @param incomingDamage - Damage being received
  * @param defenderModifiers - Defender's surge modifiers
+ * @param isBlocking - Whether defender is blocking (required for Block Fortress reflection)
  * @returns { actualDamage, reflectedDamage }
  */
 export function applyDefensiveModifiers(
   incomingDamage: number,
-  defenderModifiers: SurgeModifiers
+  defenderModifiers: SurgeModifiers,
+  isBlocking: boolean = false
 ): { actualDamage: number; reflectedDamage: number } {
   // Sompi Shield - complete immunity
   if (defenderModifiers.damageImmunity) {
@@ -307,14 +327,17 @@ export function applyDefensiveModifiers(
     actualDamage = Math.floor(actualDamage * multiplier);
   }
 
-  // Block Fortress - damage reflection
-  const reflectedDamage = Math.floor(incomingDamage * defenderModifiers.reflectPercent);
+  // Block Fortress - damage reflection ONLY when blocking
+  let reflectedDamage = 0;
+  if (isBlocking && defenderModifiers.reflectPercent > 0) {
+    reflectedDamage = Math.floor(incomingDamage * defenderModifiers.reflectPercent);
+  }
 
   return { actualDamage, reflectedDamage };
 }
 
 /**
- * Apply energy effects (burn, steal, regen).
+ * Apply energy effects (burn, steal, regen, drain).
  * 
  * @param attackerModifiers - Attacker's surge modifiers
  * @param defenderEnergy - Defender's current energy
@@ -331,10 +354,17 @@ export function applyEnergyEffects(
 
   if (didHit) {
     // Mempool Burn - burn opponent energy
-    energyBurned = Math.min(attackerModifiers.energyBurn, defenderEnergy);
+    energyBurned += Math.min(attackerModifiers.energyBurn, defenderEnergy);
 
     // Vaultbreaker - steal opponent energy
-    energyStolen = Math.min(attackerModifiers.energySteal, defenderEnergy);
+    energyStolen += Math.min(attackerModifiers.energySteal, defenderEnergy);
+  }
+
+  // Passive Drain (GhostDAG) - Applies regardless of hit
+  if (attackerModifiers.energyDrain > 0) {
+    // Add to energyBurned, but cap at remaining defender energy (after burn from hit)
+    const remainingEnergy = Math.max(0, defenderEnergy - energyBurned);
+    energyBurned += Math.min(attackerModifiers.energyDrain, remainingEnergy);
   }
 
   return {
@@ -357,6 +387,11 @@ export function applyHpEffects(
   currentHp: number,
   maxHp: number
 ): number {
+  // CRITICAL: Don't apply HP effects to dead players (prevents resurrection bug)
+  if (currentHp <= 0) {
+    return currentHp;
+  }
+
   let hp = currentHp;
 
   // Full heal (Blue Set Heal)
@@ -369,7 +404,7 @@ export function applyHpEffects(
     hp = Math.min(maxHp, hp + modifiers.hpRegen);
   }
 
-  // HP cost (Tx Storm)
+  // HP cost (Tx Storm, Mempool Congest)
   if (modifiers.hpCost > 0) {
     hp = Math.max(1, hp - modifiers.hpCost); // Never kill from HP cost, min 1 HP
   }
