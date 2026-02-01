@@ -177,11 +177,11 @@ export const POWER_SURGE_CARDS: readonly PowerSurgeCard[] = [
   {
     id: "blue-set-heal",
     name: "Blue Set Heal",
-    description: "Restore 5 HP over time",
+    description: "Restore 10 HP over time",
     glowColor: 0x0088ff,
     iconKey: "surge_blue-set-heal",
     effectType: "hp_regen",
-    effectParams: { hpRegen: 5 },
+    effectParams: { hpRegen: 10 },
   },
   {
     id: "orphan-smasher",
@@ -195,11 +195,11 @@ export const POWER_SURGE_CARDS: readonly PowerSurgeCard[] = [
   {
     id: "10bps-barrage",
     name: "10BPS Barrage",
-    description: "+18 energy regen on kick or punch",
+    description: "+20 energy regen on kick or punch",
     glowColor: 0x00ff44,
     iconKey: "surge_10bps-barrage",
     effectType: "energy_regen",
-    effectParams: { energyRegenBonus: 18 },
+    effectParams: { energyRegenBonus: 20 },
   },
   {
     id: "pruned-rage",
@@ -231,20 +231,20 @@ export const POWER_SURGE_CARDS: readonly PowerSurgeCard[] = [
   {
     id: "ghost-dag",
     name: "GhostDAG",
-    description: "Opponent loses 15 Energy every turn",
+    description: "Opponent loses 30 Energy every turn",
     glowColor: 0x666699,
     iconKey: "surge_ghost-dag",
     effectType: "energy_drain",
-    effectParams: { energyDrain: 15 },
+    effectParams: { energyDrain: 30 },
   },
   {
     id: "finality-fist",
     name: "Finality Fist",
-    description: "Special +70% dmg, costs +12 energy",
+    description: "Special +70% dmg, costs +24 energy",
     glowColor: 0xff00ff,
     iconKey: "surge_finality-fist",
     effectType: "critical_special",
-    effectParams: { damageMultiplier: 1.7, energyCostBonus: 12 },
+    effectParams: { damageMultiplier: 1.7, energyCostBonus: 24 },
   },
   {
     id: "bps-blitz",
@@ -258,11 +258,11 @@ export const POWER_SURGE_CARDS: readonly PowerSurgeCard[] = [
   {
     id: "vaultbreaker",
     name: "Vaultbreaker",
-    description: "Steal 18 energy on hit",
+    description: "Steal 50 energy on hit",
     glowColor: 0xffaa00,
     iconKey: "surge_vaultbreaker",
     effectType: "energy_steal",
-    effectParams: { energySteal: 18 },
+    effectParams: { energySteal: 50 },
   },
   {
     id: "chainbreaker",
