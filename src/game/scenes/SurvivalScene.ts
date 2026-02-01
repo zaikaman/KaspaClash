@@ -1363,10 +1363,10 @@ export class SurvivalScene extends Phaser.Scene {
                         }
                         
                         // Show energy drain effect from surge
-                        if (playerResult.energyDrained && playerResult.energyDrained > 15) {
+                        if (turnResult.player2.energyDrained && turnResult.player2.energyDrained > 15) {
                             this.time.delayedCall(500, () => {
                                 this.showFloatingText(
-                                    `-${Math.round(playerResult.energyDrained)} EN`,
+                                    `-${Math.round(turnResult.player2.energyDrained!)} EN`,
                                     p2OriginalX - 50,
                                     CHARACTER_POSITIONS.PLAYER2.Y - 100,
                                     "#3b82f6"
@@ -1417,10 +1417,10 @@ export class SurvivalScene extends Phaser.Scene {
                         }
                         
                         // Show energy drain effect from surge
-                        if (aiResult.energyDrained && aiResult.energyDrained > 15) {
+                        if (turnResult.player1.energyDrained && turnResult.player1.energyDrained > 15) {
                             this.time.delayedCall(500, () => {
                                 this.showFloatingText(
-                                    `-${Math.round(aiResult.energyDrained)} EN`,
+                                    `-${Math.round(turnResult.player1.energyDrained!)} EN`,
                                     p1OriginalX + 50,
                                     CHARACTER_POSITIONS.PLAYER1.Y - 100,
                                     "#3b82f6"
