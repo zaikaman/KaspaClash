@@ -34,6 +34,13 @@ export interface BotTurnData {
     isMatchEnd: boolean;
     roundWinner: "player1" | "player2" | null;
     matchWinner: "player1" | "player2" | null;
+    // Surge effect data
+    bot1EnergyDrained?: number;
+    bot2EnergyDrained?: number;
+    bot1HpRegen?: number;
+    bot2HpRegen?: number;
+    bot1Lifesteal?: number;
+    bot2Lifesteal?: number;
     // Power surge data (present on first turn of each round)
     isRoundStart?: boolean;
     surgeCardIds?: PowerSurgeCardId[];
@@ -283,6 +290,13 @@ export function simulateBotMatch(matchId: string, bot1Id?: string, bot2Id?: stri
             isMatchEnd: newState.isMatchOver,
             roundWinner: newState.roundWinner,
             matchWinner: newState.matchWinner,
+            // Surge effect visual feedback data
+            bot1EnergyDrained: result.player1.energyDrained,
+            bot2EnergyDrained: result.player2.energyDrained,
+            bot1HpRegen: result.player1.hpRegen,
+            bot2HpRegen: result.player2.hpRegen,
+            bot1Lifesteal: result.player1.lifesteal,
+            bot2Lifesteal: result.player2.lifesteal,
         };
 
         // Add power surge data for first turn of round

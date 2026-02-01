@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import GameLayout from "@/components/layout/GameLayout";
@@ -28,40 +28,51 @@ export default function BotSpectatePage() {
     const params = useParams();
     const matchId = params.matchId as string;
 
-    const [match, setMatch] = useState<(BotMatch & { currentTurnIndex: number }) | null>(null);
+    const [match, setMatch] = useState<(BotMatch & { 
+        currentTurnIndex: number;
+        serverTime?: number;
+        elapsedMs?: number;
+        bettingStatus?: {
+            isOpen: boolean;
+            secondsRemaining: number;
+            reason?: string;
+        };
+    }) | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        async function fetchMatch() {
-            try {
-                const response = await fetch(`/api/bot-games?matchId=${encodeURIComponent(matchId)}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.success && data.match) {
-                        setMatch({
-                            ...data.match,
-                            currentTurnIndex: data.currentTurnIndex,
-                            serverTime: data.serverTime,
-                            elapsedMs: data.elapsedMs,
-                            bettingStatus: data.bettingStatus,
-                        });
-                    } else {
-                        setError("Match not found");
-                    }
+    const fetchMatch = useCallback(async () => {
+        try {
+            const response = await fetch(`/api/bot-games?matchId=${encodeURIComponent(matchId)}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.match) {
+                    setMatch({
+                        ...data.match,
+                        currentTurnIndex: data.currentTurnIndex,
+                        serverTime: data.serverTime,
+                        elapsedMs: data.elapsedMs,
+                        bettingStatus: data.bettingStatus,
+                    });
+                    return true;
                 } else {
-                    setError("Failed to load match");
+                    setError("Match not found");
+                    return false;
                 }
-            } catch (err) {
-                console.error("Failed to fetch bot match:", err);
-                setError("Failed to connect");
-            } finally {
-                setLoading(false);
+            } else {
+                setError("Failed to load match");
+                return false;
             }
+        } catch (err) {
+            console.error("Failed to fetch bot match:", err);
+            setError("Failed to connect");
+            return false;
         }
-
-        fetchMatch();
     }, [matchId]);
+
+    useEffect(() => {
+        fetchMatch().finally(() => setLoading(false));
+    }, [fetchMatch]);
 
     if (loading) {
         return (

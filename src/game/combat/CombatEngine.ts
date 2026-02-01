@@ -266,8 +266,9 @@ export class CombatEngine {
         p2Result.lifesteal = p2Lifesteal;
         
         // Track energy drained by opponent's surge effects for visual feedback
-        p1Result.energyDrained = p2EnergyEffects.energyBurned; // P1 lost energy from P2's effects
-        p2Result.energyDrained = p1EnergyEffects.energyBurned; // P2 lost energy from P1's effects
+        // Include BOTH burned (from energyBurn/energyDrain) AND stolen (from energySteal like Vaultbreaker)
+        p1Result.energyDrained = p2EnergyEffects.energyBurned + p2EnergyEffects.energyStolen; // P1 lost energy from P2's effects
+        p2Result.energyDrained = p1EnergyEffects.energyBurned + p1EnergyEffects.energyStolen; // P2 lost energy from P1's effects
 
         // Apply energy costs and surge energy effects
         // P1 loses energy from move cost + what P2 burned/stole, but gains what P1 stole from P2
@@ -507,8 +508,16 @@ export class CombatEngine {
                 const modifier = opponentStats.damageModifiers[opponentMove];
                 const rawDamage = Math.floor(baseDamage * modifier);
 
-                // Apply Surge Damage Multiplier from opponent
-                damageTaken = applyDamageModifiers(rawDamage, opponentSurgeMods, opponentMove, false);
+                // Detect if opponent's attack is a counter-hit (from their perspective)
+                // Counter-hits: Punch > Special, Kick > Punch, Special > Block
+                const opponentIsCounterHit = !!(myMove && (
+                    (opponentMove === "punch" && myMove === "special") ||
+                    (opponentMove === "kick" && myMove === "punch") ||
+                    (opponentMove === "special" && myMove === "block")
+                ));
+
+                // Apply Surge Damage Multiplier from opponent (including counter multiplier)
+                damageTaken = applyDamageModifiers(rawDamage, opponentSurgeMods, opponentMove, opponentIsCounterHit);
 
                 // Apply block damage reduction
                 if (myMove === "block" && outcome === "shattered") {

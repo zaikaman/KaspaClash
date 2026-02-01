@@ -3,9 +3,16 @@
 /**
  * BotSpectatorClient - Plays back pre-computed bot matches
  * Receives full match data including turns and syncs to current position
+ * 
+ * TAB VISIBILITY SYNC:
+ * When users switch tabs or minimize browser, the client-side timer stops.
+ * Upon returning, we fetch the current server state and resync:
+ * - If still in betting phase: update countdown from server
+ * - If match has started: tell Phaser scene to fast-forward
+ * - If match finished: load the new active match
  */
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -16,6 +23,7 @@ import { WinningNotification } from "@/components/betting/WinningNotification";
 import { useWallet } from "@/hooks/useWallet";
 import { sompiToKas } from "@/lib/betting/betting-service";
 import type { BotMatch, BotTurnData } from "@/lib/game/bot-match-service";
+import type { BotGamesSyncResponse } from "@/app/api/bot-games/sync/route";
 
 interface BotSpectatorClientProps {
     match: BotMatch & {
@@ -48,9 +56,14 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
         winnerName: string;
     } | null>(null);
 
-    // Betting countdown state
+    // Betting countdown state - use server time for accuracy
     const [secondsRemaining, setSecondsRemaining] = useState(
         match.bettingStatus?.secondsRemaining ?? 0
+    );
+    
+    // Track if betting is actually open (server-authoritative)
+    const [isBettingOpen, setIsBettingOpen] = useState(
+        match.bettingStatus?.isOpen ?? false
     );
     
     // Calculate betting phase end time (when betting closes)
@@ -61,29 +74,133 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
         return undefined;
     });
 
-    // Update countdown timer
+    // Track when tab was last hidden for sync calculation
+    const tabHiddenAtRef = useRef<number | null>(null);
+    const isSyncingRef = useRef(false);
+
+    /**
+     * Fetch current server state for resync
+     */
+    const fetchServerSync = useCallback(async (): Promise<BotGamesSyncResponse | null> => {
+        try {
+            const response = await fetch(`/api/bot-games/sync?matchId=${encodeURIComponent(currentMatch.id)}`);
+            if (response.ok) {
+                return await response.json();
+            }
+        } catch (error) {
+            console.error("[BotSpectatorClient] Failed to fetch sync:", error);
+        }
+        return null;
+    }, [currentMatch.id]);
+
+    /**
+     * Handle visibility change - resync with server when tab becomes visible
+     */
+    const handleVisibilityChange = useCallback(async () => {
+        if (document.visibilityState === "hidden") {
+            // Tab is being hidden - record the time
+            tabHiddenAtRef.current = Date.now();
+            console.log("[BotSpectatorClient] Tab hidden at", new Date().toISOString());
+            return;
+        }
+
+        // Tab became visible - check if we need to resync
+        if (document.visibilityState !== "visible") return;
+        if (isSyncingRef.current) return; // Prevent multiple syncs
+
+        const hiddenDuration = tabHiddenAtRef.current 
+            ? Date.now() - tabHiddenAtRef.current 
+            : 0;
+        
+        console.log("[BotSpectatorClient] Tab visible, was hidden for", hiddenDuration, "ms");
+
+        // Only resync if hidden for more than 1 second
+        if (hiddenDuration < 1000) return;
+
+        isSyncingRef.current = true;
+        try {
+            const syncData = await fetchServerSync();
+            if (!syncData || !syncData.success) {
+                console.error("[BotSpectatorClient] Sync failed");
+                return;
+            }
+
+            console.log("[BotSpectatorClient] Server sync received:", {
+                serverTime: new Date(syncData.serverTime).toISOString(),
+                currentTurnIndex: syncData.currentTurnIndex,
+                bettingOpen: syncData.bettingStatus.isOpen,
+                bettingSecondsRemaining: syncData.bettingStatus.secondsRemaining,
+                isFinished: syncData.isFinished,
+            });
+
+            // Update betting state from server
+            setSecondsRemaining(syncData.bettingStatus.secondsRemaining);
+            setIsBettingOpen(syncData.bettingStatus.isOpen);
+
+            // If match is finished, handle transition to new match
+            if (syncData.isFinished && syncData.newMatchId && syncData.newMatch) {
+                console.log("[BotSpectatorClient] Match finished, transitioning to new match:", syncData.newMatchId);
+                // Trigger new match load via EventBus
+                EventBus.emit("bot_battle_request_new_match");
+                return;
+            }
+
+            // Emit sync event to Phaser scene
+            EventBus.emit("bot_battle_visibility_resync", {
+                matchId: currentMatch.id,
+                serverTime: syncData.serverTime,
+                currentTurnIndex: syncData.currentTurnIndex,
+                elapsedMs: syncData.elapsedMs,
+                bettingStatus: syncData.bettingStatus,
+            });
+
+        } finally {
+            isSyncingRef.current = false;
+            tabHiddenAtRef.current = null;
+        }
+    }, [currentMatch.id, fetchServerSync]);
+
+    // Setup visibility change listener
+    useEffect(() => {
+        if (typeof document === "undefined") return;
+
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        return () => {
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+        };
+    }, [handleVisibilityChange]);
+
+    // Update countdown timer - uses server-synced initial value
     useEffect(() => {
         // Sync with match data updates
-        if (currentMatch.bettingStatus?.secondsRemaining) {
+        if (currentMatch.bettingStatus?.secondsRemaining !== undefined) {
             setSecondsRemaining(currentMatch.bettingStatus.secondsRemaining);
+            setIsBettingOpen(currentMatch.bettingStatus.isOpen);
             
             // Update betting phase end time when match updates
             if (currentMatch.bettingStatus.isOpen && currentMatch.createdAt) {
-                setBettingPhaseEndTime(
-                    new Date(currentMatch.createdAt).getTime() + (currentMatch.bettingStatus.secondsRemaining * 1000)
-                );
+                // Calculate end time based on server time and remaining seconds
+                const serverTime = currentMatch.serverTime || Date.now();
+                const endTime = serverTime + (currentMatch.bettingStatus.secondsRemaining * 1000);
+                setBettingPhaseEndTime(endTime);
+            } else {
+                setBettingPhaseEndTime(undefined);
             }
         }
 
+        // Client-side countdown - decrements locally but resyncs on visibility change
         const timer = setInterval(() => {
             setSecondsRemaining(prev => {
-                if (prev <= 0) return 0;
+                if (prev <= 0) {
+                    setIsBettingOpen(false);
+                    return 0;
+                }
                 return prev - 1;
             });
         }, 1000);
 
         return () => clearInterval(timer);
-    }, [currentMatch.bettingStatus?.secondsRemaining]);
+    }, [currentMatch.bettingStatus?.secondsRemaining, currentMatch.bettingStatus?.isOpen, currentMatch.createdAt, currentMatch.serverTime]);
 
     // Real-time balance polling
     useEffect(() => {
@@ -354,9 +471,9 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
                                 </div>
                             )}
 
-                            {/* "Waiting for Bets" Overlay */}
+                            {/* "Waiting for Bets" Overlay - uses server-synced betting state */}
                             <AnimatePresence>
-                                {gameReady && secondsRemaining > 0 && currentMatch.bettingStatus?.isOpen && (
+                                {gameReady && secondsRemaining > 0 && isBettingOpen && (
                                     <motion.div
                                         initial={{ opacity: 0, scale: 0.9 }}
                                         animate={{ opacity: 1, scale: 1 }}

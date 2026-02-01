@@ -89,6 +89,7 @@ export class BotBattleScene extends Phaser.Scene {
     private visibilityChangeHandler: (() => void) | null = null;
     private matchStartTime: number = 0; // When the match actually started (server time)
     private readonly BETTING_WINDOW_MS = 30000; // 30 seconds betting period before match starts
+    private serverTimeOffset: number = 0; // Difference between server time and client time
 
     // Power Surge UI
     private powerSurgeUI: SpectatorPowerSurgeCards | null = null;
@@ -108,6 +109,12 @@ export class BotBattleScene extends Phaser.Scene {
         // Calculate when this match's gameplay started (after betting window)
         // Server created the match at matchCreatedAt, gameplay starts 30s later
         this.matchStartTime = data.matchCreatedAt + this.BETTING_WINDOW_MS;
+
+        // Calculate server time offset for accurate sync
+        if (data.serverTime) {
+            this.serverTimeOffset = data.serverTime - Date.now();
+            console.log('[BotBattleScene] Server time offset:', this.serverTimeOffset, 'ms');
+        }
 
         // Find characters
         this.bot1Character = CHARACTER_ROSTER.find(c => c.id === data.bot1CharacterId) || CHARACTER_ROSTER[0];
@@ -160,6 +167,9 @@ export class BotBattleScene extends Phaser.Scene {
 
         // Setup visibility handler for tab switching
         this.setupVisibilityHandler();
+        
+        // Listen for visibility resync events from React client (server-authoritative)
+        this.setupVisibilityResyncListener();
 
         // If joining mid-match (not at turn 0), skip betting countdown
         if (this.currentTurnIndex > 0) {
@@ -251,13 +261,121 @@ export class BotBattleScene extends Phaser.Scene {
     }
 
     /**
+     * Setup listener for visibility resync events from React client.
+     * This provides server-authoritative sync data.
+     */
+    private setupVisibilityResyncListener(): void {
+        const handleServerSync = (rawData: unknown) => {
+            const data = rawData as {
+                matchId: string;
+                serverTime: number;
+                currentTurnIndex: number;
+                elapsedMs: number;
+                bettingStatus: {
+                    isOpen: boolean;
+                    secondsRemaining: number;
+                };
+            };
+            
+            // Only handle events for our match
+            if (data.matchId !== this.config.matchId) return;
+
+            console.log('[BotBattleScene] Received server sync event:', {
+                serverTime: new Date(data.serverTime).toISOString(),
+                currentTurnIndex: data.currentTurnIndex,
+                bettingOpen: data.bettingStatus.isOpen,
+                bettingSecondsRemaining: data.bettingStatus.secondsRemaining,
+            });
+
+            // Update server time offset
+            this.serverTimeOffset = data.serverTime - Date.now();
+
+            // If betting is still open, no need to resync game state
+            if (data.bettingStatus.isOpen) {
+                console.log('[BotBattleScene] Still in betting phase, no game resync needed');
+                return;
+            }
+
+            // Betting is closed - perform resync
+            // This handles both starting playback and fast-forwarding
+            this.performServerResync(data.currentTurnIndex);
+        };
+
+        EventBus.on("bot_battle_visibility_resync", handleServerSync);
+        
+        // Cleanup on shutdown
+        this.events.once("shutdown", () => {
+            EventBus.off("bot_battle_visibility_resync", handleServerSync);
+        });
+        this.events.once("destroy", () => {
+            EventBus.off("bot_battle_visibility_resync", handleServerSync);
+        });
+    }
+
+    /**
+     * Perform resync using server-provided turn index.
+     * This is more accurate than client-side calculation.
+     * Handles both starting playback (if not started) and fast-forwarding.
+     */
+    private performServerResync(serverTurnIndex: number): void {
+        const turnsBehind = Math.max(0, serverTurnIndex - this.currentTurnIndex);
+
+        // Check if playback hasn't started yet (betting phase just ended)
+        if (!this.isPlaying && this.currentTurnIndex === 0) {
+            console.log('[BotBattleScene] Playback not started yet, starting now from turn', serverTurnIndex);
+            
+            // Cancel any pending scheduled match start (from scheduleMatchStart)
+            this.time.removeAllEvents();
+            
+            // Fast-forward to current turn if needed
+            if (serverTurnIndex > 0) {
+                this.fastForwardToTurn(serverTurnIndex);
+                this.currentTurnIndex = serverTurnIndex;
+            }
+            
+            // Start playback
+            this.startPlayback();
+            return;
+        }
+
+        if (turnsBehind <= 0) {
+            console.log('[BotBattleScene] Already synced, no resync needed');
+            return;
+        }
+
+        console.log(`[BotBattleScene] Server resync: behind by ${turnsBehind} turns, fast-forwarding from ${this.currentTurnIndex} to ${serverTurnIndex}`);
+
+        // Stop current playback
+        const wasPlaying = this.isPlaying;
+        this.isPlaying = false;
+
+        // Cancel all scheduled turn animations
+        this.time.removeAllEvents();
+
+        // Fast-forward through missed turns
+        this.fastForwardVisibilityGap(serverTurnIndex);
+
+        // Resume playback if we were playing
+        if (wasPlaying && this.currentTurnIndex < this.config.turns.length) {
+            this.isPlaying = true;
+            // Small delay before resuming to show updated state
+            this.time.delayedCall(500, () => this.playNextTurn());
+        } else if (this.currentTurnIndex >= this.config.turns.length) {
+            // Match ended while we were away
+            this.showMatchEnd();
+        }
+    }
+
+    /**
      * Handle resync when tab becomes visible.
      * Calculate the current server turn and fast-forward if needed.
+     * Uses server time offset for accuracy if available.
      */
     private handleVisibilityResync(): void {
         // Calculate what turn we SHOULD be at based on elapsed time
         // This matches the server's getCurrentTurnIndex logic exactly
-        const now = Date.now();
+        // Apply server time offset for accuracy
+        const now = Date.now() + this.serverTimeOffset;
 
         // Check if we're still in betting window
         if (now < this.matchStartTime) {
@@ -265,12 +383,30 @@ export class BotBattleScene extends Phaser.Scene {
             return;
         }
 
-        // Calculate elapsed time since gameplay started (after betting window)
+        // Betting window is over - calculate expected turn
         const gameElapsed = now - this.matchStartTime;
         const expectedTurnIndex = Math.floor(gameElapsed / this.config.turnDurationMs);
 
         // Clamp to valid range
-        const clampedExpectedTurn = Math.min(expectedTurnIndex, this.config.totalTurns - 1);
+        const clampedExpectedTurn = Math.min(Math.max(0, expectedTurnIndex), this.config.totalTurns - 1);
+
+        // Check if playback hasn't started yet (betting phase just ended while tab was hidden)
+        if (!this.isPlaying && this.currentTurnIndex === 0) {
+            console.log("[BotBattleScene] Betting ended while tab was hidden, starting playback from turn", clampedExpectedTurn);
+            
+            // Cancel any pending scheduled match start
+            this.time.removeAllEvents();
+            
+            // Fast-forward to current turn if needed
+            if (clampedExpectedTurn > 0) {
+                this.fastForwardToTurn(clampedExpectedTurn);
+                this.currentTurnIndex = clampedExpectedTurn;
+            }
+            
+            // Start playback
+            this.startPlayback();
+            return;
+        }
 
         // How many turns did we miss while tab was hidden?
         const turnsBehind = Math.max(0, clampedExpectedTurn - this.currentTurnIndex);
@@ -731,6 +867,18 @@ export class BotBattleScene extends Phaser.Scene {
             this.powerSurgeUI = null;
         }
 
+        // Clear any leftover narrative text from previous round (e.g., "X WINS THE ROUND!")
+        this.narrativeText.setAlpha(0);
+        this.narrativeText.setText("");
+
+        // Reset HP/Energy/Guard bars for the new round BEFORE showing power surge UI
+        this.updateHealthBarDisplay("player1", this.config.bot1MaxHp, this.config.bot1MaxHp);
+        this.updateHealthBarDisplay("player2", this.config.bot2MaxHp, this.config.bot2MaxHp);
+        this.updateEnergyBarDisplay("player1", this.config.bot1MaxEnergy, this.config.bot1MaxEnergy);
+        this.updateEnergyBarDisplay("player2", this.config.bot2MaxEnergy, this.config.bot2MaxEnergy);
+        this.updateGuardMeterDisplay("player1", 0);
+        this.updateGuardMeterDisplay("player2", 0);
+
         // Create spectator power surge UI
         this.powerSurgeUI = new SpectatorPowerSurgeCards({
             scene: this,
@@ -892,23 +1040,16 @@ export class BotBattleScene extends Phaser.Scene {
                             });
                         }
                         
-                        // Show energy drain effect if P2 lost energy from P1's surge (e.g., GhostDAG)
-                        if (this.currentTurnIndex > 0) {
-                            const prevTurn = this.config.turns[this.currentTurnIndex - 1];
-                            const energyLost = prevTurn.bot2Energy - turn.bot2Energy + turn.bot2Move !== "stunned" ? 0 : 0;
-                            const expectedEnergyLoss = turn.bot2Move === "punch" ? 0 : turn.bot2Move === "kick" ? 25 : turn.bot2Move === "special" ? 50 : turn.bot2Move === "block" ? 5 : 0;
-                            const drainedAmount = energyLost - expectedEnergyLoss - p2Damage; // Approximate drain
-                            
-                            if (drainedAmount > 15) { // Only show if significant drain (likely GhostDAG 22)
-                                this.time.delayedCall(500, () => {
-                                    this.showFloatingText(
-                                        `-${Math.round(drainedAmount)} EN`,
-                                        p2TargetX,
-                                        CHARACTER_POSITIONS.PLAYER2.Y - 100,
-                                        "#3b82f6"
-                                    );
-                                });
-                            }
+                        // Show energy drain effect if P2 lost energy from P1's surge (e.g., GhostDAG, Vaultbreaker)
+                        if (turn.bot2EnergyDrained && turn.bot2EnergyDrained > 0) {
+                            this.time.delayedCall(500, () => {
+                                this.showFloatingText(
+                                    `-${Math.round(turn.bot2EnergyDrained!)} EN`,
+                                    p2TargetX,
+                                    CHARACTER_POSITIONS.PLAYER2.Y - 100,
+                                    "#3b82f6"
+                                );
+                            });
                         }
 
                         // Wait for animation to finish (1200ms like FightScene)
@@ -966,23 +1107,16 @@ export class BotBattleScene extends Phaser.Scene {
                             });
                         }
                         
-                        // Show energy drain effect if P1 lost energy from P2's surge (e.g., GhostDAG)
-                        if (this.currentTurnIndex > 0) {
-                            const prevTurn = this.config.turns[this.currentTurnIndex - 1];
-                            const energyLost = prevTurn.bot1Energy - turn.bot1Energy + (turn.bot1Move !== "stunned" ? 0 : 0);
-                            const expectedEnergyLoss = turn.bot1Move === "punch" ? 0 : turn.bot1Move === "kick" ? 25 : turn.bot1Move === "special" ? 50 : turn.bot1Move === "block" ? 5 : 0;
-                            const drainedAmount = energyLost - expectedEnergyLoss - p1Damage; // Approximate drain
-                            
-                            if (drainedAmount > 15) { // Only show if significant drain (likely GhostDAG 22)
-                                this.time.delayedCall(500, () => {
-                                    this.showFloatingText(
-                                        `-${Math.round(drainedAmount)} EN`,
-                                        p1TargetX,
-                                        CHARACTER_POSITIONS.PLAYER1.Y - 100,
-                                        "#3b82f6"
-                                    );
-                                });
-                            }
+                        // Show energy drain effect if P1 lost energy from P2's surge (e.g., GhostDAG, Vaultbreaker)
+                        if (turn.bot1EnergyDrained && turn.bot1EnergyDrained > 0) {
+                            this.time.delayedCall(500, () => {
+                                this.showFloatingText(
+                                    `-${Math.round(turn.bot1EnergyDrained!)} EN`,
+                                    p1TargetX,
+                                    CHARACTER_POSITIONS.PLAYER1.Y - 100,
+                                    "#3b82f6"
+                                );
+                            });
                         }
 
                         // Wait for animation to finish
@@ -1088,27 +1222,20 @@ export class BotBattleScene extends Phaser.Scene {
 
                             // Reset logic
                             if (!turn.isMatchEnd) {
-                                // NOT Match End: Reset for next round
-                                this.time.delayedCall(1000, () => {
-                                    // Reset HP bars
-                                    this.updateHealthBarDisplay("player1", this.config.bot1MaxHp, this.config.bot1MaxHp);
-                                    this.updateHealthBarDisplay("player2", this.config.bot2MaxHp, this.config.bot2MaxHp);
-                                    this.updateEnergyBarDisplay("player1", this.config.bot1MaxEnergy, this.config.bot1MaxEnergy);
-                                    this.updateEnergyBarDisplay("player2", this.config.bot2MaxEnergy, this.config.bot2MaxEnergy);
-                                    this.updateGuardMeterDisplay("player1", 0);
-                                    this.updateGuardMeterDisplay("player2", 0);
+                                // NOT Match End: Wait 3 seconds to show round result, then reset for next round
+                                // NOTE: HP bars are reset in showPowerSurgeUI before card selection starts
+                                await new Promise<void>((resolve) => this.time.delayedCall(3000, resolve));
 
-                                    this.currentRound++;
-                                    this.roundScoreText.setText(
-                                        `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`
-                                    );
+                                this.currentRound++;
+                                this.roundScoreText.setText(
+                                    `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`
+                                );
 
-                                    // Reset loser to IDLE for next round
-                                    if (this.anims.exists(`${loserChar}_idle`)) {
-                                        loserSprite.setScale(getAnimationScale(loserChar, "idle"));
-                                        loserSprite.play(`${loserChar}_idle`);
-                                    }
-                                });
+                                // Reset loser to IDLE for next round
+                                if (this.anims.exists(`${loserChar}_idle`)) {
+                                    loserSprite.setScale(getAnimationScale(loserChar, "idle"));
+                                    loserSprite.play(`${loserChar}_idle`);
+                                }
                             } else {
                                 // MATCH END: Do NOT reset loser to idle
                                 // Loser stays dead on the floor
@@ -1117,11 +1244,6 @@ export class BotBattleScene extends Phaser.Scene {
 
                         } else {
                             // DRAW Logic (Double KO) - Both stay dead if match end
-                            // ... (omitted for brevity, can leave as is or adapt similarly if needed)
-                            // For simplicity, applying similar return-then-die logic for Draw implies a bigger refactor.
-                            // Given the request focused on "the dead animation", I'll assume standard win/loss flow is priority.
-                            // But to be safe, let's just make them die here too.
-
                             if (this.anims.exists(`${p1Char}_dead`)) {
                                 this.player1Sprite.setScale(getAnimationScale(p1Char, "dead"));
                                 this.player1Sprite.play(`${p1Char}_dead`);
@@ -1137,18 +1259,24 @@ export class BotBattleScene extends Phaser.Scene {
                             this.narrativeText.setAlpha(1);
 
                             if (!turn.isMatchEnd) {
+                                // Wait 3 seconds to show draw result, then reset for next round
+                                // NOTE: HP bars are reset in showPowerSurgeUI before card selection starts
+                                await new Promise<void>((resolve) => this.time.delayedCall(3000, resolve));
+
                                 this.currentRound++;
+                                this.roundScoreText.setText(
+                                    `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`
+                                );
+
                                 // Reset both to idle
-                                this.time.delayedCall(1000, () => {
-                                    if (this.anims.exists(`${p1Char}_idle`)) {
-                                        this.player1Sprite.setScale(getAnimationScale(p1Char, "idle"));
-                                        this.player1Sprite.play(`${p1Char}_idle`);
-                                    }
-                                    if (this.anims.exists(`${p2Char}_idle`)) {
-                                        this.player2Sprite.setScale(getAnimationScale(p2Char, "idle"));
-                                        this.player2Sprite.play(`${p2Char}_idle`);
-                                    }
-                                });
+                                if (this.anims.exists(`${p1Char}_idle`)) {
+                                    this.player1Sprite.setScale(getAnimationScale(p1Char, "idle"));
+                                    this.player1Sprite.play(`${p1Char}_idle`);
+                                }
+                                if (this.anims.exists(`${p2Char}_idle`)) {
+                                    this.player2Sprite.setScale(getAnimationScale(p2Char, "idle"));
+                                    this.player2Sprite.play(`${p2Char}_idle`);
+                                }
                             }
                         }
                     } else {
