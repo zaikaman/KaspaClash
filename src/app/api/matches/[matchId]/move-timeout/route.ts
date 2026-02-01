@@ -172,11 +172,11 @@ export async function POST(
             console.log(`[MoveTimeout] *** Bot match with no moves - submitting bot move before handling timeout`);
             
             // Determine which player is the bot (typically player2 in our system)
-            const { data: player2Profile } = await supabase
+            const { data: player2Profile } = match.player2_address ? await supabase
                 .from("players")
                 .select("display_name")
                 .eq("address", match.player2_address)
-                .single();
+                .single() : { data: null };
             
             const player2IsBot = player2Profile?.display_name?.includes("Bot") || true; // Default to player2 being bot
             const botPlayer = player2IsBot ? "player2" : "player1";

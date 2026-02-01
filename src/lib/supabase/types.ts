@@ -86,6 +86,8 @@ export interface Database {
           started_at: string | null;
           completed_at: string | null;
           selection_deadline_at: string | null;
+          is_bot: boolean;
+          bot_power_surge_choices: Json | null;
         };
         Insert: {
           id?: string;
@@ -103,6 +105,8 @@ export interface Database {
           started_at?: string | null;
           completed_at?: string | null;
           selection_deadline_at?: string | null;
+          is_bot?: boolean;
+          bot_power_surge_choices?: Json | null;
         };
         Update: {
           id?: string;
@@ -120,6 +124,8 @@ export interface Database {
           started_at?: string | null;
           completed_at?: string | null;
           selection_deadline_at?: string | null;
+          is_bot?: boolean;
+          bot_power_surge_choices?: Json | null;
         };
         Relationships: [
           {
