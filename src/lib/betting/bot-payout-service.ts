@@ -55,7 +55,9 @@ interface BotBetRow {
     pool_id: string;
     bettor_address: string;
     bet_on: string;
-    net_amount: number;
+    amount: number;        // Original bet amount (before fee)
+    fee_paid: number;      // Fee paid (1% of bet)
+    net_amount: number;    // amount - fee_paid (kept for backwards compatibility)
     status: string;
 }
 
@@ -65,18 +67,22 @@ interface BotBetRow {
 
 /**
  * Calculate payout for a winning bet (HOUSE MODEL - FIXED 2x ODDS)
- * Winners receive exactly 2x their net bet amount (bet minus 1% fee)
+ * Winners receive exactly 2x their original bet amount (before fee)
+ * The fee was already paid when placing the bet, so we don't deduct it again
  */
 function calculateBotBetPayout(
     bet: BotBetRow,
     _pool: BotBettingPoolRow // Pool not needed for fixed odds, kept for interface compatibility
 ): bigint {
-    const netAmount = BigInt(bet.net_amount);
+    // Use the original bet amount (before fee was deducted)
+    // User paid: amount + fee_paid
+    // User should win: amount * 2 (the fee is the cost of playing, not deducted from winnings)
+    const originalBetAmount = BigInt(bet.amount);
 
-    if (netAmount <= 0n) return 0n;
+    if (originalBetAmount <= 0n) return 0n;
 
-    // Fixed 2x payout for house model
-    return netAmount * 2n;
+    // Fixed 2x payout for house model - based on ORIGINAL bet, not net amount
+    return originalBetAmount * 2n;
 }
 
 /**
@@ -128,6 +134,14 @@ export async function processBotPoolPayouts(
 
     // Calculate payouts
     const payoutList = calculateBotPoolPayouts(pool, bets);
+
+    // Debug: Log bet details
+    for (const bet of bets) {
+        console.log(`[BotPayoutService] Bet debug - id: ${bet.id}, amount: ${bet.amount}, fee_paid: ${bet.fee_paid}, net_amount: ${bet.net_amount}, bet_on: ${bet.bet_on}`);
+    }
+    for (const payout of payoutList) {
+        console.log(`[BotPayoutService] Payout calculated - bettor: ${payout.bettorAddress.slice(-8)}, amount: ${payout.amount.toString()} sompi (${sompiToKas(payout.amount)} KAS)`);
+    }
 
     if (payoutList.length === 0) {
         return result;

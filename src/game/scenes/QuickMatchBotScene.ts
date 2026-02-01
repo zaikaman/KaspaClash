@@ -9,7 +9,11 @@ import { EventBus } from "@/game/EventBus";
 import { GAME_DIMENSIONS, CHARACTER_POSITIONS, UI_POSITIONS } from "@/game/config";
 import { getCharacterScale, getAnimationScale, getCharacterYOffset, getSoundDelay, getSFXKey } from "@/game/config/sprite-config";
 import { CombatEngine, BASE_MOVE_STATS, COMBAT_CONSTANTS } from "@/game/combat";
+import { calculateSurgeEffects, isBlockDisabled } from "@/game/combat/SurgeEffects";
 import { SmartBotOpponent } from "@/lib/game/smart-bot-opponent";
+import { OfflinePowerSurgeCards } from "@/game/ui/OfflinePowerSurgeCards";
+import type { PowerSurgeCardId } from "@/types/power-surge";
+import { getRandomPowerSurgeCards, getPowerSurgeCard } from "@/types/power-surge";
 import { getCharacter, getRandomCharacter } from "@/data/characters";
 import type { MoveType, Character } from "@/types";
 import { isMobileDevice } from "@/utils/device";
@@ -84,6 +88,17 @@ export class QuickMatchBotScene extends Phaser.Scene {
   private visibilityChangeHandler: (() => void) | null = null;
   private wasPlayingBeforeHidden: boolean = false;
 
+  // Power Surge state - precomputed for all rounds
+  private powerSurgeUI?: OfflinePowerSurgeCards;
+  private precomputedDecks: Map<number, PowerSurgeCardId[]> = new Map();
+  private precomputedBotSelections: Map<number, PowerSurgeCardId> = new Map();
+  private activeSurges: {
+    player1: PowerSurgeCardId | null;
+    player2: PowerSurgeCardId | null;
+  } = { player1: null, player2: null };
+  private surgeCardsShownThisRound: boolean = false;
+  private lastSurgeRound: number = 0;
+
   constructor() {
     super({ key: "QuickMatchBotScene" });
   }
@@ -112,6 +127,33 @@ export class QuickMatchBotScene extends Phaser.Scene {
     this.turnTimer = 15;
     this.phase = "countdown";
     this.moveButtons.clear();
+
+    // Precompute Power Surge decks and bot selections for all rounds
+    this.precomputePowerSurgeDecks();
+  }
+
+  /**
+   * Precompute Power Surge card decks and bot selections for all rounds.
+   */
+  private precomputePowerSurgeDecks(): void {
+    this.precomputedDecks.clear();
+    this.precomputedBotSelections.clear();
+    this.activeSurges = { player1: null, player2: null };
+    this.surgeCardsShownThisRound = false;
+    this.lastSurgeRound = 0;
+
+    const maxRounds = this.config.matchFormat === "best_of_5" ? 5 : 3;
+    const usedCards: PowerSurgeCardId[] = [];
+
+    for (let round = 1; round <= maxRounds; round++) {
+      const deck = getRandomPowerSurgeCards(3, usedCards);
+      const deckIds = deck.map(c => c.id);
+      this.precomputedDecks.set(round, deckIds);
+
+      // Bot picks a random card from the deck
+      const botChoice = deckIds[Math.floor(Math.random() * deckIds.length)];
+      this.precomputedBotSelections.set(round, botChoice);
+    }
   }
 
   /**
@@ -839,11 +881,16 @@ export class QuickMatchBotScene extends Phaser.Scene {
   private updateMoveButtonAffordability(): void {
     const moves: MoveType[] = ["punch", "kick", "block", "special"];
 
+    // Check if block is disabled due to opponent's surge effect (e.g., Pruned Rage)
+    const surgeEffects = calculateSurgeEffects(this.activeSurges.player1, this.activeSurges.player2);
+    const blockDisabled = isBlockDisabled(surgeEffects.player1Modifiers, surgeEffects.player2Modifiers);
+
     moves.forEach((move) => {
       const canAfford = this.combatEngine.canAffordMove("player1", move);
       const container = this.moveButtons.get(move);
       if (container) {
-        if (!canAfford) {
+        const shouldDisable = !canAfford || (move === "block" && blockDisabled);
+        if (shouldDisable) {
           container.setAlpha(0.3);
           container.disableInteractive();
           container.list.forEach((child: any) => {
@@ -921,10 +968,18 @@ export class QuickMatchBotScene extends Phaser.Scene {
 
   private startRound(): void {
     this.phase = "countdown";
-    this.playSFX("sfx_cd_fight");
 
-    this.time.delayedCall(300, () => {
-      this.showCountdown(3);
+    // Get current round number
+    const state = this.combatEngine.getState();
+    const currentRound = state.currentRound;
+
+    // Show Power Surge cards first, then countdown
+    this.showPowerSurgeCards(currentRound).then(() => {
+      this.playSFX("sfx_cd_fight");
+
+      this.time.delayedCall(300, () => {
+        this.showCountdown(3);
+      });
     });
   }
 
@@ -1100,7 +1155,13 @@ export class QuickMatchBotScene extends Phaser.Scene {
     const prevP1Health = prevState.player1.hp;
     const prevP2Health = prevState.player2.hp;
 
-    const turnResult = this.combatEngine.resolveTurn(playerMove, botMove);
+    // Pass active surge effects to combat engine
+    const turnResult = this.combatEngine.resolveTurn(
+      playerMove,
+      botMove,
+      this.activeSurges.player1,
+      this.activeSurges.player2
+    );
     const state = this.combatEngine.getState();
 
     const p1Char = this.playerCharacter.id;
@@ -1221,6 +1282,18 @@ export class QuickMatchBotScene extends Phaser.Scene {
                 });
               });
             }
+            
+            // Show energy drain effect from surge
+            if (turnResult.player2.energyDrained && turnResult.player2.energyDrained > 15) {
+              this.time.delayedCall(500, () => {
+                this.showFloatingText(
+                  `-${Math.round(turnResult.player2.energyDrained!)} EN`,
+                  p2OriginalX - 50,
+                  CHARACTER_POSITIONS.PLAYER2.Y - 100,
+                  "#3b82f6"
+                );
+              });
+            }
 
             this.time.delayedCall(1200, () => resolve());
           });
@@ -1261,6 +1334,18 @@ export class QuickMatchBotScene extends Phaser.Scene {
                   duration: 50,
                   repeat: 3
                 });
+              });
+            }
+            
+            // Show energy drain effect from surge
+            if (turnResult.player1.energyDrained && turnResult.player1.energyDrained > 15) {
+              this.time.delayedCall(500, () => {
+                this.showFloatingText(
+                  `-${Math.round(turnResult.player1.energyDrained!)} EN`,
+                  p1OriginalX + 50,
+                  CHARACTER_POSITIONS.PLAYER1.Y - 100,
+                  "#3b82f6"
+                );
               });
             }
 
@@ -1381,6 +1466,7 @@ export class QuickMatchBotScene extends Phaser.Scene {
       onComplete: () => {
         this.time.delayedCall(1500, () => {
           this.countdownText.setAlpha(0);
+          this.clearSurgeEffects();
           this.combatEngine.startNewRound();
           this.bot.resetRound();
           this.syncUIWithCombatState();
@@ -1675,6 +1761,220 @@ export class QuickMatchBotScene extends Phaser.Scene {
     if (menu) {
       menu.setVisible(this.isSettingsOpen);
     }
+  }
+
+  // ===========================================================================
+  // POWER SURGE
+  // ===========================================================================
+
+  /**
+   * Show Power Surge card selection UI.
+   */
+  private async showPowerSurgeCards(roundNumber: number): Promise<void> {
+    // Avoid showing twice for the same round
+    if (this.surgeCardsShownThisRound && this.lastSurgeRound === roundNumber) {
+      return;
+    }
+
+    this.surgeCardsShownThisRound = true;
+    this.lastSurgeRound = roundNumber;
+
+    const cardIds = this.precomputedDecks.get(roundNumber);
+    const botSelection = this.precomputedBotSelections.get(roundNumber);
+
+    if (!cardIds || cardIds.length === 0 || !botSelection) {
+      return;
+    }
+
+    return new Promise((resolve) => {
+      const deadline = Date.now() + 10000;
+
+      this.powerSurgeUI = new OfflinePowerSurgeCards({
+        scene: this,
+        roundNumber,
+        cardIds,
+        aiSelectedCardId: botSelection,
+        deadline,
+        onCardSelected: (cardId: PowerSurgeCardId) => {
+          this.activeSurges.player1 = cardId;
+        },
+        onTimeout: () => {
+          // No surge selected
+        },
+        onClose: (playerSelection: PowerSurgeCardId | null, botSelectionId: PowerSurgeCardId) => {
+          this.powerSurgeUI = undefined;
+
+          this.activeSurges.player1 = playerSelection;
+          this.activeSurges.player2 = botSelectionId;
+
+          // Show bot's selection reveal
+          if (botSelectionId) {
+            this.showSurgeCardReveal("player2", botSelectionId);
+          }
+
+          // Show player's selection reveal
+          if (playerSelection) {
+            this.showSurgeCardReveal("player1", playerSelection);
+          }
+
+          resolve();
+        },
+      });
+    });
+  }
+
+  /**
+   * Show a brief visual reveal of a surge card selection.
+   */
+  private showSurgeCardReveal(player: "player1" | "player2", cardId: PowerSurgeCardId): void {
+    const card = getPowerSurgeCard(cardId);
+    if (!card) return;
+
+    const targetSprite = player === "player1" ? this.player1Sprite : this.player2Sprite;
+    if (!targetSprite) return;
+
+    // Create container above character
+    const container = this.add.container(targetSprite.x, targetSprite.y - 280);
+    container.setDepth(2000);
+    container.setScale(0);
+
+    const width = 140;
+    const height = 200;
+
+    // Background with glow
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.95);
+    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 12);
+    bg.lineStyle(3, card.glowColor, 1);
+    bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 12);
+    container.add(bg);
+
+    // Card Image
+    if (this.textures.exists(card.iconKey)) {
+      const img = this.add.image(0, -20, card.iconKey);
+      img.setDisplaySize(width - 10, width - 10);
+      container.add(img);
+    }
+
+    // Text Name
+    const nameText = this.add.text(0, 50, card.name, {
+      fontFamily: "monospace",
+      fontSize: "16px",
+      color: "#ffffff",
+      align: "center",
+      wordWrap: { width: width - 10 },
+      fontStyle: "bold",
+    });
+    nameText.setOrigin(0.5);
+    container.add(nameText);
+
+    // Label
+    const isPlayer = player === "player1";
+    const labelText = isPlayer ? "YOUR SURGE" : "BOT SURGE";
+    const labelColor = isPlayer ? "#22c55e" : "#ff4444";
+
+    const label = this.add.text(0, -height / 2 - 20, labelText, {
+      fontFamily: "monospace",
+      fontSize: "20px",
+      color: labelColor,
+      fontStyle: "bold",
+      stroke: "#000000",
+      strokeThickness: 4,
+    });
+    label.setOrigin(0.5);
+    container.add(label);
+
+    // Pop in animation
+    this.tweens.add({
+      targets: container,
+      scaleX: 1,
+      scaleY: 1,
+      duration: 500,
+      ease: "Back.easeOut",
+      onComplete: () => {
+        this.time.delayedCall(5000, () => {
+          if (container && container.active) {
+            this.tweens.add({
+              targets: container,
+              alpha: 0,
+              y: container.y - 50,
+              duration: 500,
+              onComplete: () => container.destroy(),
+            });
+          }
+        });
+      },
+    });
+
+    // Apply surge visual effect
+    this.applySurgeVisualEffect(player, card);
+  }
+
+  private applySurgeVisualEffect(player: "player1" | "player2", card: { glowColor: number }): void {
+    const sprite = player === "player1" ? this.player1Sprite : this.player2Sprite;
+    const tintColor = card.glowColor;
+
+    // Flash effect
+    this.tweens.add({
+      targets: sprite,
+      tint: tintColor,
+      duration: 200,
+      yoyo: true,
+      repeat: 2,
+      onComplete: () => {
+        // Persistent 20% tint
+        sprite.setTint(Phaser.Display.Color.Interpolate.ColorWithColor(
+          Phaser.Display.Color.IntegerToColor(0xffffff),
+          Phaser.Display.Color.IntegerToColor(tintColor),
+          100,
+          20
+        ).color);
+      },
+    });
+
+    // Particle burst
+    this.createSurgeParticles(sprite.x, sprite.y, tintColor);
+  }
+
+  private createSurgeParticles(x: number, y: number, color: number): void {
+    for (let i = 0; i < 15; i++) {
+      const particle = this.add.graphics();
+      particle.fillStyle(color, 1);
+      particle.fillCircle(0, 0, 3 + Math.random() * 3);
+      particle.setPosition(x, y);
+      particle.setDepth(500);
+
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 50 + Math.random() * 100;
+      const targetX = x + Math.cos(angle) * speed;
+      const targetY = y + Math.sin(angle) * speed - 50;
+
+      this.tweens.add({
+        targets: particle,
+        x: targetX,
+        y: targetY,
+        alpha: 0,
+        scale: 0,
+        duration: 600 + Math.random() * 400,
+        ease: "Quad.easeOut",
+        onComplete: () => particle.destroy(),
+      });
+    }
+  }
+
+  private clearSurgeEffects(): void {
+    this.activeSurges = { player1: null, player2: null };
+    this.surgeCardsShownThisRound = false;
+
+    this.player1Sprite.clearTint();
+    this.player2Sprite.clearTint();
+  }
+
+  public getActiveSurgeEffects(): {
+    player1: PowerSurgeCardId | null;
+    player2: PowerSurgeCardId | null;
+  } {
+    return { ...this.activeSurges };
   }
 }
 

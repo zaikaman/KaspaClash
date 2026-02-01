@@ -25,7 +25,7 @@ import {
   checkRandomWin,
   isInvisibleMove,
   shouldStunOpponent,
-  shouldBreakGuard,
+  shouldBypassBlock,
   isBlockDisabled,
   type SurgeModifiers,
 } from "./SurgeEffects";
@@ -40,6 +40,11 @@ import { PowerSurgeCardId } from "@/types/power-surge";
  */
 export class CombatEngine {
     private state: CombatState;
+    
+    // Track if surge stun has been applied this round (Mempool Congest)
+    // This prevents re-applying the stun every turn
+    private p1SurgeStunApplied: boolean = false;
+    private p2SurgeStunApplied: boolean = false;
 
     constructor(
         player1CharacterId: string,
@@ -259,12 +264,16 @@ export class CombatEngine {
         p1Result.lifesteal = p1Lifesteal;
         p2Result.hpRegen = p2HpRegen > 0 ? p2HpRegen : 0;
         p2Result.lifesteal = p2Lifesteal;
+        
+        // Track energy drained by opponent's surge effects for visual feedback
+        p1Result.energyDrained = p2EnergyEffects.energyBurned; // P1 lost energy from P2's effects
+        p2Result.energyDrained = p1EnergyEffects.energyBurned; // P2 lost energy from P1's effects
 
         // Apply energy costs and surge energy effects
-        // P1 loses energy from move cost + what P2 burned, but gains what P1 stole from P2
-        let p1NewEnergy = p1State.energy - p1Result.energySpent - p2EnergyEffects.energyBurned + p1EnergyEffects.energyStolen;
-        // P2 loses energy from move cost + what P1 burned, but gains what P2 stole from P1
-        let p2NewEnergy = p2State.energy - p2Result.energySpent - p1EnergyEffects.energyBurned + p2EnergyEffects.energyStolen;
+        // P1 loses energy from move cost + what P2 burned/stole, but gains what P1 stole from P2
+        let p1NewEnergy = p1State.energy - p1Result.energySpent - p2EnergyEffects.energyBurned - p2EnergyEffects.energyStolen + p1EnergyEffects.energyStolen;
+        // P2 loses energy from move cost + what P1 burned/stole, but gains what P2 stole from P1
+        let p2NewEnergy = p2State.energy - p2Result.energySpent - p1EnergyEffects.energyBurned - p1EnergyEffects.energyStolen + p2EnergyEffects.energyStolen;
 
         // Apply Finality Fist extra special energy cost
         if (effectiveP1Move === "special" && p1SurgeMods.specialEnergyCost > 0) {
@@ -292,21 +301,21 @@ export class CombatEngine {
             p2State.guardMeter + p2Result.guardBuildup
         );
 
-        // Chainbreaker: Instant guard break on hit
-        // P1 hits P2 with guard break surge -> break P2's guard
-        if (shouldBreakGuard(p1SurgeMods) && p1Result.outcome === "hit") {
-            this.state.player2.guardMeter = COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD;
-        }
-        // P2 hits P1 with guard break surge -> break P1's guard
-        if (shouldBreakGuard(p2SurgeMods) && p2Result.outcome === "hit") {
-            this.state.player1.guardMeter = COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD;
-        }
+        // Track guard meter BEFORE effects
+        const p1GuardBeforeTurn = this.state.player1.guardMeter;
+        const p2GuardBeforeTurn = this.state.player2.guardMeter;
 
-        // Track if guard break happens THIS turn (before we modify isStunned)
-        const p1GuardBreak = this.state.player1.guardMeter >= COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD;
-        const p2GuardBreak = this.state.player2.guardMeter >= COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD;
+        // Apply hit damage (calculated in resolvePlayerTurn)
+        // Guard break logic is now handled in resolvePlayerTurn for bypass
+        
+        // Track if guard break happens THIS turn
+        const p1GuardBreak = this.state.player1.guardMeter >= COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD 
+            && p1GuardBeforeTurn < COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD;
+        const p2GuardBreak = this.state.player2.guardMeter >= COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD
+            && p2GuardBeforeTurn < COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD;
 
         // Check for Guard Break (Meter >= 100)
+        // Only trigger stun and reset if guard was NOT already broken
         if (p1GuardBreak) {
             this.state.player1.guardMeter = 0;
             p1Result.effects.push("guard_break"); // Add effect for UI
@@ -325,16 +334,21 @@ export class CombatEngine {
         const p2StunnedByMove = p2Result.effects.includes("stun");
 
         // Apply Stun from Surge Card (Mempool Congest)
-        // Note: This stuns unconditionally - the HP cost is the trade-off
+        // Note: This stuns ONCE at the start of the round, not every turn
         // Track surge stuns separately so we don't double-count them
         let p1StunnedBySurge = false;
         let p2StunnedBySurge = false;
-        if (shouldStunOpponent(p1SurgeMods)) {
+        
+        // P1's surge stuns P2 (only once per round)
+        if (shouldStunOpponent(p1SurgeMods) && !this.p1SurgeStunApplied) {
             p2StunnedBySurge = true;
+            this.p1SurgeStunApplied = true; // Mark as applied for this round
             if (!p2Result.effects.includes("stun")) p2Result.effects.push("stun");
         }
-        if (shouldStunOpponent(p2SurgeMods)) {
+        // P2's surge stuns P1 (only once per round)
+        if (shouldStunOpponent(p2SurgeMods) && !this.p2SurgeStunApplied) {
             p1StunnedBySurge = true;
+            this.p2SurgeStunApplied = true; // Mark as applied for this round
             if (!p1Result.effects.includes("stun")) p1Result.effects.push("stun");
         }
 
@@ -416,8 +430,8 @@ export class CombatEngine {
         const opponentStats = getCharacterCombatStats(opponentState.characterId);
 
         // Handle block disabled (Pruned Rage)
-        // If player has block disabled and uses block, it fails completely
-        const effectiveMove = (myMove === "block" && isBlockDisabled(mySurgeMods)) 
+        // If opponent has Pruned Rage, our block is disabled and fails completely
+        const effectiveMove = (myMove === "block" && isBlockDisabled(mySurgeMods, opponentSurgeMods)) 
             ? null // Block fails, treated as if stunned
             : myMove;
         
@@ -511,7 +525,9 @@ export class CombatEngine {
             // Apply Surge Damage Multiplier from opponent
             const fullDamage = applyDamageModifiers(rawFullDamage, opponentSurgeMods, opponentMove, false);
 
-            damageTaken = Math.floor(fullDamage * (1 - myStats.blockEffectiveness));
+            // Chainbreaker: Bypass block reduction if attacker has bypassBlockOnHit
+            const blockEffectiveness = shouldBypassBlock(opponentSurgeMods) ? 0 : myStats.blockEffectiveness;
+            damageTaken = Math.floor(fullDamage * (1 - blockEffectiveness));
         }
 
         // Calculate energy spent
@@ -662,6 +678,10 @@ export class CombatEngine {
         this.state.currentTurn = 1;
         this.state.isRoundOver = false;
         this.state.roundWinner = null;
+        
+        // Reset surge stun tracking for new round
+        this.p1SurgeStunApplied = false;
+        this.p2SurgeStunApplied = false;
     }
 
     // ===========================================================================

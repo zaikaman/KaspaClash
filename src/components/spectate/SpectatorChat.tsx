@@ -20,6 +20,7 @@ interface SpectatorChatProps {
     player1Name?: string;
     player2Name?: string;
     className?: string; // Optional custom class
+    bettingPhaseEndTime?: number; // When betting closes and match starts
 }
 
 export function SpectatorChat({
@@ -29,7 +30,8 @@ export function SpectatorChat({
     isBotMatch = true,
     player1Name,
     player2Name,
-    className = ""
+    className = "",
+    bettingPhaseEndTime
 }: SpectatorChatProps) {
     const [inputValue, setInputValue] = useState("");
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -68,6 +70,7 @@ export function SpectatorChat({
             player2Name,
             minIntervalMs: 2000,
             maxIntervalMs: 6000,
+            bettingPhaseEndTime,
         });
 
         // Check for new fake messages periodically
@@ -90,7 +93,7 @@ export function SpectatorChat({
         const interval = setInterval(checkForMessages, 1000);
 
         return () => clearInterval(interval);
-    }, [matchId, matchStartTime, turns, isBotMatch, player1Name, player2Name, addFakeMessage]);
+    }, [matchId, matchStartTime, turns, isBotMatch, player1Name, player2Name, addFakeMessage, bettingPhaseEndTime]);
 
     // Auto-scroll to bottom on new messages
     useEffect(() => {

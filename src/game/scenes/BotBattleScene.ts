@@ -18,6 +18,8 @@ import { getCharacterScale, getCharacterYOffset, getAnimationScale, getSFXKey, g
 import { CHARACTER_ROSTER } from "@/data/characters";
 import type { Character } from "@/types";
 import type { BotTurnData } from "@/lib/game/bot-match-service";
+import { SpectatorPowerSurgeCards } from "../ui/SpectatorPowerSurgeCards";
+import type { PowerSurgeCardId } from "@/types/power-surge";
 
 /**
  * Bot battle scene configuration - receives pre-computed match data
@@ -87,6 +89,9 @@ export class BotBattleScene extends Phaser.Scene {
     private visibilityChangeHandler: (() => void) | null = null;
     private matchStartTime: number = 0; // When the match actually started (server time)
     private readonly BETTING_WINDOW_MS = 30000; // 30 seconds betting period before match starts
+
+    // Power Surge UI
+    private powerSurgeUI: SpectatorPowerSurgeCards | null = null;
 
     constructor() {
         super({ key: "BotBattleScene" });
@@ -395,6 +400,12 @@ export class BotBattleScene extends Phaser.Scene {
         const bgm = this.sound.get("bgm_fight");
         if (bgm && bgm.isPlaying) bgm.stop();
         this.cleanupVisibilityHandler();
+        
+        // Clean up power surge UI
+        if (this.powerSurgeUI) {
+            this.powerSurgeUI.destroy();
+            this.powerSurgeUI = null;
+        }
     }
 
     // ==========================================================================
@@ -697,8 +708,45 @@ export class BotBattleScene extends Phaser.Scene {
         }
 
         const turn = this.config.turns[this.currentTurnIndex];
-        this.animateTurn(turn);
-        this.currentTurnIndex++;
+        
+        // Check if this turn has power surge data (first turn of round)
+        if (turn.isRoundStart && turn.surgeCardIds && turn.bot1SurgeSelection && turn.bot2SurgeSelection) {
+            this.showPowerSurgeUI(turn, () => {
+                this.animateTurn(turn);
+                this.currentTurnIndex++;
+            });
+        } else {
+            this.animateTurn(turn);
+            this.currentTurnIndex++;
+        }
+    }
+
+    /**
+     * Show power surge card reveal for spectators
+     */
+    private showPowerSurgeUI(turn: BotTurnData, onComplete: () => void): void {
+        // Clean up any existing power surge UI
+        if (this.powerSurgeUI) {
+            this.powerSurgeUI.destroy();
+            this.powerSurgeUI = null;
+        }
+
+        // Create spectator power surge UI
+        this.powerSurgeUI = new SpectatorPowerSurgeCards({
+            scene: this,
+            roundNumber: turn.roundNumber,
+            cardIds: turn.surgeCardIds!,
+            player1Selection: turn.bot1SurgeSelection!,
+            player2Selection: turn.bot2SurgeSelection!,
+            player1SpriteY: this.player1Sprite.y,
+            player2SpriteY: this.player2Sprite.y,
+            player1Sprite: this.player1Sprite,
+            player2Sprite: this.player2Sprite,
+            onComplete: () => {
+                this.powerSurgeUI = null;
+                onComplete();
+            },
+        });
     }
 
     private animateTurn(turn: BotTurnData): void {
@@ -843,6 +891,25 @@ export class BotBattleScene extends Phaser.Scene {
                                 });
                             });
                         }
+                        
+                        // Show energy drain effect if P2 lost energy from P1's surge (e.g., GhostDAG)
+                        if (this.currentTurnIndex > 0) {
+                            const prevTurn = this.config.turns[this.currentTurnIndex - 1];
+                            const energyLost = prevTurn.bot2Energy - turn.bot2Energy + turn.bot2Move !== "stunned" ? 0 : 0;
+                            const expectedEnergyLoss = turn.bot2Move === "punch" ? 0 : turn.bot2Move === "kick" ? 25 : turn.bot2Move === "special" ? 50 : turn.bot2Move === "block" ? 5 : 0;
+                            const drainedAmount = energyLost - expectedEnergyLoss - p2Damage; // Approximate drain
+                            
+                            if (drainedAmount > 15) { // Only show if significant drain (likely GhostDAG 22)
+                                this.time.delayedCall(500, () => {
+                                    this.showFloatingText(
+                                        `-${Math.round(drainedAmount)} EN`,
+                                        p2TargetX,
+                                        CHARACTER_POSITIONS.PLAYER2.Y - 100,
+                                        "#3b82f6"
+                                    );
+                                });
+                            }
+                        }
 
                         // Wait for animation to finish (1200ms like FightScene)
                         this.time.delayedCall(1200, () => resolve());
@@ -897,6 +964,25 @@ export class BotBattleScene extends Phaser.Scene {
                                     repeat: 3
                                 });
                             });
+                        }
+                        
+                        // Show energy drain effect if P1 lost energy from P2's surge (e.g., GhostDAG)
+                        if (this.currentTurnIndex > 0) {
+                            const prevTurn = this.config.turns[this.currentTurnIndex - 1];
+                            const energyLost = prevTurn.bot1Energy - turn.bot1Energy + (turn.bot1Move !== "stunned" ? 0 : 0);
+                            const expectedEnergyLoss = turn.bot1Move === "punch" ? 0 : turn.bot1Move === "kick" ? 25 : turn.bot1Move === "special" ? 50 : turn.bot1Move === "block" ? 5 : 0;
+                            const drainedAmount = energyLost - expectedEnergyLoss - p1Damage; // Approximate drain
+                            
+                            if (drainedAmount > 15) { // Only show if significant drain (likely GhostDAG 22)
+                                this.time.delayedCall(500, () => {
+                                    this.showFloatingText(
+                                        `-${Math.round(drainedAmount)} EN`,
+                                        p1TargetX,
+                                        CHARACTER_POSITIONS.PLAYER1.Y - 100,
+                                        "#3b82f6"
+                                    );
+                                });
+                            }
                         }
 
                         // Wait for animation to finish

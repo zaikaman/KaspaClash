@@ -77,6 +77,30 @@ const BETTING_MESSAGES = [
     "whale alert", "shark tank", "minnow life", "shrimp gang"
 ];
 
+const WAITING_FOR_BETS_MESSAGES = [
+    "placing my bet now", "which one should i pick?", "p1 or p2 hmm",
+    "checking the odds", "p1 looking good", "p2 stats are better",
+    "gonna bet big on this one", "small bet for me", "degen mode activated",
+    "YOLO p1", "YOLO p2", "all in on p1", "all in on p2",
+    "lets see the matchup first", "analyzing the bots", "stats check",
+    "p1 has better win rate", "p2 on a streak", "tough choice",
+    "coin flip time", "eeny meeny miny moe", "going with my gut",
+    "trust the process", "betting on the underdog", "favorite looks safe",
+    "odds seem off", "value bet on p2", "overlay on p1",
+    "sharps are on p1", "public money on p2", "fading the public",
+    "tailing the whale bet", "contrarian play", "safe bet",
+    "risky but worth it", "hedge bet placed", "doubled my position",
+    "waiting for better odds", "odds moved already", "line shopping",
+    "max bet incoming", "minimum bet lol", "testing the waters",
+    "revenge bet from last match", "chasing losses", "locking in profit",
+    "bankroll management", "kelly criterion says p1", "going broke on p2",
+    "this is the one", "feeling lucky", "bad feeling about this",
+    "lock it in", "bet submitted", "confirmation received",
+    "hurry up and bet", "timer running out", "last second bet",
+    "almost forgot to bet", "glad i made it", "cutting it close",
+    "lets gooo", "may the odds be with me", "fingers crossed"
+];
+
 const COMMENTARY_TEMPLATES_BOT = [
     "bot 1 is aggressive", "bot 2 playing it safe",
     "bot 1 needs to chill", "bot 2 waking up",
@@ -208,6 +232,7 @@ export interface FakeChatConfig {
     isBotMatch?: boolean;
     player1Name?: string;
     player2Name?: string;
+    bettingPhaseEndTime?: number; // When betting closes and match actually starts
 }
 
 export interface FakeChatGenerator {
@@ -224,7 +249,8 @@ export function createFakeChatGenerator(config: FakeChatConfig): FakeChatGenerat
         maxIntervalMs = 5000,
         isBotMatch = true,
         player1Name = isBotMatch ? "Bot 1" : "Player 1",
-        player2Name = isBotMatch ? "Bot 2" : "Player 2"
+        player2Name = isBotMatch ? "Bot 2" : "Player 2",
+        bettingPhaseEndTime
     } = config;
 
     const baseSeed = stringToSeed(matchId);
@@ -237,12 +263,56 @@ export function createFakeChatGenerator(config: FakeChatConfig): FakeChatGenerat
         ...(isBotMatch ? COMMENTARY_TEMPLATES_BOT : COMMENTARY_TEMPLATES_HUMAN)
     ];
 
-    let currentTime = matchStartTime + 2000;
+    // Determine when betting phase ends (match actually starts)
+    const actualMatchStart = bettingPhaseEndTime || matchStartTime;
+    
+    let currentTime = matchStartTime + 1000; // Start messages 1 second after match creation
 
-    // 1. Generate generic filler messages
+    // 1A. Generate waiting-for-bets messages (if betting phase exists)
+    if (bettingPhaseEndTime && bettingPhaseEndTime > matchStartTime) {
+        while (currentTime < bettingPhaseEndTime - 1000) { // Stop 1 second before match starts
+            const username = REALISTIC_USERNAMES[Math.floor(rng() * REALISTIC_USERNAMES.length)];
+            const color = USERNAME_COLORS[Math.floor(rng() * USERNAME_COLORS.length)];
+
+            // During betting phase, use primarily waiting-for-bets messages
+            const catRoll = rng();
+            let rawText = "";
+
+            if (catRoll < 0.7) {
+                // 70% waiting for bets messages
+                rawText = WAITING_FOR_BETS_MESSAGES[Math.floor(rng() * WAITING_FOR_BETS_MESSAGES.length)];
+            } else if (catRoll < 0.85) {
+                // 15% general reactions
+                rawText = REACTION_MESSAGES[Math.floor(rng() * REACTION_MESSAGES.length)];
+            } else {
+                // 15% betting-related messages
+                rawText = BETTING_MESSAGES[Math.floor(rng() * BETTING_MESSAGES.length)];
+            }
+
+            let messageText = formatMessage(rawText, player1Name, player2Name);
+            messageText = humanizeMessage(messageText, rng);
+
+            const id = `fake-${matchId.slice(0, 5)}-bet${currentTime}`;
+
+            messageSchedule.push({
+                time: currentTime,
+                message: { id, username, message: messageText, timestamp: currentTime, isFake: true, color }
+            });
+
+            const interval = minIntervalMs + rng() * (maxIntervalMs - minIntervalMs);
+            currentTime += interval;
+        }
+
+        // Reset to actual match start for combat messages
+        currentTime = actualMatchStart + 2000;
+    } else {
+        currentTime = matchStartTime + 2000;
+    }
+
+    // 1B. Generate generic filler messages (during match)
     const duration = turns.length > 0 ? turns.length * 5000 : 60000; // Est. match duration
 
-    while (currentTime < matchStartTime + duration + 10000) {
+    while (currentTime < actualMatchStart + duration + 10000) {
         // Pick username
         const username = REALISTIC_USERNAMES[Math.floor(rng() * REALISTIC_USERNAMES.length)];
         const color = USERNAME_COLORS[Math.floor(rng() * USERNAME_COLORS.length)];
@@ -278,7 +348,7 @@ export function createFakeChatGenerator(config: FakeChatConfig): FakeChatGenerat
         const TURN_DURATION_EST = 4000; // 4 seconds per turn approx
 
         turns.forEach((turn, index) => {
-            const turnTime = matchStartTime + (index * TURN_DURATION_EST);
+            const turnTime = actualMatchStart + (index * TURN_DURATION_EST);
 
             // Analyze turn for events by comparing with previous turn
             const prevTurn = index > 0 ? turns[index - 1] : null;
@@ -334,7 +404,7 @@ export function createFakeChatGenerator(config: FakeChatConfig): FakeChatGenerat
         });
 
         // Add GG at end
-        const endTime = matchStartTime + (turns.length * TURN_DURATION_EST);
+        const endTime = actualMatchStart + (turns.length * TURN_DURATION_EST);
         for (let k = 0; k < 3; k++) {
             const msgTime = endTime + rng() * 3000;
             let rawText = CONTEXT_MESSAGES.win[Math.floor(rng() * CONTEXT_MESSAGES.win.length)];

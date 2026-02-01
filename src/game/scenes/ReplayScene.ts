@@ -10,6 +10,9 @@ import { CHAR_SPRITE_CONFIG, TANK_CHARACTERS, getCharacterScale, getCharacterYOf
 import { CombatEngine, getCharacterCombatStats } from "../combat";
 import type { MoveType } from "@/types";
 
+import type { PowerSurgeCardId } from "@/types/power-surge";
+import { SpectatorPowerSurgeCards } from "../ui/SpectatorPowerSurgeCards";
+
 /**
  * Round data for replay
  */
@@ -22,6 +25,10 @@ export interface ReplayRoundData {
   player1HealthAfter: number;
   player2HealthAfter: number;
   winnerAddress: string | null;
+  // Power surge data (for round display)
+  surgeCardIds?: PowerSurgeCardId[];
+  player1SurgeSelection?: PowerSurgeCardId;
+  player2SurgeSelection?: PowerSurgeCardId;
 }
 
 /**
@@ -102,6 +109,9 @@ export class ReplayScene extends Phaser.Scene {
   // Visibility sync for tab switching
   private visibilityChangeHandler: (() => void) | null = null;
   private replayStartTime: number = 0; // When replay started playing
+
+  // Power Surge UI
+  private powerSurgeUI: SpectatorPowerSurgeCards | null = null;
 
   constructor() {
     super({ key: "ReplayScene" });
@@ -362,7 +372,13 @@ export class ReplayScene extends Phaser.Scene {
     // Process all rounds up to target
     for (let i = 0; i < targetRoundIndex && i < this.config.rounds.length; i++) {
       const round = this.config.rounds[i];
-      this.combatEngine.resolveTurn(round.player1Move, round.player2Move);
+      // Pass surge effects if available
+      this.combatEngine.resolveTurn(
+        round.player1Move,
+        round.player2Move,
+        round.player1SurgeSelection ?? null,
+        round.player2SurgeSelection ?? null
+      );
       
       // Track round wins
       const state = this.combatEngine.getState();
@@ -430,6 +446,12 @@ export class ReplayScene extends Phaser.Scene {
     const bgm = this.sound.get("bgm_fight");
     if (bgm && bgm.isPlaying) {
       bgm.stop();
+    }
+    
+    // Clean up power surge UI
+    if (this.powerSurgeUI) {
+      this.powerSurgeUI.destroy();
+      this.powerSurgeUI = null;
     }
   }
 
@@ -905,7 +927,46 @@ export class ReplayScene extends Phaser.Scene {
     }
 
     const round = this.config.rounds[this.currentRoundIndex];
-    this.animateRound(round);
+    
+    // Check if this round has power surge data
+    if (round.surgeCardIds && round.player1SurgeSelection && round.player2SurgeSelection) {
+      this.showPowerSurgeUI(round, () => {
+        this.animateRound(round);
+      });
+    } else {
+      this.animateRound(round);
+    }
+  }
+
+  /**
+   * Show power surge card reveal for spectators
+   */
+  private showPowerSurgeUI(round: ReplayRoundData, onComplete: () => void): void {
+    // Clean up any existing power surge UI
+    if (this.powerSurgeUI) {
+      this.powerSurgeUI.destroy();
+      this.powerSurgeUI = null;
+    }
+
+    // Create spectator power surge UI
+    this.powerSurgeUI = new SpectatorPowerSurgeCards({
+      scene: this,
+      roundNumber: round.roundNumber,
+      cardIds: round.surgeCardIds!,
+      player1Selection: round.player1SurgeSelection!,
+      player2Selection: round.player2SurgeSelection!,
+      player1SpriteY: this.player1Sprite.y,
+      player2SpriteY: this.player2Sprite.y,
+      player1Sprite: this.player1Sprite,
+      player2Sprite: this.player2Sprite,
+      speedMultiplier: this.speedMultiplier,
+      player1Label: "P1",
+      player2Label: "P2",
+      onComplete: () => {
+        this.powerSurgeUI = null;
+        onComplete();
+      },
+    });
   }
 
   private animateRound(round: ReplayRoundData): void {

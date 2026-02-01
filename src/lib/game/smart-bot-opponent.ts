@@ -35,6 +35,9 @@ export interface SmartBotContext {
   botRoundsWon: number;
   opponentRoundsWon: number;
 
+  // Power surge effects
+  blockDisabled?: boolean; // Pruned Rage disables blocking
+
   // History for pattern recognition
   lastOpponentMove?: MoveType;
   lastBotMove?: MoveType;
@@ -141,6 +144,8 @@ export class SmartBotOpponent {
       botRoundsWon: 0,
       opponentRoundsWon: 0,
 
+      blockDisabled: false,
+
       consecutiveOpponentBlocks: 0,
       consecutiveOpponentAttacks: 0,
       consecutiveBotBlocks: 0,
@@ -220,10 +225,18 @@ export class SmartBotOpponent {
   }
 
   /**
-   * Get available moves based on energy
+   * Get available moves based on energy and surge effects
    */
   private getAffordableMoves(): ActionMoveType[] {
-    return AVAILABLE_MOVES.filter(move => this.canAfford(move));
+    return AVAILABLE_MOVES.filter(move => {
+      // Can't afford move due to energy
+      if (!this.canAfford(move)) return false;
+      
+      // Block is disabled by Pruned Rage
+      if (move === "block" && this.context.blockDisabled) return false;
+      
+      return true;
+    });
   }
 
   /**
@@ -354,8 +367,8 @@ export class SmartBotOpponent {
       };
     }
 
-    // CASE 10: OPPONENT ATTACKING A LOT - Block to counter (unless guard would break)
-    if (this.context.consecutiveOpponentAttacks >= 2 && !blockWouldBreakGuard) {
+    // CASE 10: OPPONENT ATTACKING A LOT - Block to counter (unless guard would break or block disabled)
+    if (this.context.consecutiveOpponentAttacks >= 2 && !blockWouldBreakGuard && !this.context.blockDisabled) {
       return {
         move: "block",
         confidence: 0.8,
@@ -363,8 +376,8 @@ export class SmartBotOpponent {
       };
     }
 
-    // CASE 11: BOT LOW HEALTH - Play safer (but not if block would break guard)
-    if (botLowHealth && !blockWouldBreakGuard) {
+    // CASE 11: BOT LOW HEALTH - Play safer (but not if block would break guard or block disabled)
+    if (botLowHealth && !blockWouldBreakGuard && !this.context.blockDisabled) {
       // Be defensive but still look for opportunities
       if (Math.random() < 0.4) {
         return {
@@ -393,14 +406,14 @@ export class SmartBotOpponent {
 
       // Players often repeat successful moves
       // Counter: Block beats punch/kick, Kick beats block, Punch beats special
-      if (lastMove === "punch" && !blockWouldBreakGuard && Math.random() < 0.4) {
+      if (lastMove === "punch" && !blockWouldBreakGuard && !this.context.blockDisabled && Math.random() < 0.4) {
         return {
           move: "block",
           confidence: 0.65,
           reasoning: "Predicting punch repeat - blocking",
         };
       }
-      if (lastMove === "kick" && !blockWouldBreakGuard && Math.random() < 0.35) {
+      if (lastMove === "kick" && !blockWouldBreakGuard && !this.context.blockDisabled && Math.random() < 0.35) {
         return {
           move: "block",
           confidence: 0.65,
@@ -434,7 +447,7 @@ export class SmartBotOpponent {
     const weights: MoveWeights = {
       punch: 30,
       kick: 25,
-      block: blockWouldBreakGuard ? 0 : 25, // Don't block if it would break guard
+      block: (blockWouldBreakGuard || this.context.blockDisabled) ? 0 : 25, // Don't block if it would break guard OR if Pruned Rage is active
       special: this.canAfford("special") ? 20 : 0,
     };
 

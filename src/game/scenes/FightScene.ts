@@ -2178,14 +2178,14 @@ export class FightScene extends Phaser.Scene {
       ? (this.serverState.player1Energy ?? 0)
       : (this.serverState.player2Energy ?? 0);
 
-    // Check if block is disabled due to pruned-rage surge
-    const playerSurge = role === "player1" ? this.activeSurges.player1 : this.activeSurges.player2;
+    // Check if block is disabled due to opponent's pruned-rage surge
     const surgeEffects = calculateSurgeEffects(
-      role === "player1" ? playerSurge : null,
-      role === "player2" ? playerSurge : null
+      this.activeSurges.player1,
+      this.activeSurges.player2
     );
     const playerMods = role === "player1" ? surgeEffects.player1Modifiers : surgeEffects.player2Modifiers;
-    const blockDisabled = isBlockDisabled(playerMods);
+    const opponentMods = role === "player1" ? surgeEffects.player2Modifiers : surgeEffects.player1Modifiers;
+    const blockDisabled = isBlockDisabled(playerMods, opponentMods);
 
     // Update each move button based on affordability
     this.moveButtons.forEach((button, move) => {
@@ -3849,8 +3849,8 @@ export class FightScene extends Phaser.Scene {
    * Handle server-resolved round (production mode).
    */
   private handleServerRoundResolved(payload: {
-    player1: { move: MoveType; damageDealt: number; damageTaken: number; outcome?: string; hpRegen?: number; lifesteal?: number };
-    player2: { move: MoveType; damageDealt: number; damageTaken: number; outcome?: string; hpRegen?: number; lifesteal?: number };
+    player1: { move: MoveType; damageDealt: number; damageTaken: number; outcome?: string; hpRegen?: number; lifesteal?: number; energyDrained?: number };
+    player2: { move: MoveType; damageDealt: number; damageTaken: number; outcome?: string; hpRegen?: number; lifesteal?: number; energyDrained?: number };
     player1Health: number;
     player2Health: number;
     player1MaxHealth?: number;
@@ -4051,6 +4051,18 @@ export class FightScene extends Phaser.Scene {
                 });
               });
             }
+            
+            // Show energy drain effect if P2 lost energy from P1's surge (e.g., GhostDAG)
+            if (payload.player2.energyDrained && payload.player2.energyDrained > 15) {
+              this.time.delayedCall(500, () => {
+                this.showFloatingText(
+                  `-${Math.round(payload.player2.energyDrained!)} EN`,
+                  p2TargetX,
+                  CHARACTER_POSITIONS.PLAYER2.Y - 100,
+                  "#3b82f6"
+                );
+              });
+            }
 
             // Wait for anim to finish (approx 1s)
             this.time.delayedCall(1200, () => {
@@ -4098,6 +4110,18 @@ export class FightScene extends Phaser.Scene {
                   duration: 50,
                   repeat: 3
                 });
+              });
+            }
+            
+            // Show energy drain effect if P1 lost energy from P2's surge (e.g., GhostDAG)
+            if (payload.player1.energyDrained && payload.player1.energyDrained > 15) {
+              this.time.delayedCall(500, () => {
+                this.showFloatingText(
+                  `-${Math.round(payload.player1.energyDrained!)} EN`,
+                  p1TargetX,
+                  CHARACTER_POSITIONS.PLAYER1.Y - 100,
+                  "#3b82f6"
+                );
               });
             }
 

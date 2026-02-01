@@ -10,6 +10,10 @@ import { CHARACTER_ROSTER } from "@/data/characters";
 import type { Character, MoveType } from "@/types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { SmartBotOpponent } from "./smart-bot-opponent";
+import { calculateSurgeEffects, isBlockDisabled } from "@/game/combat/SurgeEffects";
+
+import type { PowerSurgeCardId } from "@/types/power-surge";
+import { getRandomPowerSurgeCards } from "@/types/power-surge";
 
 /**
  * Pre-computed turn data
@@ -30,6 +34,11 @@ export interface BotTurnData {
     isMatchEnd: boolean;
     roundWinner: "player1" | "player2" | null;
     matchWinner: "player1" | "player2" | null;
+    // Power surge data (present on first turn of each round)
+    isRoundStart?: boolean;
+    surgeCardIds?: PowerSurgeCardId[];
+    bot1SurgeSelection?: PowerSurgeCardId;
+    bot2SurgeSelection?: PowerSurgeCardId;
 }
 
 /**
@@ -110,11 +119,21 @@ function getSmartMove(
     bot: SmartBotOpponent,
     engine: CombatEngine,
     botPlayer: "player1" | "player2",
-    opponentPlayer: "player1" | "player2"
+    opponentPlayer: "player1" | "player2",
+    botSurge: PowerSurgeCardId | null,
+    opponentSurge: PowerSurgeCardId | null
 ): MoveType {
     const state = engine.getState();
     const botState = state[botPlayer];
     const opponentState = state[opponentPlayer];
+
+    // Calculate surge effects to check if blocking is disabled (opponent's Pruned Rage)
+    const surgeEffects = calculateSurgeEffects(
+        botSurge,
+        opponentSurge
+    );
+    // Bot is player1, so check if opponent (player2) has Pruned Rage that disables our block
+    const blockDisabled = isBlockDisabled(surgeEffects.player1Modifiers, surgeEffects.player2Modifiers);
 
     // Update bot context with current game state
     bot.updateContext({
@@ -136,6 +155,7 @@ function getSmartMove(
         turnNumber: state.currentTurn,
         botRoundsWon: botState.roundsWon,
         opponentRoundsWon: opponentState.roundsWon,
+        blockDisabled, // Pass Pruned Rage effect
     });
 
     // Get AI decision
@@ -175,21 +195,61 @@ export function simulateBotMatch(matchId: string, bot1Id?: string, bot2Id?: stri
     const turns: BotTurnData[] = [];
     let turnNumber = 0;
     let currentRound = 1;
+    let isFirstTurnOfRound = true; // Track if this is the first turn of a round
+
+    // Pre-generate power surge cards for each round (up to 5 rounds max)
+    const roundSurgeData: Map<number, { cardIds: PowerSurgeCardId[]; bot1Selection: PowerSurgeCardId; bot2Selection: PowerSurgeCardId }> = new Map();
+    const usedCards: PowerSurgeCardId[] = [];
+    for (let round = 1; round <= 5; round++) {
+        const cards = getRandomPowerSurgeCards(3, usedCards);
+        const cardIds = cards.map(c => c.id);
+        
+        // Bots randomly select from available cards
+        // Bot 1 picks first
+        const bot1Selection = cardIds[Math.floor(random() * cardIds.length)];
+        
+        // Bot 2 picks: 70% chance to pick different card (if possible), 30% chance fully random
+        let bot2Selection: PowerSurgeCardId;
+        if (cardIds.length > 1 && random() < 0.7) {
+            // Pick a different card from bot1
+            const differentCards = cardIds.filter(id => id !== bot1Selection);
+            bot2Selection = differentCards[Math.floor(random() * differentCards.length)];
+        } else {
+            // Fully random (can be same as bot1)
+            bot2Selection = cardIds[Math.floor(random() * cardIds.length)];
+        }
+        
+        roundSurgeData.set(round, { cardIds, bot1Selection, bot2Selection });
+        usedCards.push(...cardIds);
+    }
+
+    // Track active surges for the current round
+    let currentBot1Surge: PowerSurgeCardId | null = null;
+    let currentBot2Surge: PowerSurgeCardId | null = null;
 
     // Simulate until match ends (max 100 turns safety limit)
     while (!engine.getState().isMatchOver && turnNumber < 100) {
         turnNumber++;
         const state = engine.getState();
 
+        // Update active surges at the start of each round
+        if (isFirstTurnOfRound) {
+            const surgeData = roundSurgeData.get(currentRound);
+            if (surgeData) {
+                currentBot1Surge = surgeData.bot1Selection;
+                currentBot2Surge = surgeData.bot2Selection;
+            }
+        }
+
         // Get smart moves from AI
         // If player is stunned, they can't act (will be treated as stunned in engine)
         const bot1Move = state.player1.isStunned
             ? "punch" // Will be treated as stunned in engine
-            : getSmartMove(smartBot1, engine, "player1", "player2");
+            : getSmartMove(smartBot1, engine, "player1", "player2", currentBot1Surge, currentBot2Surge);
             
         const bot2Move = state.player2.isStunned
             ? "punch"
-            : getSmartMove(smartBot2, engine, "player2", "player1");
+            : getSmartMove(smartBot2, engine, "player2", "player1", currentBot2Surge, currentBot1Surge);
 
         // Record opponent moves for pattern recognition
         if (!state.player1.isStunned) {
@@ -199,12 +259,15 @@ export function simulateBotMatch(matchId: string, bot1Id?: string, bot2Id?: stri
             smartBot2.recordOpponentMove(bot1Move);
         }
 
-        // Resolve turn
-        const result = engine.resolveTurn(bot1Move, bot2Move);
+        // Resolve turn WITH surge effects applied
+        const result = engine.resolveTurn(bot1Move, bot2Move, currentBot1Surge, currentBot2Surge);
         const newState = engine.getState();
 
+        // Get power surge data if this is the first turn of the round (for UI display)
+        const surgeData = isFirstTurnOfRound ? roundSurgeData.get(currentRound) : undefined;
+
         // Store turn data
-        turns.push({
+        const turnData: BotTurnData = {
             turnNumber,
             roundNumber: currentRound,
             bot1Move: state.player1.isStunned ? "stunned" as MoveType : bot1Move,
@@ -220,11 +283,23 @@ export function simulateBotMatch(matchId: string, bot1Id?: string, bot2Id?: stri
             isMatchEnd: newState.isMatchOver,
             roundWinner: newState.roundWinner,
             matchWinner: newState.matchWinner,
-        });
+        };
+
+        // Add power surge data for first turn of round
+        if (surgeData) {
+            turnData.isRoundStart = true;
+            turnData.surgeCardIds = surgeData.cardIds;
+            turnData.bot1SurgeSelection = surgeData.bot1Selection;
+            turnData.bot2SurgeSelection = surgeData.bot2Selection;
+        }
+
+        turns.push(turnData);
+        isFirstTurnOfRound = false;
 
         // Handle round end
         if (newState.isRoundOver && !newState.isMatchOver) {
             currentRound++;
+            isFirstTurnOfRound = true; // Next turn will be first of new round
             engine.startNewRound();
         }
     }

@@ -92,6 +92,8 @@ export interface PlayerTurnResult {
     hpRegen?: number;
     /** HP gained from lifesteal this turn */
     lifesteal?: number;
+    /** Energy drained by opponent's surge effects (GhostDAG, etc.) */
+    energyDrained?: number;
 }
 
 /**

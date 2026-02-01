@@ -1,6 +1,7 @@
 /**
  * PracticeScene - Offline practice mode against AI
  * Mirrors FightScene UI/UX exactly, but with local AI instead of network play
+ * Includes Power Surge cards with precomputed AI selections
  */
 
 import Phaser from "phaser";
@@ -8,8 +9,12 @@ import { EventBus } from "@/game/EventBus";
 import { GAME_DIMENSIONS, CHARACTER_POSITIONS, UI_POSITIONS } from "@/game/config";
 import { getCharacterScale, getAnimationScale, getCharacterYOffset, getSoundDelay, getSFXKey } from "@/game/config/sprite-config";
 import { CombatEngine, BASE_MOVE_STATS } from "@/game/combat";
+import { calculateSurgeEffects, isBlockDisabled } from "@/game/combat/SurgeEffects";
 import { SmartBotOpponent } from "@/lib/game/smart-bot-opponent";
 import { getAIThinkTime } from "@/lib/game/ai-difficulty";
+import { OfflinePowerSurgeCards } from "@/game/ui/OfflinePowerSurgeCards";
+import type { PowerSurgeCardId } from "@/types/power-surge";
+import { getRandomPowerSurgeCards, getPowerSurgeCard } from "@/types/power-surge";
 
 // For backward compatibility with difficulty settings
 export type AIDifficulty = "easy" | "medium" | "hard";
@@ -89,9 +94,21 @@ export class PracticeScene extends Phaser.Scene {
   private visibilityChangeHandler: (() => void) | null = null;
   private wasPlayingBeforeHidden: boolean = false;
 
+  // Power Surge state - precomputed for all rounds
+  private powerSurgeUI?: OfflinePowerSurgeCards;
+  private precomputedDecks: Map<number, PowerSurgeCardId[]> = new Map(); // round -> cards
+  private precomputedAISelections: Map<number, PowerSurgeCardId> = new Map(); // round -> AI selection
+  private activeSurges: {
+    player1: PowerSurgeCardId | null;
+    player2: PowerSurgeCardId | null;
+  } = { player1: null, player2: null };
+  private surgeCardsShownThisRound: boolean = false;
+  private lastSurgeRound: number = 0;
+
   constructor() {
     super({ key: "PracticeScene" });
   }
+
 
   /**
    * Initialize scene with configuration.
@@ -122,6 +139,43 @@ export class PracticeScene extends Phaser.Scene {
     this.turnTimer = 15;
     this.phase = "countdown";
     this.moveButtons.clear();
+
+    // Precompute Power Surge decks and AI selections for all rounds
+    this.precomputePowerSurgeDecks();
+  }
+
+  /**
+   * Precompute Power Surge card decks and AI selections for all rounds.
+   * This ensures consistent cards across the match and instant AI decisions.
+   */
+  private precomputePowerSurgeDecks(): void {
+    this.precomputedDecks.clear();
+    this.precomputedAISelections.clear();
+    this.activeSurges = { player1: null, player2: null };
+    this.surgeCardsShownThisRound = false;
+    this.lastSurgeRound = 0;
+
+    // Determine max rounds based on match format
+    const maxRounds = this.config.matchFormat === "best_of_5" ? 5 : 3;
+
+    // Generate unique decks for each round
+    const usedCards: PowerSurgeCardId[] = [];
+    for (let round = 1; round <= maxRounds; round++) {
+      // Get 3 random cards (optionally excluding previously used cards)
+      const deck = getRandomPowerSurgeCards(3, usedCards);
+      const deckIds = deck.map(c => c.id);
+      this.precomputedDecks.set(round, deckIds);
+
+      // AI picks a random card from the deck
+      const aiChoice = deckIds[Math.floor(Math.random() * deckIds.length)];
+      this.precomputedAISelections.set(round, aiChoice);
+
+      // Track used cards to avoid repeats (optional - can remove for more variety)
+      // usedCards.push(...deckIds);
+    }
+
+    console.log("[PracticeScene] Precomputed surge decks:", Object.fromEntries(this.precomputedDecks));
+    console.log("[PracticeScene] Precomputed AI selections:", Object.fromEntries(this.precomputedAISelections));
   }
 
   /**
@@ -1000,11 +1054,18 @@ export class PracticeScene extends Phaser.Scene {
   private updateMoveButtonAffordability(): void {
     const moves: MoveType[] = ["punch", "kick", "block", "special"];
 
+    // Check if block is disabled due to opponent's surge effect (e.g., Pruned Rage)
+    const surgeEffects = calculateSurgeEffects(this.activeSurges.player1, this.activeSurges.player2);
+    const blockDisabled = isBlockDisabled(surgeEffects.player1Modifiers, surgeEffects.player2Modifiers);
+
     moves.forEach((move) => {
       const canAfford = this.combatEngine.canAffordMove("player1", move);
       const container = this.moveButtons.get(move);
       if (container) {
-        if (!canAfford) {
+        // Check if this specific move should be disabled
+        const shouldDisable = !canAfford || (move === "block" && blockDisabled);
+
+        if (shouldDisable) {
           container.setAlpha(0.3);
           container.disableInteractive();
           // Tint children to grayscale for visual feedback
@@ -1071,13 +1132,239 @@ export class PracticeScene extends Phaser.Scene {
   private startRound(): void {
     this.phase = "countdown";
 
-    // Play SFX first (full "3-2-1 Fight" sequence)
-    this.playSFX("sfx_cd_fight");
+    // Get current round number
+    const state = this.combatEngine.getState();
+    const currentRound = state.currentRound;
 
-    // Delay visual countdown slightly to match audio timing (approx 0.3s before "3" appears)
-    this.time.delayedCall(300, () => {
-      this.showCountdown(3);
+    // Show Power Surge cards first, then countdown
+    this.showPowerSurgeCards(currentRound).then(() => {
+      // Play SFX first (full "3-2-1 Fight" sequence)
+      this.playSFX("sfx_cd_fight");
+
+      // Delay visual countdown slightly to match audio timing (approx 0.3s before "3" appears)
+      this.time.delayedCall(300, () => {
+        this.showCountdown(3);
+      });
     });
+  }
+
+  /**
+   * Show Power Surge card selection UI.
+   * Uses precomputed deck and AI selection for this round.
+   */
+  private async showPowerSurgeCards(roundNumber: number): Promise<void> {
+    // Avoid showing twice for the same round
+    if (this.surgeCardsShownThisRound && this.lastSurgeRound === roundNumber) {
+      console.log("[PracticeScene] Power Surge already shown for this round");
+      return;
+    }
+
+    this.surgeCardsShownThisRound = true;
+    this.lastSurgeRound = roundNumber;
+
+    // Get precomputed deck and AI selection
+    const cardIds = this.precomputedDecks.get(roundNumber);
+    const aiSelection = this.precomputedAISelections.get(roundNumber);
+
+    if (!cardIds || cardIds.length === 0 || !aiSelection) {
+      console.log("[PracticeScene] No surge cards for this round");
+      return;
+    }
+
+    console.log(`[PracticeScene] Showing Power Surge cards for round ${roundNumber}:`, cardIds);
+    console.log(`[PracticeScene] AI pre-selected: ${aiSelection}`);
+
+    return new Promise((resolve) => {
+      // Calculate deadline (10 seconds from now)
+      const deadline = Date.now() + 10000;
+
+      this.powerSurgeUI = new OfflinePowerSurgeCards({
+        scene: this,
+        roundNumber,
+        cardIds,
+        aiSelectedCardId: aiSelection,
+        deadline,
+        onCardSelected: (cardId: PowerSurgeCardId) => {
+          console.log(`[PracticeScene] Player selected surge: ${cardId}`);
+          this.activeSurges.player1 = cardId;
+        },
+        onTimeout: () => {
+          console.log("[PracticeScene] Power Surge selection timed out");
+          // No surge selected
+        },
+        onClose: (playerSelection: PowerSurgeCardId | null, aiSelectionId: PowerSurgeCardId) => {
+          this.powerSurgeUI = undefined;
+
+          // Store active surges
+          this.activeSurges.player1 = playerSelection;
+          this.activeSurges.player2 = aiSelectionId;
+
+          // Show AI's selection reveal
+          if (aiSelectionId) {
+            const card = getPowerSurgeCard(aiSelectionId);
+            if (card) {
+              console.log(`[PracticeScene] AI surge: ${card.name}`);
+              this.showSurgeCardReveal("player2", aiSelectionId);
+            }
+          }
+
+          // Show player's selection reveal (if selected)
+          if (playerSelection) {
+            const card = getPowerSurgeCard(playerSelection);
+            if (card) {
+              this.showSurgeCardReveal("player1", playerSelection);
+            }
+          }
+
+          resolve();
+        },
+      });
+    });
+  }
+
+  /**
+   * Show a brief visual reveal of a surge card selection.
+   */
+  private showSurgeCardReveal(player: "player1" | "player2", cardId: PowerSurgeCardId): void {
+    const card = getPowerSurgeCard(cardId);
+    if (!card) return;
+
+    const targetSprite = player === "player1" ? this.player1Sprite : this.player2Sprite;
+    if (!targetSprite) return;
+
+    // Create container above character
+    const container = this.add.container(targetSprite.x, targetSprite.y - 280);
+    container.setDepth(2000); // Higher than standard UI but lower than overlays
+    container.setScale(0); // Start hidden for pop-up
+
+    // Card dimensions
+    const width = 140;
+    const height = 200;
+
+    // 1. Background with glow
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.95);
+    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 12);
+    bg.lineStyle(3, card.glowColor, 1);
+    bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 12);
+    container.add(bg);
+
+    // 2. Card Image
+    if (this.textures.exists(card.iconKey)) {
+      const img = this.add.image(0, -20, card.iconKey);
+      img.setDisplaySize(width - 10, width - 10); // Square-ish image at top
+      container.add(img);
+    }
+
+    // 3. Text Name
+    const nameText = this.add.text(0, 50, card.name, {
+      fontFamily: "monospace",
+      fontSize: "16px",
+      color: "#ffffff",
+      align: "center",
+      wordWrap: { width: width - 10 },
+      fontStyle: "bold",
+    });
+    nameText.setOrigin(0.5);
+    container.add(nameText);
+
+    // 4. "AI SURGE" or "YOUR SURGE" label
+    const isPlayer = player === "player1";
+    const labelText = isPlayer ? "YOUR SURGE" : "AI SURGE";
+    const labelColor = isPlayer ? "#22c55e" : "#ff4444";
+
+    const label = this.add.text(0, -height / 2 - 20, labelText, {
+      fontFamily: "monospace",
+      fontSize: "20px",
+      color: labelColor,
+      fontStyle: "bold",
+      stroke: "#000000",
+      strokeThickness: 4,
+    });
+    label.setOrigin(0.5);
+    container.add(label);
+
+    // Animation: Pop in
+    this.tweens.add({
+      targets: container,
+      scaleX: 1,
+      scaleY: 1,
+      duration: 500,
+      ease: "Back.easeOut",
+      onComplete: () => {
+        // Hold for 5 seconds
+        this.time.delayedCall(5000, () => {
+          if (container && container.active) {
+            // Fade out
+            this.tweens.add({
+              targets: container,
+              alpha: 0,
+              y: container.y - 50,
+              duration: 500,
+              onComplete: () => container.destroy(),
+            });
+          }
+        });
+      },
+    });
+
+    // Apply surge visual effect to sprite
+    this.applySurgeVisualEffect(player, card);
+  }
+
+  /**
+   * Apply visual glow effect to a character sprite when surge is active.
+   */
+  private applySurgeVisualEffect(player: "player1" | "player2", card: { glowColor: number }): void {
+    const sprite = player === "player1" ? this.player1Sprite : this.player2Sprite;
+    const tintColor = card.glowColor;
+
+    // Flash effect (matching FightScene)
+    this.tweens.add({
+      targets: sprite,
+      tint: tintColor,
+      duration: 200,
+      yoyo: true,
+      repeat: 2,
+      onComplete: () => {
+        // Keep a subtle persistent tint for the round
+        sprite.setTint(Phaser.Display.Color.Interpolate.ColorWithColor(
+          Phaser.Display.Color.IntegerToColor(0xffffff),
+          Phaser.Display.Color.IntegerToColor(tintColor),
+          100,
+          20 // 20% blend
+        ).color);
+      },
+    });
+
+    // Particle burst at character position
+    this.createSurgeParticles(sprite.x, sprite.y, tintColor);
+  }
+
+  private createSurgeParticles(x: number, y: number, color: number): void {
+    for (let i = 0; i < 15; i++) {
+      const particle = this.add.graphics();
+      particle.fillStyle(color, 1);
+      particle.fillCircle(0, 0, 3 + Math.random() * 3);
+      particle.setPosition(x, y);
+      particle.setDepth(500);
+
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 50 + Math.random() * 100;
+      const targetX = x + Math.cos(angle) * speed;
+      const targetY = y + Math.sin(angle) * speed - 50; // Upward bias
+
+      this.tweens.add({
+        targets: particle,
+        x: targetX,
+        y: targetY,
+        alpha: 0,
+        scale: 0,
+        duration: 600 + Math.random() * 400,
+        ease: "Quad.easeOut",
+        onComplete: () => particle.destroy(),
+      });
+    }
   }
 
   private showCountdown(seconds: number): void {
@@ -1304,7 +1591,13 @@ export class PracticeScene extends Phaser.Scene {
     const prevP2Health = prevState.player2.hp;
 
     // Execute moves in combat engine - returns TurnResult
-    const turnResult = this.combatEngine.resolveTurn(playerMove, aiMove);
+    // Pass active surge effects so they are applied during combat resolution
+    const turnResult = this.combatEngine.resolveTurn(
+      playerMove,
+      aiMove,
+      this.activeSurges.player1,
+      this.activeSurges.player2
+    );
 
     // Get updated state
     const state = this.combatEngine.getState();
@@ -1456,6 +1749,18 @@ export class PracticeScene extends Phaser.Scene {
                 });
               });
             }
+            
+            // Show energy drain effect from surge
+            if (turnResult.player2.energyDrained && turnResult.player2.energyDrained > 15) {
+              this.time.delayedCall(500, () => {
+                this.showFloatingText(
+                  `-${Math.round(turnResult.player2.energyDrained!)} EN`,
+                  p2OriginalX - 50,
+                  CHARACTER_POSITIONS.PLAYER2.Y - 100,
+                  "#3b82f6"
+                );
+              });
+            }
 
             // Wait for anim to finish (approx 1s)
             this.time.delayedCall(1200, () => {
@@ -1509,6 +1814,18 @@ export class PracticeScene extends Phaser.Scene {
                   duration: 50,
                   repeat: 3
                 });
+              });
+            }
+            
+            // Show energy drain effect from surge
+            if (turnResult.player1.energyDrained && turnResult.player1.energyDrained > 15) {
+              this.time.delayedCall(500, () => {
+                this.showFloatingText(
+                  `-${Math.round(turnResult.player1.energyDrained!)} EN`,
+                  p1OriginalX + 50,
+                  CHARACTER_POSITIONS.PLAYER1.Y - 100,
+                  "#3b82f6"
+                );
               });
             }
 
@@ -1664,31 +1981,57 @@ export class PracticeScene extends Phaser.Scene {
     const state = this.combatEngine.getState();
     const roundsToWin = this.config.matchFormat === "best_of_5" ? 3 : 2;
 
-    // Dead animation logic - use centralized scaling
-    const loser = state.roundWinner === "player1" ? "player2" : "player1";
-    const loserChar = loser === "player1" ? this.playerCharacter.id : this.aiCharacter.id;
-    const loserSprite = loser === "player1" ? this.player1Sprite : this.player2Sprite;
+    // Check for draw (both KO'd)
+    const isDraw = state.roundWinner === null;
 
-    // Use centralized scale from sprite-config.ts
-    const deadScale = getAnimationScale(loserChar, "dead");
+    if (isDraw) {
+      // Both players dead - play death animation on both
+      const p1DeadScale = getAnimationScale(this.playerCharacter.id, "dead");
+      const p2DeadScale = getAnimationScale(this.aiCharacter.id, "dead");
+      
+      if (this.anims.exists(`${this.playerCharacter.id}_dead`)) {
+        this.player1Sprite.setScale(p1DeadScale);
+        this.player1Sprite.play(`${this.playerCharacter.id}_dead`);
+      }
+      if (this.anims.exists(`${this.aiCharacter.id}_dead`)) {
+        this.player2Sprite.setScale(p2DeadScale);
+        this.player2Sprite.play(`${this.aiCharacter.id}_dead`);
+      }
 
-    // Play dead animation
-    if (this.anims.exists(`${loserChar}_dead`)) {
-      loserSprite.setScale(deadScale);
-      loserSprite.play(`${loserChar}_dead`);
+      // Play neutral sound for draw
+      this.playSFX("sfx_click");
+
+      // Show draw text
+      this.countdownText.setText("DRAW - BOTH KO!");
+      this.countdownText.setColor("#fbbf24");
+      this.countdownText.setAlpha(1);
+    } else {
+      // Normal round end - one player won
+      const loser = state.roundWinner === "player1" ? "player2" : "player1";
+      const loserChar = loser === "player1" ? this.playerCharacter.id : this.aiCharacter.id;
+      const loserSprite = loser === "player1" ? this.player1Sprite : this.player2Sprite;
+
+      // Use centralized scale from sprite-config.ts
+      const deadScale = getAnimationScale(loserChar, "dead");
+
+      // Play dead animation
+      if (this.anims.exists(`${loserChar}_dead`)) {
+        loserSprite.setScale(deadScale);
+        loserSprite.play(`${loserChar}_dead`);
+      }
+
+      // Play Round End SFX
+      const isWin = state.roundWinner === "player1";
+      this.playSFX(isWin ? "sfx_victory" : "sfx_defeat");
+
+      // Show result text
+      const winnerText = state.roundWinner === "player1" ? "YOU WIN ROUND!" : "AI WINS ROUND!";
+      const winnerColor = state.roundWinner === "player1" ? "#22c55e" : "#ff4444";
+
+      this.countdownText.setText(winnerText);
+      this.countdownText.setColor(winnerColor);
+      this.countdownText.setAlpha(1);
     }
-
-    // Play Round End SFX
-    const isWin = state.roundWinner === "player1";
-    this.playSFX(isWin ? "sfx_victory" : "sfx_defeat");
-
-    // Show result text
-    const winnerText = state.roundWinner === "player1" ? "YOU WIN ROUND!" : "AI WINS ROUND!";
-    const winnerColor = state.roundWinner === "player1" ? "#22c55e" : "#ff4444";
-
-    this.countdownText.setText(winnerText);
-    this.countdownText.setColor(winnerColor);
-    this.countdownText.setAlpha(1);
 
     // Update round score
     this.roundScoreText.setText(
@@ -1706,6 +2049,9 @@ export class PracticeScene extends Phaser.Scene {
       // Actually startRound doesn't reset sprites, only state.
       // We should probably reset sprites in startRound or here.
 
+      // Clear active surges from previous round
+      this.clearSurgeEffects();
+
       // Reset for new round
       this.combatEngine.startNewRound();
       this.syncUIWithCombatState();
@@ -1715,6 +2061,18 @@ export class PracticeScene extends Phaser.Scene {
 
       this.startRound();
     });
+  }
+
+  /**
+   * Clear surge effects at end of round.
+   */
+  private clearSurgeEffects(): void {
+    this.activeSurges = { player1: null, player2: null };
+    this.surgeCardsShownThisRound = false;
+
+    // Clear any visual tints
+    this.player1Sprite.clearTint();
+    this.player2Sprite.clearTint();
   }
 
   private resetCharacterSprites(): void {
@@ -2198,5 +2556,15 @@ export class PracticeScene extends Phaser.Scene {
         ease: "Back.easeOut"
       });
     }
+  }
+
+  /**
+   * Get active surge effects for combat resolution.
+   */
+  public getActiveSurgeEffects(): {
+    player1: PowerSurgeCardId | null;
+    player2: PowerSurgeCardId | null;
+  } {
+    return { ...this.activeSurges };
   }
 }

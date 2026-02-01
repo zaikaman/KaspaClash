@@ -51,8 +51,8 @@ export interface SurgeModifiers {
   reflectPercent: number;
   /** Opponent stun next turn */
   opponentStun: boolean;
-  /** Break opponent's guard on any hit */
-  guardBreakOnHit: boolean;
+  /** Bypass opponent's block reduction on any hit */
+  bypassBlockOnHit: boolean;
   /** Critical hit guaranteed */
   criticalHit: boolean;
   /** Energy regen bonus */
@@ -61,6 +61,8 @@ export interface SurgeModifiers {
   doubleHitMoves: MoveType[];
   /** Block is disabled (cannot use block effectively) */
   blockDisabled: boolean;
+  /** Opponent's block is disabled (Pruned Rage) */
+  opponentBlockDisabled: boolean;
   /** Lifesteal percentage */
   lifestealPercent: number;
   /** Extra energy cost for special move (Finality Fist) */
@@ -94,11 +96,12 @@ function getDefaultModifiers(): SurgeModifiers {
     counterMultiplier: 1.0,
     reflectPercent: 0,
     opponentStun: false,
-    guardBreakOnHit: false,
+    bypassBlockOnHit: false,
     criticalHit: false,
     energyRegenBonus: 0,
     doubleHitMoves: [],
     blockDisabled: false,
+    opponentBlockDisabled: false,
     lifestealPercent: 0,
     specialEnergyCost: 0,
   };
@@ -190,9 +193,9 @@ function calculateCardModifiers(card: PowerSurgeCard | null): SurgeModifiers {
       break;
 
     case "fury_boost":
-      // Pruned Rage: damage boost but can't block effectively
+      // Pruned Rage: damage boost and opponent can't block
       mods.damageMultiplier = params.damageMultiplier ?? 1.3;
-      mods.blockDisabled = params.blockDisabled ?? false;
+      mods.opponentBlockDisabled = params.opponentBlockDisabled ?? false;
       break;
 
     case "damage_immunity":
@@ -210,37 +213,37 @@ function calculateCardModifiers(card: PowerSurgeCard | null): SurgeModifiers {
 
     case "critical_special":
       mods.criticalHit = true;
-      mods.damageMultiplier = params.damageMultiplier ?? 2.0;
-      mods.specialEnergyCost = 15; // Finality Fist costs +15 energy for special
+      mods.damageMultiplier = params.damageMultiplier ?? 1.7;
+      mods.specialEnergyCost = params.energyCostBonus ?? 12;
       break;
 
     case "energy_regen":
-      mods.energyRegenBonus = params.energyRegenBonus ?? 20;
+      mods.energyRegenBonus = params.energyRegenBonus ?? 18;
       break;
 
     case "energy_regen_with_cost":
       // Tx Storm: gain energy but lose HP
       mods.energyRegenBonus = params.energyRegenBonus ?? 25;
-      mods.hpCost = params.hpCost ?? 30;
+      mods.hpCost = params.hpCost ?? 4;
       break;
 
     case "energy_steal":
-      mods.energySteal = params.energySteal ?? 25;
+      mods.energySteal = params.energySteal ?? 18;
       break;
 
     case "opponent_stun":
       mods.opponentStun = true;
-      mods.hpCost = params.hpCost ?? 0; // Mempool Congest HP cost
+      mods.hpCost = params.hpCost ?? 6; // Mempool Congest HP cost
       break;
 
     case "lifesteal":
-      mods.lifestealPercent = params.lifestealPercent ?? 0;
+      mods.lifestealPercent = params.lifestealPercent ?? 0.35;
       break;
 
     case "guard_break":
-      // Chainbreaker: break guard on any hit + damage bonus
-      mods.guardBreakOnHit = true;
-      mods.damageMultiplier = params.damageMultiplier ?? 1.0;
+      // Chainbreaker: bypass block on any hit
+      mods.bypassBlockOnHit = true;
+      mods.damageMultiplier = params.damageMultiplier ?? 1.15;
       break;
   }
 
@@ -433,23 +436,33 @@ export function shouldStunOpponent(modifiers: SurgeModifiers): boolean {
 }
 
 /**
- * Check if attacker should break opponent's guard on hit (Chainbreaker).
+ * Check if attacker should bypass opponent's block on hit (Chainbreaker).
  * 
  * @param modifiers - Attacker's surge modifiers
- * @returns True if guard should be broken on hit
+ * @returns True if block should be bypassed on hit
  */
-export function shouldBreakGuard(modifiers: SurgeModifiers): boolean {
-  return modifiers.guardBreakOnHit;
+export function shouldBypassBlock(modifiers: SurgeModifiers): boolean {
+  return modifiers.bypassBlockOnHit;
 }
 
 /**
- * Check if block is disabled for this player (Pruned Rage).
+ * Check if block is disabled for this player.
+ * Block can be disabled by:
+ * 1. Player's own effect (legacy, not currently used)
+ * 2. Opponent's Pruned Rage effect (opponentBlockDisabled)
  * 
- * @param modifiers - Player's surge modifiers
+ * @param myModifiers - This player's surge modifiers
+ * @param opponentModifiers - Opponent's surge modifiers (optional, for Pruned Rage check)
  * @returns True if block is disabled
  */
-export function isBlockDisabled(modifiers: SurgeModifiers): boolean {
-  return modifiers.blockDisabled;
+export function isBlockDisabled(myModifiers: SurgeModifiers, opponentModifiers?: SurgeModifiers): boolean {
+  // Check if my own effect disables my block (legacy)
+  if (myModifiers.blockDisabled) return true;
+  
+  // Check if opponent's Pruned Rage disables my block
+  if (opponentModifiers?.opponentBlockDisabled) return true;
+  
+  return false;
 }
 
 /**

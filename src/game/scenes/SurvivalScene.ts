@@ -1,6 +1,7 @@
 /**
  * SurvivalScene - Survival mode against 20 AI opponents
  * Based on PracticeScene patterns with wave progression system
+ * Includes Power Surge cards with precomputed AI selections
  */
 
 import Phaser from "phaser";
@@ -8,6 +9,7 @@ import { EventBus } from "@/game/EventBus";
 import { GAME_DIMENSIONS, CHARACTER_POSITIONS, UI_POSITIONS } from "@/game/config";
 import { CHAR_SPRITE_CONFIG, getCharacterScale, getAnimationScale, getCharacterYOffset, getSoundDelay, getSFXKey } from "@/game/config/sprite-config";
 import { CombatEngine, BASE_MOVE_STATS } from "@/game/combat";
+import { calculateSurgeEffects, isBlockDisabled } from "@/game/combat/SurgeEffects";
 import { AIOpponent } from "@/lib/game/ai-opponent";
 import { getAIThinkTime } from "@/lib/game/ai-difficulty";
 import { getCharacter, CHARACTER_ROSTER } from "@/data/characters";
@@ -15,6 +17,9 @@ import type { MoveType, Character } from "@/types";
 import { generateSurvivalWaves, getWaveTierName, getWaveTierColor, type WaveConfig, TOTAL_WAVES } from "@/lib/survival/wave-generator";
 import { calculateSurvivalScore, getShardsForWave } from "@/lib/survival/score-calculator";
 import { isMobileDevice } from "@/utils/device";
+import { OfflinePowerSurgeCards } from "@/game/ui/OfflinePowerSurgeCards";
+import type { PowerSurgeCardId } from "@/types/power-surge";
+import { getRandomPowerSurgeCards, getPowerSurgeCard } from "@/types/power-surge";
 
 export interface SurvivalSceneConfig {
     playerCharacterId: string;
@@ -93,6 +98,17 @@ export class SurvivalScene extends Phaser.Scene {
     private visibilityChangeHandler: (() => void) | null = null;
     private wasPlayingBeforeHidden: boolean = false;
 
+    // Power Surge state - precomputed for all waves
+    private powerSurgeUI?: OfflinePowerSurgeCards;
+    private precomputedDecks: Map<number, PowerSurgeCardId[]> = new Map(); // wave -> cards
+    private precomputedAISelections: Map<number, PowerSurgeCardId> = new Map(); // wave -> AI selection
+    private activeSurges: {
+        player1: PowerSurgeCardId | null;
+        player2: PowerSurgeCardId | null;
+    } = { player1: null, player2: null };
+    private surgeCardsShownThisWave: boolean = false;
+    private lastSurgeWave: number = 0;
+
     constructor() {
         super({ key: "SurvivalScene" });
     }
@@ -118,6 +134,35 @@ export class SurvivalScene extends Phaser.Scene {
         const firstWave = this.waves[0];
         this.currentOpponent = getCharacter(firstWave.characterId) ?? CHARACTER_ROSTER[0];
         this.ai = new AIOpponent(firstWave.difficulty);
+
+        // Precompute Power Surge decks and AI selections for all waves
+        this.precomputePowerSurgeDecks();
+    }
+
+    /**
+     * Precompute Power Surge card decks and AI selections for all waves.
+     * This ensures consistent cards across the run and instant AI decisions.
+     */
+    private precomputePowerSurgeDecks(): void {
+        this.precomputedDecks.clear();
+        this.precomputedAISelections.clear();
+        this.activeSurges = { player1: null, player2: null };
+        this.surgeCardsShownThisWave = false;
+        this.lastSurgeWave = 0;
+
+        // Generate unique decks for each wave (20 waves in survival)
+        for (let wave = 1; wave <= TOTAL_WAVES; wave++) {
+            // Get 3 random cards
+            const deck = getRandomPowerSurgeCards(3);
+            const deckIds = deck.map(c => c.id);
+            this.precomputedDecks.set(wave, deckIds);
+
+            // AI picks a random card from the deck
+            const aiChoice = deckIds[Math.floor(Math.random() * deckIds.length)];
+            this.precomputedAISelections.set(wave, aiChoice);
+        }
+
+        console.log("[SurvivalScene] Precomputed surge decks for", TOTAL_WAVES, "waves");
     }
 
     preload(): void {
@@ -759,8 +804,230 @@ export class SurvivalScene extends Phaser.Scene {
 
     private startWave(): void {
         this.phase = "countdown";
-        this.playSFX("sfx_cd_fight");
-        this.time.delayedCall(300, () => this.showCountdown(3));
+
+        // Show Power Surge cards first, then countdown
+        this.showPowerSurgeCards(this.currentWave).then(() => {
+            this.playSFX("sfx_cd_fight");
+            this.time.delayedCall(300, () => this.showCountdown(3));
+        });
+    }
+
+    /**
+     * Show Power Surge card selection UI.
+     * Uses precomputed deck and AI selection for this wave.
+     */
+    private async showPowerSurgeCards(waveNumber: number): Promise<void> {
+        // Avoid showing twice for the same wave
+        if (this.surgeCardsShownThisWave && this.lastSurgeWave === waveNumber) {
+            console.log("[SurvivalScene] Power Surge already shown for this wave");
+            return;
+        }
+
+        this.surgeCardsShownThisWave = true;
+        this.lastSurgeWave = waveNumber;
+
+        // Get precomputed deck and AI selection
+        const cardIds = this.precomputedDecks.get(waveNumber);
+        const aiSelection = this.precomputedAISelections.get(waveNumber);
+
+        if (!cardIds || cardIds.length === 0 || !aiSelection) {
+            console.log("[SurvivalScene] No surge cards for this wave");
+            return;
+        }
+
+        console.log(`[SurvivalScene] Showing Power Surge cards for wave ${waveNumber}:`, cardIds);
+        console.log(`[SurvivalScene] AI pre-selected: ${aiSelection}`);
+
+        return new Promise((resolve) => {
+            // Calculate deadline (10 seconds from now)
+            const deadline = Date.now() + 10000;
+
+            this.powerSurgeUI = new OfflinePowerSurgeCards({
+                scene: this,
+                roundNumber: waveNumber,
+                cardIds,
+                aiSelectedCardId: aiSelection,
+                deadline,
+                onCardSelected: (cardId: PowerSurgeCardId) => {
+                    console.log(`[SurvivalScene] Player selected surge: ${cardId}`);
+                    this.activeSurges.player1 = cardId;
+                },
+                onTimeout: () => {
+                    console.log("[SurvivalScene] Power Surge selection timed out");
+                },
+                onClose: (playerSelection: PowerSurgeCardId | null, aiSelectionId: PowerSurgeCardId) => {
+                    this.powerSurgeUI = undefined;
+
+                    // Store active surges
+                    this.activeSurges.player1 = playerSelection;
+                    this.activeSurges.player2 = aiSelectionId;
+
+                    // Show AI's selection reveal
+                    if (aiSelectionId) {
+                        const card = getPowerSurgeCard(aiSelectionId);
+                        if (card) {
+                            console.log(`[SurvivalScene] AI surge: ${card.name}`);
+                            this.showSurgeCardReveal("player2", aiSelectionId);
+                        }
+                    }
+
+                    // Show player's selection reveal (if selected)
+                    if (playerSelection) {
+                        const card = getPowerSurgeCard(playerSelection);
+                        if (card) {
+                            this.showSurgeCardReveal("player1", playerSelection);
+                        }
+                    }
+
+                    resolve();
+                },
+            });
+        });
+    }
+
+    /**
+     * Show a brief visual reveal of a surge card selection.
+     */
+    private showSurgeCardReveal(player: "player1" | "player2", cardId: PowerSurgeCardId): void {
+        const card = getPowerSurgeCard(cardId);
+        if (!card) return;
+
+        const targetSprite = player === "player1" ? this.player1Sprite : this.player2Sprite;
+        if (!targetSprite) return;
+
+        // Create container above character
+        const container = this.add.container(targetSprite.x, targetSprite.y - 280);
+        container.setDepth(2000); // Higher than standard UI but lower than overlays
+        container.setScale(0); // Start hidden for pop-up
+
+        // Card dimensions
+        const width = 140;
+        const height = 200;
+
+        // 1. Background with glow
+        const bg = this.add.graphics();
+        bg.fillStyle(0x1a1a2e, 0.95);
+        bg.fillRoundedRect(-width / 2, -height / 2, width, height, 12);
+        bg.lineStyle(3, card.glowColor, 1);
+        bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 12);
+        container.add(bg);
+
+        // 2. Card Image
+        if (this.textures.exists(card.iconKey)) {
+            const img = this.add.image(0, -20, card.iconKey);
+            img.setDisplaySize(width - 10, width - 10); // Square-ish image at top
+            container.add(img);
+        }
+
+        // 3. Text Name
+        const nameText = this.add.text(0, 50, card.name, {
+            fontFamily: "monospace",
+            fontSize: "16px",
+            color: "#ffffff",
+            align: "center",
+            wordWrap: { width: width - 10 },
+            fontStyle: "bold",
+        });
+        nameText.setOrigin(0.5);
+        container.add(nameText);
+
+        // 4. "OPPONENT SURGE" or "YOUR SURGE" label
+        const isPlayer = player === "player1";
+        const labelText = isPlayer ? "YOUR SURGE" : "OPPONENT SURGE";
+        const labelColor = isPlayer ? "#22c55e" : "#ff4444";
+
+        const label = this.add.text(0, -height / 2 - 20, labelText, {
+            fontFamily: "monospace",
+            fontSize: "20px",
+            color: labelColor,
+            fontStyle: "bold",
+            stroke: "#000000",
+            strokeThickness: 4,
+        });
+        label.setOrigin(0.5);
+        container.add(label);
+
+        // Animation: Pop in
+        this.tweens.add({
+            targets: container,
+            scaleX: 1,
+            scaleY: 1,
+            duration: 500,
+            ease: "Back.easeOut",
+            onComplete: () => {
+                // Hold for 5 seconds
+                this.time.delayedCall(5000, () => {
+                    if (container && container.active) {
+                        // Fade out
+                        this.tweens.add({
+                            targets: container,
+                            alpha: 0,
+                            y: container.y - 50,
+                            duration: 500,
+                            onComplete: () => container.destroy(),
+                        });
+                    }
+                });
+            },
+        });
+
+        // Apply surge visual effect to sprite
+        this.applySurgeVisualEffect(player, card);
+    }
+
+    /**
+     * Apply visual glow effect to a character sprite when surge is active.
+     */
+    private applySurgeVisualEffect(player: "player1" | "player2", card: { glowColor: number }): void {
+        const sprite = player === "player1" ? this.player1Sprite : this.player2Sprite;
+        const tintColor = card.glowColor;
+
+        // Flash effect (matching FightScene)
+        this.tweens.add({
+            targets: sprite,
+            tint: tintColor,
+            duration: 200,
+            yoyo: true,
+            repeat: 2,
+            onComplete: () => {
+                // Keep a subtle persistent tint for the round
+                sprite.setTint(Phaser.Display.Color.Interpolate.ColorWithColor(
+                    Phaser.Display.Color.IntegerToColor(0xffffff),
+                    Phaser.Display.Color.IntegerToColor(tintColor),
+                    100,
+                    20 // 20% blend
+                ).color);
+            },
+        });
+
+        // Particle burst at character position
+        this.createSurgeParticles(sprite.x, sprite.y, tintColor);
+    }
+
+    private createSurgeParticles(x: number, y: number, color: number): void {
+        for (let i = 0; i < 15; i++) {
+            const particle = this.add.graphics();
+            particle.fillStyle(color, 1);
+            particle.fillCircle(0, 0, 3 + Math.random() * 3);
+            particle.setPosition(x, y);
+            particle.setDepth(500);
+
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 50 + Math.random() * 100;
+            const targetX = x + Math.cos(angle) * speed;
+            const targetY = y + Math.sin(angle) * speed - 50; // Upward bias
+
+            this.tweens.add({
+                targets: particle,
+                x: targetX,
+                y: targetY,
+                alpha: 0,
+                scale: 0,
+                duration: 600 + Math.random() * 400,
+                ease: "Quad.easeOut",
+                onComplete: () => particle.destroy(),
+            });
+        }
     }
 
     private showCountdown(seconds: number): void {
@@ -877,11 +1144,18 @@ export class SurvivalScene extends Phaser.Scene {
     }
 
     private updateMoveButtonAffordability(): void {
+        // Check if block is disabled due to opponent's surge effect (e.g., Pruned Rage)
+        const surgeEffects = calculateSurgeEffects(this.activeSurges.player1, this.activeSurges.player2);
+        const blockDisabled = isBlockDisabled(surgeEffects.player1Modifiers, surgeEffects.player2Modifiers);
+
         (["punch", "kick", "block", "special"] as MoveType[]).forEach((move) => {
             const canAfford = this.combatEngine.canAffordMove("player1", move);
             const container = this.moveButtons.get(move);
             if (container) {
-                if (!canAfford) {
+                // Check if this specific move should be disabled
+                const shouldDisable = !canAfford || (move === "block" && blockDisabled);
+
+                if (shouldDisable) {
                     container.setAlpha(0.3);
                     container.disableInteractive();
                     // Tint children to grayscale for visual feedback
@@ -952,7 +1226,13 @@ export class SurvivalScene extends Phaser.Scene {
         const prevP2Health = prevState.player2.hp;
 
         // Execute moves in combat engine
-        const turnResult = this.combatEngine.resolveTurn(playerMove, aiMove);
+        // Pass active surge effects so they are applied during combat resolution
+        const turnResult = this.combatEngine.resolveTurn(
+            playerMove,
+            aiMove,
+            this.activeSurges.player1,
+            this.activeSurges.player2
+        );
         const state = this.combatEngine.getState();
 
         const p1Char = this.playerCharacter.id;
@@ -1081,6 +1361,18 @@ export class SurvivalScene extends Phaser.Scene {
                                 });
                             });
                         }
+                        
+                        // Show energy drain effect from surge
+                        if (playerResult.energyDrained && playerResult.energyDrained > 15) {
+                            this.time.delayedCall(500, () => {
+                                this.showFloatingText(
+                                    `-${Math.round(playerResult.energyDrained)} EN`,
+                                    p2OriginalX - 50,
+                                    CHARACTER_POSITIONS.PLAYER2.Y - 100,
+                                    "#3b82f6"
+                                );
+                            });
+                        }
 
                         this.time.delayedCall(1200, () => resolve());
                     });
@@ -1121,6 +1413,18 @@ export class SurvivalScene extends Phaser.Scene {
                                     duration: 50,
                                     repeat: 3
                                 });
+                            });
+                        }
+                        
+                        // Show energy drain effect from surge
+                        if (aiResult.energyDrained && aiResult.energyDrained > 15) {
+                            this.time.delayedCall(500, () => {
+                                this.showFloatingText(
+                                    `-${Math.round(aiResult.energyDrained)} EN`,
+                                    p1OriginalX + 50,
+                                    CHARACTER_POSITIONS.PLAYER1.Y - 100,
+                                    "#3b82f6"
+                                );
                             });
                         }
 
@@ -1247,28 +1551,60 @@ export class SurvivalScene extends Phaser.Scene {
 
     private showRoundEnd(): void {
         const state = this.combatEngine.getState();
+        const isDraw = state.roundWinner === null;
         const isWin = state.roundWinner === "player1";
 
-        // Play death animation on the loser
-        const loser = state.roundWinner === "player1" ? "player2" : "player1";
-        const loserChar = loser === "player1" ? this.playerCharacter.id : this.currentOpponent.id;
-        const loserSprite = loser === "player1" ? this.player1Sprite : this.player2Sprite;
+        if (isDraw) {
+            // Both players dead - play death animation on both
+            const p1DeadScale = getAnimationScale(this.playerCharacter.id, "dead");
+            const p2DeadScale = getAnimationScale(this.currentOpponent.id, "dead");
+            
+            if (this.anims.exists(`${this.playerCharacter.id}_dead`)) {
+                this.player1Sprite.setScale(p1DeadScale);
+                this.player1Sprite.play(`${this.playerCharacter.id}_dead`);
+            }
+            if (this.anims.exists(`${this.currentOpponent.id}_dead`)) {
+                this.player2Sprite.setScale(p2DeadScale);
+                this.player2Sprite.play(`${this.currentOpponent.id}_dead`);
+            }
+        } else {
+            // Normal round end - play death animation on the loser
+            const loser = state.roundWinner === "player1" ? "player2" : "player1";
+            const loserChar = loser === "player1" ? this.playerCharacter.id : this.currentOpponent.id;
+            const loserSprite = loser === "player1" ? this.player1Sprite : this.player2Sprite;
 
-        // Play dead animation on loser if it exists
-        if (this.anims.exists(`${loserChar}_dead`)) {
-            loserSprite.setScale(getAnimationScale(loserChar, "dead"));
-            loserSprite.play(`${loserChar}_dead`);
+            // Play dead animation on loser if it exists
+            if (this.anims.exists(`${loserChar}_dead`)) {
+                loserSprite.setScale(getAnimationScale(loserChar, "dead"));
+                loserSprite.play(`${loserChar}_dead`);
+            }
         }
 
         // Wait for death animation to complete (36 frames at 24fps = 1.5s)
         this.time.delayedCall(1500, () => {
-            this.countdownText.setText(isWin ? "ROUND WON!" : "ROUND LOST!").setColor(isWin ? "#22c55e" : "#ef4444").setAlpha(1);
+            if (isDraw) {
+                this.countdownText.setText("DRAW - BOTH KO!").setColor("#fbbf24").setAlpha(1);
+            } else {
+                this.countdownText.setText(isWin ? "ROUND WON!" : "ROUND LOST!").setColor(isWin ? "#22c55e" : "#ef4444").setAlpha(1);
+            }
             this.time.delayedCall(2000, () => {
                 this.countdownText.setAlpha(0);
 
                 // Re-check state to see if match is now over
                 const currentState = this.combatEngine.getState();
-                if (currentState.isMatchOver) {
+                
+                // Check if this was a draw (both KO'd) - rematch with same opponent
+                if (isDraw) {
+                    // Reset the combat engine for a rematch with the same opponent
+                    this.combatEngine = new CombatEngine(this.playerCharacter.id, this.currentOpponent.id, "best_of_1");
+                    this.syncUIWithCombatState();
+                    // Clear surge effects
+                    this.clearSurgeEffects();
+                    // Reset sprites to idle
+                    this.resetCharacterSprites();
+                    // Start new wave (rematch)
+                    this.startWave();
+                } else if (currentState.isMatchOver) {
                     // Match is over - handle win or loss
                     currentState.matchWinner === "player1" ? this.onWaveComplete() : this.onSurvivalEnd(false);
                 } else {
@@ -1314,6 +1650,9 @@ export class SurvivalScene extends Phaser.Scene {
     }
 
     private advanceToNextWave(): void {
+        // Clear active surges from previous wave
+        this.clearSurgeEffects();
+
         this.currentWave++;
         const wave = this.waves[this.currentWave - 1];
         this.currentOpponent = getCharacter(wave.characterId) ?? CHARACTER_ROSTER[0];
@@ -1331,6 +1670,41 @@ export class SurvivalScene extends Phaser.Scene {
             this.syncUIWithCombatState();
             this.startWave();
         }
+    }
+
+    /**
+     * Clear surge effects at end of wave.
+     */
+    private clearSurgeEffects(): void {
+        this.activeSurges = { player1: null, player2: null };
+        this.surgeCardsShownThisWave = false;
+
+        // Clear any visual tints
+        this.player1Sprite.clearTint();
+        this.player2Sprite.clearTint();
+    }
+
+    /**
+     * Reset character sprites to idle animations and positions.
+     */
+    private resetCharacterSprites(): void {
+        const p1Char = this.playerCharacter.id;
+        const p2Char = this.currentOpponent.id;
+
+        // Use centralized scaling from sprite-config.ts
+        const p1Scale = getAnimationScale(p1Char, "idle");
+        const p2Scale = getAnimationScale(p2Char, "idle");
+
+        // Reset position to original
+        this.player1Sprite.setX(CHARACTER_POSITIONS.PLAYER1.X);
+        this.player2Sprite.setX(CHARACTER_POSITIONS.PLAYER2.X);
+
+        // Apply correct scales
+        this.player1Sprite.setScale(p1Scale);
+        if (this.anims.exists(`${p1Char}_idle`)) this.player1Sprite.play(`${p1Char}_idle`);
+
+        this.player2Sprite.setScale(p2Scale);
+        if (this.anims.exists(`${p2Char}_idle`)) this.player2Sprite.play(`${p2Char}_idle`);
     }
 
     private updateOpponentSprite(): void {
@@ -1480,5 +1854,15 @@ export class SurvivalScene extends Phaser.Scene {
     private exitSurvival(): void {
         EventBus.off("survival_exit");
         EventBus.emit("survival_exit_complete");
+    }
+
+    /**
+     * Get active surge effects for combat resolution.
+     */
+    public getActiveSurgeEffects(): {
+        player1: PowerSurgeCardId | null;
+        player2: PowerSurgeCardId | null;
+    } {
+        return { ...this.activeSurges };
     }
 }

@@ -52,12 +52,27 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
     const [secondsRemaining, setSecondsRemaining] = useState(
         match.bettingStatus?.secondsRemaining ?? 0
     );
+    
+    // Calculate betting phase end time (when betting closes)
+    const [bettingPhaseEndTime, setBettingPhaseEndTime] = useState<number | undefined>(() => {
+        if (currentMatch.bettingStatus?.isOpen && currentMatch.createdAt && currentMatch.bettingStatus.secondsRemaining) {
+            return new Date(currentMatch.createdAt).getTime() + (currentMatch.bettingStatus.secondsRemaining * 1000);
+        }
+        return undefined;
+    });
 
     // Update countdown timer
     useEffect(() => {
         // Sync with match data updates
         if (currentMatch.bettingStatus?.secondsRemaining) {
             setSecondsRemaining(currentMatch.bettingStatus.secondsRemaining);
+            
+            // Update betting phase end time when match updates
+            if (currentMatch.bettingStatus.isOpen && currentMatch.createdAt) {
+                setBettingPhaseEndTime(
+                    new Date(currentMatch.createdAt).getTime() + (currentMatch.bettingStatus.secondsRemaining * 1000)
+                );
+            }
         }
 
         const timer = setInterval(() => {
@@ -176,9 +191,9 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
 
                                 // User won! Show celebration immediately
                                 const winnerName = eventData.winner === "player1" ? currentMatch.bot1Name : currentMatch.bot2Name;
-                                // Calculate payout: 2x the net bet amount
-                                const netAmount = BigInt(userBet.net_amount || userBet.amount);
-                                const payoutAmount = netAmount * 2n;
+                                // Calculate payout: 2x the original bet amount (not net_amount which has fee deducted)
+                                const betAmount = BigInt(userBet.amount);
+                                const payoutAmount = betAmount * 2n;
 
                                 console.log("[BotSpectatorClient] Payout amount:", sompiToKas(payoutAmount), "KAS");
 
@@ -399,6 +414,7 @@ export function BotSpectatorClient({ match }: BotSpectatorClientProps) {
                         player1Name={currentMatch.bot1Name}
                         player2Name={currentMatch.bot2Name}
                         className="flex-1 min-h-[250px]"
+                        bettingPhaseEndTime={bettingPhaseEndTime}
                     />
                 </motion.div>
             </div>

@@ -28,7 +28,7 @@ export {
     checkRandomWin,
     isInvisibleMove,
     shouldStunOpponent,
-    shouldBreakGuard,
+    shouldBypassBlock,
     isBlockDisabled,
     comparePriority,
     type SurgeModifiers,
