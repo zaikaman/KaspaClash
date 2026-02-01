@@ -163,6 +163,17 @@ export class CombatEngine {
         const p1SurgeMods = surgeResults.player1Modifiers;
         const p2SurgeMods = surgeResults.player2Modifiers;
 
+        // Apply Mempool Congest stun BEFORE first turn (only once per round)
+        // This ensures the opponent is stunned immediately on turn 1, not after turn 1
+        if (shouldStunOpponent(p1SurgeMods) && !this.p1SurgeStunApplied) {
+            this.state.player2.isStunned = true;
+            this.p1SurgeStunApplied = true;
+        }
+        if (shouldStunOpponent(p2SurgeMods) && !this.p2SurgeStunApplied) {
+            this.state.player1.isStunned = true;
+            this.p2SurgeStunApplied = true;
+        }
+
         // Track if players were stunned at the START of this turn
         const p1WasStunned = p1State.isStunned;
         const p2WasStunned = p2State.isStunned;
@@ -330,28 +341,9 @@ export class CombatEngine {
         // Handle stun state:
         // 1. If player WAS stunned at turn start, they missed this turn - stun will be cleared below
         // 2. If player got stunned THIS turn (by move outcome or guard break), SET the stun for next turn
-        // NOTE: Check for stun effects BEFORE applying surge stuns, to avoid counting surge stun twice
+        // NOTE: Check for stun effects from moves and guard breaks
         const p1StunnedByMove = p1Result.effects.includes("stun");
         const p2StunnedByMove = p2Result.effects.includes("stun");
-
-        // Apply Stun from Surge Card (Mempool Congest)
-        // Note: This stuns ONCE at the start of the round, not every turn
-        // Track surge stuns separately so we don't double-count them
-        let p1StunnedBySurge = false;
-        let p2StunnedBySurge = false;
-        
-        // P1's surge stuns P2 (only once per round)
-        if (shouldStunOpponent(p1SurgeMods) && !this.p1SurgeStunApplied) {
-            p2StunnedBySurge = true;
-            this.p1SurgeStunApplied = true; // Mark as applied for this round
-            if (!p2Result.effects.includes("stun")) p2Result.effects.push("stun");
-        }
-        // P2's surge stuns P1 (only once per round)
-        if (shouldStunOpponent(p2SurgeMods) && !this.p2SurgeStunApplied) {
-            p1StunnedBySurge = true;
-            this.p2SurgeStunApplied = true; // Mark as applied for this round
-            if (!p1Result.effects.includes("stun")) p1Result.effects.push("stun");
-        }
 
         // Apply effects
         this.applyEffects(p1Result.effects, "player1");
@@ -361,12 +353,12 @@ export class CombatEngine {
         this.regenerateEnergy();
 
         // Clear old stun (player paid the penalty), then apply new stun if applicable
-        // p1StunnedByMove/p2StunnedByMove was calculated BEFORE surge effects, 
-        // so we add surge stuns separately here
-        this.state.player1.isStunned = p1StunnedByMove || p1GuardBreak || p1StunnedBySurge;
+        // Mempool Congest stun was applied at the START of resolveTurn, so it persists
+        // Only clear stun if no new stun effects occurred and surge stun is not active
+        this.state.player1.isStunned = p1StunnedByMove || p1GuardBreak || (shouldStunOpponent(p2SurgeMods) && this.p2SurgeStunApplied);
         this.state.player1.isStaggered = p1Result.effects.includes("stagger");
 
-        this.state.player2.isStunned = p2StunnedByMove || p2GuardBreak || p2StunnedBySurge;
+        this.state.player2.isStunned = p2StunnedByMove || p2GuardBreak || (shouldStunOpponent(p1SurgeMods) && this.p1SurgeStunApplied);
         this.state.player2.isStaggered = p2Result.effects.includes("stagger");
 
         // Check for round end

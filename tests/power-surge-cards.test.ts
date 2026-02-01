@@ -158,12 +158,30 @@ describe('Power Surge Cards - All 15 Cards', () => {
     it('should stun opponent on first turn of round', () => {
       const engine = new CombatEngine(TEST_CHAR_1, TEST_CHAR_2);
       
-      // P1 uses Mempool Congest, should stun P2
-      engine.resolveTurn('punch', 'punch', 'mempool-congest', null);
+      // P1 uses Mempool Congest, should stun P2 IMMEDIATELY on turn 1
+      const result = engine.resolveTurn('punch', 'punch', 'mempool-congest', null);
+      
+      // P2 should have been stunned DURING turn 1 (not able to act)
+      // This means P2's move should have been null/missed
+      expect(result.player2.outcome).toBe('stunned');
       
       const state = engine.getState();
-      // P2 should be stunned for next turn
+      // P2 should remain stunned for next turn
       expect(state.player2.isStunned).toBe(true);
+    });
+
+    it('should cost HP when using Mempool Congest', () => {
+      const engine = new CombatEngine(TEST_CHAR_1, TEST_CHAR_2);
+      const initialP1Hp = engine.getState().player1.hp;
+      
+      // P1 uses Mempool Congest
+      engine.resolveTurn('punch', 'punch', 'mempool-congest', null);
+      
+      const p1HpAfter = engine.getState().player1.hp;
+      const hpLost = initialP1Hp - p1HpAfter;
+      
+      // P1 should lose 6 HP (plus any damage taken from combat)
+      expect(hpLost).toBeGreaterThanOrEqual(6);
     });
   });
 
