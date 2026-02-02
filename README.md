@@ -778,15 +778,33 @@ A decentralized automated reward system powered by Kaspa:
 #### Weekly Distribution
 Every **Monday at 00:00 UTC**, the treasury automatically distributes accumulated funds from betting fees and cosmetics buying fees to top players:
 
-- **40% to Top 10 ELO Players:** Reward for competitive excellence.
-- **40% to Top 10 Survival Players:** Reward for PvE mastery.
-- **20% to Project Wallet:** Supports ongoing development and operations.
-- **Minimum Reserve:** Always keeps at least 10 KAS in treasury for transaction fees.
+- **40% to Top 10 ELO Players:** Weighted distribution based on rank (Rank 1 gets 20%, Rank 10 gets 2%)
+- **40% to Top 10 Survival Players:** Weighted distribution based on rank (Rank 1 gets 20%, Rank 10 gets 2%)
+- **20% to Project Wallet:** Supports ongoing development and operations
+- **Minimum Reserve:** Always keeps at least 10 KAS in treasury for transaction fees
+
+#### Distribution Weights
+Rewards are distributed using a **rank-based weighted system** that favors higher placement:
+
+| Rank | Share Weight | % of Pool (with 10 players) | % of Pool (with 2 players) |
+|------|--------------|-----------------------------|-----------------------------|
+| 1st  | 20 shares    | 20%                         | 55.6%                       |
+| 2nd  | 16 shares    | 16%                         | 44.4%                       |
+| 3rd  | 14 shares    | 14%                         | —                           |
+| 4th  | 12 shares    | 12%                         | —                           |
+| 5th  | 10 shares    | 10%                         | —                           |
+| 6th  | 9 shares     | 9%                          | —                           |
+| 7th  | 7 shares     | 7%                          | —                           |
+| 8th  | 6 shares     | 6%                          | —                           |
+| 9th  | 4 shares     | 4%                          | —                           |
+| 10th | 2 shares     | 2%                          | —                           |
+
+**Dynamic Scaling:** If fewer than 10 players are on a leaderboard, the shares are recalculated proportionally to ensure **100% of the pool is always distributed**. For example, with only 2 players, Rank 1 receives 55.6% and Rank 2 receives 44.4%.
 
 #### Funding
-- The treasury is funded by a **0.1% fee** on all betting pools and 1 KAS for each cosmetics purchase.
-- Funds are stored in a secure vault address.
-- Distributions are executed on-chain via chained batch transactions for reliability.
+- The treasury is funded by a **0.1% fee** on all betting pools and 1 KAS for each cosmetics purchase
+- Funds are stored in a secure vault address
+- Distributions are executed on-chain via chained batch transactions for reliability
 
 ---
 

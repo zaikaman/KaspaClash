@@ -2,10 +2,14 @@
  * Treasury Distribution Service
  * 
  * Handles weekly distribution of treasury funds to top leaderboard players:
- * - 40% to top 10 ELO rating players
- * - 40% to top 10 Survival mode players
+ * - 40% to top 10 ELO rating players (weighted by rank)
+ * - 40% to top 10 Survival mode players (weighted by rank)
  * - 20% to designated project wallet (network-specific)
  * - Always keep at least 10 KAS in treasury for fees
+ * 
+ * Distribution uses weighted shares based on rank:
+ * Rank 1: 20%, Rank 2: 16%, Rank 3: 14%, Rank 4: 12%, Rank 5: 10%,
+ * Rank 6: 9%, Rank 7: 7%, Rank 8: 6%, Rank 9: 4%, Rank 10: 2%
  * 
  * Runs every Monday at 09:00 via cron job.
  */
@@ -41,6 +45,8 @@ export interface DistributionConfig {
     minDistributionBalance: bigint;
     /** Minimum balance to keep in treasury for fees (sompi) */
     minTreasuryReserve: bigint;
+    /** Share weights for each rank (higher rank = more shares) */
+    rankShareWeights: number[];
 }
 
 export interface DistributionSplit {
@@ -49,8 +55,8 @@ export interface DistributionSplit {
     survivalPoolAmount: bigint;
     projectWalletAmount: bigint;
     treasuryReserveAmount: bigint;
-    perEloPlayerAmount: bigint;
-    perSurvivalPlayerAmount: bigint;
+    /** Total shares for calculating weighted distribution */
+    totalShares: bigint;
 }
 
 export interface PayoutRecord {
@@ -86,6 +92,8 @@ export const DEFAULT_DISTRIBUTION_CONFIG: DistributionConfig = {
     topPlayersCount: 10,
     minDistributionBalance: BigInt(10_00000000), // 10 KAS minimum
     minTreasuryReserve: BigInt(10_00000000), // Keep 10 KAS for fees
+    // Weighted distribution: Rank 1 gets 20 shares, Rank 2 gets 16, etc. (Total: 100 shares)
+    rankShareWeights: [20, 16, 14, 12, 10, 9, 7, 6, 4, 2],
 };
 
 /** Project wallet addresses by network */
@@ -116,14 +124,12 @@ export function calculateDistributionSplit(
     const survivalPoolAmount = (distributableAmount * BigInt(config.survivalPercentage)) / 100n;
     const projectWalletAmount = (distributableAmount * BigInt(config.projectWalletPercentage)) / 100n;
 
-    // Calculate per-player amounts (equal split among top N)
-    const perEloPlayerAmount = eloPoolAmount / BigInt(config.topPlayersCount);
-    const perSurvivalPlayerAmount = survivalPoolAmount / BigInt(config.topPlayersCount);
+    // Calculate total shares for weighted distribution
+    const totalShares = BigInt(config.rankShareWeights.reduce((sum, weight) => sum + weight, 0));
 
-    // Total actually distributed (excluding treasury reserve and rounding dust)
-    const totalDistributed = (perEloPlayerAmount * BigInt(config.topPlayersCount)) +
-        (perSurvivalPlayerAmount * BigInt(config.topPlayersCount)) +
-        projectWalletAmount;
+    // Total actually distributed will be calculated from actual payouts
+    // to account for weighted distribution
+    const totalDistributed = eloPoolAmount + survivalPoolAmount + projectWalletAmount;
 
     // Treasury reserve is what remains after distribution
     const treasuryReserveAmount = totalBalance - totalDistributed;
@@ -134,9 +140,35 @@ export function calculateDistributionSplit(
         survivalPoolAmount,
         projectWalletAmount,
         treasuryReserveAmount,
-        perEloPlayerAmount,
-        perSurvivalPlayerAmount,
+        totalShares,
     };
+}
+
+/**
+ * Calculate payout amount for a specific rank using weighted shares.
+ * Dynamically calculates total shares based on actual number of players,
+ * so if there are only 2 players, the pool is still fully distributed.
+ */
+export function calculateRankPayout(
+    poolAmount: bigint,
+    rank: number,
+    playerCount: number,
+    config: DistributionConfig
+): bigint {
+    const rankIndex = rank - 1; // Convert to 0-based index
+    if (rankIndex < 0 || rankIndex >= config.rankShareWeights.length || rankIndex >= playerCount) {
+        return 0n;
+    }
+
+    const shares = BigInt(config.rankShareWeights[rankIndex]);
+    // Only sum shares for the actual number of players present
+    const totalShares = BigInt(
+        config.rankShareWeights
+            .slice(0, playerCount)
+            .reduce((sum, weight) => sum + weight, 0)
+    );
+    
+    return (poolAmount * shares) / totalShares;
 }
 
 /**
@@ -391,8 +423,9 @@ export async function processWeeklyDistribution(
         console.log(`  - Survival pool: ${sompiToKas(split.survivalPoolAmount)} KAS`);
         console.log(`  - Project wallet: ${sompiToKas(split.projectWalletAmount)} KAS`);
         console.log(`  - Treasury reserve: ${sompiToKas(split.treasuryReserveAmount)} KAS`);
-        console.log(`  - Per ELO player: ${sompiToKas(split.perEloPlayerAmount)} KAS`);
-        console.log(`  - Per Survival player: ${sompiToKas(split.perSurvivalPlayerAmount)} KAS`);
+        console.log(`  - Weighted distribution (shares for 10 players):`);
+        console.log(`    Rank 1: ${sompiToKas(calculateRankPayout(split.eloPoolAmount, 1, 10, config))} KAS (${config.rankShareWeights[0]} shares)`);
+        console.log(`    Rank 10: ${sompiToKas(calculateRankPayout(split.eloPoolAmount, 10, 10, config))} KAS (${config.rankShareWeights[9]} shares)`);
 
         // Step 4: Get top players (filtered by network)
         const topEloPlayers = await getTopEloPlayersForDistribution(config.topPlayersCount, network);
@@ -413,11 +446,12 @@ export async function processWeeklyDistribution(
         // Add ELO payouts
         console.log(`[TreasuryService] Preparing ELO payouts...`);
         for (const player of topEloPlayers) {
-            if (split.perEloPlayerAmount <= 0n) continue;
+            const payoutAmount = calculateRankPayout(split.eloPoolAmount, player.rank, topEloPlayers.length, config);
+            if (payoutAmount <= 0n) continue;
 
             const payoutRecord: PayoutRecord = {
                 playerAddress: player.address,
-                amount: split.perEloPlayerAmount,
+                amount: payoutAmount,
                 leaderboardType: "elo",
                 rank: player.rank,
                 displayName: player.displayName,
@@ -426,7 +460,7 @@ export async function processWeeklyDistribution(
 
             allPayoutTargets.push({
                 toAddress: player.address,
-                amountSompi: split.perEloPlayerAmount,
+                amountSompi: payoutAmount,
                 reason: `ELO Distribution Rank #${player.rank}`,
             });
         }
@@ -434,11 +468,12 @@ export async function processWeeklyDistribution(
         // Add Survival payouts
         console.log(`[TreasuryService] Preparing Survival payouts...`);
         for (const player of topSurvivalPlayers) {
-            if (split.perSurvivalPlayerAmount <= 0n) continue;
+            const payoutAmount = calculateRankPayout(split.survivalPoolAmount, player.rank, topSurvivalPlayers.length, config);
+            if (payoutAmount <= 0n) continue;
 
             const payoutRecord: PayoutRecord = {
                 playerAddress: player.address,
-                amount: split.perSurvivalPlayerAmount,
+                amount: payoutAmount,
                 leaderboardType: "survival",
                 rank: player.rank,
                 displayName: player.displayName,
@@ -447,7 +482,7 @@ export async function processWeeklyDistribution(
 
             allPayoutTargets.push({
                 toAddress: player.address,
-                amountSompi: split.perSurvivalPlayerAmount,
+                amountSompi: payoutAmount,
                 reason: `Survival Distribution Rank #${player.rank}`,
             });
         }
