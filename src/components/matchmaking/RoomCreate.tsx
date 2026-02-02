@@ -10,6 +10,7 @@ import { ClashShardsIcon } from "@/components/currency/ClashShardsIcon";
 import { useWallet } from "@/hooks/useWallet";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import { authenticatedPost } from "@/lib/api/client";
 
 // Quick stake amounts in KAS
 const QUICK_STAKES = [1, 5, 10, 25, 50, 100];
@@ -100,21 +101,19 @@ export default function RoomCreate({ onRoomCreated, onCancel }: RoomCreateProps)
     setError(null);
 
     try {
-      const response = await fetch("/api/matchmaking/rooms", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const data = await authenticatedPost<{
+        success: boolean;
+        matchId: string;
+        roomCode: string;
+      }>(
+        "/api/matchmaking/rooms",
+        address,
+        {
           address,
           stakeAmount: stakeValue,
-        }),
-      });
+        }
+      );
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error?.message || "Failed to create room");
-      }
-
-      const data = await response.json();
       setRoomCode(data.roomCode);
       setMatchId(data.matchId);
       setCreatedStakeAmount(stakeValue || null);

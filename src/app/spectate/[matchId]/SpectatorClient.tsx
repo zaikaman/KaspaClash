@@ -74,6 +74,10 @@ export function SpectatorClient({ match }: SpectatorClientProps) {
         winnerName: string;
     } | null>(null);
 
+    // Match cancelled notification state
+    const [showCancelledNotification, setShowCancelledNotification] = useState(false);
+    const [cancelledBetAmount, setCancelledBetAmount] = useState<number | null>(null);
+
     // Real-time balance polling
     useEffect(() => {
         if (address && refreshBalance) {
@@ -163,6 +167,8 @@ export function SpectatorClient({ match }: SpectatorClientProps) {
                                 prediction: foundBet.predicted_winner,
                             };
                             console.log("[SpectatorClient] Found user bet:", userBet);
+                            // Set bet amount for notification
+                            setCancelledBetAmount(sompiToKas(BigInt(foundBet.amount)));
                         } else {
                             console.log("[SpectatorClient] No bet found for user");
                         }
@@ -171,6 +177,9 @@ export function SpectatorClient({ match }: SpectatorClientProps) {
             } catch (error) {
                 console.error("[SpectatorClient] Error fetching bet info:", error);
             }
+
+            // Show cancellation notification
+            setShowCancelledNotification(true);
 
             // Always emit with or without bet info
             const enhancedPayload = {
@@ -371,6 +380,61 @@ export function SpectatorClient({ match }: SpectatorClientProps) {
                     winnerName={winningNotification.winnerName}
                     onClose={() => setWinningNotification(null)}
                 />
+            )}
+
+            {/* Match Cancelled Notification */}
+            {showCancelledNotification && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+                    <div className="relative max-w-md w-full mx-4 p-8 bg-gradient-to-br from-red-900/90 to-black/90 border-2 border-red-500/50 rounded-lg shadow-2xl">
+                        {/* Warning Icon */}
+                        <div className="flex justify-center mb-6">
+                            <div className="w-20 h-20 rounded-full bg-red-500/20 border-2 border-red-500 flex items-center justify-center">
+                                <svg className="w-12 h-12 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
+                        </div>
+
+                        {/* Title */}
+                        <h2 className="text-3xl font-bold font-orbitron text-center text-red-500 mb-4 tracking-wider uppercase">
+                            Match Cancelled
+                        </h2>
+
+                        {/* Message */}
+                        <p className="text-center text-white mb-2 font-orbitron text-lg">
+                            This match has been cancelled.
+                        </p>
+
+                        {/* Refund Information */}
+                        {cancelledBetAmount !== null && (
+                            <div className="my-6 p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+                                <p className="text-center text-green-400 mb-2 font-orbitron">
+                                    Your bet will be refunded shortly
+                                </p>
+                                <p className="text-center text-2xl font-bold text-cyber-gold font-orbitron">
+                                    {cancelledBetAmount.toFixed(4)} KAS
+                                </p>
+                            </div>
+                        )}
+
+                        {!cancelledBetAmount && (
+                            <p className="text-center text-cyber-gray mb-6 font-orbitron">
+                                Any bets placed will be refunded.
+                            </p>
+                        )}
+
+                        {/* Action Button */}
+                        <button
+                            onClick={() => {
+                                setShowCancelledNotification(false);
+                                window.location.href = "/matchmaking";
+                            }}
+                            className="w-full py-3 px-6 bg-gradient-to-r from-cyber-gold to-yellow-600 text-black font-bold font-orbitron text-lg rounded-lg hover:from-yellow-600 hover:to-cyber-gold transition-all duration-300 shadow-lg hover:shadow-cyber-gold/50 uppercase tracking-wider"
+                        >
+                            Return to Matchmaking
+                        </button>
+                    </div>
+                </div>
             )}
         </div>
     );

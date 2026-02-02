@@ -8,6 +8,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Loading03Icon } from "@hugeicons/core-free-icons";
 import { ClashShardsIcon } from "@/components/currency/ClashShardsIcon";
 import { useWallet } from "@/hooks/useWallet";
+import { authenticatedPost } from "@/lib/api/client";
 
 interface RoomJoinProps {
   onJoined?: (matchId: string, stakeAmountSompi?: string) => void;
@@ -45,18 +46,17 @@ export default function RoomJoin({ onJoined, onCancel }: RoomJoinProps) {
     setError(null);
 
     try {
-      const response = await fetch("/api/matchmaking/rooms/join", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address, roomCode }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error?.message || "Failed to join room");
-      }
-
-      const data = await response.json();
+      const data = await authenticatedPost<{
+        success: boolean;
+        matchId: string;
+        hostAddress: string;
+        stakeAmount?: string;
+        stakeDeadlineAt?: string;
+      }>(
+        "/api/matchmaking/rooms/join",
+        address,
+        { address, roomCode }
+      );
 
       // If this room has stakes, show preview and pass to callback
       // The parent component will handle showing the StakeDeposit screen
