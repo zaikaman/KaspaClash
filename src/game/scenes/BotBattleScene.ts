@@ -290,9 +290,10 @@ export class BotBattleScene extends Phaser.Scene {
             // Update server time offset
             this.serverTimeOffset = data.serverTime - Date.now();
 
-            // If betting is still open, no need to resync game state
+            // If betting is still open, reschedule match start with correct remaining time
             if (data.bettingStatus.isOpen) {
-                console.log('[BotBattleScene] Still in betting phase, no game resync needed');
+                console.log('[BotBattleScene] Still in betting phase, rescheduling match start with', data.bettingStatus.secondsRemaining, 'seconds remaining');
+                this.rescheduleMatchStart(data.bettingStatus.secondsRemaining);
                 return;
             }
 
@@ -379,7 +380,11 @@ export class BotBattleScene extends Phaser.Scene {
 
         // Check if we're still in betting window
         if (now < this.matchStartTime) {
-            console.log("[BotBattleScene] Still in betting window, no resync needed");
+            // Calculate remaining time and reschedule match start
+            const remainingMs = this.matchStartTime - now;
+            const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+            console.log("[BotBattleScene] Still in betting window, rescheduling match start with", remainingSeconds, "seconds remaining");
+            this.rescheduleMatchStart(remainingSeconds);
             return;
         }
 
@@ -822,6 +827,34 @@ export class BotBattleScene extends Phaser.Scene {
         });
     }
 
+    /**
+     * Reschedule match start when returning from tab switch during betting phase.
+     * Phaser timers pause when tab is hidden, so we need to cancel and reschedule
+     * with the correct remaining time from the server.
+     */
+    private rescheduleMatchStart(secondsRemaining: number): void {
+        // Don't reschedule if playback already started
+        if (this.isPlaying) {
+            console.log('[BotBattleScene] Playback already started, skipping reschedule');
+            return;
+        }
+
+        // Cancel any existing scheduled events (including the original scheduleMatchStart timer)
+        this.time.removeAllEvents();
+
+        if (secondsRemaining <= 0) {
+            // Betting just ended, start immediately
+            console.log('[BotBattleScene] Betting ended, starting playback immediately');
+            this.startPlayback();
+        } else {
+            // Reschedule with correct remaining time
+            console.log('[BotBattleScene] Rescheduling match start in', secondsRemaining, 'seconds');
+            this.time.delayedCall(secondsRemaining * 1000, () => {
+                this.startPlayback();
+            });
+        }
+    }
+
     // ==========================================================================
     // PLAYBACK
     // ==========================================================================
@@ -1256,6 +1289,11 @@ export class BotBattleScene extends Phaser.Scene {
                             if (turn.roundWinner === "player1") this.bot1RoundsWon++;
                             else this.bot2RoundsWon++;
 
+                            // Update score display immediately (for both match end and non-match end)
+                            this.roundScoreText.setText(
+                                `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`
+                            );
+
                             // Wait for death animation (1.5s)
                             await new Promise<void>((resolve) => this.time.delayedCall(1500, resolve));
 
@@ -1271,6 +1309,7 @@ export class BotBattleScene extends Phaser.Scene {
                                 await new Promise<void>((resolve) => this.time.delayedCall(3000, resolve));
 
                                 this.currentRound++;
+                                // Update round number in display (score was already updated above)
                                 this.roundScoreText.setText(
                                     `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`
                                 );
