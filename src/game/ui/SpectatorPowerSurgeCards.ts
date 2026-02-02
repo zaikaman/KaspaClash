@@ -21,6 +21,7 @@ import type {
 import {
   getPowerSurgeCard,
 } from "@/types/power-surge";
+import { PowerSurgeCardView } from "./PowerSurgeCardView";
 
 // =============================================================================
 // CONSTANTS
@@ -85,7 +86,7 @@ export class SpectatorPowerSurgeCards {
   private speedMultiplier: number;
   private player1Label: string;
   private player2Label: string;
-  
+
   // Mini cards that float above characters
   private player1MiniCard: Phaser.GameObjects.Container | null = null;
   private player2MiniCard: Phaser.GameObjects.Container | null = null;
@@ -191,7 +192,7 @@ export class SpectatorPowerSurgeCards {
       const y = 20;
 
       const container = this.createSingleCard(card, x, y, index);
-      
+
       const isP1Selection = card.id === this.config.player1Selection;
       const isP2Selection = card.id === this.config.player2Selection;
 
@@ -321,7 +322,7 @@ export class SpectatorPowerSurgeCards {
 
     // Step 3: After cards are shown, highlight selections
     const totalCardEntryTime = 200 + (this.cardDisplays.length - 1) * CARD_ENTRY_STAGGER + CARD_ENTRY_DURATION;
-    
+
     this.scene.time.delayedCall(this.getScaledDuration(totalCardEntryTime + SELECTION_REVEAL_DELAY), () => {
       if (this.isDestroyed) return;
       this.revealSelections();
@@ -431,7 +432,7 @@ export class SpectatorPowerSurgeCards {
   private addSelectionGlow(display: CardDisplay): void {
     // Create pulsing glow border
     const glowColor = display.card.glowColor;
-    
+
     // Scale up slightly
     this.scene.tweens.add({
       targets: display.container,
@@ -511,7 +512,7 @@ export class SpectatorPowerSurgeCards {
     // Fade out the main card display
     this.scene.time.delayedCall(this.getScaledDuration(MINI_CARD_MOVE_DURATION / 2), () => {
       if (this.isDestroyed) return;
-      
+
       this.scene.tweens.add({
         targets: [this.backgroundBlocker, this.mainContainer],
         alpha: 0,
@@ -584,41 +585,22 @@ export class SpectatorPowerSurgeCards {
   }
 
   private createMiniCard(card: PowerSurgeCard, label: string): Phaser.GameObjects.Container {
-    const container = this.scene.add.container(0, 0);
-
-    const width = MINI_CARD_WIDTH;
-    const height = MINI_CARD_HEIGHT;
-
-    // 1. Background with glow
-    const bg = this.scene.add.graphics();
-    bg.fillStyle(0x1a1a2e, 0.95);
-    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 12);
-    bg.lineStyle(3, card.glowColor, 1);
-    bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 12);
-    container.add(bg);
-
-    // 2. Card Image
-    if (this.scene.textures.exists(card.iconKey)) {
-      const img = this.scene.add.image(0, -20, card.iconKey);
-      img.setDisplaySize(width - 10, width - 10); // Square-ish image at top
-      container.add(img);
-    }
-
-    // 3. Card Name at bottom
-    const nameText = this.scene.add.text(0, 50, card.name, {
-      fontFamily: "monospace",
-      fontSize: "16px",
-      color: "#ffffff",
-      align: "center",
-      wordWrap: { width: width - 10 },
-      fontStyle: "bold",
+    // Use PowerSurgeCardView for unified design (matches selection phase)
+    // Scale: 140 / 200 = 0.7
+    const container = PowerSurgeCardView.create({
+      scene: this.scene,
+      card,
+      x: 0,
+      y: 0,
+      scale: 0.7
     });
-    nameText.setOrigin(0.5);
-    container.add(nameText);
 
-    // 4. Player label above card
+    // Add Player label above card
+    // Note: PowerSurgeCardView is 200x300 at scale 1.
+    // At scale 0.7, visual height is ~210.
+    // View centers content at 0,0.
     const labelColor = label === this.player1Label ? "#ff6b35" : "#40e0d0";
-    const labelText = this.scene.add.text(0, -height / 2 - 20, label, {
+    const labelText = this.scene.add.text(0, -PowerSurgeCardView.CARD_HEIGHT / 2 - 20, label, {
       fontFamily: "monospace",
       fontSize: "20px",
       color: labelColor,
@@ -704,7 +686,7 @@ export class SpectatorPowerSurgeCards {
     // Destroy containers
     this.mainContainer.destroy();
     this.backgroundBlocker.destroy();
-    
+
     if (this.player1MiniCard) {
       this.player1MiniCard.destroy();
       this.player1MiniCard = null;

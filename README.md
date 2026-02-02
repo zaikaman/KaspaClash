@@ -76,8 +76,8 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 ## ✨ Key Features
 
 ### 🎮 Core Gameplay
-- **Turn-Based Combat System:** Strategic rock-paper-scissors style fighting where **every move is a Kaspa transaction that is verified and confirmed in a block before the round resolves**—the game literally waits for blockchain confirmation (typically ~1 second with Kaspa's 10 BPS)
-- **Power Surge Cards:** Choose from 3 random round boosts at the start of each round (15 unique cards, 1 KAS per selection). Balanced effects with strategic trade-offs—no auto-pick legendaries
+- **Turn-Based Combat System:** Strategic rock-paper-scissors style fighting where **every move is a Kaspa transaction that is verified and confirmed in a block before the turn resolves**—the game literally waits for blockchain confirmation (typically ~1 second with Kaspa's 10 BPS)
+- **Power Surge Cards:** Choose from 3 random round boosts at the start of each round (15 unique cards). Balanced effects with strategic trade-offs—no auto-pick legendaries. Each card selection is also a Kaspa transaction that is verified and confirmed in a block before confirming on the UI.
 - **20 Unique Characters:** Diverse roster with **Tier-Based Scaling** (Common to Legendary). Higher tiers possess reinforced stats and stronger counters.
 - **Multiple Game Modes:**
   - **Ranked Matchmaking:** ELO-based competitive queue with a **30-second failover to Smart Bots** to ensure near-instant entry into combat.

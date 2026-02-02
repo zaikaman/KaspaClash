@@ -18,6 +18,7 @@ import { getRandomPowerSurgeCards, getPowerSurgeCard } from "@/types/power-surge
 import { SmartBotOpponent } from "@/lib/game/smart-bot-opponent";
 import type { MoveType, PlayerRole } from "@/types";
 import type { CombatState } from "../combat";
+import { PowerSurgeCardView } from "../ui/PowerSurgeCardView";
 
 /**
  * Fight scene configuration.
@@ -4620,47 +4621,24 @@ export class FightScene extends Phaser.Scene {
     if (!targetSprite) return;
 
     // Create container above character
-    const container = this.add.container(targetSprite.x, targetSprite.y - 280);
+    // Use PowerSurgeCardView for unified design
+    const container = PowerSurgeCardView.create({
+      scene: this,
+      card,
+      x: targetSprite.x,
+      y: targetSprite.y - 280,
+      scale: 0.7, // Slightly smaller than selection screen
+    });
+
     container.setDepth(2000); // Higher than standard UI but lower than overlays
     container.setScale(0); // Start hidden for pop-up
 
-    // Card dimensions
-    const width = 140;
-    const height = 200;
-
-    // 1. Background with glow
-    const bg = this.add.graphics();
-    bg.fillStyle(0x1a1a2e, 0.95);
-    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 12);
-    bg.lineStyle(3, card.glowColor, 1);
-    bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 12);
-    container.add(bg);
-
-    // 2. Card Image
-    if (this.textures.exists(card.iconKey)) {
-      const img = this.add.image(0, -20, card.iconKey);
-      img.setDisplaySize(width - 10, width - 10); // Square-ish image at top
-      container.add(img);
-    }
-
-    // 3. Text Name
-    const nameText = this.add.text(0, 50, card.name, {
-      fontFamily: "monospace",
-      fontSize: "16px",
-      color: "#ffffff",
-      align: "center",
-      wordWrap: { width: width - 10 },
-      fontStyle: "bold",
-    });
-    nameText.setOrigin(0.5);
-    container.add(nameText);
-
-    // 4. "OPPONENT SURGE" or "YOUR SURGE" label
+    // "OPPONENT SURGE" or "YOUR SURGE" label
     const isOpponent = player !== this.config.playerRole;
     const labelText = isOpponent ? "OPPONENT SURGE" : "YOUR SURGE";
     const labelColor = isOpponent ? "#ff4444" : "#22c55e";
 
-    const label = this.add.text(0, -height / 2 - 20, labelText, {
+    const label = this.add.text(0, -PowerSurgeCardView.CARD_HEIGHT / 2 - 30, labelText, {
       fontFamily: "monospace",
       fontSize: "20px",
       color: labelColor,
@@ -4674,8 +4652,8 @@ export class FightScene extends Phaser.Scene {
     // Animation: Pop in
     this.tweens.add({
       targets: container,
-      scaleX: 1,
-      scaleY: 1,
+      scaleX: 0.7, // Target scale (must match creation scale)
+      scaleY: 0.7,
       duration: 500,
       ease: "Back.easeOut",
       onComplete: () => {
@@ -4782,7 +4760,7 @@ export class FightScene extends Phaser.Scene {
     // Clear any visual tints
     this.player1Sprite.clearTint();
     this.player2Sprite.clearTint();
-    
+
     // CRITICAL: Stop any active stun tweens to prevent visual stun persisting
     this.toggleStunEffect("player1", false);
     this.toggleStunEffect("player2", false);

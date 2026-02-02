@@ -14,6 +14,7 @@ import { SmartBotOpponent } from "@/lib/game/smart-bot-opponent";
 import { getAIThinkTime } from "@/lib/game/ai-difficulty";
 import { OfflinePowerSurgeCards } from "@/game/ui/OfflinePowerSurgeCards";
 import type { PowerSurgeCardId } from "@/types/power-surge";
+import { PowerSurgeCardView } from "../ui/PowerSurgeCardView";
 import { getRandomPowerSurgeCards, getPowerSurgeCard } from "@/types/power-surge";
 
 // For backward compatibility with difficulty settings
@@ -1223,7 +1224,8 @@ export class PracticeScene extends Phaser.Scene {
   }
 
   /**
-   * Show a brief visual reveal of a surge card selection.
+   * Show a card reveal popup above the character's head.
+   * Replaces the old text-only reveal.
    */
   private showSurgeCardReveal(player: "player1" | "player2", cardId: PowerSurgeCardId): void {
     const card = getPowerSurgeCard(cardId);
@@ -1233,47 +1235,25 @@ export class PracticeScene extends Phaser.Scene {
     if (!targetSprite) return;
 
     // Create container above character
-    const container = this.add.container(targetSprite.x, targetSprite.y - 280);
+    // Use PowerSurgeCardView for unified design
+    const container = PowerSurgeCardView.create({
+      scene: this,
+      card,
+      x: targetSprite.x,
+      y: targetSprite.y - 280,
+      scale: 0.7,
+    });
+
     container.setDepth(2000); // Higher than standard UI but lower than overlays
     container.setScale(0); // Start hidden for pop-up
 
-    // Card dimensions
-    const width = 140;
-    const height = 200;
+    // "OPPONENT SURGE" or "YOUR SURGE" label
+    // In practice mode, "OPPONENT" is AI.
+    const isOpponent = player === "player2";
+    const labelText = isOpponent ? "AI SURGE" : "YOUR SURGE"; // Custom label for AI
+    const labelColor = isOpponent ? "#40e0d0" : "#22c55e";
 
-    // 1. Background with glow
-    const bg = this.add.graphics();
-    bg.fillStyle(0x1a1a2e, 0.95);
-    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 12);
-    bg.lineStyle(3, card.glowColor, 1);
-    bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 12);
-    container.add(bg);
-
-    // 2. Card Image
-    if (this.textures.exists(card.iconKey)) {
-      const img = this.add.image(0, -20, card.iconKey);
-      img.setDisplaySize(width - 10, width - 10); // Square-ish image at top
-      container.add(img);
-    }
-
-    // 3. Text Name
-    const nameText = this.add.text(0, 50, card.name, {
-      fontFamily: "monospace",
-      fontSize: "16px",
-      color: "#ffffff",
-      align: "center",
-      wordWrap: { width: width - 10 },
-      fontStyle: "bold",
-    });
-    nameText.setOrigin(0.5);
-    container.add(nameText);
-
-    // 4. "AI SURGE" or "YOUR SURGE" label
-    const isPlayer = player === "player1";
-    const labelText = isPlayer ? "YOUR SURGE" : "AI SURGE";
-    const labelColor = isPlayer ? "#22c55e" : "#ff4444";
-
-    const label = this.add.text(0, -height / 2 - 20, labelText, {
+    const label = this.add.text(0, -PowerSurgeCardView.CARD_HEIGHT / 2 - 30, labelText, {
       fontFamily: "monospace",
       fontSize: "20px",
       color: labelColor,
@@ -1287,8 +1267,8 @@ export class PracticeScene extends Phaser.Scene {
     // Animation: Pop in
     this.tweens.add({
       targets: container,
-      scaleX: 1,
-      scaleY: 1,
+      scaleX: 0.7,
+      scaleY: 0.7,
       duration: 500,
       ease: "Back.easeOut",
       onComplete: () => {
@@ -1307,7 +1287,6 @@ export class PracticeScene extends Phaser.Scene {
         });
       },
     });
-
     // Apply surge visual effect to sprite
     this.applySurgeVisualEffect(player, card);
   }
@@ -1754,7 +1733,7 @@ export class PracticeScene extends Phaser.Scene {
                 this.showFloatingText("DODGE!", p2OriginalX - 50, CHARACTER_POSITIONS.PLAYER2.Y - 130, "#8800ff");
               });
             }
-            
+
             // Show energy drain effect from surge (e.g., GhostDAG, Vaultbreaker)
             if (turnResult.player2.energyDrained && turnResult.player2.energyDrained > 0) {
               this.time.delayedCall(500, () => {
@@ -1839,7 +1818,7 @@ export class PracticeScene extends Phaser.Scene {
                 this.showFloatingText("DODGE!", p1OriginalX + 50, CHARACTER_POSITIONS.PLAYER1.Y - 130, "#8800ff");
               });
             }
-            
+
             // Show energy drain effect from surge (e.g., GhostDAG, Vaultbreaker)
             if (turnResult.player1.energyDrained && turnResult.player1.energyDrained > 0) {
               this.time.delayedCall(500, () => {
@@ -2024,7 +2003,7 @@ export class PracticeScene extends Phaser.Scene {
       // Both players dead - play death animation on both
       const p1DeadScale = getAnimationScale(this.playerCharacter.id, "dead");
       const p2DeadScale = getAnimationScale(this.aiCharacter.id, "dead");
-      
+
       if (this.anims.exists(`${this.playerCharacter.id}_dead`)) {
         this.player1Sprite.setScale(p1DeadScale);
         this.player1Sprite.play(`${this.playerCharacter.id}_dead`);
