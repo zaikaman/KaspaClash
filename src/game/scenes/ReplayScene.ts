@@ -1354,8 +1354,27 @@ export class ReplayScene extends Phaser.Scene {
 
     // Determine winner
     const winnerIsP1 = this.config.winnerAddress === this.config.player1Address;
+
+    // Victory celebration jump animation for the winner
+    const winnerSprite = winnerIsP1 ? this.player1Sprite : this.player2Sprite;
+    this.tweens.add({
+      targets: winnerSprite,
+      y: winnerSprite.y - 30,
+      duration: 500,
+      yoyo: true,
+      repeat: 2,
+      ease: "Sine.easeOut",
+    });
+
     const winnerText = winnerIsP1 ? "PLAYER 1 WINS!" : "PLAYER 2 WINS!";
 
+    // Delay showing overlay to let victory animation complete
+    this.time.delayedCall(5000, () => {
+      this.showReplayCompleteOverlay(winnerText);
+    });
+  }
+
+  private showReplayCompleteOverlay(winnerText: string): void {
     // Create overlay
     const overlay = this.add.rectangle(
       GAME_DIMENSIONS.CENTER_X,

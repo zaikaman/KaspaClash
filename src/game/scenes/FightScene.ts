@@ -2344,6 +2344,17 @@ export class FightScene extends Phaser.Scene {
       playEndAnim(this.player1Sprite, p1Char, "dead");
       playEndAnim(this.player2Sprite, p2Char, "victory");
     }
+
+    // Victory celebration jump animation for the winner
+    const winnerSprite = winner === "player1" ? this.player1Sprite : this.player2Sprite;
+    this.tweens.add({
+      targets: winnerSprite,
+      y: winnerSprite.y - 30,
+      duration: 500,
+      yoyo: true,
+      repeat: 2,
+      ease: "Sine.easeOut",
+    });
   }
 
   /**

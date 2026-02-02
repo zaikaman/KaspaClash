@@ -65,6 +65,17 @@ const DEFAULT_WEIGHTS: MoveWeights = {
 const MOVE_TYPES: MoveType[] = ["punch", "kick", "block", "special"];
 
 /**
+ * Energy costs for moves.
+ */
+const ENERGY_COSTS: Record<MoveType, number> = {
+  punch: 0,
+  kick: 25,
+  block: 0,
+  special: 50,
+  stunned: 0,
+};
+
+/**
  * Counter moves - what beats what.
  */
 const COUNTER_MOVES: Record<MoveType, MoveType> = {
@@ -142,17 +153,23 @@ export class AIOpponent {
   decide(): AIDecision {
     // CRITICAL: Always punish stunned opponent with maximum damage
     if (this.context.playerIsStunned) {
-      if (this.context.aiEnergy >= 3) {
+      if (this.context.aiEnergy >= ENERGY_COSTS.special) {
         return {
           move: "special",
           confidence: 1.0,
           reasoning: "OPPONENT STUNNED: FINISH THEM!",
         };
-      } else {
+      } else if (this.context.aiEnergy >= ENERGY_COSTS.kick) {
         return {
           move: "kick",
           confidence: 0.9,
           reasoning: "OPPONENT STUNNED: Heavy hit (no energy for special)",
+        };
+      } else {
+        return {
+          move: "punch",
+          confidence: 0.85,
+          reasoning: "OPPONENT STUNNED: Punish (no energy for heavy moves)",
         };
       }
     }
@@ -199,12 +216,14 @@ export class AIOpponent {
 
     // React to player patterns
     if (this.context.consecutivePlayerBlocks >= 2) {
-      // Player is defensive, use kick to break blocks
-      return {
-        move: "kick",
-        confidence: 0.7,
-        reasoning: "Medium: Breaking block pattern",
-      };
+      // Player is defensive, use kick to break blocks (if we can afford it)
+      if (this.canAffordMove("kick")) {
+        return {
+          move: "kick",
+          confidence: 0.7,
+          reasoning: "Medium: Breaking block pattern",
+        };
+      }
     }
 
     if (this.context.consecutivePlayerAttacks >= 2) {
@@ -219,7 +238,7 @@ export class AIOpponent {
     // Counter last player move
     if (this.context.lastPlayerMove) {
       const counter = COUNTER_MOVES[this.context.lastPlayerMove];
-      if (Math.random() < 0.5) {
+      if (Math.random() < 0.5 && this.canAffordMove(counter)) {
         return {
           move: counter,
           confidence: 0.6,
@@ -266,7 +285,7 @@ export class AIOpponent {
     }
 
     // React to consecutive patterns
-    if (this.context.consecutivePlayerBlocks >= 2) {
+    if (this.context.consecutivePlayerBlocks >= 2 && this.canAffordMove("kick")) {
       return {
         move: "kick",
         confidence: 0.85,
@@ -287,7 +306,7 @@ export class AIOpponent {
     if (this.context.lastPlayerMove) {
       // Players often repeat moves - counter with high probability
       const counter = COUNTER_MOVES[this.context.lastPlayerMove];
-      if (Math.random() < 0.6) {
+      if (Math.random() < 0.6 && this.canAffordMove(counter)) {
         return {
           move: counter,
           confidence: 0.75,
@@ -297,7 +316,7 @@ export class AIOpponent {
     }
 
     // Mix in special moves occasionally when advantageous
-    if (this.context.aiHealth > 50 && Math.random() < 0.25) {
+    if (this.context.aiHealth > 50 && Math.random() < 0.25 && this.canAffordMove("special")) {
       return {
         move: "special",
         confidence: 0.65,
@@ -316,10 +335,26 @@ export class AIOpponent {
   }
 
   /**
-   * Select a completely random move.
+   * Check if AI can afford a move based on energy.
+   */
+  private canAffordMove(move: MoveType): boolean {
+    return this.context.aiEnergy >= ENERGY_COSTS[move];
+  }
+
+  /**
+   * Select a completely random move (that can be afforded).
    */
   private randomMove(): AIDecision {
-    const move = MOVE_TYPES[Math.floor(Math.random() * MOVE_TYPES.length)];
+    const affordableMoves = MOVE_TYPES.filter(move => this.canAffordMove(move));
+    if (affordableMoves.length === 0) {
+      // Fallback to punch if no moves affordable (shouldn't happen)
+      return {
+        move: "punch",
+        confidence: 0.25,
+        reasoning: "Random selection (forced punch)",
+      };
+    }
+    const move = affordableMoves[Math.floor(Math.random() * affordableMoves.length)];
     return {
       move,
       confidence: 0.25,
@@ -328,20 +363,41 @@ export class AIOpponent {
   }
 
   /**
-   * Select move based on weights.
+   * Select move based on weights (only considering affordable moves).
    */
   private weightedMove(
     weights: MoveWeights,
     confidence: number,
     reasoning: string
   ): AIDecision {
-    const totalWeight = Object.values(weights).reduce((a, b) => a + b, 0);
+    // Filter out moves that can't be afforded
+    const affordableWeights: Partial<MoveWeights> = {};
+    let totalWeight = 0;
+    
+    for (const move of MOVE_TYPES) {
+      if (this.canAffordMove(move)) {
+        affordableWeights[move] = weights[move];
+        totalWeight += weights[move];
+      }
+    }
+
+    // If no moves are affordable, fallback to punch (free move)
+    if (totalWeight === 0) {
+      return {
+        move: "punch",
+        confidence,
+        reasoning: "Fallback to punch (no energy)",
+      };
+    }
+
     let random = Math.random() * totalWeight;
 
     for (const move of MOVE_TYPES) {
-      random -= weights[move];
-      if (random <= 0) {
-        return { move, confidence, reasoning };
+      if (affordableWeights[move]) {
+        random -= affordableWeights[move];
+        if (random <= 0) {
+          return { move, confidence, reasoning };
+        }
       }
     }
 

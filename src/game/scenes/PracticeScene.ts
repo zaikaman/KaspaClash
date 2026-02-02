@@ -2116,18 +2116,44 @@ export class PracticeScene extends Phaser.Scene {
     const state = this.combatEngine.getState();
     const playerWon = state.matchWinner === "player1";
 
-    // Emit match ended event
-    EventBus.emit("practice_match_ended", {
-      playerWon,
-      playerRoundsWon: state.player1.roundsWon,
-      aiRoundsWon: state.player2.roundsWon,
-      difficulty: this.config.aiDifficulty,
+    // Play SFX
+    const isWin = playerWon;
+    this.playSFX(isWin ? "sfx_victory" : "sfx_defeat");
+
+    // Play dead animation on loser
+    const loser = state.matchWinner === "player1" ? "player2" : "player1";
+    const loserChar = loser === "player1" ? this.playerCharacter.id : this.aiCharacter.id;
+    const loserSprite = loser === "player1" ? this.player1Sprite : this.player2Sprite;
+    const deadScale = getAnimationScale(loserChar, "dead");
+
+    if (this.anims.exists(`${loserChar}_dead`)) {
+      loserSprite.setScale(deadScale);
+      loserSprite.play(`${loserChar}_dead`);
+    }
+
+    // Victory celebration jump animation for the winner
+    const winnerSprite = playerWon ? this.player1Sprite : this.player2Sprite;
+    this.tweens.add({
+      targets: winnerSprite,
+      y: winnerSprite.y - 30,
+      duration: 500,
+      yoyo: true,
+      repeat: 2,
+      ease: "Sine.easeOut",
     });
 
-    // Show result overlay
-    const isWin = playerWon;
-    this.playSFX(isWin ? "sfx_victory" : "sfx_defeat"); // victory.mp3 covers both for now, or use defeat if added
-    this.createMatchResultOverlay(playerWon);
+    // Wait for animations to complete before emitting event and showing overlay
+    this.time.delayedCall(5000, () => {
+      // Emit match ended event after animations complete
+      EventBus.emit("practice_match_ended", {
+        playerWon,
+        playerRoundsWon: state.player1.roundsWon,
+        aiRoundsWon: state.player2.roundsWon,
+        difficulty: this.config.aiDifficulty,
+      });
+
+      this.createMatchResultOverlay(playerWon);
+    });
   }
 
   private createMatchResultOverlay(playerWon: boolean): void {

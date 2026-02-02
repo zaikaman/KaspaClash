@@ -10,7 +10,7 @@ import { GAME_DIMENSIONS, CHARACTER_POSITIONS, UI_POSITIONS } from "@/game/confi
 import { CHAR_SPRITE_CONFIG, getCharacterScale, getAnimationScale, getCharacterYOffset, getSoundDelay, getSFXKey } from "@/game/config/sprite-config";
 import { CombatEngine, BASE_MOVE_STATS } from "@/game/combat";
 import { calculateSurgeEffects, isBlockDisabled } from "@/game/combat/SurgeEffects";
-import { AIOpponent } from "@/lib/game/ai-opponent";
+import { SmartBotOpponent } from "@/lib/game/smart-bot-opponent";
 import { getAIThinkTime } from "@/lib/game/ai-difficulty";
 import { getCharacter, CHARACTER_ROSTER } from "@/data/characters";
 import type { MoveType, Character } from "@/types";
@@ -41,7 +41,7 @@ export class SurvivalScene extends Phaser.Scene {
     private config!: SurvivalSceneConfig;
     private playerCharacter!: Character;
     private currentOpponent!: Character;
-    private ai!: AIOpponent;
+    private ai!: SmartBotOpponent;
 
     // Wave System
     private waves: WaveConfig[] = [];
@@ -136,7 +136,7 @@ export class SurvivalScene extends Phaser.Scene {
         // Set first opponent
         const firstWave = this.waves[0];
         this.currentOpponent = getCharacter(firstWave.characterId) ?? CHARACTER_ROSTER[0];
-        this.ai = new AIOpponent(firstWave.difficulty);
+        this.ai = new SmartBotOpponent();
 
         // Precompute Power Surge decks and AI selections for all waves
         this.precomputePowerSurgeDecks();
@@ -948,6 +948,9 @@ export class SurvivalScene extends Phaser.Scene {
     private startWave(): void {
         this.phase = "countdown";
 
+        // Clear narrative text from previous round
+        this.narrativeText.setText("").setAlpha(0);
+
         // Show Power Surge cards first, then countdown
         this.showPowerSurgeCards(this.currentWave).then(() => {
             this.playSFX("sfx_cd_fight");
@@ -1283,13 +1286,24 @@ export class SurvivalScene extends Phaser.Scene {
             this.time.delayedCall(thinkTime, () => {
                 // Update AI context with stunned state before deciding
                 this.ai.updateContext({
-                    aiHealth: state.player2.hp,
-                    playerHealth: state.player1.hp,
+                    botHealth: state.player2.hp,
+                    botMaxHealth: state.player2.maxHp,
+                    botEnergy: state.player2.energy,
+                    botMaxEnergy: state.player2.maxEnergy,
+                    botGuardMeter: state.player2.guardMeter,
+                    botIsStunned: state.player2.isStunned || false,
+                    botIsStaggered: state.player2.isStaggered || false,
+                    opponentHealth: state.player1.hp,
+                    opponentMaxHealth: state.player1.maxHp,
+                    opponentEnergy: state.player1.energy,
+                    opponentMaxEnergy: state.player1.maxEnergy,
+                    opponentGuardMeter: state.player1.guardMeter,
+                    opponentIsStunned: true,
+                    opponentIsStaggered: state.player1.isStaggered || false,
                     roundNumber: state.currentRound,
-                    playerRoundsWon: state.player1.roundsWon,
-                    aiRoundsWon: state.player2.roundsWon,
-                    playerIsStunned: true,
-                    aiEnergy: state.player2.energy,
+                    turnNumber: state.currentTurn,
+                    botRoundsWon: state.player2.roundsWon,
+                    opponentRoundsWon: state.player1.roundsWon
                 });
                 const decision = this.ai.decide();
                 const aiMove = decision.move;
@@ -1342,11 +1356,24 @@ export class SurvivalScene extends Phaser.Scene {
         });
 
         this.ai.updateContext({
-            aiHealth: state.player2.hp,
-            playerHealth: state.player1.hp,
+            botHealth: state.player2.hp,
+            botMaxHealth: state.player2.maxHp,
+            botEnergy: state.player2.energy,
+            botMaxEnergy: state.player2.maxEnergy,
+            botGuardMeter: state.player2.guardMeter,
+            botIsStunned: state.player2.isStunned || false,
+            botIsStaggered: state.player2.isStaggered || false,
+            opponentHealth: state.player1.hp,
+            opponentMaxHealth: state.player1.maxHp,
+            opponentEnergy: state.player1.energy,
+            opponentMaxEnergy: state.player1.maxEnergy,
+            opponentGuardMeter: state.player1.guardMeter,
+            opponentIsStunned: state.player1.isStunned || false,
+            opponentIsStaggered: state.player1.isStaggered || false,
             roundNumber: state.currentRound,
-            playerRoundsWon: state.player1.roundsWon,
-            aiRoundsWon: state.player2.roundsWon
+            turnNumber: state.currentTurn,
+            botRoundsWon: state.player2.roundsWon,
+            opponentRoundsWon: state.player1.roundsWon
         });
     }
 
@@ -1412,12 +1439,24 @@ export class SurvivalScene extends Phaser.Scene {
     private aiMakeDecision(): void {
         const state = this.combatEngine.getState();
         this.ai.updateContext({
-            aiHealth: state.player2.hp,
-            playerHealth: state.player1.hp,
+            botHealth: state.player2.hp,
+            botMaxHealth: state.player2.maxHp,
+            botEnergy: state.player2.energy,
+            botMaxEnergy: state.player2.maxEnergy,
+            botGuardMeter: state.player2.guardMeter,
+            botIsStunned: state.player2.isStunned || false,
+            botIsStaggered: state.player2.isStaggered || false,
+            opponentHealth: state.player1.hp,
+            opponentMaxHealth: state.player1.maxHp,
+            opponentEnergy: state.player1.energy,
+            opponentMaxEnergy: state.player1.maxEnergy,
+            opponentGuardMeter: state.player1.guardMeter,
+            opponentIsStunned: state.player1.isStunned || false,
+            opponentIsStaggered: state.player1.isStaggered || false,
             roundNumber: state.currentRound,
-            playerRoundsWon: state.player1.roundsWon,
-            aiRoundsWon: state.player2.roundsWon,
-            aiEnergy: state.player2.energy
+            turnNumber: state.currentTurn,
+            botRoundsWon: state.player2.roundsWon,
+            opponentRoundsWon: state.player1.roundsWon
         });
         const decision = this.ai.decide();
         this.ai.recordPlayerMove(this.selectedMove!);
@@ -1811,20 +1850,32 @@ export class SurvivalScene extends Phaser.Scene {
                 this.player2Sprite.play(`${this.currentOpponent.id}_dead`);
             }
         } else {
-            // Normal round end - play death animation on the loser
+            // Normal round end - loser already has death animation playing from resolveRound
+            // Don't replay it, just identify winner and loser for celebration
             const loser = state.roundWinner === "player1" ? "player2" : "player1";
-            const loserChar = loser === "player1" ? this.playerCharacter.id : this.currentOpponent.id;
-            const loserSprite = loser === "player1" ? this.player1Sprite : this.player2Sprite;
+            const winner = state.roundWinner === "player1" ? "player1" : "player2";
+            const winnerChar = winner === "player1" ? this.playerCharacter.id : this.currentOpponent.id;
+            const winnerSprite = winner === "player1" ? this.player1Sprite : this.player2Sprite;
 
-            // Play dead animation on loser if it exists
-            if (this.anims.exists(`${loserChar}_dead`)) {
-                loserSprite.setScale(getAnimationScale(loserChar, "dead"));
-                loserSprite.play(`${loserChar}_dead`);
+            // Set winner to idle animation before jumping
+            if (this.anims.exists(`${winnerChar}_idle`)) {
+                winnerSprite.setScale(getAnimationScale(winnerChar, "idle"));
+                winnerSprite.play(`${winnerChar}_idle`);
             }
+
+            // Victory celebration jump animation for the winner
+            this.tweens.add({
+                targets: winnerSprite,
+                y: winnerSprite.y - 30,
+                duration: 500,
+                yoyo: true,
+                repeat: 2,
+                ease: "Sine.easeOut",
+            });
         }
 
-        // Wait for death animation to complete (36 frames at 24fps = 1.5s)
-        this.time.delayedCall(1500, () => {
+        // Wait 1s after death animation started, then show result text
+        this.time.delayedCall(1000, () => {
             if (isDraw) {
                 this.countdownText.setText("DRAW - BOTH KO!").setColor("#fbbf24").setAlpha(1);
             } else {
@@ -1899,7 +1950,7 @@ export class SurvivalScene extends Phaser.Scene {
         this.currentWave++;
         const wave = this.waves[this.currentWave - 1];
         this.currentOpponent = getCharacter(wave.characterId) ?? CHARACTER_ROSTER[0];
-        this.ai = new AIOpponent(wave.difficulty);
+        this.ai = new SmartBotOpponent();
         this.combatEngine = new CombatEngine(this.playerCharacter.id, this.currentOpponent.id, "best_of_1");
 
         const tierName = getWaveTierName(this.currentWave);
@@ -1993,9 +2044,35 @@ export class SurvivalScene extends Phaser.Scene {
             waveDetails: this.waveDetails
         };
 
-        EventBus.emit("survival_ended", result);
         this.playSFX(isVictory ? "sfx_victory" : "sfx_defeat");
-        this.createResultOverlay(result);
+
+        // Play dead animation on AI if player lost
+        if (!isVictory) {
+            const deadScale = getAnimationScale(this.currentOpponent.id, "dead");
+            if (this.anims.exists(`${this.playerCharacter.id}_dead`)) {
+                this.player1Sprite.setScale(getAnimationScale(this.playerCharacter.id, "dead"));
+                this.player1Sprite.play(`${this.playerCharacter.id}_dead`);
+            }
+        }
+
+        // Victory celebration jump animation for the player when winning
+        if (isVictory) {
+            this.tweens.add({
+                targets: this.player1Sprite,
+                y: this.player1Sprite.y - 30,
+                duration: 500,
+                yoyo: true,
+                repeat: 2,
+                ease: "Sine.easeOut",
+            });
+        }
+
+        // Delay emitting event and showing overlay to let animations complete
+        const overlayDelay = 5000;
+        this.time.delayedCall(overlayDelay, () => {
+            EventBus.emit("survival_ended", result);
+            this.createResultOverlay(result);
+        });
     }
 
     private createResultOverlay(result: SurvivalResult): void {
