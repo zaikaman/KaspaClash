@@ -9,7 +9,7 @@ import { EventBus } from "@/game/EventBus";
 import { GAME_DIMENSIONS, CHARACTER_POSITIONS, UI_POSITIONS } from "@/game/config";
 import { CHAR_SPRITE_CONFIG, getCharacterScale, getAnimationScale, getCharacterYOffset, getSoundDelay, getSFXKey } from "@/game/config/sprite-config";
 import { CombatEngine, BASE_MOVE_STATS } from "@/game/combat";
-import { calculateSurgeEffects, isBlockDisabled } from "@/game/combat/SurgeEffects";
+import { calculateSurgeEffects, isBlockDisabled, shouldStunOpponent } from "@/game/combat/SurgeEffects";
 import { SmartBotOpponent } from "@/lib/game/smart-bot-opponent";
 import { getAIThinkTime } from "@/lib/game/ai-difficulty";
 import { getCharacter, CHARACTER_ROSTER } from "@/data/characters";
@@ -111,6 +111,7 @@ export class SurvivalScene extends Phaser.Scene {
     } = { player1: null, player2: null };
     private surgeCardsShownThisWave: boolean = false;
     private lastSurgeWave: number = 0;
+    private stunTweens: Map<"player1" | "player2", Phaser.Tweens.Tween> = new Map(); // Track stun tweens for cleanup
 
     constructor() {
         super({ key: "SurvivalScene" });
@@ -953,6 +954,10 @@ export class SurvivalScene extends Phaser.Scene {
 
         // Show Power Surge cards first, then countdown
         this.showPowerSurgeCards(this.currentWave).then(() => {
+            // IMMEDIATELY apply stun effects from Power Surge cards
+            // This ensures stunned players see the effect before the selection phase
+            this.applyImmediateSurgeEffects();
+
             this.playSFX("sfx_cd_fight");
             this.time.delayedCall(300, () => this.showCountdown(3));
         });
@@ -1154,6 +1159,57 @@ export class SurvivalScene extends Phaser.Scene {
         }
     }
 
+    /**
+     * Apply immediate stun effects from Power Surge cards.
+     * This is called BEFORE the countdown starts to ensure stunned players
+     * see the effect and have their buttons disabled immediately.
+     */
+    private applyImmediateSurgeEffects(): void {
+        // Calculate surge effects
+        const surgeResults = calculateSurgeEffects(this.activeSurges.player1, this.activeSurges.player2);
+        const p1Mods = surgeResults.player1Modifiers;
+        const p2Mods = surgeResults.player2Modifiers;
+
+        // Apply stun to combat engine state immediately
+        // The visual effects will be shown when startSelectionPhase() is called
+        // Player 1's surge can stun Player 2, and vice versa
+        if (shouldStunOpponent(p1Mods)) {
+            // Player 1 picked a stun card (like Mempool Congest) -> stun Player 2 (AI)
+            this.combatEngine.setPlayerStunned("player2", true);
+            console.log("[SurvivalScene] AI is stunned by player's Mempool Congest");
+        }
+        if (shouldStunOpponent(p2Mods)) {
+            // Player 2 (AI) picked a stun card -> stun Player 1
+            this.combatEngine.setPlayerStunned("player1", true);
+            console.log("[SurvivalScene] Player is stunned by AI's Mempool Congest");
+        }
+    }
+
+    /**
+     * Show stun visual effect on a player (red pulsing tint).
+     * This is called during selection phase when a player is stunned.
+     */
+    private showStunVisualEffect(player: "player1" | "player2"): void {
+        const sprite = player === "player1" ? this.player1Sprite : this.player2Sprite;
+
+        // Stop any existing stun tween for this player
+        const existingTween = this.stunTweens.get(player);
+        if (existingTween) {
+            existingTween.stop();
+        }
+
+        // Red pulsing tint effect - store reference for cleanup
+        const tween = this.tweens.add({
+            targets: sprite,
+            tint: 0xff4444,
+            yoyo: true,
+            repeat: -1,
+            duration: 300,
+            ease: "Sine.easeInOut",
+        });
+        this.stunTweens.set(player, tween);
+    }
+
     private showCountdown(seconds: number): void {
         let count = seconds;
         const updateCountdown = () => {
@@ -1198,16 +1254,48 @@ export class SurvivalScene extends Phaser.Scene {
         // Get current state to check if player is stunned
         const state = this.combatEngine.getState();
 
+        // Clear stun visual effects for players who are no longer stunned
+        // This happens after a stunned turn completes
+        if (!state.player1.isStunned) {
+            const p1Tween = this.stunTweens.get("player1");
+            if (p1Tween) {
+                p1Tween.stop();
+                this.stunTweens.delete("player1");
+                this.player1Sprite.clearTint();
+            }
+        }
+        if (!state.player2.isStunned) {
+            const p2Tween = this.stunTweens.get("player2");
+            if (p2Tween) {
+                p2Tween.stop();
+                this.stunTweens.delete("player2");
+                this.player2Sprite.clearTint();
+            }
+        }
+
         // Check if BOTH players are stunned
         if (state.player1.isStunned && state.player2.isStunned) {
             // Both stunned - show message, disable buttons, and resolve immediately
             this.turnIndicatorText.setText("BOTH PLAYERS STUNNED!").setColor("#ff4444");
+            this.roundTimerText.setText("---");
             this.roundTimerText.setColor("#ff4444");
+
+            // Show narrative explaining what's happening
+            this.narrativeText.setText("Both players are stunned!\nSkipping this turn...");
+            this.narrativeText.setAlpha(1);
+            this.narrativeText.setColor("#ff4444");
+
+            // Show stun visual effects on both players
+            this.showStunVisualEffect("player1");
+            this.showStunVisualEffect("player2");
 
             // Disable all buttons visually
             this.moveButtons.forEach(btn => {
                 btn.setAlpha(0.3);
                 btn.disableInteractive();
+                btn.list.forEach((child: any) => {
+                    if (child.setTint) child.setTint(0x555555);
+                });
             });
 
             // Flash the stun message
@@ -1216,35 +1304,17 @@ export class SurvivalScene extends Phaser.Scene {
                 alpha: { from: 1, to: 0.5 },
                 duration: 300,
                 yoyo: true,
-                repeat: 2,
-            });
-
-            // Show visual stun effects on both players immediately
-            const p1Char = this.playerCharacter.id;
-            const p2Char = this.currentOpponent.id;
-
-            // Player 1 stun effect
-            this.tweens.add({
-                targets: this.player1Sprite,
-                tint: 0xff6666,
-                yoyo: true,
                 repeat: 3,
-                duration: 200,
-                onComplete: () => this.player1Sprite.clearTint()
             });
 
-            // Player 2 stun effect
-            this.tweens.add({
-                targets: this.player2Sprite,
-                tint: 0xff6666,
-                yoyo: true,
-                repeat: 3,
-                duration: 200,
-                onComplete: () => this.player2Sprite.clearTint()
-            });
-
-            // Resolve immediately with placeholder moves (combat engine handles stunned state)
-            this.time.delayedCall(1000, () => {
+            // Resolve after 2.5 seconds to let players see the stun effect
+            this.time.delayedCall(2500, () => {
+                // Fade out narrative
+                this.tweens.add({
+                    targets: this.narrativeText,
+                    alpha: 0,
+                    duration: 500
+                });
                 this.resolveRound("punch", "punch");
             });
             return;
@@ -1256,10 +1326,21 @@ export class SurvivalScene extends Phaser.Scene {
             this.turnIndicatorText.setText("YOU ARE STUNNED!").setColor("#ff4444");
             this.roundTimerText.setColor("#ff4444");
 
+            // Show narrative explaining what's happening
+            this.narrativeText.setText("You are stunned and cannot act this turn!");
+            this.narrativeText.setAlpha(1);
+            this.narrativeText.setColor("#ff4444");
+
+            // Show persistent visual stun effect on player
+            this.showStunVisualEffect("player1");
+
             // Disable all buttons visually
             this.moveButtons.forEach(btn => {
                 btn.setAlpha(0.3);
                 btn.disableInteractive();
+                btn.list.forEach((child: any) => {
+                    if (child.setTint) child.setTint(0x555555);
+                });
             });
 
             // Flash the stun message
@@ -1268,22 +1349,19 @@ export class SurvivalScene extends Phaser.Scene {
                 alpha: { from: 1, to: 0.5 },
                 duration: 300,
                 yoyo: true,
-                repeat: 2,
-            });
-
-            // Show visual stun effect on player immediately
-            this.tweens.add({
-                targets: this.player1Sprite,
-                tint: 0xff6666,
-                yoyo: true,
                 repeat: 3,
-                duration: 200,
-                onComplete: () => this.player1Sprite.clearTint()
             });
 
-            // AI makes its decision immediately (player can't act)
-            const thinkTime = getAIThinkTime(this.waves[this.currentWave - 1].difficulty);
+            // AI makes its decision after 2 seconds (player can't act)
+            const thinkTime = Math.max(2000, getAIThinkTime(this.waves[this.currentWave - 1].difficulty));
             this.time.delayedCall(thinkTime, () => {
+                // Fade out narrative
+                this.tweens.add({
+                    targets: this.narrativeText,
+                    alpha: 0,
+                    duration: 500
+                });
+
                 // Update AI context with stunned state before deciding
                 this.ai.updateContext({
                     botHealth: state.player2.hp,
@@ -1319,15 +1397,21 @@ export class SurvivalScene extends Phaser.Scene {
             this.turnIndicatorText.setText("OPPONENT IS STUNNED!").setColor("#22c55e");
             this.roundTimerText.setColor("#ef4444");
 
-            // Show visual stun effect on AI immediately
+            // Show narrative
+            this.narrativeText.setText("Your opponent is stunned!\nChoose your move wisely!");
+            this.narrativeText.setAlpha(1);
+            this.narrativeText.setColor("#22c55e");
+
+            // Fade out narrative after 2 seconds
             this.tweens.add({
-                targets: this.player2Sprite,
-                tint: 0xff6666,
-                yoyo: true,
-                repeat: 3,
-                duration: 200,
-                onComplete: () => this.player2Sprite.clearTint()
+                targets: this.narrativeText,
+                alpha: 0,
+                delay: 2000,
+                duration: 500
             });
+
+            // Show persistent visual stun effect on AI
+            this.showStunVisualEffect("player2");
 
             // Player can still select their move normally
             // Fall through to normal selection phase below
@@ -1378,6 +1462,25 @@ export class SurvivalScene extends Phaser.Scene {
     }
 
     private updateMoveButtonAffordability(): void {
+        // Check if player is stunned
+        const state = this.combatEngine.getState();
+        const isStunned = state.player1.isStunned || false;
+
+        // If stunned, disable all buttons
+        if (isStunned) {
+            (["punch", "kick", "block", "special"] as MoveType[]).forEach((move) => {
+                const container = this.moveButtons.get(move);
+                if (container) {
+                    container.setAlpha(0.3);
+                    container.disableInteractive();
+                    container.list.forEach((child: any) => {
+                        if (child.setTint) child.setTint(0x555555);
+                    });
+                }
+            });
+            return;
+        }
+
         // Check if block is disabled due to opponent's surge effect (e.g., Pruned Rage)
         const surgeEffects = calculateSurgeEffects(this.activeSurges.player1, this.activeSurges.player2);
         const blockDisabled = isBlockDisabled(surgeEffects.player1Modifiers, surgeEffects.player2Modifiers);
@@ -1409,6 +1512,13 @@ export class SurvivalScene extends Phaser.Scene {
     }
 
     private selectMove(move: MoveType): void {
+        // Check if player is stunned - cannot select moves when stunned
+        const state = this.combatEngine.getState();
+        if (state.player1.isStunned) {
+            this.showFloatingText("You are stunned!", GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.HEIGHT - 150, "#ff4444");
+            return;
+        }
+
         if (!this.combatEngine.canAffordMove("player1", move)) {
             this.showFloatingText("Not enough energy!", GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.HEIGHT - 150, "#ff4444");
             return;
@@ -1972,6 +2082,12 @@ export class SurvivalScene extends Phaser.Scene {
     private clearSurgeEffects(): void {
         this.activeSurges = { player1: null, player2: null };
         this.surgeCardsShownThisWave = false;
+
+        // Stop all stun tweens
+        this.stunTweens.forEach((tween, player) => {
+            tween.stop();
+        });
+        this.stunTweens.clear();
 
         // Clear any visual tints
         this.player1Sprite.clearTint();

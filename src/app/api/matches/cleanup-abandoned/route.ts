@@ -24,6 +24,7 @@ interface MatchWithDisconnect {
   player1_disconnected_at: string | null;
   player2_disconnected_at: string | null;
   disconnect_timeout_seconds: number | null;
+  room_code: string | null;
 }
 
 export async function POST(request: NextRequest) {
@@ -109,15 +110,18 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Update ELO ratings
+      // Update ELO ratings (skip for private room matches)
+      const isPrivateRoom = !!match.room_code;
       let ratingResult = null;
-      if (botAddress) {
+      if (botAddress && !isPrivateRoom) {
         try {
           ratingResult = await updateMatchRatings(botAddress, body.address);
           console.log(`[Cleanup] Ratings updated for match ${match.id}:`, ratingResult);
         } catch (error) {
           console.error(`[Cleanup] Failed to update ratings for match ${match.id}:`, error);
         }
+      } else if (isPrivateRoom) {
+        console.log(`[Cleanup] Skipping ELO update for private room match ${match.id}`);
       }
 
       // Broadcast match_ended event
@@ -130,6 +134,7 @@ export async function POST(request: NextRequest) {
           winner: botRole,
           winnerAddress: botAddress,
           reason: "opponent_disconnected",
+          isPrivateRoom,
           finalScore: {
             player1RoundsWon: match.player1_rounds_won || 0,
             player2RoundsWon: match.player2_rounds_won || 0,

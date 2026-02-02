@@ -5,7 +5,7 @@
 
 "use client";
 
-import React, { useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { useBettingPool } from "@/hooks/useBettingPool";

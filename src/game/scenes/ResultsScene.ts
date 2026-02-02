@@ -1,5 +1,4 @@
 import { Scene } from "phaser";
-import { EventBus } from "../EventBus";
 import type { MatchResult, PlayerRole } from "@/types";
 import { GAME_DIMENSIONS } from "../config";
 
@@ -9,6 +8,7 @@ interface ResultsSceneData {
     matchId: string;
     player1CharacterId: string;
     player2CharacterId: string;
+    isPrivateRoom?: boolean;
 }
 
 export class ResultsScene extends Scene {
@@ -162,9 +162,57 @@ export class ResultsScene extends Scene {
             fontFamily: "Orbitron", fontSize: "40px", color: "#ffffff"
         }).setOrigin(0.5));
 
+        // Check if this is a private room match (no ELO changes)
+        const isPrivateRoom = this.resultsData.isPrivateRoom || this.resultsData.result.isPrivateRoom;
+
         // Rating Changes Display
         const ratingChanges = this.resultsData.result.ratingChanges;
-        if (ratingChanges) {
+        if (isPrivateRoom) {
+            // Private room match - show "No ELO Changed!" message
+            container.add(this.add.text(0, ratingY - 20, "RATING", {
+                fontFamily: "Exo 2", fontSize: "16px", color: "#666666"
+            }).setOrigin(0.5));
+
+            const noEloText = this.add.text(0, ratingY + 25, "NO ELO CHANGED!", {
+                fontFamily: "Orbitron", fontSize: "28px", color: "#f59e0b",
+                stroke: "#000000", strokeThickness: 3
+            }).setOrigin(0.5).setAlpha(0);
+            container.add(noEloText);
+
+            const privateRoomNote = this.add.text(0, ratingY + 60, "Private Room Match", {
+                fontFamily: "Exo 2", fontSize: "16px", color: "#888888"
+            }).setOrigin(0.5).setAlpha(0);
+            container.add(privateRoomNote);
+
+            // Animate the "No ELO Changed!" text
+            this.tweens.add({
+                targets: noEloText,
+                alpha: 1,
+                scale: { from: 0.5, to: 1 },
+                duration: 800,
+                delay: 800,
+                ease: "Back.out"
+            });
+
+            this.tweens.add({
+                targets: privateRoomNote,
+                alpha: 0.8,
+                duration: 500,
+                delay: 1200,
+                ease: "Power2"
+            });
+
+            // Add a subtle pulse effect to make it noticeable
+            this.tweens.add({
+                targets: noEloText,
+                scale: 1.05,
+                yoyo: true,
+                repeat: 2,
+                duration: 400,
+                delay: 1600,
+                ease: "Sine.easeInOut"
+            });
+        } else if (ratingChanges) {
             const myRating = isWinner ? ratingChanges.winner : ratingChanges.loser;
             const opRating = isWinner ? ratingChanges.loser : ratingChanges.winner;
 

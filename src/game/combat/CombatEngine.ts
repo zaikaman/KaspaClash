@@ -119,6 +119,14 @@ export class CombatEngine {
     }
 
     /**
+     * Set stun state for a player.
+     * Used by PracticeScene/SurvivalScene to apply Power Surge stun effects immediately.
+     */
+    setPlayerStunned(player: "player1" | "player2", isStunned: boolean): void {
+        this.state[player].isStunned = isStunned;
+    }
+
+    /**
      * Get specific player state.
      */
     getPlayerState(player: "player1" | "player2"): Readonly<PlayerCombatState> {

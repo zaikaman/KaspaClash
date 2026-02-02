@@ -59,6 +59,7 @@ interface MatchEndedPayload {
     winner: { before: number; after: number; change: number };
     loser: { before: number; after: number; change: number };
   };
+  isPrivateRoom?: boolean;
 }
 
 /**
@@ -248,10 +249,13 @@ export async function POST(
     // Note: Using direct updates instead of RPC functions
     const loserAddress = p1TimedOut ? match.player1_address : match.player2_address;
 
-    // Update ratings using ELO service
+    // Update ratings using ELO service (skip for private room matches)
+    const isPrivateRoom = !!match.room_code;
     let ratingResult = null;
-    if (winnerAddress && loserAddress) {
+    if (winnerAddress && loserAddress && !isPrivateRoom) {
       ratingResult = await updateMatchRatings(winnerAddress, loserAddress);
+    } else if (isPrivateRoom) {
+      console.log(`[Timeout API] Skipping ELO update for private room match ${matchId}`);
     }
 
     // Broadcast match ended
@@ -288,6 +292,7 @@ export async function POST(
             change: ratingResult.loser.change,
           },
         } : undefined,
+        isPrivateRoom,
         shareUrl: `/m/${matchId}`,
         explorerUrl: "",
       },
@@ -323,6 +328,7 @@ export async function POST(
               change: ratingResult.loser.change,
             },
           } : undefined,
+          isPrivateRoom,
         },
       },
     };

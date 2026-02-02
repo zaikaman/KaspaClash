@@ -126,11 +126,14 @@ export async function POST(
     //   await supabase.rpc("increment_wins", { player_address: winnerAddress });
     // }
 
-    // Update player ratings
+    // Update player ratings (skip for private room matches)
     const loserAddress = body.address;
+    const isPrivateRoom = !!match.room_code;
     let ratingResult = null;
-    if (winnerAddress && loserAddress) {
+    if (winnerAddress && loserAddress && !isPrivateRoom) {
       ratingResult = await updateMatchRatings(winnerAddress, loserAddress);
+    } else if (isPrivateRoom) {
+      console.log(`[Forfeit API] Skipping ELO update for private room match ${matchId}`);
     }
 
     // Broadcast match_ended event via Supabase Realtime REST API
@@ -168,6 +171,7 @@ export async function POST(
             change: ratingResult.loser.change,
           },
         } : undefined,
+        isPrivateRoom,
         shareUrl: `${process.env.NEXT_PUBLIC_APP_URL}/match/${matchId}`,
         explorerUrl: "",
       },
@@ -179,6 +183,7 @@ export async function POST(
       winnerAddress,
       winner: isPlayer1 ? "player2" : "player1",
       reason: "forfeit",
+      isPrivateRoom,
       finalScore: {
         player1RoundsWon: match.player1_rounds_won || 0,
         player2RoundsWon: match.player2_rounds_won || 0,

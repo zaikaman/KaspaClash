@@ -8,7 +8,7 @@ import { EventBus } from "../EventBus";
 import { GAME_DIMENSIONS, CHARACTER_POSITIONS, UI_POSITIONS } from "../config";
 import { getCharacterScale, getCharacterYOffset, getAnimationScale, getSoundDelay, getSFXKey } from "../config/sprite-config";
 import { CombatEngine, BASE_MOVE_STATS } from "../combat";
-import { calculateSurgeEffects, isBlockDisabled } from "../combat/SurgeEffects";
+import { calculateSurgeEffects, isBlockDisabled, shouldStunOpponent } from "../combat/SurgeEffects";
 import { ChatPanel } from "../ui/ChatPanel";
 import { StickerPicker, STICKER_LIST, type StickerId } from "../ui/StickerPicker";
 import { TransactionToast } from "../ui/TransactionToast";
@@ -90,6 +90,7 @@ export class FightScene extends Phaser.Scene {
   private phase: "waiting" | "countdown" | "selecting" | "resolving" | "round_end" | "match_end" = "waiting";
   private isWaitingForOpponent: boolean = false;
   private moveDeadlineAt: number = 0; // Server-synchronized move deadline timestamp
+  private localMoveSubmitted: boolean = false; // Track if local player submitted move this round
 
   // Disconnect handling
   private disconnectOverlay?: Phaser.GameObjects.Container;
@@ -687,6 +688,23 @@ export class FightScene extends Phaser.Scene {
     this.toggleStunEffect("player1", state.player1IsStunned ?? false);
     this.toggleStunEffect("player2", state.player2IsStunned ?? false);
 
+    // IMMEDIATELY disable move buttons if local player is stunned
+    // This prevents the player from clicking moves before realizing they're stunned
+    this.updateMoveButtonAffordability();
+
+    // IMMEDIATELY show stun indicator text if local player is stunned
+    const isPlayer1 = this.config.playerRole === "player1";
+    const amIStunned = isPlayer1 ? (state.player1IsStunned ?? false) : (state.player2IsStunned ?? false);
+    const isOpponentStunned = isPlayer1 ? (state.player2IsStunned ?? false) : (state.player1IsStunned ?? false);
+
+    if (amIStunned && isOpponentStunned) {
+      this.turnIndicatorText.setText("BOTH PLAYERS STUNNED!");
+      this.turnIndicatorText.setColor("#ff4444");
+    } else if (amIStunned) {
+      this.turnIndicatorText.setText("YOU ARE STUNNED!");
+      this.turnIndicatorText.setColor("#ff4444");
+    }
+
     // Update round score
     const roundsToWin = this.combatEngine ? this.combatEngine.getState().roundsToWin : 2;
     this.roundScoreText.setText(
@@ -893,6 +911,58 @@ export class FightScene extends Phaser.Scene {
         this.stunTweens.delete(player);
       }
       sprite.clearTint();
+    }
+  }
+
+  /**
+   * Apply stun effects from Power Surge cards immediately after selection.
+   * This updates serverState with stun flags and triggers visual effects.
+   * Called when Power Surge card selection is complete (both players selected or timeout).
+   */
+  private applyImmediateSurgeEffects(): void {
+    // Calculate surge effects from both players' selections
+    const surgeResults = calculateSurgeEffects(this.activeSurges.player1, this.activeSurges.player2);
+    const p1Mods = surgeResults.player1Modifiers;
+    const p2Mods = surgeResults.player2Modifiers;
+
+    // Player 1's surge can stun Player 2, and vice versa
+    const p2Stunned = shouldStunOpponent(p1Mods); // P1's card stuns P2
+    const p1Stunned = shouldStunOpponent(p2Mods); // P2's card stuns P1
+
+    if (p1Stunned) {
+      console.log("[FightScene] Player 1 is stunned by opponent's Mempool Congest");
+    }
+    if (p2Stunned) {
+      console.log("[FightScene] Player 2 is stunned by opponent's Mempool Congest");
+    }
+
+    // Update serverState with stun flags (this is what startSynchronizedSelectionPhase reads)
+    if (this.serverState) {
+      this.serverState.player1IsStunned = p1Stunned;
+      this.serverState.player2IsStunned = p2Stunned;
+    }
+
+    // Apply visual stun effects
+    this.toggleStunEffect("player1", p1Stunned);
+    this.toggleStunEffect("player2", p2Stunned);
+
+    // Update button affordability (disables buttons if local player is stunned)
+    this.updateMoveButtonAffordability();
+
+    // Show stun text if local player is stunned
+    const isPlayer1 = this.config.playerRole === "player1";
+    const amIStunned = isPlayer1 ? p1Stunned : p2Stunned;
+    const isOpponentStunned = isPlayer1 ? p2Stunned : p1Stunned;
+
+    if (amIStunned && isOpponentStunned) {
+      this.turnIndicatorText.setText("BOTH PLAYERS STUNNED!");
+      this.turnIndicatorText.setColor("#ff4444");
+    } else if (amIStunned) {
+      this.turnIndicatorText.setText("YOU ARE STUNNED!");
+      this.turnIndicatorText.setColor("#ff4444");
+    } else if (isOpponentStunned) {
+      this.turnIndicatorText.setText("OPPONENT IS STUNNED!");
+      this.turnIndicatorText.setColor("#22c55e");
     }
   }
 
@@ -1913,8 +1983,17 @@ export class FightScene extends Phaser.Scene {
       return;
     }
 
-    // Check if affordable using server state energy
+    // Check if player is stunned - cannot select moves when stunned
     const role = this.config.playerRole;
+    const isStunned = (role === "player1" && this.serverState?.player1IsStunned) ||
+      (role === "player2" && this.serverState?.player2IsStunned);
+    
+    if (isStunned) {
+      this.showFloatingText("You are stunned!", GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.HEIGHT - 150, "#ff4444");
+      return;
+    }
+
+    // Check if affordable using server state energy
     const currentEnergy = role === "player1"
       ? (this.serverState?.player1Energy ?? this.combatEngine.getState().player1.energy)
       : (this.serverState?.player2Energy ?? this.combatEngine.getState().player2.energy);
@@ -2176,6 +2255,7 @@ export class FightScene extends Phaser.Scene {
     this.phase = "selecting";
     this.selectedMove = null;
     this.turnTimer = 20;
+    this.localMoveSubmitted = false; // Reset for new round
     this.turnIndicatorText.setText("Select your move!");
 
     this.hasRequestedCancel = false;
@@ -2242,7 +2322,9 @@ export class FightScene extends Phaser.Scene {
   }
 
   private onTimerExpired(): void {
-    console.log(`[FightScene] *** onTimerExpired called - phase: ${this.phase}, Timestamp: ${Date.now()}`);
+    console.log(`[FightScene] *** onTimerExpired called - phase: ${this.phase}, localMoveSubmitted: ${this.localMoveSubmitted}, Timestamp: ${Date.now()}`);
+    
+    // If phase changed away from selecting (e.g. round resolved), don't process
     if (this.phase !== "selecting") {
       console.warn(`[FightScene] *** Timer expired but phase is not 'selecting' (phase: ${this.phase}), returning early`);
       return;
@@ -2256,8 +2338,14 @@ export class FightScene extends Phaser.Scene {
     }
 
     // Update UI to show timeout state
-    this.turnIndicatorText.setText("Time's up! Checking server...");
-    this.turnIndicatorText.setColor("#ff8800");
+    // Different message based on whether we submitted or not
+    if (this.localMoveSubmitted) {
+      this.turnIndicatorText.setText("Enforcing deadline...");
+      this.turnIndicatorText.setColor("#22c55e");
+    } else {
+      this.turnIndicatorText.setText("Time's up! Checking server...");
+      this.turnIndicatorText.setColor("#ff8800");
+    }
 
     // Disable buttons
     // Disable buttons - Handled by UI state
@@ -2748,14 +2836,14 @@ export class FightScene extends Phaser.Scene {
     EventBus.on("game:moveConfirmed", (data: unknown) => {
       const payload = data as { player: string; txId?: string };
 
-      // If we confirmed our move, stop the local timer and show transaction toast
+      // If we confirmed our move, update UI but KEEP the timer running
+      // We need the timer to expire to enforce deadline if opponent doesn't submit
       if (payload.player === this.config.playerRole) {
-        // Stop timer if still running during selection phase
-        if (this.phase === "selecting" && this.timerEvent) {
-          this.timerEvent.destroy();
-          this.timerEvent = undefined;
-        }
-        this.turnIndicatorText.setText("Move locked in!");
+        // Mark that we submitted (tracked locally for UI purposes)
+        this.localMoveSubmitted = true;
+        
+        // Update UI to show waiting state, but don't destroy the timer
+        this.turnIndicatorText.setText("Waiting for opponent...");
         this.turnIndicatorText.setColor("#22c55e");
 
         // Show transaction toast if we have a txId
@@ -2798,6 +2886,7 @@ export class FightScene extends Phaser.Scene {
           winner: { before: number; after: number; change: number };
           loser: { before: number; after: number; change: number };
         };
+        isPrivateRoom?: boolean;
       };
 
       if (this.isResolving) {
@@ -3410,6 +3499,41 @@ export class FightScene extends Phaser.Scene {
     this.toggleStunEffect("player1", this.serverState.player1IsStunned ?? false);
     this.toggleStunEffect("player2", this.serverState.player2IsStunned ?? false);
 
+    // IMMEDIATELY disable move buttons if local player is stunned
+    // This prevents the player from clicking moves during countdown/Power Surge selection
+    // when they don't yet realize they're stunned
+    this.updateMoveButtonAffordability();
+
+    // IMMEDIATELY show stun indicator text if local player is stunned
+    // This gives instant visual feedback that the player cannot act
+    const isPlayer1 = this.config.playerRole === "player1";
+    const amIStunned = isPlayer1 ? this.serverState.player1IsStunned : this.serverState.player2IsStunned;
+    const isOpponentStunned = isPlayer1 ? this.serverState.player2IsStunned : this.serverState.player1IsStunned;
+
+    if (amIStunned && isOpponentStunned) {
+      this.turnIndicatorText.setText("BOTH PLAYERS STUNNED!");
+      this.turnIndicatorText.setColor("#ff4444");
+      // Flash the stun message
+      this.tweens.add({
+        targets: this.turnIndicatorText,
+        alpha: { from: 1, to: 0.5 },
+        duration: 300,
+        yoyo: true,
+        repeat: 2,
+      });
+    } else if (amIStunned) {
+      this.turnIndicatorText.setText("YOU ARE STUNNED!");
+      this.turnIndicatorText.setColor("#ff4444");
+      // Flash the stun message
+      this.tweens.add({
+        targets: this.turnIndicatorText,
+        alpha: { from: 1, to: 0.5 },
+        duration: 300,
+        yoyo: true,
+        repeat: 2,
+      });
+    }
+
     if (skipCountdown) {
       // Skip the 3-2-1 FIGHT countdown - go directly to selection phase
       // This is used when we already showed our own 5-second countdown
@@ -3537,6 +3661,7 @@ export class FightScene extends Phaser.Scene {
     this.phase = "selecting";
     this.selectedMove = null;
     this.isWaitingForOpponent = false;
+    this.localMoveSubmitted = false; // Reset for new round
     this.turnIndicatorText.setText("Select your move!");
     this.turnIndicatorText.setColor("#40e0d0");
 
@@ -3580,11 +3705,16 @@ export class FightScene extends Phaser.Scene {
     const bothStunned = amIStunned && isOpponentStunned;
 
     if (bothStunned) {
-      // BOTH players are stunned - show special message
+      // BOTH players are stunned - show special message and auto-skip
       this.turnIndicatorText.setText("BOTH PLAYERS STUNNED!");
       this.turnIndicatorText.setColor("#ff4444");
-      this.roundTimerText.setText("SKIPPING...");
+      this.roundTimerText.setText("---");
       this.roundTimerText.setColor("#ff4444");
+
+      // Show narrative explaining what's happening
+      this.narrativeText.setText("Both players are stunned!\nSkipping this turn...");
+      this.narrativeText.setAlpha(1);
+      this.narrativeText.setColor("#ff4444");
 
       // Flash the stun message
       this.tweens.add({
@@ -3592,17 +3722,49 @@ export class FightScene extends Phaser.Scene {
         alpha: { from: 1, to: 0.5 },
         duration: 300,
         yoyo: true,
-        repeat: 2,
+        repeat: -1, // Keep flashing until turn resolves
       });
 
       // Disable all buttons
       this.moveButtons.forEach(btn => {
         btn.setAlpha(0.3);
         btn.disableInteractive();
+        btn.list.forEach((child: any) => {
+          if (child.setTint) child.setTint(0x555555);
+        });
       });
 
-      console.log(`[FightScene] Both players stunned - waiting for auto-resolution`);
-      // Server will auto-resolve this round, no timer needed
+      // Apply visual stun effects to both characters
+      this.toggleStunEffect("player1", true);
+      this.toggleStunEffect("player2", true);
+
+      console.log(`[FightScene] Both players stunned - auto-submitting punch after 2.5s`);
+
+      // Auto-submit a move after 2.5 seconds to let players see the stun effect
+      // The combat engine will handle the "both stunned" case appropriately
+      this.time.delayedCall(2500, () => {
+        // Only submit if we haven't already and still in selecting phase
+        if (!this.localMoveSubmitted && this.phase === "selecting") {
+          this.localMoveSubmitted = true;
+          this.isWaitingForOpponent = true;
+          this.turnIndicatorText.setText("Resolving stunned turn...");
+          
+          // Fade out narrative
+          this.tweens.add({
+            targets: this.narrativeText,
+            alpha: 0,
+            duration: 500
+          });
+
+          // Submit punch as placeholder (stunned players can't act anyway)
+          EventBus.emit("game:submitMove", {
+            matchId: this.config.matchId,
+            moveType: "punch",
+            playerRole: this.config.playerRole,
+          });
+        }
+      });
+
       return;
     } else if (amIStunned) {
       // Player is stunned - show message and disable buttons
@@ -3610,30 +3772,87 @@ export class FightScene extends Phaser.Scene {
       this.turnIndicatorText.setColor("#ff4444");
       this.roundTimerText.setColor("#ff4444");
 
+      // Show narrative explaining what's happening
+      this.narrativeText.setText("You are stunned and cannot act this turn!");
+      this.narrativeText.setAlpha(1);
+      this.narrativeText.setColor("#ff4444");
+
       // Flash the stun message
       this.tweens.add({
         targets: this.turnIndicatorText,
         alpha: { from: 1, to: 0.5 },
         duration: 300,
         yoyo: true,
-        repeat: 2,
+        repeat: -1, // Keep flashing until turn resolves
       });
 
       // Disable all buttons visually and interactively
       this.moveButtons.forEach(btn => {
         btn.setAlpha(0.3);
         btn.disableInteractive();
+        btn.list.forEach((child: any) => {
+          if (child.setTint) child.setTint(0x555555);
+        });
       });
 
-      // Trigger bot auto-move after countdown (if opponent is bot)
-      console.log(`[FightScene] Player is stunned, triggering bot auto-move check`);
-      fetch(`/api/matches/${this.config.matchId}/bot-auto-move`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stunned: true }),
-      }).catch(err => {
-        console.error("[FightScene] Failed to trigger bot auto-move:", err);
+      // Apply visual stun effect
+      this.toggleStunEffect(this.config.playerRole, true);
+
+      // Auto-submit a move after 2 seconds (opponent can still pick normally)
+      console.log(`[FightScene] Player is stunned - auto-submitting punch after 2s`);
+      this.time.delayedCall(2000, () => {
+        if (!this.localMoveSubmitted && this.phase === "selecting") {
+          this.localMoveSubmitted = true;
+          this.isWaitingForOpponent = true;
+          this.turnIndicatorText.setText("Waiting for opponent...");
+          
+          // Fade out narrative
+          this.tweens.add({
+            targets: this.narrativeText,
+            alpha: 0,
+            duration: 500
+          });
+
+          // Submit punch as placeholder (we're stunned anyway)
+          EventBus.emit("game:submitMove", {
+            matchId: this.config.matchId,
+            moveType: "punch",
+            playerRole: this.config.playerRole,
+          });
+        }
       });
+
+      // Also trigger bot auto-move if opponent is bot
+      if (this.isBotMatch) {
+        fetch(`/api/matches/${this.config.matchId}/bot-auto-move`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stunned: true }),
+        }).catch(err => {
+          console.error("[FightScene] Failed to trigger bot auto-move:", err);
+        });
+      }
+    } else if (isOpponentStunned) {
+      // Opponent is stunned - show positive message
+      this.turnIndicatorText.setText("OPPONENT IS STUNNED!");
+      this.turnIndicatorText.setColor("#22c55e");
+      
+      // Show narrative
+      this.narrativeText.setText("Your opponent is stunned!\nChoose your move wisely!");
+      this.narrativeText.setAlpha(1);
+      this.narrativeText.setColor("#22c55e");
+      
+      // Fade out narrative after 2 seconds
+      this.tweens.add({
+        targets: this.narrativeText,
+        alpha: 0,
+        delay: 2000,
+        duration: 500
+      });
+
+      // Apply visual stun effect to opponent
+      const opponentRole = this.config.playerRole === "player1" ? "player2" : "player1";
+      this.toggleStunEffect(opponentRole, true);
     } else {
       // Normal state
       this.turnIndicatorText.setText("Select your move!");
@@ -3671,8 +3890,10 @@ export class FightScene extends Phaser.Scene {
           this.roundTimerText.setColor("#40e0d0");
         }
 
-        // Only trigger expiry logic if NOT stunned (including when opponent is stunned)
-        if (this.turnTimer <= 0 && !this.selectedMove && !amIStunned) {
+        // Trigger expiry logic when timer reaches 0 (unless stunned)
+        // IMPORTANT: Always trigger even if we submitted our move, so we can enforce
+        // the deadline against opponents who didn't submit
+        if (this.turnTimer <= 0 && !amIStunned) {
           this.onTimerExpired();
         }
       },
@@ -4131,6 +4352,7 @@ export class FightScene extends Phaser.Scene {
       winner: { before: number; after: number; change: number };
       loser: { before: number; after: number; change: number };
     };
+    isPrivateRoom?: boolean;
   }): void {
     // Use helper for SFX and Animations
     this.showMatchEnd(payload.winner);
@@ -4146,6 +4368,7 @@ export class FightScene extends Phaser.Scene {
         player2RoundsWon: this.serverState?.player2RoundsWon ?? 0,
         txIds: [],
         ratingChanges: payload.ratingChanges,
+        isPrivateRoom: payload.isPrivateRoom,
       };
 
       // Emit for React components (optional)
@@ -4158,6 +4381,7 @@ export class FightScene extends Phaser.Scene {
         matchId: this.config.matchId,
         player1CharacterId: this.config.player1Character,
         player2CharacterId: this.config.player2Character,
+        isPrivateRoom: payload.isPrivateRoom,
       });
     });
   }
@@ -4527,6 +4751,10 @@ export class FightScene extends Phaser.Scene {
               this.applySurgeVisualEffect(opponentRole, card);
             }
           }
+
+          // APPLY STUN EFFECTS from Power Surge cards immediately
+          // This ensures stun is applied before startSynchronizedSelectionPhase is called
+          this.applyImmediateSurgeEffects();
 
           resolve();
         },

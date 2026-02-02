@@ -239,6 +239,8 @@ export interface MatchEndedPayload {
       change: number;
     };
   };
+  /** Whether this match was a private room match (no ELO changes) */
+  isPrivateRoom?: boolean;
   shareUrl?: string;
   explorerUrl?: string;
 }

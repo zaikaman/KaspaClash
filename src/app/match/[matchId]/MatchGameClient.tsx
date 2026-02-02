@@ -822,16 +822,14 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
 
     // Handle server-side timeout enforcement when local timer expires
     const handleTimerExpired = async () => {
-      console.log(`[MatchGameClient] *** game:timerExpired received - Timestamp: ${Date.now()}`);
+      console.log(`[MatchGameClient] *** game:timerExpired received - moveSubmitted: ${moveSubmittedRef.current}, Timestamp: ${Date.now()}`);
       const currentAddress = addressRef.current;
       const currentMatchId = matchIdRef.current;
 
-      // Skip if move was already submitted
-      if (moveSubmittedRef.current) {
-        console.log("[MatchGameClient] *** Timer expired but move already submitted (moveSubmittedRef=true), skipping timeout check");
-        return;
-      }
-
+      // IMPORTANT: We ALWAYS call the API, even if we submitted our move.
+      // This is needed to enforce the deadline against the opponent who may not have submitted.
+      // The API will correctly handle the case where we submitted and opponent didn't.
+      
       if (!currentAddress || !currentMatchId) {
         console.error("[MatchGameClient] *** Missing address or matchId for timeout check");
         return;

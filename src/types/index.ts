@@ -257,6 +257,8 @@ export interface MatchResult {
   stakeAmount?: string; // in sompi
   winnerAddress?: string;
   totalPayout?: string; // in sompi
+  /** Whether this was a private room match (no ELO changes) */
+  isPrivateRoom?: boolean;
 }
 
 // =============================================================================

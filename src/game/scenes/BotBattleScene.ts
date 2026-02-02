@@ -19,7 +19,6 @@ import { CHARACTER_ROSTER } from "@/data/characters";
 import type { Character } from "@/types";
 import type { BotTurnData } from "@/lib/game/bot-match-service";
 import { SpectatorPowerSurgeCards } from "../ui/SpectatorPowerSurgeCards";
-import type { PowerSurgeCardId } from "@/types/power-surge";
 
 /**
  * Bot battle scene configuration - receives pre-computed match data

@@ -10,9 +10,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getExplorerLink } from "@/lib/game/move-service";
-import { shareMatch, buildMatchUrl } from "@/lib/share/url-builder";
+import { shareMatch } from "@/lib/share/url-builder";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ChampionIcon, Globe02Icon, Share05Icon, Tick02Icon } from "@hugeicons/core-free-icons";
+import { ChampionIcon, Globe02Icon, Share05Icon} from "@hugeicons/core-free-icons";
 import { useWallet } from "@/hooks/useWallet";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { MatchResult, PlayerRole } from "@/types";

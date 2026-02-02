@@ -146,14 +146,18 @@ export async function POST(
             ? new Date(round.move_deadline_at).getTime()
             : null;
 
+        console.log(`[MoveTimeout] *** Deadline check - deadline: ${deadline}, now: ${now}, move_deadline_at raw: ${round.move_deadline_at}`);
+
         if (!deadline || now < deadline) {
+            const reason = deadline
+                ? `Deadline not yet reached (${Math.ceil((deadline - now) / 1000)}s remaining)`
+                : "No deadline set for this round";
+            console.log(`[MoveTimeout] *** Early return - ${reason}`);
             return NextResponse.json({
                 success: true,
                 data: {
                     result: "no_action",
-                    reason: deadline
-                        ? `Deadline not yet reached (${Math.ceil((deadline - now) / 1000)}s remaining)`
-                        : "No deadline set for this round",
+                    reason,
                 },
             });
         }
@@ -285,8 +289,9 @@ export async function POST(
         console.log(`[MoveTimeout] *** Calling handleMoveRejection for match ${matchId}, round ${round.id}, rejecting player: ${loserRole}`);
         const result = await handleMoveRejection(matchId, round.id, loserRole as "player1" | "player2");
 
-        // If match is over, update ratings
-        if (result.isMatchOver && result.matchWinner) {
+        // If match is over, update ratings (skip for private room matches - already handled in handleMoveRejection)
+        const isPrivateRoom = !!match.room_code;
+        if (result.isMatchOver && result.matchWinner && !isPrivateRoom) {
             const matchWinnerAddress = result.matchWinner === "player1"
                 ? match.player1_address
                 : match.player2_address;
@@ -297,8 +302,12 @@ export async function POST(
             if (matchWinnerAddress && matchLoserAddress) {
                 await updateMatchRatings(matchWinnerAddress, matchLoserAddress);
             }
+        } else if (isPrivateRoom && result.isMatchOver) {
+            console.log(`[MoveTimeout] Skipping ELO update for private room match ${matchId}`);
+        }
 
-            // Trigger payouts
+        // Trigger payouts (always trigger, even for private room matches)
+        if (result.isMatchOver && result.matchWinner) {
             try {
                 const { resolveMatchPayouts } = await import("@/lib/betting/payout-service");
                 await resolveMatchPayouts(matchId);
@@ -317,6 +326,7 @@ export async function POST(
                 narrative: result.narrative,
                 isMatchOver: result.isMatchOver,
                 matchWinner: result.matchWinner,
+                isPrivateRoom,
             },
         });
     } catch (error) {

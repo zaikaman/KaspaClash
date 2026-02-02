@@ -383,15 +383,18 @@ export async function POST(
             );
           }
           
-          // Update ELO ratings - bot wins, player loses
+          // Update ELO ratings - bot wins, player loses (skip for private room matches)
+          const isPrivateRoom = !!match.room_code;
           let ratingResult = null;
-          if (botAddress && playerAddress) {
+          if (botAddress && playerAddress && !isPrivateRoom) {
             try {
               ratingResult = await updateMatchRatings(botAddress, playerAddress);
               console.log(`[Disconnect API] Bot match ratings updated:`, ratingResult);
             } catch (error) {
               console.error("[Disconnect API] Failed to update ratings:", error);
             }
+          } else if (isPrivateRoom) {
+            console.log(`[Disconnect API] Skipping ELO update for private room match ${matchId}`);
           }
           
           // Broadcast match_ended event
@@ -404,6 +407,7 @@ export async function POST(
               winner: botRole,
               winnerAddress: botAddress,
               reason: "opponent_disconnected",
+              isPrivateRoom,
               finalScore: {
                 player1RoundsWon: match.player1_rounds_won || 0,
                 player2RoundsWon: match.player2_rounds_won || 0,

@@ -1,5 +1,3 @@
-import React from "react";
-
 interface DecorativeLineProps {
     className?: string;
     variant?: "left-red-right-gold" | "left-gold-right-red";

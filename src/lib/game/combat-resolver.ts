@@ -308,8 +308,9 @@ export async function resolveRound(
                 .eq("id", matchId);
         }
 
-        // Update player ratings if match is over
+        // Update player ratings if match is over (skip for private room matches)
         let ratingResult: RatingUpdateResult | null = null;
+        const isPrivateRoom = !!match.room_code;
         if (state.isMatchOver) {
             const winnerAddress = state.matchWinner === "player1"
                 ? match.player1_address
@@ -317,9 +318,15 @@ export async function resolveRound(
             const loserAddress = state.matchWinner === "player1"
                 ? match.player2_address!
                 : match.player1_address;
-            ratingResult = await updateMatchRatings(winnerAddress, loserAddress);
+            
+            // Only update ELO for non-private room matches
+            if (!isPrivateRoom) {
+                ratingResult = await updateMatchRatings(winnerAddress, loserAddress);
+            } else {
+                console.log(`[CombatResolver] Skipping ELO update for private room match ${matchId}`);
+            }
 
-            // Track quest progress for match completion
+            // Track quest progress for match completion (always track, even for private rooms)
             try {
                 await trackMatchCompletion(winnerAddress, matchId, true);
                 await trackMatchCompletion(loserAddress, matchId, false);
@@ -453,6 +460,7 @@ export async function resolveRound(
                         change: ratingResult.loser.change,
                     },
                 } : undefined,
+                isPrivateRoom,
             });
             
             // Clean up fight state snapshot when match ends
@@ -780,8 +788,9 @@ export async function handleMoveRejection(
         .update(matchUpdate)
         .eq("id", matchId);
 
-    // Update player ratings if match is over
+    // Update player ratings if match is over (skip for private room matches)
     let ratingResult: RatingUpdateResult | null = null;
+    const isPrivateRoom = !!match.room_code;
     if (isMatchOver && match.player2_address) {
         const winnerAddr = matchWinner === "player1"
             ? match.player1_address
@@ -789,7 +798,13 @@ export async function handleMoveRejection(
         const loserAddr = matchWinner === "player1"
             ? match.player2_address
             : match.player1_address;
-        ratingResult = await updateMatchRatings(winnerAddr, loserAddr);
+        
+        // Only update ELO for non-private room matches
+        if (!isPrivateRoom) {
+            ratingResult = await updateMatchRatings(winnerAddr, loserAddr);
+        } else {
+            console.log(`[CombatResolver] Skipping ELO update for private room match ${matchId} (rejection)`);
+        }
 
         // Track quest progress for match completion (wins by opponent rejection)
         try {
@@ -866,6 +881,7 @@ export async function handleMoveRejection(
                         change: ratingResult.loser.change,
                     },
                 } : undefined,
+                isPrivateRoom,
             },
         });
         await supabase.removeChannel(endChannel);
