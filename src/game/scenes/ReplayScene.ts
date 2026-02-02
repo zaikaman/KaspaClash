@@ -53,8 +53,6 @@ export interface ReplaySceneConfig {
   player1RoundsWon: number;
   player2RoundsWon: number;
   rounds: ReplayRoundData[];
-  /** Speed multiplier for export mode (e.g., 10 = 10x faster) */
-  speedMultiplier?: number;
   /** Mute audio for export mode */
   muteAudio?: boolean;
 }
@@ -112,12 +110,7 @@ export class ReplayScene extends Phaser.Scene {
   private isSettingsOpen: boolean = false;
 
   // Export mode settings
-  private speedMultiplier: number = 1;
   private muteAudio: boolean = false;
-
-  // Visibility sync for tab switching
-  private visibilityChangeHandler: (() => void) | null = null;
-  private replayStartTime: number = 0; // When replay started playing
 
   // Power Surge UI
   private powerSurgeUI: SpectatorPowerSurgeCards | null = null;
@@ -140,7 +133,6 @@ export class ReplayScene extends Phaser.Scene {
       player1RoundsWon: data?.player1RoundsWon || 0,
       player2RoundsWon: data?.player2RoundsWon || 0,
       rounds: data?.rounds || [],
-      speedMultiplier: data?.speedMultiplier,
       muteAudio: data?.muteAudio,
     };
 
@@ -151,7 +143,6 @@ export class ReplayScene extends Phaser.Scene {
     this.currentGameRound = 1;
 
     // Export mode settings
-    this.speedMultiplier = this.config.speedMultiplier ?? 1;
     this.muteAudio = this.config.muteAudio ?? false;
 
     // Initialize combat engine with character stats
@@ -247,13 +238,6 @@ export class ReplayScene extends Phaser.Scene {
     // Import animation creator
     const { createCharacterAnimations } = require("../utils/asset-loader");
 
-    // Apply speed multiplier for export mode
-    if (this.speedMultiplier > 1) {
-      this.time.timeScale = this.speedMultiplier;
-      this.tweens.timeScale = this.speedMultiplier;
-      this.anims.globalTimeScale = this.speedMultiplier;
-    }
-
     // Load audio settings from localStorage
     this.loadAudioSettings();
 
@@ -280,23 +264,17 @@ export class ReplayScene extends Phaser.Scene {
     this.createCharacters();
     this.createReplayBadge();
 
-    // UI - Settings (hide in export mode)
+    // UI - Settings
     this.settingsContainer = this.add.container(0, 0);
-    if (this.speedMultiplier <= 1) {
-      this.createSettingsButton();
-      this.createSettingsMenu();
-    }
+    this.createSettingsButton();
+    this.createSettingsMenu();
 
     // Handle scene shutdown - stop BGM
     this.events.once("shutdown", this.handleShutdown, this);
     this.events.once("destroy", this.handleShutdown, this);
 
-    // Setup visibility handler for tab switching
-    this.setupVisibilityHandler();
-
-    // Start playback after a short delay (scaled by speed)
+    // Start playback after a short delay
     this.time.delayedCall(1500, () => {
-      this.replayStartTime = Date.now();
       this.startReplay();
     });
 
@@ -304,149 +282,7 @@ export class ReplayScene extends Phaser.Scene {
     EventBus.emit("scene:ready", this);
   }
 
-  // ===========================================================================
-  // VISIBILITY SYNC (TAB SWITCHING)
-  // ===========================================================================
 
-  /**
-   * Setup visibility change handler to handle tab switching during replay.
-   */
-  private setupVisibilityHandler(): void {
-    if (typeof document === "undefined") return;
-
-    this.visibilityChangeHandler = () => {
-      if (document.visibilityState === "visible") {
-        console.log("[ReplayScene] Tab became visible, checking for resync");
-        this.handleVisibilityResync();
-      }
-    };
-
-    document.addEventListener("visibilitychange", this.visibilityChangeHandler);
-    this.events.once("shutdown", this.cleanupVisibilityHandler, this);
-    this.events.once("destroy", this.cleanupVisibilityHandler, this);
-  }
-
-  /**
-   * Clean up visibility change handler.
-   */
-  private cleanupVisibilityHandler(): void {
-    if (this.visibilityChangeHandler && typeof document !== "undefined") {
-      document.removeEventListener("visibilitychange", this.visibilityChangeHandler);
-      this.visibilityChangeHandler = null;
-    }
-  }
-
-  /**
-   * Handle resync when tab becomes visible during replay.
-   * Fast-forward through missed rounds based on elapsed time.
-   */
-  private handleVisibilityResync(): void {
-    if (!this.isPlaying || this.replayStartTime === 0) return;
-
-    // Average time per round (includes all animations)
-    const ROUND_DURATION_MS = 5000; // ~5 seconds per round
-    const elapsedTime = Date.now() - this.replayStartTime;
-    const expectedRoundIndex = Math.floor(elapsedTime / ROUND_DURATION_MS);
-    const roundsBehind = Math.max(0, expectedRoundIndex - this.currentRoundIndex);
-
-    if (roundsBehind > 0 && this.currentRoundIndex < this.config.rounds.length) {
-      console.log(`[ReplayScene] Behind by ${roundsBehind} rounds, fast-forwarding from ${this.currentRoundIndex} to ${expectedRoundIndex}`);
-      
-      // Stop current playback
-      this.isPlaying = false;
-      this.time.removeAllEvents();
-
-      // Fast-forward through missed rounds
-      this.fastForwardToRound(Math.min(expectedRoundIndex, this.config.rounds.length));
-
-      // Resume playback
-      this.isPlaying = true;
-      this.time.delayedCall(500, () => this.playNextRound());
-    }
-  }
-
-  /**
-   * Fast-forward to a specific round index without animations.
-   */
-  private fastForwardToRound(targetRoundIndex: number): void {
-    console.log(`[ReplayScene] Fast-forwarding to round ${targetRoundIndex}`);
-
-    // Reset engine to initial state
-    this.combatEngine = new CombatEngine(
-      this.config.player1Character,
-      this.config.player2Character,
-      "best_of_3"
-    );
-
-    // Process all rounds up to target
-    for (let i = 0; i < targetRoundIndex && i < this.config.rounds.length; i++) {
-      const round = this.config.rounds[i];
-      // Pass surge effects if available
-      this.combatEngine.resolveTurn(
-        round.player1Move,
-        round.player2Move,
-        round.player1SurgeSelection ?? null,
-        round.player2SurgeSelection ?? null
-      );
-      
-      // Track round wins
-      const state = this.combatEngine.getState();
-      if (state.isRoundOver) {
-        if (state.roundWinner === "player1") this.player1RoundsWon++;
-        else if (state.roundWinner === "player2") this.player2RoundsWon++;
-        
-        if (!state.isMatchOver) {
-          this.currentGameRound++;
-          this.combatEngine.startNewRound();
-        }
-      }
-    }
-
-    // Update to current state
-    const state = this.combatEngine.getState();
-    this.player1Health = state.player1.hp;
-    this.player2Health = state.player2.hp;
-    this.player1Energy = state.player1.energy;
-    this.player2Energy = state.player2.energy;
-    this.player1GuardMeterValue = state.player1.guardMeter;
-    this.player2GuardMeterValue = state.player2.guardMeter;
-    this.currentRoundIndex = targetRoundIndex;
-
-    // Update UI
-    this.updateHealthBarDisplay("player1", this.player1Health, this.player1MaxHealth);
-    this.updateHealthBarDisplay("player2", this.player2Health, this.player2MaxHealth);
-    this.updateEnergyBarDisplay("player1", this.player1Energy, this.player1MaxEnergy);
-    this.updateEnergyBarDisplay("player2", this.player2Energy, this.player2MaxEnergy);
-    this.updateGuardMeterDisplay("player1", this.player1GuardMeterValue);
-    this.updateGuardMeterDisplay("player2", this.player2GuardMeterValue);
-    this.roundScoreText.setText(
-      `Round ${this.currentGameRound}  •  ${this.player1RoundsWon} - ${this.player2RoundsWon}  (Best of 3)`
-    );
-
-    // Show catch-up notification
-    this.narrativeText.setText(`⚡ FAST-FORWARDING TO ROUND ${targetRoundIndex + 1} ⚡`);
-    this.narrativeText.setAlpha(1);
-    this.tweens.add({
-      targets: this.narrativeText,
-      alpha: 0,
-      delay: 1000,
-      duration: 500,
-    });
-
-    // Reset sprites to idle
-    const p1Char = this.config.player1Character;
-    const p2Char = this.config.player2Character;
-    if (this.anims.exists(`${p1Char}_idle`)) {
-      this.player1Sprite.setScale(getAnimationScale(p1Char, "idle"));
-      this.player1Sprite.play(`${p1Char}_idle`);
-    }
-    if (this.anims.exists(`${p2Char}_idle`)) {
-      this.player2Sprite.setScale(getAnimationScale(p2Char, "idle"));
-      this.player2Sprite.play(`${p2Char}_idle`);
-    }
-    this.player1Sprite.x = CHARACTER_POSITIONS.PLAYER1.X;
-    this.player2Sprite.x = CHARACTER_POSITIONS.PLAYER2.X;
-  }
 
   /**
    * Handle scene shutdown - stop BGM.
@@ -988,7 +824,6 @@ export class ReplayScene extends Phaser.Scene {
       player2SpriteY: this.player2Sprite.y,
       player1Sprite: this.player1Sprite,
       player2Sprite: this.player2Sprite,
-      speedMultiplier: this.speedMultiplier,
       player1Label: "P1",
       player2Label: "P2",
       onComplete: () => {
@@ -1001,6 +836,23 @@ export class ReplayScene extends Phaser.Scene {
   private animateRound(round: ReplayRoundData): void {
     const p1Char = this.config.player1Character || "dag-warrior";
     const p2Char = this.config.player2Character || "dag-warrior";
+
+    // First, execute the turn in the combat engine to update energy and guard meters
+    this.combatEngine.resolveTurn(
+      round.player1Move,
+      round.player2Move,
+      round.player1SurgeSelection ?? null,
+      round.player2SurgeSelection ?? null
+    );
+
+    // Get updated state from combat engine
+    const state = this.combatEngine.getState();
+
+    // Update internal values from combat engine state
+    this.player1Energy = state.player1.energy;
+    this.player2Energy = state.player2.energy;
+    this.player1GuardMeterValue = state.player1.guardMeter;
+    this.player2GuardMeterValue = state.player2.guardMeter;
 
     const p1OriginalX = CHARACTER_POSITIONS.PLAYER1.X;
     const p2OriginalX = CHARACTER_POSITIONS.PLAYER2.X;
@@ -1302,6 +1154,10 @@ export class ReplayScene extends Phaser.Scene {
           this.player1Health = round.player1HealthAfter;
           this.player2Health = round.player2HealthAfter;
           this.updateHealthBars();
+
+          // Update energy and guard meters from combat engine state
+          this.updateEnergyBars();
+          this.updateGuardMeters();
 
           // Phase 3: Run back
           this.time.delayedCall(500, () => {

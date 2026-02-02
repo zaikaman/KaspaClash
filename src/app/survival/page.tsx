@@ -64,6 +64,19 @@ export default function SurvivalPage() {
         setGameState("menu");
     }, []);
 
+    // Fullscreen game view
+    if (gameState === "playing" && survivalConfig) {
+        return (
+            <div className="fixed inset-0 z-50 bg-black overflow-hidden">
+                <SurvivalGameClient
+                    characterId={survivalConfig.characterId}
+                    onMatchEnd={handleMatchEnd}
+                    onExit={handleExit}
+                />
+            </div>
+        );
+    }
+
     return (
         <GameLayout>
             <div className="min-h-screen pt-6 sm:pt-10 pb-20 relative">
@@ -88,16 +101,6 @@ export default function SurvivalPage() {
 
                     {gameState === "menu" && (
                         <SurvivalMenu onStart={handleStart} />
-                    )}
-
-                    {gameState === "playing" && survivalConfig && (
-                        <div className="w-full h-[500px] sm:h-[600px] md:h-[720px] lg:h-[800px] bg-black/50 border border-red-500/30 rounded-2xl overflow-hidden">
-                            <SurvivalGameClient
-                                characterId={survivalConfig.characterId}
-                                onMatchEnd={handleMatchEnd}
-                                onExit={handleExit}
-                            />
-                        </div>
                     )}
 
                     {gameState === "results" && matchResult && (

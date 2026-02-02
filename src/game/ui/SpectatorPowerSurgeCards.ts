@@ -57,7 +57,6 @@ export interface SpectatorPowerSurgeConfig {
   player1Sprite?: Phaser.GameObjects.Sprite; // Sprite reference for visual effects
   player2Sprite?: Phaser.GameObjects.Sprite; // Sprite reference for visual effects
   onComplete: () => void;
-  speedMultiplier?: number; // For replay export mode
   player1Label?: string; // Custom label for player 1 (default: "BOT 1")
   player2Label?: string; // Custom label for player 2 (default: "BOT 2")
 }
@@ -83,7 +82,6 @@ export class SpectatorPowerSurgeCards {
   private titleText: Phaser.GameObjects.Text;
   private roundText: Phaser.GameObjects.Text;
   private isDestroyed: boolean = false;
-  private speedMultiplier: number;
   private player1Label: string;
   private player2Label: string;
 
@@ -94,7 +92,6 @@ export class SpectatorPowerSurgeCards {
   constructor(config: SpectatorPowerSurgeConfig) {
     this.scene = config.scene;
     this.config = config;
-    this.speedMultiplier = config.speedMultiplier || 1;
     this.player1Label = config.player1Label || "BOT 1";
     this.player2Label = config.player2Label || "BOT 2";
 
@@ -133,10 +130,6 @@ export class SpectatorPowerSurgeCards {
   // ===========================================================================
   // HELPER
   // ===========================================================================
-
-  private getScaledDuration(baseDuration: number): number {
-    return baseDuration / this.speedMultiplier;
-  }
 
   private playSFX(key: string): void {
     if (this.scene.game.sound.locked) return;
@@ -294,7 +287,7 @@ export class SpectatorPowerSurgeCards {
     this.scene.tweens.add({
       targets: [this.titleText, this.roundText],
       alpha: 1,
-      duration: this.getScaledDuration(300),
+      duration: 300,
       ease: "Power2",
     });
 
@@ -302,7 +295,7 @@ export class SpectatorPowerSurgeCards {
     this.scene.tweens.add({
       targets: this.titleText,
       alpha: { from: 1, to: 0.7 },
-      duration: this.getScaledDuration(500),
+      duration: 500,
       yoyo: true,
       repeat: -1,
       ease: "Sine.easeInOut",
@@ -314,8 +307,8 @@ export class SpectatorPowerSurgeCards {
         targets: display.container,
         scale: 1,
         alpha: 1,
-        duration: this.getScaledDuration(CARD_ENTRY_DURATION),
-        delay: this.getScaledDuration(200 + index * CARD_ENTRY_STAGGER),
+        duration: CARD_ENTRY_DURATION,
+        delay: 200 + index * CARD_ENTRY_STAGGER,
         ease: "Back.easeOut",
       });
     });
@@ -323,7 +316,7 @@ export class SpectatorPowerSurgeCards {
     // Step 3: After cards are shown, highlight selections
     const totalCardEntryTime = 200 + (this.cardDisplays.length - 1) * CARD_ENTRY_STAGGER + CARD_ENTRY_DURATION;
 
-    this.scene.time.delayedCall(this.getScaledDuration(totalCardEntryTime + SELECTION_REVEAL_DELAY), () => {
+    this.scene.time.delayedCall(totalCardEntryTime + SELECTION_REVEAL_DELAY, () => {
       if (this.isDestroyed) return;
       this.revealSelections();
     });
@@ -345,14 +338,14 @@ export class SpectatorPowerSurgeCards {
         this.scene.tweens.add({
           targets: display.container,
           alpha: 0.4,
-          duration: this.getScaledDuration(SELECTION_HIGHLIGHT_DURATION),
+          duration: SELECTION_HIGHLIGHT_DURATION,
           ease: "Power2",
         });
       }
     });
 
     // Step 4: After highlight, spawn mini cards and move them to character heads
-    this.scene.time.delayedCall(this.getScaledDuration(SELECTION_HIGHLIGHT_DURATION + 400), () => {
+    this.scene.time.delayedCall(SELECTION_HIGHLIGHT_DURATION + 400, () => {
       if (this.isDestroyed) return;
       this.spawnMiniCardsAndMove();
     });
@@ -380,7 +373,7 @@ export class SpectatorPowerSurgeCards {
           targets: label,
           alpha: 1,
           scale: 1,
-          duration: this.getScaledDuration(300),
+          duration: 300,
           ease: "Back.easeOut",
         });
       } else if (display.isPlayer1Selection) {
@@ -401,7 +394,7 @@ export class SpectatorPowerSurgeCards {
           targets: label,
           alpha: 1,
           scale: 1,
-          duration: this.getScaledDuration(300),
+          duration: 300,
           ease: "Back.easeOut",
         });
       } else if (display.isPlayer2Selection) {
@@ -422,7 +415,7 @@ export class SpectatorPowerSurgeCards {
           targets: label,
           alpha: 1,
           scale: 1,
-          duration: this.getScaledDuration(300),
+          duration: 300,
           ease: "Back.easeOut",
         });
       }
@@ -437,7 +430,7 @@ export class SpectatorPowerSurgeCards {
     this.scene.tweens.add({
       targets: display.container,
       scale: 1.1,
-      duration: this.getScaledDuration(SELECTION_HIGHLIGHT_DURATION),
+      duration: SELECTION_HIGHLIGHT_DURATION,
       ease: "Power2",
     });
 
@@ -451,7 +444,7 @@ export class SpectatorPowerSurgeCards {
     this.scene.tweens.add({
       targets: glow,
       alpha: { from: 0.8, to: 0.4 },
-      duration: this.getScaledDuration(400),
+      duration: 400,
       yoyo: true,
       repeat: -1,
       ease: "Sine.easeInOut",
@@ -475,7 +468,7 @@ export class SpectatorPowerSurgeCards {
         x: CHARACTER_POSITIONS.PLAYER1.X,
         y: this.config.player1SpriteY - 180,
         scale: 1,
-        duration: this.getScaledDuration(MINI_CARD_MOVE_DURATION),
+        duration: MINI_CARD_MOVE_DURATION,
         ease: "Power2.easeOut",
         onComplete: () => {
           // Apply visual effect to sprite when mini card arrives
@@ -498,7 +491,7 @@ export class SpectatorPowerSurgeCards {
         x: CHARACTER_POSITIONS.PLAYER2.X,
         y: this.config.player2SpriteY - 180,
         scale: 1,
-        duration: this.getScaledDuration(MINI_CARD_MOVE_DURATION),
+        duration: MINI_CARD_MOVE_DURATION,
         ease: "Power2.easeOut",
         onComplete: () => {
           // Apply visual effect to sprite when mini card arrives
@@ -510,20 +503,20 @@ export class SpectatorPowerSurgeCards {
     }
 
     // Fade out the main card display
-    this.scene.time.delayedCall(this.getScaledDuration(MINI_CARD_MOVE_DURATION / 2), () => {
+    this.scene.time.delayedCall(MINI_CARD_MOVE_DURATION / 2, () => {
       if (this.isDestroyed) return;
 
       this.scene.tweens.add({
         targets: [this.backgroundBlocker, this.mainContainer],
         alpha: 0,
-        duration: this.getScaledDuration(FADE_OUT_DURATION),
+        duration: FADE_OUT_DURATION,
         ease: "Power2",
       });
     });
 
     // Step 5: Hold display, then complete
     this.scene.time.delayedCall(
-      this.getScaledDuration(MINI_CARD_MOVE_DURATION + DISPLAY_HOLD_DURATION),
+      MINI_CARD_MOVE_DURATION + DISPLAY_HOLD_DURATION,
       () => {
         if (this.isDestroyed) return;
         this.complete();
@@ -625,7 +618,7 @@ export class SpectatorPowerSurgeCards {
         targets: this.player1MiniCard,
         alpha: 0,
         y: (this.player1MiniCard.y as number) - 30,
-        duration: this.getScaledDuration(FADE_OUT_DURATION),
+        duration: FADE_OUT_DURATION,
         ease: "Power2",
         onComplete: () => {
           if (this.player1MiniCard) {
@@ -641,7 +634,7 @@ export class SpectatorPowerSurgeCards {
         targets: this.player2MiniCard,
         alpha: 0,
         y: (this.player2MiniCard.y as number) - 30,
-        duration: this.getScaledDuration(FADE_OUT_DURATION),
+        duration: FADE_OUT_DURATION,
         ease: "Power2",
         onComplete: () => {
           if (this.player2MiniCard) {
@@ -653,7 +646,7 @@ export class SpectatorPowerSurgeCards {
     }
 
     // Call completion callback after fade
-    this.scene.time.delayedCall(this.getScaledDuration(FADE_OUT_DURATION + 100), () => {
+    this.scene.time.delayedCall(FADE_OUT_DURATION + 100, () => {
       this.destroy();
       this.config.onComplete();
     });

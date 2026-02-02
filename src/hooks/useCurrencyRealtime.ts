@@ -43,6 +43,8 @@ export function useCurrencyRealtime({
   const subscriptionRef = useRef<RealtimeChannel | null>(null);
   const isSubscribed = useRef(false);
   const errorRef = useRef<Error | null>(null);
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const retryCountRef = useRef(0);
   const { setCurrency } = useShopStore();
 
   // Use a ref to hold the callback to avoid dependency instability
@@ -54,80 +56,151 @@ export function useCurrencyRealtime({
       return;
     }
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    let supabase: ReturnType<typeof createClient>;
+    let mounted = true;
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 5000; // 5 seconds
 
-    // Create channel for player's currency
-    const channel = supabase
-      .channel(`currency:${playerId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen to INSERT, UPDATE, DELETE
-          schema: 'public',
-          table: 'player_currency',
-          filter: `player_id=eq.${playerId}`,
+    const setupSubscription = () => {
+      if (!mounted) return;
+
+      // Clean up any existing subscription
+      if (subscriptionRef.current && supabase) {
+        supabase.removeChannel(subscriptionRef.current);
+        subscriptionRef.current = null;
+      }
+
+      // Create new Supabase client
+      supabase = createClient(supabaseUrl, supabaseAnonKey, {
+        realtime: {
+          params: {
+            eventsPerSecond: 10,
+          },
         },
-        (payload) => {
-          console.log('[Currency Realtime] Update received:', payload);
-
-          // Handle different event types
-          if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
-            const newData = payload.new as {
-              clash_shards: number;
-              total_earned: number;
-              total_spent: number;
-            };
-
-            // Update store
-            setCurrency({
-              playerId,
-              clashShards: newData.clash_shards,
-              totalEarned: newData.total_earned,
-              totalSpent: newData.total_spent,
-              lastUpdated: new Date(),
-            });
-
-            // Notify callback (using ref to avoid dependency issues)
-            if (onCurrencyUpdateRef.current) {
-              onCurrencyUpdateRef.current(newData);
-            }
-          } else if (payload.eventType === 'DELETE') {
-            // Currency deleted - reset to 0
-            setCurrency({
-              playerId,
-              clashShards: 0,
-              totalEarned: 0,
-              totalSpent: 0,
-              lastUpdated: new Date(),
-            });
-          }
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('[Currency Realtime] Subscribed for player:', playerId);
-          isSubscribed.current = true;
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('[Currency Realtime] Subscription error');
-          errorRef.current = new Error('Failed to subscribe to currency updates');
-          isSubscribed.current = false;
-        } else if (status === 'TIMED_OUT') {
-          console.error('[Currency Realtime] Subscription timed out');
-          errorRef.current = new Error('Currency subscription timed out');
-          isSubscribed.current = false;
-        }
       });
 
-    subscriptionRef.current = channel;
+      // Create channel for player's currency
+      const channel = supabase
+        .channel(`currency:${playerId}`, {
+          config: {
+            broadcast: { self: false },
+            presence: { key: '' },
+          },
+        })
+        .on(
+          'postgres_changes',
+          {
+            event: '*', // Listen to INSERT, UPDATE, DELETE
+            schema: 'public',
+            table: 'player_currency',
+            filter: `player_id=eq.${playerId}`,
+          },
+          (payload) => {
+            console.log('[Currency Realtime] Update received:', payload);
+            retryCountRef.current = 0; // Reset retry count on successful message
+
+            // Handle different event types
+            if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
+              const newData = payload.new as {
+                clash_shards: number;
+                total_earned: number;
+                total_spent: number;
+              };
+
+              // Update store
+              setCurrency({
+                playerId,
+                clashShards: newData.clash_shards,
+                totalEarned: newData.total_earned,
+                totalSpent: newData.total_spent,
+                lastUpdated: new Date(),
+              });
+
+              // Notify callback (using ref to avoid dependency issues)
+              if (onCurrencyUpdateRef.current) {
+                onCurrencyUpdateRef.current(newData);
+              }
+            } else if (payload.eventType === 'DELETE') {
+              // Currency deleted - reset to 0
+              setCurrency({
+                playerId,
+                clashShards: 0,
+                totalEarned: 0,
+                totalSpent: 0,
+                lastUpdated: new Date(),
+              });
+            }
+          }
+        )
+        .subscribe((status, err) => {
+          if (!mounted) return;
+
+          if (status === 'SUBSCRIBED') {
+            console.log('[Currency Realtime] Subscribed for player:', playerId);
+            isSubscribed.current = true;
+            errorRef.current = null;
+            retryCountRef.current = 0;
+          } else if (status === 'CHANNEL_ERROR') {
+            console.warn('[Currency Realtime] Channel error:', err);
+            isSubscribed.current = false;
+            
+            // Retry logic with exponential backoff
+            if (retryCountRef.current < MAX_RETRIES) {
+              retryCountRef.current++;
+              const delay = RETRY_DELAY * retryCountRef.current;
+              console.log(`[Currency Realtime] Retrying subscription in ${delay}ms (attempt ${retryCountRef.current}/${MAX_RETRIES})`);
+              
+              if (retryTimeoutRef.current) {
+                clearTimeout(retryTimeoutRef.current);
+              }
+              
+              retryTimeoutRef.current = setTimeout(() => {
+                setupSubscription();
+              }, delay);
+            } else {
+              console.error('[Currency Realtime] Max retries reached. Subscription failed.');
+              errorRef.current = new Error('Failed to subscribe to currency updates after retries');
+            }
+          } else if (status === 'TIMED_OUT') {
+            console.warn('[Currency Realtime] Subscription timed out');
+            isSubscribed.current = false;
+            errorRef.current = new Error('Currency subscription timed out');
+            
+            // Retry on timeout
+            if (retryCountRef.current < MAX_RETRIES) {
+              retryCountRef.current++;
+              console.log(`[Currency Realtime] Retrying after timeout (attempt ${retryCountRef.current}/${MAX_RETRIES})`);
+              setTimeout(() => setupSubscription(), RETRY_DELAY);
+            }
+          } else if (status === 'CLOSED') {
+            console.log('[Currency Realtime] Channel closed');
+            isSubscribed.current = false;
+          }
+        });
+
+      subscriptionRef.current = channel;
+    };
+
+    // Initial setup
+    setupSubscription();
 
     // Cleanup on unmount or when dependencies change
     return () => {
-      console.log('[Currency Realtime] Unsubscribing from player:', playerId);
-      if (subscriptionRef.current) {
+      mounted = false;
+      console.log('[Currency Realtime] Cleaning up subscription for player:', playerId);
+      
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
+      
+      if (subscriptionRef.current && supabase) {
         supabase.removeChannel(subscriptionRef.current);
         subscriptionRef.current = null;
-        isSubscribed.current = false;
       }
+      
+      isSubscribed.current = false;
+      retryCountRef.current = 0;
     };
   }, [playerId, enabled, setCurrency]);
 

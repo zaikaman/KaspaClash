@@ -165,9 +165,10 @@ describe('Power Surge Cards - All 15 Cards', () => {
       // This means P2's move should have been null/missed
       expect(result.player2.outcome).toBe('stunned');
       
+      // P2's stun is a ONE-TIME effect: they are stunned on turn 1 only
+      // After the turn is resolved, the stun is cleared (they paid the penalty)
       const state = engine.getState();
-      // P2 should remain stunned for next turn
-      expect(state.player2.isStunned).toBe(true);
+      expect(state.player2.isStunned).toBe(false);
     });
 
     it('should cost HP when using Mempool Congest', () => {

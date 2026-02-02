@@ -96,6 +96,30 @@ export async function submitBotMoveForMatch(
     const engineState = engine.getState();
     console.log(`[BotMoveHelper] Bot state after replay - Energy: ${engineState[botPlayer].energy}, HP: ${engineState[botPlayer].hp}`);
 
+    // Check if bot is stunned by the current round's Power Surge (Mempool Congest)
+    // This is critical: the stun effect is applied at turn 1, so we need to check BEFORE deciding a move
+    const currentCombatRound = engineState.currentRound;
+    const currentSurge = surgeMap.get(currentCombatRound);
+    const humanPlayer = botPlayer === "player1" ? "player2" : "player1";
+    const humanPlayerSurgeCardId = humanPlayer === "player1" ? currentSurge?.player1_card_id : currentSurge?.player2_card_id;
+    
+    // Import surge effect utilities to check for stun
+    const { calculateSurgeEffects, shouldStunOpponent } = await import("@/game/combat/SurgeEffects");
+    
+    // Check if human player's surge card has opponent_stun effect (which would stun the bot)
+    let botIsStunnedBySurge = false;
+    if (humanPlayerSurgeCardId && engineState.currentTurn === 1) {
+        const surgeResults = calculateSurgeEffects(
+            humanPlayer === "player1" ? humanPlayerSurgeCardId as any : null,
+            humanPlayer === "player2" ? humanPlayerSurgeCardId as any : null
+        );
+        const humanPlayerMods = humanPlayer === "player1" ? surgeResults.player1Modifiers : surgeResults.player2Modifiers;
+        botIsStunnedBySurge = shouldStunOpponent(humanPlayerMods);
+        if (botIsStunnedBySurge) {
+            console.log(`[BotMoveHelper] Bot is stunned by opponent's Power Surge (${humanPlayerSurgeCardId}) - skipping move decision`);
+        }
+    }
+
     // Get bot's smart move
     const { SmartBotOpponent } = await import("@/lib/game/smart-bot-opponent");
 
@@ -108,15 +132,14 @@ export async function submitBotMoveForMatch(
     const botName = botProfile?.display_name || "Bot Opponent";
     const bot = new SmartBotOpponent(botName);
 
-    // Update bot context
-    const humanPlayer = botPlayer === "player1" ? "player2" : "player1";
+    // Update bot context - include the surge-based stun state
     bot.updateContext({
         botHealth: engineState[botPlayer].hp,
         botMaxHealth: engineState[botPlayer].maxHp,
         botEnergy: engineState[botPlayer].energy,
         botMaxEnergy: engineState[botPlayer].maxEnergy,
         botGuardMeter: engineState[botPlayer].guardMeter,
-        botIsStunned: engineState[botPlayer].isStunned || false,
+        botIsStunned: engineState[botPlayer].isStunned || botIsStunnedBySurge,
         botIsStaggered: engineState[botPlayer].isStaggered || false,
         opponentHealth: engineState[humanPlayer].hp,
         opponentMaxHealth: engineState[humanPlayer].maxHp,
@@ -131,13 +154,17 @@ export async function submitBotMoveForMatch(
         opponentRoundsWon: engineState[humanPlayer].roundsWon,
     });
 
-    const decision = bot.decide();
-    const botMove = decision.move;
+    // If bot is stunned by surge, use placeholder move instead of making a decision
+    // The combat engine will still treat this as stunned (null effective move)
+    const botMove = botIsStunnedBySurge ? "block" : bot.decide().move;
+    const moveReason = botIsStunnedBySurge ? "STUNNED by Mempool Congest" : bot.decide().reasoning;
 
-    console.log(`[BotMoveHelper] Bot chose move: ${botMove} (${decision.reasoning})`);
+    console.log(`[BotMoveHelper] Bot chose move: ${botMove} (${moveReason})`);
 
-    // Submit bot's move
-    const botTxId = `bot_tx_${Date.now()}_${Math.random().toString(36).substring(7)}`.padEnd(64, '0').substring(0, 64);
+    // Submit bot's move (use special tx_id to indicate stunned if applicable)
+    const botTxId = botIsStunnedBySurge 
+        ? "stunned-skip"
+        : `bot_tx_${Date.now()}_${Math.random().toString(36).substring(7)}`.padEnd(64, '0').substring(0, 64);
     const botMoveColumn = botPlayer === "player1" ? "player1_move" : "player2_move";
 
     // Insert move record

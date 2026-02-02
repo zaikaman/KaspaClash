@@ -233,7 +233,6 @@ export async function exportReplayToMP4(
                     player1RoundsWon: replayData.player1RoundsWon,
                     player2RoundsWon: replayData.player2RoundsWon,
                     rounds: replayData.rounds,
-                    speedMultiplier: 1,
                     muteAudio: false, // Let the scene play full audio
                 };
 
@@ -252,6 +251,10 @@ export async function exportReplayToMP4(
                         console.warn("Cleanup error:", e);
                     }
                 };
+
+                // Frame capture loop variables (declared early for audio pausing)
+                let captureIntervalId: ReturnType<typeof setInterval> | null = null;
+                let isPaused = false;
 
                 game.events.on("ready", () => {
                     onProgress?.(10, "Starting replay...");
@@ -288,7 +291,7 @@ export async function exportReplayToMP4(
 
                             // 6. Capture Logic
                             scriptProcessor.onaudioprocess = (e) => {
-                                if (isComplete) return;
+                                if (isComplete || isPaused) return;
 
                                 const left = e.inputBuffer.getChannelData(0);
                                 const right = e.inputBuffer.getChannelData(1);
@@ -324,39 +327,17 @@ export async function exportReplayToMP4(
                         return;
                     }
 
-                    // Listen for replay complete
-                    EventBus.on("replay:complete", async () => {
-                        if (isComplete) return;
-                        isComplete = true;
-
-                        onProgress?.(90, "Finalizing video...");
-
-                        try {
-                            await videoEncoder.flush();
-                            await audioEncoder.flush();
-                            muxer.finalize();
-
-                            const buffer = target.buffer;
-                            const blob = new Blob([buffer], { type: "video/mp4" });
-
-                            onProgress?.(100, "Complete!");
-                            cleanup();
-                            resolve(blob);
-                        } catch (err) {
-                            cleanup();
-                            reject(err);
-                        }
-                    });
-
                     // Frame capture loop
                     const captureIntervalMs = 1000 / frameRate;
-                    let captureIntervalId: ReturnType<typeof setInterval>;
 
                     const captureFrame = () => {
                         if (isComplete) {
-                            clearInterval(captureIntervalId);
+                            if (captureIntervalId) clearInterval(captureIntervalId);
                             return;
                         }
+
+                        // Skip frame capture if paused (tab hidden)
+                        if (isPaused) return;
 
                         const canvas = game.canvas;
                         if (canvas) {
@@ -384,6 +365,67 @@ export async function exportReplayToMP4(
                             }
                         }
                     };
+
+                    // Handle tab visibility changes to prevent glitchy recordings
+                    // When tab is hidden, Phaser pauses but setInterval still runs (throttled)
+                    // This causes frame mismatches and glitches in the output video
+                    const handleVisibilityChange = () => {
+                        if (isComplete) return;
+
+                        if (document.hidden) {
+                            // Tab became hidden - pause recording and Phaser
+                            isPaused = true;
+                            game.loop.sleep();
+                            onProgress?.(
+                                Math.min(85, 10 + Math.round((frameCount * captureIntervalMs / estimatedDurationMs) * 75)),
+                                "Paused (tab hidden)..."
+                            );
+                        } else {
+                            // Tab became visible - resume recording and Phaser
+                            isPaused = false;
+                            game.loop.wake();
+                            onProgress?.(
+                                Math.min(85, 10 + Math.round((frameCount * captureIntervalMs / estimatedDurationMs) * 75)),
+                                `Recording... (${frameCount} frames)`
+                            );
+                        }
+                    };
+
+                    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+                    // Store original cleanup and extend it
+                    const originalCleanup = cleanup;
+                    const extendedCleanup = () => {
+                        document.removeEventListener("visibilitychange", handleVisibilityChange);
+                        if (captureIntervalId) clearInterval(captureIntervalId);
+                        originalCleanup();
+                    };
+
+                    // Override the cleanup reference for the event handlers
+                    // Note: We need to update the replay:complete handler's cleanup call
+                    EventBus.off("replay:complete");
+                    EventBus.on("replay:complete", async () => {
+                        if (isComplete) return;
+                        isComplete = true;
+
+                        onProgress?.(90, "Finalizing video...");
+
+                        try {
+                            await videoEncoder.flush();
+                            await audioEncoder.flush();
+                            muxer.finalize();
+
+                            const buffer = target.buffer;
+                            const blob = new Blob([buffer], { type: "video/mp4" });
+
+                            onProgress?.(100, "Complete!");
+                            extendedCleanup();
+                            resolve(blob);
+                        } catch (err) {
+                            extendedCleanup();
+                            reject(err);
+                        }
+                    });
 
                     captureIntervalId = setInterval(captureFrame, captureIntervalMs);
                 });

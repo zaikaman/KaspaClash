@@ -378,13 +378,30 @@ export function preloadSurvivalSceneAssets(
 }
 
 /**
+ * Yield to the main thread to keep the scene responsive
+ */
+function yieldToMainThread(): Promise<void> {
+  return new Promise(resolve => {
+    if (typeof requestAnimationFrame !== 'undefined') {
+      requestAnimationFrame(() => resolve());
+    } else {
+      setTimeout(resolve, 0);
+    }
+  });
+}
+
+/**
  * Dynamically load additional characters during gameplay
  * Useful for survival mode when new opponents appear
+ * Includes frame yielding to prevent blocking the main thread
  */
 export async function loadAdditionalCharacter(
   scene: Phaser.Scene,
   characterId: string
 ): Promise<void> {
+  // Yield before starting to prevent blocking
+  await yieldToMainThread();
+
   if (loadedAssets.characters.has(characterId)) {
     // Verify all textures exist
     const allLoaded = ANIMATION_TYPES.every(anim =>
@@ -403,7 +420,9 @@ export async function loadAdditionalCharacter(
 
   // Return a promise that resolves when loading completes
   return new Promise((resolve) => {
-    scene.load.once("complete", () => {
+    scene.load.once("complete", async () => {
+      // Yield before creating animations to stay responsive
+      await yieldToMainThread();
       createCharacterAnimations(scene, [characterId]);
       resolve();
     });

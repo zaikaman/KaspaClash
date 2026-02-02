@@ -87,6 +87,8 @@ export class SurvivalScene extends Phaser.Scene {
     // Audio settings
     private bgmVolume: number = 0.3;
     private sfxVolume: number = 0.5;
+    private bgmSlider?: Phaser.GameObjects.Container;
+    private sfxSlider?: Phaser.GameObjects.Container;
 
     // Match result overlay
     private matchResultOverlay!: Phaser.GameObjects.Container;
@@ -197,7 +199,7 @@ export class SurvivalScene extends Phaser.Scene {
     }
 
     create(): void {
-        const { createCharacterAnimations, loadAdditionalCharacter } = require("../utils/asset-loader");
+        const { createCharacterAnimations } = require("../utils/asset-loader");
 
         this.loadAudioSettings();
 
@@ -208,31 +210,41 @@ export class SurvivalScene extends Phaser.Scene {
             "best_of_1"
         );
 
-        // Create animations for loaded characters
-        const firstOpponents = this.waves.slice(0, 5).map(w => w.characterId);
-        createCharacterAnimations(this, [this.playerCharacter.id, ...firstOpponents]);
+        // Create animations only for player and first opponent (immediate need)
+        // Defer remaining opponent animations to preloadRemainingOpponents
+        createCharacterAnimations(this, [this.playerCharacter.id, this.currentOpponent.id]);
 
+        // Create critical UI elements first (background, sprites, basic UI)
         this.createBackground();
         this.createCharacterSprites();
-        this.createHealthBars();
-        this.createEnergyBars();
-        this.createGuardMeters();
-        this.createRoundTimer();
-        this.createWaveIndicator();
-        this.createMoveButtons();
-        this.createNarrativeDisplay();
-        this.createTurnIndicator();
-        this.createCountdownOverlay();
-        this.createSettingsButton();
+        this.createCountdownOverlay(); // Needed for initial countdown
 
-        this.settingsContainer = this.add.container(0, 0);
-        this.createSettingsMenu();
+        // Defer non-critical UI creation to next frame to avoid initial lag
+        this.time.delayedCall(0, () => {
+            this.createHealthBars();
+            this.createEnergyBars();
+            this.createGuardMeters();
+            this.createRoundTimer();
+            this.createWaveIndicator();
+        });
+
+        // Defer move buttons and other UI to second frame
+        this.time.delayedCall(16, () => {
+            this.createMoveButtons();
+            this.createNarrativeDisplay();
+            this.createTurnIndicator();
+            this.createSettingsButton();
+            this.createSettingsMenu();
+        });
 
         this.setupEventListeners();
-        this.syncUIWithCombatState();
-        this.startWave();
-
-        EventBus.emit("survival_scene_ready");
+        
+        // Defer state sync and wave start to allow UI to render
+        this.time.delayedCall(32, () => {
+            this.syncUIWithCombatState();
+            this.startWave();
+            EventBus.emit("survival_scene_ready");
+        });
 
         // Play BGM
         this.sound.pauseOnBlur = false;
@@ -246,7 +258,13 @@ export class SurvivalScene extends Phaser.Scene {
         // Setup visibility handler for tab switching
         this.setupVisibilityHandler();
 
-        // Preload remaining opponents in background (waves 6-20)
+        // Create animations for first 5 opponents in background (after initial render)
+        this.time.delayedCall(100, () => {
+            const firstOpponents = this.waves.slice(1, 5).map(w => w.characterId);
+            createCharacterAnimations(this, firstOpponents);
+        });
+
+        // Preload remaining opponents in background (waves 6-20) - with significant delay
         this.preloadRemainingOpponents();
     }
 
@@ -293,16 +311,46 @@ export class SurvivalScene extends Phaser.Scene {
     }
 
     /**
-     * Preload remaining opponents in background after scene starts
+     * Preload remaining opponents in background after scene starts.
+     * Uses delayed batched loading to avoid blocking the main thread.
      */
     private async preloadRemainingOpponents(): Promise<void> {
         const { loadAdditionalCharacter } = require("../utils/asset-loader");
 
-        // Load remaining opponents (after wave 5)
+        // Wait for scene to fully stabilize before loading more assets
+        await this.delay(2000);
+
+        // Load remaining opponents (after wave 5) in small batches
+        const BATCH_SIZE = 3;
+        const BATCH_DELAY_MS = 500; // Delay between batches to keep scene responsive
+
         for (let i = 5; i < this.waves.length; i++) {
+            // Check if scene is still active
+            if (!this.scene.isActive()) return;
+
             const opponentId = this.waves[i].characterId;
             await loadAdditionalCharacter(this, opponentId);
+
+            // Add small delay between batches
+            if ((i - 4) % BATCH_SIZE === 0) {
+                await this.delay(BATCH_DELAY_MS);
+            }
         }
+
+        console.log("[SurvivalScene] All opponents preloaded");
+    }
+
+    /**
+     * Utility to delay execution without blocking
+     */
+    private delay(ms: number): Promise<void> {
+        return new Promise(resolve => {
+            if (this.scene.isActive()) {
+                this.time.delayedCall(ms, resolve);
+            } else {
+                resolve();
+            }
+        });
     }
 
     private playSFX(key: string): void {
@@ -774,24 +822,118 @@ export class SurvivalScene extends Phaser.Scene {
     }
 
     private createSettingsButton(): void {
-        // Simplified settings button
+        const radius = 24;
+        // Bottom Left position
         const x = 50;
         const y = GAME_DIMENSIONS.HEIGHT - 50;
 
-        const btn = this.add.text(x, y, "⚙", {
-            fontFamily: "monospace",
-            fontSize: "28px",
-            color: "#888888"
-        }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+        const container = this.add.container(x, y);
+        container.setDepth(2000); // Ensure it's above everything else
 
-        btn.on("pointerover", () => btn.setColor("#ffffff"));
-        btn.on("pointerout", () => btn.setColor("#888888"));
-        btn.on("pointerdown", () => this.toggleSettingsMenu());
+        const circle = this.add.graphics();
+        circle.fillStyle(0x1a1a2e, 0.8);
+        circle.fillCircle(0, 0, radius);
+        circle.lineStyle(2, 0x4b5563, 1);
+        circle.strokeCircle(0, 0, radius);
+
+        // Gear Icon (Simplified geometry)
+        const gear = this.add.graphics();
+        gear.fillStyle(0x9ca3af, 1);
+        gear.fillCircle(0, 0, 8);
+        for (let i = 0; i < 8; i++) {
+            const angle = Phaser.Math.DegToRad(i * 45);
+            const bx = Math.cos(angle) * 12;
+            const by = Math.sin(angle) * 12;
+            gear.fillCircle(bx, by, 4);
+        }
+        gear.fillCircle(0, 0, 4); // Center hole (filled with bg color in next step)
+
+        const centerHole = this.add.graphics();
+        centerHole.fillStyle(0x1a1a2e, 1);
+        centerHole.fillCircle(0, 0, 5);
+
+        container.add([circle, gear, centerHole]);
+        container.setSize(radius * 2, radius * 2);
+
+        // Interactive
+        const hitArea = new Phaser.Geom.Circle(25, 25, radius);
+        container.setInteractive(hitArea, Phaser.Geom.Circle.Contains);
+        container.input!.cursor = 'pointer';
+
+        container.on("pointerover", () => {
+            circle.lineStyle(2, 0x3b82f6, 1);
+            circle.strokeCircle(0, 0, radius);
+            this.tweens.add({ targets: gear, angle: 90, duration: 500, ease: "Back.easeOut" });
+        });
+
+        container.on("pointerout", () => {
+            circle.lineStyle(2, 0x4b5563, 1);
+            circle.strokeCircle(0, 0, radius);
+            this.tweens.add({ targets: gear, angle: 0, duration: 500, ease: "Back.easeOut" });
+        });
+
+        container.on("pointerdown", () => {
+            this.toggleSettingsMenu();
+        });
     }
 
     private createSettingsMenu(): void {
-        // Minimal settings menu
+        const width = 280;
+        const height = 180;
+
+        // Position menu above the button (bottom-left area)
+        const x = 50 + width / 2;
+        const y = GAME_DIMENSIONS.HEIGHT - 50 - height / 2 - 20;
+
+        this.settingsContainer = this.add.container(x, y);
         this.settingsContainer.setVisible(false);
+        this.settingsContainer.setDepth(2001); // Higher than button
+
+        // Menu Background
+        const bg = this.add.graphics();
+        bg.fillStyle(0x0f172a, 0.95);
+        bg.fillRoundedRect(-width / 2, -height / 2, width, height, 12);
+        bg.lineStyle(1, 0x334155, 1);
+        bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 12);
+        this.settingsContainer.add(bg);
+
+        // Header
+        const title = this.add.text(0, -70, "AUDIO SETTINGS", {
+            fontFamily: "monospace",
+            fontSize: "16px",
+            color: "#9ca3af",
+            fontStyle: "bold"
+        }).setOrigin(0.5);
+        this.settingsContainer.add(title);
+
+        // BGM Volume Slider
+        this.bgmSlider = this.createVolumeSlider(0, -30, "Music", this.bgmVolume, (value) => {
+            this.bgmVolume = value;
+            this.applyBgmVolume();
+            this.saveAudioSettings();
+        });
+        this.settingsContainer.add(this.bgmSlider);
+
+        // SFX Volume Slider
+        this.sfxSlider = this.createVolumeSlider(0, 15, "SFX", this.sfxVolume, (value) => {
+            this.sfxVolume = value;
+            this.saveAudioSettings();
+            // Play a test sound when adjusting
+            this.playSFX("sfx_click");
+        });
+        this.settingsContainer.add(this.sfxSlider);
+
+        // Close button
+        const closeBtn = this.add.text(0, 60, "CLOSE", {
+            fontFamily: "monospace",
+            fontSize: "14px",
+            color: "#6b7280"
+        }).setOrigin(0.5);
+        closeBtn.setInteractive({ useHandCursor: true });
+        closeBtn.on("pointerover", () => closeBtn.setColor("#ffffff"));
+        closeBtn.on("pointerout", () => closeBtn.setColor("#6b7280"));
+        closeBtn.on("pointerdown", () => this.toggleSettingsMenu());
+        this.settingsContainer.add(closeBtn);
     }
 
     private toggleSettingsMenu(): void {
@@ -1053,7 +1195,59 @@ export class SurvivalScene extends Phaser.Scene {
         // Get current state to check if player is stunned
         const state = this.combatEngine.getState();
 
-        // Check if player is stunned
+        // Check if BOTH players are stunned
+        if (state.player1.isStunned && state.player2.isStunned) {
+            // Both stunned - show message, disable buttons, and resolve immediately
+            this.turnIndicatorText.setText("BOTH PLAYERS STUNNED!").setColor("#ff4444");
+            this.roundTimerText.setColor("#ff4444");
+
+            // Disable all buttons visually
+            this.moveButtons.forEach(btn => {
+                btn.setAlpha(0.3);
+                btn.disableInteractive();
+            });
+
+            // Flash the stun message
+            this.tweens.add({
+                targets: this.turnIndicatorText,
+                alpha: { from: 1, to: 0.5 },
+                duration: 300,
+                yoyo: true,
+                repeat: 2,
+            });
+
+            // Show visual stun effects on both players immediately
+            const p1Char = this.playerCharacter.id;
+            const p2Char = this.currentOpponent.id;
+
+            // Player 1 stun effect
+            this.tweens.add({
+                targets: this.player1Sprite,
+                tint: 0xff6666,
+                yoyo: true,
+                repeat: 3,
+                duration: 200,
+                onComplete: () => this.player1Sprite.clearTint()
+            });
+
+            // Player 2 stun effect
+            this.tweens.add({
+                targets: this.player2Sprite,
+                tint: 0xff6666,
+                yoyo: true,
+                repeat: 3,
+                duration: 200,
+                onComplete: () => this.player2Sprite.clearTint()
+            });
+
+            // Resolve immediately with placeholder moves (combat engine handles stunned state)
+            this.time.delayedCall(1000, () => {
+                this.resolveRound("punch", "punch");
+            });
+            return;
+        }
+
+        // Check if only player is stunned
         if (state.player1.isStunned) {
             // Player is stunned - show message and disable buttons
             this.turnIndicatorText.setText("YOU ARE STUNNED!").setColor("#ff4444");
@@ -1072,6 +1266,16 @@ export class SurvivalScene extends Phaser.Scene {
                 duration: 300,
                 yoyo: true,
                 repeat: 2,
+            });
+
+            // Show visual stun effect on player immediately
+            this.tweens.add({
+                targets: this.player1Sprite,
+                tint: 0xff6666,
+                yoyo: true,
+                repeat: 3,
+                duration: 200,
+                onComplete: () => this.player1Sprite.clearTint()
             });
 
             // AI makes its decision immediately (player can't act)
@@ -1095,8 +1299,32 @@ export class SurvivalScene extends Phaser.Scene {
             return;
         }
 
-        // Normal selection phase (player not stunned)
-        this.turnIndicatorText.setText("Select your move!").setColor("#888888");
+        // Check if only AI is stunned
+        if (state.player2.isStunned) {
+            // AI is stunned - show message
+            this.turnIndicatorText.setText("OPPONENT IS STUNNED!").setColor("#22c55e");
+            this.roundTimerText.setColor("#ef4444");
+
+            // Show visual stun effect on AI immediately
+            this.tweens.add({
+                targets: this.player2Sprite,
+                tint: 0xff6666,
+                yoyo: true,
+                repeat: 3,
+                duration: 200,
+                onComplete: () => this.player2Sprite.clearTint()
+            });
+
+            // Player can still select their move normally
+            // Fall through to normal selection phase below
+        }
+
+        // Normal selection phase (player can select move - either both not stunned or only AI is stunned)
+        if (!state.player2.isStunned) {
+            this.turnIndicatorText.setText("Select your move!").setColor("#888888");
+        }
+        // If we already set the text above for AI stunned case, keep it
+        
         this.roundTimerText.setColor("#ef4444");
 
         // Reset button visuals and affordability
@@ -1864,6 +2092,112 @@ export class SurvivalScene extends Phaser.Scene {
             fontFamily: "monospace", fontSize: "28px", color, fontStyle: "bold", stroke: "#000000", strokeThickness: 4
         }).setOrigin(0.5);
         this.tweens.add({ targets: t, y: y - 60, alpha: 0, duration: 1000, ease: "Power2", onComplete: () => t.destroy() });
+    }
+
+    /**
+     * Create a volume slider control.
+     */
+    private createVolumeSlider(
+        x: number,
+        y: number,
+        label: string,
+        initialValue: number,
+        onChange: (value: number) => void
+    ): Phaser.GameObjects.Container {
+        const container = this.add.container(x, y);
+        const sliderWidth = 140;
+        const sliderHeight = 8;
+        const knobRadius = 10;
+
+        // Label
+        const labelText = this.add.text(-120, 0, label, {
+            fontFamily: "monospace",
+            fontSize: "12px",
+            color: "#9ca3af"
+        }).setOrigin(0, 0.5);
+        container.add(labelText);
+
+        // Track start X
+        const trackOffsetX = 10;
+        const trackStartX = -sliderWidth / 2 + trackOffsetX;
+
+        // Track background
+        const trackBg = this.add.graphics();
+        trackBg.fillStyle(0x1e293b, 1);
+        trackBg.fillRoundedRect(trackStartX, -sliderHeight / 2, sliderWidth, sliderHeight, 4);
+        container.add(trackBg);
+
+        // Track fill (progress)
+        const trackFill = this.add.graphics();
+        container.add(trackFill);
+
+        // Knob
+        const knob = this.add.graphics();
+        container.add(knob);
+
+        // Percentage text
+        const percentText = this.add.text(sliderWidth / 2 + 25, 0, `${Math.round(initialValue * 100)}%`, {
+            fontFamily: "monospace",
+            fontSize: "11px",
+            color: "#6b7280"
+        }).setOrigin(0, 0.5);
+        container.add(percentText);
+
+        // Update visual based on value
+        const updateSliderVisual = (value: number) => {
+            const fillWidth = sliderWidth * value;
+            const knobX = trackStartX + fillWidth;
+
+            trackFill.clear();
+            trackFill.fillStyle(0x3b82f6, 1);
+            trackFill.fillRoundedRect(trackStartX, -sliderHeight / 2, fillWidth, sliderHeight, 4);
+
+            knob.clear();
+            knob.fillStyle(0x3b82f6, 1);
+            knob.fillCircle(knobX, 0, knobRadius);
+            knob.fillStyle(0x1e40af, 1);
+            knob.fillCircle(knobX, 0, knobRadius - 3);
+
+            percentText.setText(`${Math.round(value * 100)}%`);
+        };
+
+        updateSliderVisual(initialValue);
+
+        // Make the entire track area interactive
+        const hitArea = this.add.rectangle(0, 0, 240, 30, 0x000000, 0);
+        hitArea.setInteractive({ useHandCursor: true });
+        container.add(hitArea);
+
+        // Drag handling
+        let isDragging = false;
+
+        const calculateValue = (pointerX: number): number => {
+            const localX = pointerX - container.x - this.settingsContainer.x;
+            const trackEndX = trackStartX + sliderWidth;
+            const clampedX = Phaser.Math.Clamp(localX, trackStartX, trackEndX);
+            return (clampedX - trackStartX) / sliderWidth;
+        };
+
+        hitArea.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+            isDragging = true;
+            const newValue = calculateValue(pointer.x);
+            updateSliderVisual(newValue);
+            onChange(newValue);
+        });
+
+        this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+            if (isDragging) {
+                const newValue = calculateValue(pointer.x);
+                updateSliderVisual(newValue);
+                onChange(newValue);
+            }
+        });
+
+        this.input.on("pointerup", () => {
+            isDragging = false;
+        });
+
+        return container;
     }
 
     private exitSurvival(): void {

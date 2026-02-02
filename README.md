@@ -902,21 +902,21 @@ Each card features balanced effects with strategic considerations:
 
 | Card Name | Effect | Strategic Notes |
 |-----------|--------|-----------------|
-| **DAG Overclock** | +85% damage | High risk, high reward damage boost |
-| **Block Fortress** | Blocks reflect 1050% damage | Punishes aggressive opponents severely |
-| **Tx Storm** | +38 energy, lose 5 HP | Trade health for tactical resource advantage |
-| **Mempool Congest** | Stun opponent (costs 7 HP) | Pay HP to guarantee your turn goes first |
-| **Blue Set Heal** | Restore 6.5 HP over time | Sustain and survival for close matches |
-| **Orphan Smasher** | Counter deals +125% damage | Rewards high-skill prediction plays |
-| **10BPS Barrage** | Light attacks cost 0 energy (+22 regen) | Continuous pressure without depletion |
-| **Pruned Rage** | +60% damage, can't block | Ultimate aggression at the cost of defense |
-| **Sompi Shield** | Take 82% less damage | Extreme damage mitigation for one round |
-| **Hash Hurricane** | 82% chance to dodge attack | High-stakes RNG defensive maneuver |
-| **GhostDAG** | Move undetectable (83% Check) | Disrupt opponent counters and blocks |
-| **Finality Fist** | Special +125% dmg, costs +15 energy | Turn your special into a match-ender |
-| **BPS Syphon** | Heal for 82% of damage dealt | Life-steal to swing health advantage |
-| **Vaultbreaker** | Steal 35 energy on hit | Deprive opponent while boosting yourself |
-| **Chainbreaker** | Break guard on any hit. +53% Dmg | Bypass blocks completely |
+| **DAG Overclock** | +40% damage dealt | High risk, high reward damage boost |
+| **Block Fortress** | Blocks reflect 120% damage | Punishes aggressive opponents severely |
+| **Tx Storm** | +25 energy, lose 4 HP | Trade health for tactical resource advantage |
+| **Mempool Congest** | Stun opponent (Costs 6 HP) | Pay HP to guarantee your turn goes first |
+| **Blue Set Heal** | Restore 10 HP over time | Sustain and survival for close matches |
+| **Orphan Smasher** | Counter deals +75% damage | Rewards high-skill prediction plays |
+| **10BPS Barrage** | +20 energy regen on kick or punch | Continuous pressure without depletion |
+| **Pruned Rage** | +30% damage, opponent can't block | Ultimate aggression with unblockable attacks |
+| **Sompi Shield** | Take 45% less damage | Extreme damage mitigation for one round |
+| **Hash Hurricane** | 35% chance to dodge attack | High-stakes RNG defensive maneuver |
+| **GhostDAG** | Opponent loses 30 Energy every turn | Drain opponent resource to limit their options |
+| **Finality Fist** | Special +70% dmg, costs +24 energy | Turn your special into a match-ender |
+| **BPS Syphon** | Heal for 35% of damage dealt | Life-steal to swing health advantage |
+| **Vaultbreaker** | Steal 50 energy on hit | Deprive opponent while boosting yourself |
+| **Chainbreaker** | Bypass block, +15% damage | Bypass blocks completely |
 
 #### Design Philosophy
 - **No Tiers:** Unlike character rarities, all Power Surge cards are presented equally—no "common" vs "legendary" visual hierarchy
