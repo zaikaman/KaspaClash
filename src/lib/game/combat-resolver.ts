@@ -192,7 +192,7 @@ export async function resolveRound(
         const player2CharId = match.player2_character_id || "dag-warrior";
 
         // Create combat engine and initialize with character stats
-        const engine = new CombatEngine(player1CharId, player2CharId, "best_of_5");
+        const engine = new CombatEngine(player1CharId, player2CharId, "best_of_3");
 
         // Fetch Power Surge cards for all rounds to apply their effects
         const { data: powerSurges } = await supabase
@@ -743,10 +743,10 @@ export async function handleMoveRejection(
     const newPlayer1RoundsWon = roundWinner === "player1" ? player1RoundsWon + 1 : player1RoundsWon;
     const newPlayer2RoundsWon = roundWinner === "player2" ? player2RoundsWon + 1 : player2RoundsWon;
 
-    // Check if match is over (first to 3)
-    const isMatchOver = newPlayer1RoundsWon >= 3 || newPlayer2RoundsWon >= 3;
+    // Check if match is over (first to 2)
+    const isMatchOver = newPlayer1RoundsWon >= 2 || newPlayer2RoundsWon >= 2;
     const matchWinner = isMatchOver
-        ? (newPlayer1RoundsWon >= 3 ? "player1" : "player2")
+        ? (newPlayer1RoundsWon >= 2 ? "player1" : "player2")
         : null;
 
     const winnerAddress = roundWinner === "player1" ? match.player1_address : match.player2_address;

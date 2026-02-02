@@ -158,7 +158,7 @@ export class ReplayScene extends Phaser.Scene {
     this.combatEngine = new CombatEngine(
       this.config.player1Character || "dag-warrior",
       this.config.player2Character || "dag-warrior",
-      "best_of_5"
+      "best_of_3"
     );
 
     // Get initial health from combat engine
@@ -656,7 +656,7 @@ export class ReplayScene extends Phaser.Scene {
     this.roundScoreText = this.add.text(
       GAME_DIMENSIONS.CENTER_X,
       60,
-      `Round ${this.currentGameRound}  •  ${this.player1RoundsWon} - ${this.player2RoundsWon}  (First to 3)`,
+      `Round ${this.currentGameRound}  •  ${this.player1RoundsWon} - ${this.player2RoundsWon}  (First to 2)`,
       {
         fontFamily: "Orbitron",
         fontSize: "24px",
@@ -937,8 +937,16 @@ export class ReplayScene extends Phaser.Scene {
 
     const round = this.config.rounds[this.currentRoundIndex];
     
-    // Check if this round has power surge data
-    if (round.surgeCardIds && round.player1SurgeSelection && round.player2SurgeSelection) {
+    // Check if this is the start of a new game round:
+    // - First turn (index 0) is always the start of game round 1
+    // - After that, a new game round starts when the PREVIOUS turn had a winnerAddress (game round ended)
+    const previousTurn = this.currentRoundIndex > 0 
+      ? this.config.rounds[this.currentRoundIndex - 1] 
+      : null;
+    const isNewGameRound = this.currentRoundIndex === 0 || (previousTurn?.winnerAddress !== null);
+    
+    // Only show power surge at the START of a new game round
+    if (isNewGameRound && round.surgeCardIds && round.player1SurgeSelection && round.player2SurgeSelection) {
       this.showPowerSurgeUI(round, () => {
         this.animateRound(round);
       });
@@ -957,10 +965,22 @@ export class ReplayScene extends Phaser.Scene {
       this.powerSurgeUI = null;
     }
 
-    // Create spectator power surge UI
+    // Clear any leftover narrative text from previous round (e.g., "X WINS THE ROUND!")
+    this.narrativeText.setAlpha(0);
+    this.narrativeText.setText("");
+
+    // Reset HP/Energy/Guard bars for the new round BEFORE showing power surge UI
+    this.updateHealthBarDisplay("player1", this.player1MaxHealth, this.player1MaxHealth);
+    this.updateHealthBarDisplay("player2", this.player2MaxHealth, this.player2MaxHealth);
+    this.updateEnergyBarDisplay("player1", this.player1MaxEnergy, this.player1MaxEnergy);
+    this.updateEnergyBarDisplay("player2", this.player2MaxEnergy, this.player2MaxEnergy);
+    this.updateGuardMeterDisplay("player1", 0);
+    this.updateGuardMeterDisplay("player2", 0);
+
+    // Create spectator power surge UI (use currentGameRound, not round.roundNumber which is the turn number)
     this.powerSurgeUI = new SpectatorPowerSurgeCards({
       scene: this,
-      roundNumber: round.roundNumber,
+      roundNumber: this.currentGameRound,
       cardIds: round.surgeCardIds!,
       player1Selection: round.player1SurgeSelection!,
       player2Selection: round.player2SurgeSelection!,
@@ -1400,11 +1420,11 @@ export class ReplayScene extends Phaser.Scene {
 
     // Update score text
     this.roundScoreText.setText(
-      `Round ${this.currentGameRound}  •  ${this.player1RoundsWon} - ${this.player2RoundsWon}  (First to 3)`
+      `Round ${this.currentGameRound}  •  ${this.player1RoundsWon} - ${this.player2RoundsWon}  (First to 2)`
     );
 
     // Check for match end
-    const matchOver = this.player1RoundsWon >= 3 || this.player2RoundsWon >= 3;
+    const matchOver = this.player1RoundsWon >= 2 || this.player2RoundsWon >= 2;
 
     this.time.delayedCall(2000, () => {
       this.tweens.add({
@@ -1466,7 +1486,7 @@ export class ReplayScene extends Phaser.Scene {
 
     // Update round score text
     this.roundScoreText.setText(
-      `Round ${this.currentGameRound}  •  ${this.player1RoundsWon} - ${this.player2RoundsWon}  (First to 3)`
+      `Round ${this.currentGameRound}  •  ${this.player1RoundsWon} - ${this.player2RoundsWon}  (First to 2)`
     );
   }
 

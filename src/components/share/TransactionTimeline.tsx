@@ -12,11 +12,11 @@ import {
     GameController01Icon,
     Blockchain03Icon,
     Alert02Icon,
-    CheckmarkCircle02Icon,
     ViewIcon,
     ArrowUp01Icon,
     ArrowDown01Icon,
 } from "@hugeicons/core-free-icons";
+import { getPowerSurgeCard } from "@/types/power-surge";
 
 export interface TransactionData {
     txId: string;
@@ -56,6 +56,11 @@ function formatAddress(address: string): string {
 }
 
 function GetMoveIcon({ moveType }: { moveType: string }) {
+    // Handle power surge card selections
+    if (moveType.startsWith("power-surge:")) {
+        return <HugeiconsIcon icon={FlashIcon} className="w-4 h-4" />;
+    }
+    
     switch (moveType) {
         case "punch": return <HugeiconsIcon icon={BoxingGlove01Icon} className="w-4 h-4" />;
         case "kick": return <HugeiconsIcon icon={RunningShoesIcon} className="w-4 h-4" />;
@@ -66,6 +71,11 @@ function GetMoveIcon({ moveType }: { moveType: string }) {
 }
 
 function getMoveColor(moveType: string): string {
+    // Handle power surge card selections
+    if (moveType.startsWith("power-surge:")) {
+        return "text-cyan-400";
+    }
+    
     switch (moveType) {
         case "punch": return "text-red-500";
         case "kick": return "text-orange-500";
@@ -73,6 +83,17 @@ function getMoveColor(moveType: string): string {
         case "special": return "text-purple-500";
         default: return "text-gray-500";
     }
+}
+
+function getMoveLabel(moveType: string): string {
+    // Handle power surge card selections
+    if (moveType.startsWith("power-surge:")) {
+        const cardId = moveType.replace("power-surge:", "");
+        const card = getPowerSurgeCard(cardId as any);
+        return card ? `Power Surge: ${card.name}` : "Power Surge Card";
+    }
+    
+    return moveType.charAt(0).toUpperCase() + moveType.slice(1);
 }
 
 function getTimeDiff(startTime: string, endTime: string): string {
@@ -173,12 +194,6 @@ export default function TransactionTimeline({
 
                 {/* Speed Stats */}
                 <div className="hidden md:flex items-center gap-4">
-                    {avgConfirmTime && (
-                        <div className="text-right">
-                            <div className="text-xs text-cyber-gray uppercase">Avg Confirmation</div>
-                            <div className="text-cyber-gold font-mono font-bold">{avgConfirmTime}</div>
-                        </div>
-                    )}
                     {matchDuration && (
                         <div className="text-right">
                             <div className="text-xs text-cyber-gray uppercase">Match Duration</div>
@@ -223,7 +238,7 @@ export default function TransactionTimeline({
                                 <div>
                                     <div className="flex items-center gap-2">
                                         <span className={`font-bold uppercase text-sm ${getMoveColor(tx.moveType)}`}>
-                                            {tx.moveType}
+                                            {getMoveLabel(tx.moveType)}
                                         </span>
                                         <span className="text-cyber-gray text-xs">
                                             Round {tx.roundNumber}
@@ -237,12 +252,6 @@ export default function TransactionTimeline({
 
                             {/* TX Link */}
                             <div className="flex items-center gap-3">
-                                {tx.confirmedAt && (
-                                    <div className="hidden sm:flex items-center gap-1 text-green-500 text-xs">
-                                        <HugeiconsIcon icon={CheckmarkCircle02Icon} className="w-3 h-3" />
-                                        <span>Confirmed</span>
-                                    </div>
-                                )}
                                 <a
                                     href={getExplorerUrl(tx.txId)}
                                     target="_blank"
@@ -280,12 +289,6 @@ export default function TransactionTimeline({
 
             {/* Mobile Stats */}
             <div className="md:hidden flex justify-center gap-6 mt-4 pt-4 border-t border-white/5">
-                {avgConfirmTime && (
-                    <div className="text-center">
-                        <div className="text-xs text-cyber-gray uppercase">Avg Confirm</div>
-                        <div className="text-cyber-gold font-mono font-bold text-sm">{avgConfirmTime}</div>
-                    </div>
-                )}
                 {matchDuration && (
                     <div className="text-center">
                         <div className="text-xs text-cyber-gray uppercase">Duration</div>

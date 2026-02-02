@@ -97,15 +97,68 @@ async function getMatchTransactions(matchId: string): Promise<TransactionData[]>
             return [];
         }
 
-        // Transform to TransactionData format
-        return moves.map((move: MoveData) => ({
-            txId: move.tx_id!,
-            moveType: move.move_type,
-            playerAddress: move.player_address,
-            roundNumber: roundNumberMap[move.round_id] || 1,
-            confirmedAt: move.tx_confirmed_at,
-            createdAt: move.created_at,
-        }));
+        // Get power surge transactions
+        const { data: powerSurges, error: powerSurgesError } = await supabase
+            .from("power_surges")
+            .select("round_number, player1_card_id, player1_tx_id, player1_selected_at, player2_card_id, player2_tx_id, player2_selected_at, created_at")
+            .eq("match_id", matchId)
+            .order("round_number", { ascending: true });
+
+        if (powerSurgesError) {
+            console.error("Error fetching power surges:", powerSurgesError);
+        }
+
+        // Get match data to know player addresses
+        const { data: matchData } = await supabase
+            .from("matches")
+            .select("player1_address, player2_address")
+            .eq("id", matchId)
+            .single();
+
+        const transactions: TransactionData[] = [];
+
+        // Transform moves to TransactionData format
+        moves.forEach((move: MoveData) => {
+            transactions.push({
+                txId: move.tx_id!,
+                moveType: move.move_type,
+                playerAddress: move.player_address,
+                roundNumber: roundNumberMap[move.round_id] || 1,
+                confirmedAt: move.tx_confirmed_at,
+                createdAt: move.created_at,
+            });
+        });
+
+        // Transform power surge selections to TransactionData format
+        if (powerSurges && matchData) {
+            powerSurges.forEach((ps: any) => {
+                if (ps.player1_tx_id && ps.player1_card_id) {
+                    transactions.push({
+                        txId: ps.player1_tx_id,
+                        moveType: `power-surge:${ps.player1_card_id}`,
+                        playerAddress: matchData.player1_address,
+                        roundNumber: ps.round_number,
+                        confirmedAt: ps.player1_selected_at,
+                        createdAt: ps.player1_selected_at || ps.created_at,
+                    });
+                }
+                if (ps.player2_tx_id && ps.player2_card_id) {
+                    transactions.push({
+                        txId: ps.player2_tx_id,
+                        moveType: `power-surge:${ps.player2_card_id}`,
+                        playerAddress: matchData.player2_address || "",
+                        roundNumber: ps.round_number,
+                        confirmedAt: ps.player2_selected_at,
+                        createdAt: ps.player2_selected_at || ps.created_at,
+                    });
+                }
+            });
+        }
+
+        // Sort all transactions by creation time
+        transactions.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+        return transactions;
     } catch (error) {
         console.error("Error fetching transactions:", error);
         return [];

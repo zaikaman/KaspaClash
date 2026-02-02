@@ -533,7 +533,7 @@ export async function createMatch(
         player1_address: player1Address,
         player2_address: player2Address,
         status: "character_select",
-        format: "best_of_5",
+        format: "best_of_3",
         selection_deadline_at: selectionDeadlineAt,
       })
       .select("id, selection_deadline_at")
@@ -576,7 +576,7 @@ export async function createRoom(
       player1_address: hostAddress,
       room_code: code,
       status: "waiting",
-      format: "best_of_5",
+      format: "best_of_3",
       ...(stakeAmountSompi && stakeAmountSompi > 0 ? { stake_amount: stakeAmountSompi.toString() } : {}),
     } as any;
 

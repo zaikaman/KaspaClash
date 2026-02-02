@@ -6,6 +6,7 @@
  */
 
 import { Muxer, ArrayBufferTarget } from "mp4-muxer";
+import type { PowerSurgeCardId } from "@/types/power-surge";
 
 // Replay data type (duplicated to avoid import chain issues)
 export interface ReplayRoundData {
@@ -23,6 +24,10 @@ export interface ReplayRoundData {
     player2HpRegen?: number;
     player1Lifesteal?: number;
     player2Lifesteal?: number;
+    // Power surge data
+    surgeCardIds?: PowerSurgeCardId[];
+    player1SurgeSelection?: PowerSurgeCardId;
+    player2SurgeSelection?: PowerSurgeCardId;
 }
 
 export interface ReplayData {

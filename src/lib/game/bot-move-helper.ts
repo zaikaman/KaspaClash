@@ -48,7 +48,19 @@ export async function submitBotMoveForMatch(
         match.format as "best_of_1" | "best_of_3" | "best_of_5"
     );
 
-    // Replay all previous rounds to get current state
+    // Fetch Power Surge cards for all rounds to apply their effects
+    const { data: powerSurges } = await supabase
+        .from("power_surges")
+        .select("*")
+        .eq("match_id", matchId);
+
+    // Map surges by round number for quick lookup
+    const surgeMap = new Map<number, { player1_card_id: string | null; player2_card_id: string | null }>();
+    powerSurges?.forEach((ps: { round_number: number; player1_card_id: string | null; player2_card_id: string | null }) => {
+        surgeMap.set(ps.round_number, ps);
+    });
+
+    // Replay all previous rounds to get current state (including Power Surge effects)
     const { data: previousRounds } = await supabase
         .from("rounds")
         .select("*")
@@ -56,15 +68,33 @@ export async function submitBotMoveForMatch(
         .lt("round_number", round.round_number)
         .order("round_number", { ascending: true });
 
+    const validMoves = ["punch", "kick", "block", "special"];
     if (previousRounds) {
         for (const prevRound of previousRounds) {
-            if (prevRound.player1_move && prevRound.player2_move) {
-                engine.resolveTurn(prevRound.player1_move as any, prevRound.player2_move as any);
+            const p1Move = prevRound.player1_move;
+            const p2Move = prevRound.player2_move;
+            if (p1Move && p2Move && validMoves.includes(p1Move) && validMoves.includes(p2Move)) {
+                const combatRound = engine.getState().currentRound;
+                const surge = surgeMap.get(combatRound);
+
+                engine.resolveTurn(
+                    p1Move as "punch" | "kick" | "block" | "special",
+                    p2Move as "punch" | "kick" | "block" | "special",
+                    (surge?.player1_card_id || null) as any,
+                    (surge?.player2_card_id || null) as any
+                );
+
+                // If a round ended, start new round
+                const prevState = engine.getState();
+                if (prevState.isRoundOver && !prevState.isMatchOver) {
+                    engine.startNewRound();
+                }
             }
         }
     }
 
     const engineState = engine.getState();
+    console.log(`[BotMoveHelper] Bot state after replay - Energy: ${engineState[botPlayer].energy}, HP: ${engineState[botPlayer].hp}`);
 
     // Get bot's smart move
     const { SmartBotOpponent } = await import("@/lib/game/smart-bot-opponent");

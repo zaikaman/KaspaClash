@@ -13,12 +13,13 @@ import { getCharacterCombatStats } from "@/game/combat";
 import { getRandomPowerSurgeCards, PowerSurgeCardId } from "@/types/power-surge";
 
 /**
- * Generate pre-computed Power Surge deck for all 5 rounds.
+ * Generate pre-computed Power Surge deck for all 3 rounds.
  * Each round gets 3 random cards.
+ * Note: If draws extend beyond 3 rounds, additional decks are generated on-demand.
  */
 function generatePowerSurgeDeck(): Record<string, PowerSurgeCardId[]> {
   const deck: Record<string, PowerSurgeCardId[]> = {};
-  for (let round = 1; round <= 5; round++) {
+  for (let round = 1; round <= 3; round++) {
     const cards = getRandomPowerSurgeCards(3);
     deck[round.toString()] = cards.map(c => c.id);
   }

@@ -14,12 +14,13 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getRandomPowerSurgeCards, PowerSurgeCardId } from "@/types/power-surge";
 
 /**
- * Generate pre-computed Power Surge deck for all 5 rounds.
+ * Generate pre-computed Power Surge deck for all 3 rounds.
  * Each round gets 3 random cards.
+ * Note: If draws extend beyond 3 rounds, additional decks are generated on-demand.
  */
 function generatePowerSurgeDeck(): Record<string, PowerSurgeCardId[]> {
     const deck: Record<string, PowerSurgeCardId[]> = {};
-    for (let round = 1; round <= 5; round++) {
+    for (let round = 1; round <= 3; round++) {
         const cards = getRandomPowerSurgeCards(3);
         deck[round.toString()] = cards.map(c => c.id);
     }
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest) {
                 player2_address: player2Address,
                 player2_character_id: botCharacterId,
                 player2_ban_id: botBanId, // Bot's pre-selected ban
-                format: "best_of_5",
+                format: "best_of_3",
                 status: "character_select",
                 selection_deadline_at: new Date(Date.now() + 30000).toISOString(), // 30 seconds
                 is_bot: true, // Mark as bot match

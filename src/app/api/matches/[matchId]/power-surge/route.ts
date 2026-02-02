@@ -181,10 +181,10 @@ export async function POST(
       );
     }
 
-    // Validate round number (1-5 for best of 5)
-    if (roundNumber < 1 || roundNumber > 5) {
+    // Validate round number (must be at least 1, no upper limit for draw scenarios)
+    if (roundNumber < 1) {
       return createErrorResponse(
-        new ApiError(ErrorCodes.VALIDATION_ERROR, "Round number must be between 1 and 5")
+        new ApiError(ErrorCodes.VALIDATION_ERROR, "Round number must be at least 1")
       );
     }
 

@@ -331,7 +331,7 @@ export class FightScene extends Phaser.Scene {
     this.combatEngine = new CombatEngine(
       this.config.player1Character || "dag-warrior",
       this.config.player2Character || "dag-warrior",
-      "best_of_5"
+      "best_of_3"
     );
 
     // Create animations only for the characters in this match
@@ -1257,7 +1257,7 @@ export class FightScene extends Phaser.Scene {
     this.roundScoreText = this.add.text(
       UI_POSITIONS.ROUND_INDICATOR.X,
       UI_POSITIONS.ROUND_INDICATOR.Y,
-      "Round 1  •  0 - 0  (First to 3)",
+      "Round 1  •  0 - 0  (First to 2)",
       { fontFamily: "monospace", fontSize: "16px", color: "#ffffff" }
     ).setOrigin(0.5);
   }
@@ -2284,7 +2284,7 @@ export class FightScene extends Phaser.Scene {
 
     // Update round score
     this.roundScoreText.setText(
-      `Round ${state.currentRound}  •  ${state.player1.roundsWon} - ${state.player2.roundsWon}  (First to 3)`
+      `Round ${state.currentRound}  •  ${state.player1.roundsWon} - ${state.player2.roundsWon}  (First to 2)`
     );
 
     this.time.delayedCall(2000, () => {
@@ -2295,7 +2295,7 @@ export class FightScene extends Phaser.Scene {
       this.combatEngine.startNewRound();
       this.syncUIWithCombatState();
       this.roundScoreText.setText(
-        `Round ${this.combatEngine.getState().currentRound}  •  ${state.player1.roundsWon} - ${state.player2.roundsWon}  (First to 3)`
+        `Round ${this.combatEngine.getState().currentRound}  •  ${state.player1.roundsWon} - ${state.player2.roundsWon}  (First to 2)`
       );
       this.startRound();
     });
@@ -3251,7 +3251,7 @@ export class FightScene extends Phaser.Scene {
     // Update UI
     this.syncUIWithCombatState();
     this.roundScoreText.setText(
-      `Round ${state.currentRound}  •  ${state.player1RoundsWon} - ${state.player2RoundsWon}  (First to 3)`
+      `Round ${state.currentRound}  •  ${state.player1RoundsWon} - ${state.player2RoundsWon}  (First to 2)`
     );
 
     // If there's an active move deadline, start/continue the selection phase
@@ -3558,30 +3558,12 @@ export class FightScene extends Phaser.Scene {
       ? this.serverState?.player2IsStunned
       : this.serverState?.player1IsStunned;
 
-    // CHECK ACTIVE SURGES FOR IMMEDIATE STUN (Mempool Congest)
-    // This handles the gap between surge reveal and server state update
-    const opponentRole = isPlayer1 ? "player2" : "player1";
-    const myRole = this.config.playerRole;
-
-    const opponentSurgeId = this.activeSurges[opponentRole];
-    if (opponentSurgeId) {
-      const card = getPowerSurgeCard(opponentSurgeId);
-      // If opponent used opponent_stun card (Mempool Congest), I am stunned
-      if (card?.effectType === "opponent_stun") {
-        console.log(`[FightScene] Anticipating stun from opponent's surge: ${card.name}`);
-        amIStunned = true;
-      }
-    }
-
-    const mySurgeId = this.activeSurges[myRole];
-    if (mySurgeId) {
-      const card = getPowerSurgeCard(mySurgeId);
-      // If I used opponent_stun card, opponent is stunned
-      if (card?.effectType === "opponent_stun") {
-        console.log(`[FightScene] Anticipating opponent stun from my surge: ${card.name}`);
-        isOpponentStunned = true;
-      }
-    }
+    // DON'T anticipate stun from surges - trust the server state entirely
+    // The server correctly handles Mempool Congest on turn 1 and clears it afterward
+    // Client-side anticipation was causing the persistent stun visual bug
+    // The CombatEngine applies Mempool Congest stun ONLY on turn 1 (currentTurn === 1),
+    // then clears the stun after that turn. The server broadcasts the correct stun state
+    // via the round_starting event, so we just read from serverState.
 
     const bothStunned = amIStunned && isOpponentStunned;
 
@@ -3646,13 +3628,18 @@ export class FightScene extends Phaser.Scene {
       this.turnIndicatorText.setColor("#40e0d0");
     }
 
-    // Apply visual stun effect to opponent if they are stunned
-    // This ensures that if we (or they) used a stun card, we see the effect immediately
-    if (isOpponentStunned) {
-      // Apply persistent visual stun to opponent character
-      // The toggleStunEffect handles which sprite based on player role
-      const opponentKey = isPlayer1 ? "player2" : "player1";
-      this.toggleStunEffect(opponentKey, true);
+    // Apply visual stun effect based on SERVER-CONFIRMED stun state only
+    // This prevents visual stun from persisting incorrectly across turns
+    // The server correctly tracks when stun starts (turn 1 for Mempool Congest) and ends (after stunned turn)
+    if (this.serverState?.player1IsStunned) {
+      this.toggleStunEffect("player1", true);
+    } else {
+      this.toggleStunEffect("player1", false);
+    }
+    if (this.serverState?.player2IsStunned) {
+      this.toggleStunEffect("player2", true);
+    } else {
+      this.toggleStunEffect("player2", false);
     }
 
     // Start synchronized timer that updates every second based on deadline
@@ -4025,7 +4012,7 @@ export class FightScene extends Phaser.Scene {
           this.syncUIWithCombatState();
 
           this.roundScoreText.setText(
-            `Round ${this.serverState?.currentRound ?? 1}  •  ${payload.player1RoundsWon} - ${payload.player2RoundsWon}  (First to 3)`
+            `Round ${this.serverState?.currentRound ?? 1}  •  ${payload.player1RoundsWon} - ${payload.player2RoundsWon}  (First to 2)`
           );
 
           // Run back animations
@@ -4292,9 +4279,8 @@ export class FightScene extends Phaser.Scene {
           // Reset selected move for next round
           this.selectedMove = null;
 
-          // Clear active surges from previous round
-          this.activeSurges = { player1: null, player2: null };
-          this.surgeCardsShownThisRound = false;
+          // Clear active surges from previous round (including stun visual effects)
+          this.clearSurgeEffects();
 
           // Change phase to allow processing queued events
           this.phase = "selecting";
@@ -4604,14 +4590,13 @@ export class FightScene extends Phaser.Scene {
       // Apply visual effect overlay based on card type
       this.applySurgeVisualEffect(payload.player, card);
 
-      // IMMEDIATE VISUAL FEEDBACK: If card is a stunner, show it on opponent immediately
+      // NOTE: We do NOT apply immediate visual stun for Mempool Congest here.
+      // The stun effect only applies on turn 1 of the round, not immediately on card selection.
+      // The visual stun will be applied when the round actually starts and stun state is confirmed.
       if (card.effectType === "opponent_stun") {
-        console.log(`[FightScene] Applying immediate visual stun to opponent from my selection: ${card.name}`);
-        const opponentRole = this.config.playerRole === "player1" ? "player2" : "player1";
-        this.toggleStunEffect(opponentRole, true);
-
-        // Also update text to reinforce effect
-        this.narrativeText.setText("You stunned the opponent!");
+        console.log(`[FightScene] Mempool Congest selected - stun will apply on turn 1`);
+        // Just show a brief text notification
+        this.narrativeText.setText(`${card.name} will stun opponent on Turn 1!`);
         this.narrativeText.setAlpha(1);
         this.tweens.add({
           targets: this.narrativeText,
@@ -4797,6 +4782,10 @@ export class FightScene extends Phaser.Scene {
     // Clear any visual tints
     this.player1Sprite.clearTint();
     this.player2Sprite.clearTint();
+    
+    // CRITICAL: Stop any active stun tweens to prevent visual stun persisting
+    this.toggleStunEffect("player1", false);
+    this.toggleStunEffect("player2", false);
   }
 }
 

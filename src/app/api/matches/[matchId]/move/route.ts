@@ -225,17 +225,62 @@ export const POST = withWalletAuth(async (
       const { SmartBotOpponent } = await import("@/lib/game/smart-bot-opponent");
       const { CombatEngine } = await import("@/game/combat");
 
-      // Create a temporary combat engine to get current state
+      // Create a combat engine and replay previous rounds to get accurate state
       const engine = new CombatEngine(
         match.player1_character_id || "dag-warrior",
         match.player2_character_id || "dag-warrior",
         match.format as "best_of_1" | "best_of_3" | "best_of_5"
       );
 
-      // Sync engine state with match state (simplified - just set HP/energy/rounds)
+      // Fetch Power Surge cards for all rounds to apply their effects
+      const { data: powerSurges } = await supabase
+        .from("power_surges")
+        .select("*")
+        .eq("match_id", matchId);
+
+      // Map surges by round number for quick lookup
+      const surgeMap = new Map<number, { player1_card_id: string | null; player2_card_id: string | null }>();
+      powerSurges?.forEach((ps: { round_number: number; player1_card_id: string | null; player2_card_id: string | null }) => {
+        surgeMap.set(ps.round_number, ps);
+      });
+
+      // Fetch all previous resolved rounds to rebuild state (CRITICAL for accurate energy tracking)
+      const { data: previousRounds } = await supabase
+        .from("rounds")
+        .select("*")
+        .eq("match_id", matchId)
+        .lt("round_number", currentRound.round_number)
+        .order("round_number", { ascending: true });
+
+      // Replay previous rounds to get current health/energy state
+      const validMoves = ["punch", "kick", "block", "special"];
+      if (previousRounds) {
+        for (const prevRound of previousRounds) {
+          const p1Move = prevRound.player1_move;
+          const p2Move = prevRound.player2_move;
+          if (p1Move && p2Move && validMoves.includes(p1Move) && validMoves.includes(p2Move)) {
+            const combatRound = engine.getState().currentRound;
+            const surge = surgeMap.get(combatRound);
+
+            engine.resolveTurn(
+              p1Move as "punch" | "kick" | "block" | "special",
+              p2Move as "punch" | "kick" | "block" | "special",
+              (surge?.player1_card_id || null) as any,
+              (surge?.player2_card_id || null) as any
+            );
+
+            // If a round ended, start new round
+            const prevState = engine.getState();
+            if (prevState.isRoundOver && !prevState.isMatchOver) {
+              engine.startNewRound();
+            }
+          }
+        }
+      }
+
+      // Now matchState has accurate HP/energy/guard values
       const matchState = engine.getState();
-      // Note: In production you'd want to fully sync all previous rounds/turns
-      // For now, the bot will make a reasonable decision based on available info
+      console.log(`[Move Submit] Bot state after replay - Energy: ${matchState.player2.energy}, HP: ${matchState.player2.hp}`);
 
       // Extract bot name from player profile or use default
       const { data: botProfile } = await supabase
@@ -246,7 +291,7 @@ export const POST = withWalletAuth(async (
       const botName = botProfile?.display_name || "Bot Opponent";
       const bot = new SmartBotOpponent(botName);
 
-      // Update bot context with current match state
+      // Update bot context with current match state (now accurate after replay)
       const botPlayer = isPlayer1 ? "player2" : "player1";
       const humanPlayer = isPlayer1 ? "player1" : "player2";
       bot.updateContext({

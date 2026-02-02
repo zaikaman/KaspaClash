@@ -880,7 +880,6 @@ Special  Stunned    Hit        Shatter    Both Hit
 #### Victory Conditions
 - **Round Victory:** First player to reduce opponent's HP to 0
 - **Match Victory (Best of 3):** First to win 2 rounds
-- **Match Victory (Best of 5):** First to win 3 rounds
 - **Double KO:** If both players reach 0 HP simultaneously, player with higher HP percentage wins
 - **Timeout:** If move not submitted within 20 seconds, the match is cancelled
 - **Disconnect:** If player disconnects for 30+ seconds, opponent wins by forfeit

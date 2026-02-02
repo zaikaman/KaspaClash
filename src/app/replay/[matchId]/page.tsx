@@ -4,6 +4,7 @@ import LandingLayout from "@/components/landing/LandingLayout";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ReplayGameClient } from "./ReplayGameClient";
 import type { MoveType } from "@/types";
+import type { PowerSurgeCardId } from "@/types/power-surge";
 
 // Types for replay data
 export interface ReplayRoundData {
@@ -15,6 +16,19 @@ export interface ReplayRoundData {
   player1HealthAfter: number;
   player2HealthAfter: number;
   winnerAddress: string | null;
+  // Power surge effects
+  player1EnergyDrained?: number;
+  player2EnergyDrained?: number;
+  player1HpRegen?: number;
+  player2HpRegen?: number;
+  player1Lifesteal?: number;
+  player2Lifesteal?: number;
+  player1Outcome?: "hit" | "blocked" | "stunned" | "staggered" | "reflected" | "shattered" | "missed" | "guarding" | null;
+  player2Outcome?: "hit" | "blocked" | "stunned" | "staggered" | "reflected" | "shattered" | "missed" | "guarding" | null;
+  // Power surge data
+  surgeCardIds?: PowerSurgeCardId[];
+  player1SurgeSelection?: PowerSurgeCardId;
+  player2SurgeSelection?: PowerSurgeCardId;
 }
 
 export interface ReplayConfig {
@@ -61,7 +75,14 @@ interface RoundData {
   winner_address: string | null;
 }
 
-async function getMatchWithRounds(matchId: string): Promise<{ match: MatchData; rounds: RoundData[] } | null> {
+interface PowerSurgeData {
+  round_number: number;
+  offered_cards: string[];
+  player1_card_id: string | null;
+  player2_card_id: string | null;
+}
+
+async function getMatchWithRounds(matchId: string): Promise<{ match: MatchData; rounds: RoundData[]; powerSurges: PowerSurgeData[] } | null> {
   try {
     const supabase = await createSupabaseServerClient();
 
@@ -94,7 +115,23 @@ async function getMatchWithRounds(matchId: string): Promise<{ match: MatchData; 
       return null;
     }
 
-    return { match: match as MatchData, rounds: (rounds || []) as RoundData[] };
+    // Fetch power surge data for this match
+    const { data: powerSurges, error: powerSurgesError } = await supabase
+      .from("power_surges")
+      .select("round_number, offered_cards, player1_card_id, player2_card_id")
+      .eq("match_id", matchId)
+      .order("round_number", { ascending: true });
+
+    if (powerSurgesError) {
+      console.error("Error fetching power surges:", powerSurgesError);
+      // Continue without power surges - not critical
+    }
+
+    return { 
+      match: match as MatchData, 
+      rounds: (rounds || []) as RoundData[],
+      powerSurges: (powerSurges || []) as PowerSurgeData[]
+    };
   } catch {
     return null;
   }
@@ -112,12 +149,30 @@ export default async function ReplayPage({ params }: { params: Promise<{ matchId
     notFound();
   }
 
-  const { match, rounds } = data;
+  const { match, rounds, powerSurges } = data;
 
-  // Filter rounds with valid moves
-  const validRounds: ReplayRoundData[] = rounds
-    .filter((r) => isValidMove(r.player1_move) && isValidMove(r.player2_move))
-    .map((r) => ({
+  // Create a map of power surges by game round number for quick lookup
+  // Note: power_surges.round_number is the GAME ROUND (1, 2, 3), not turn number
+  const powerSurgeByGameRound = new Map<number, PowerSurgeData>();
+  for (const ps of powerSurges) {
+    powerSurgeByGameRound.set(ps.round_number, ps);
+  }
+
+  // Filter and transform rounds with valid moves
+  // Track game round - it increments after each turn with a winner
+  let currentGameRound = 1;
+  const validRounds: ReplayRoundData[] = [];
+  
+  const filteredRounds = rounds.filter((r) => isValidMove(r.player1_move) && isValidMove(r.player2_move));
+  
+  for (let i = 0; i < filteredRounds.length; i++) {
+    const r = filteredRounds[i];
+    const isFirstTurnOfGameRound = i === 0 || (filteredRounds[i - 1]?.winner_address !== null);
+    
+    // Get power surge only for the first turn of each game round
+    const powerSurge = isFirstTurnOfGameRound ? powerSurgeByGameRound.get(currentGameRound) : undefined;
+    
+    validRounds.push({
       roundNumber: r.round_number,
       player1Move: r.player1_move as MoveType,
       player2Move: r.player2_move as MoveType,
@@ -134,7 +189,17 @@ export default async function ReplayPage({ params }: { params: Promise<{ matchId
       player1Outcome: r.player1_outcome as "hit" | "blocked" | "stunned" | "staggered" | "reflected" | "shattered" | "missed" | "guarding" | null,
       player2Outcome: r.player2_outcome as "hit" | "blocked" | "stunned" | "staggered" | "reflected" | "shattered" | "missed" | "guarding" | null,
       winnerAddress: r.winner_address,
-    }));
+      // Include power surge data only for first turn of each game round
+      surgeCardIds: powerSurge?.offered_cards as PowerSurgeCardId[] | undefined,
+      player1SurgeSelection: powerSurge?.player1_card_id as PowerSurgeCardId | undefined,
+      player2SurgeSelection: powerSurge?.player2_card_id as PowerSurgeCardId | undefined,
+    });
+    
+    // If this turn ended a game round, increment for next turn
+    if (r.winner_address !== null) {
+      currentGameRound++;
+    }
+  }
 
   // Build replay config
   const replayConfig: ReplayConfig = {
