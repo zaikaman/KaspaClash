@@ -745,31 +745,71 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       }
     };
     // Handle FightScene requesting round state (in case it missed the broadcast)
-    const handleRequestRoundState = (data: unknown) => {
+    const handleRequestRoundState = async (data: unknown) => {
       const payload = data as { matchId: string };
       console.log("[MatchGameClient] FightScene requested round state for match:", payload.matchId);
 
-      // Only respond if this is for our match and we're in a state where the match should be starting
-      if (payload.matchId === matchIdRef.current) {
-        // Calculate synchronized deadline (3s countdown + 20s timer)
-        const ROUND_COUNTDOWN_MS = 3000;
-        const MOVE_TIMER_MS = 20000;
-        const moveDeadlineAt = Date.now() + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
+      // Only respond if this is for our match
+      if (payload.matchId !== matchIdRef.current) return;
 
-        console.log("[MatchGameClient] Responding with game:roundStarting, deadline:", moveDeadlineAt);
-        EventBus.emit("game:roundStarting", {
-          roundNumber: 1,
-          turnNumber: 1,
-          moveDeadlineAt,
-          countdownSeconds: Math.floor(ROUND_COUNTDOWN_MS / 1000),
-          player1Health: 100,
-          player2Health: 100,
-          player1Energy: 100,
-          player2Energy: 100,
-          player1GuardMeter: 0,
-          player2GuardMeter: 0,
-        });
+      // Fetch actual state from server instead of generating new deadline
+      // This ensures timer continuity across refreshes
+      try {
+        const response = await fetch(`/api/matches/${payload.matchId}/fight-state`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.state) {
+            console.log("[MatchGameClient] Got fight state from server:", data.state);
+            
+            // Calculate deadline from server state
+            const moveDeadlineAt = data.state.moveDeadlineAt 
+              ? new Date(data.state.moveDeadlineAt).getTime() 
+              : Date.now() + 20000; // Fallback only if no deadline in DB
+            
+            const now = Date.now();
+            const countdownSeconds = data.state.countdownEndsAt 
+              ? Math.max(0, Math.ceil((new Date(data.state.countdownEndsAt).getTime() - now) / 1000))
+              : 0;
+
+            console.log("[MatchGameClient] Responding with game:roundStarting, deadline:", moveDeadlineAt);
+            EventBus.emit("game:roundStarting", {
+              roundNumber: data.state.currentRound || 1,
+              turnNumber: data.state.currentTurn || 1,
+              moveDeadlineAt,
+              countdownSeconds,
+              player1Health: data.state.player1Health,
+              player2Health: data.state.player2Health,
+              player1Energy: data.state.player1Energy,
+              player2Energy: data.state.player2Energy,
+              player1GuardMeter: data.state.player1GuardMeter || 0,
+              player2GuardMeter: data.state.player2GuardMeter || 0,
+            });
+            return;
+          }
+        }
+      } catch (error) {
+        console.error("[MatchGameClient] Failed to fetch fight state:", error);
       }
+
+      // Fallback: generate new deadline only if server fetch fails
+      // This should only happen for brand new matches
+      console.log("[MatchGameClient] Fight state fetch failed, using fallback new deadline");
+      const ROUND_COUNTDOWN_MS = 3000;
+      const MOVE_TIMER_MS = 20000;
+      const moveDeadlineAt = Date.now() + ROUND_COUNTDOWN_MS + MOVE_TIMER_MS;
+
+      EventBus.emit("game:roundStarting", {
+        roundNumber: 1,
+        turnNumber: 1,
+        moveDeadlineAt,
+        countdownSeconds: Math.floor(ROUND_COUNTDOWN_MS / 1000),
+        player1Health: 100,
+        player2Health: 100,
+        player1Energy: 100,
+        player2Energy: 100,
+        player1GuardMeter: 0,
+        player2GuardMeter: 0,
+      });
     };
     // Reset move submission tracking when a new turn starts
     const handleRoundStarting = (data: unknown) => {

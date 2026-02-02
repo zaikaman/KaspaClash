@@ -188,12 +188,6 @@ export class FightScene extends Phaser.Scene {
     player2IsStunned?: boolean;
   } | null = null;
 
-  // Pending HP heal amounts to animate after combat
-  private pendingHeal: {
-    player1: number;
-    player2: number;
-  } | null = null;
-
   // Track stun visual effects
   private stunTweens: Map<"player1" | "player2", Phaser.Tweens.Tween> = new Map();
 
@@ -672,6 +666,9 @@ export class FightScene extends Phaser.Scene {
       } else if (document.visibilityState === "visible") {
         // Tab visible - treat as reconnect
         console.log("[FightScene] Tab became visible, reconnecting");
+        // DON'T sync UI here with stale state - wait for server response
+        // The notifyServerReconnect() will fetch fresh state and update UI properly
+        // via syncWithFightState() which has the authoritative server values
         this.notifyServerReconnect();
       }
     };
@@ -2743,13 +2740,15 @@ export class FightScene extends Phaser.Scene {
   }
 
   private updateHealthBarDisplay(player: "player1" | "player2", hp: number, maxHp: number): void {
+    const graphics = player === "player1" ? this.player1HealthBar : this.player2HealthBar;
+    if (!graphics) return; // Guard against uninitialized graphics
+    
     const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
     const barHeight = 25;
     // Clamp percentage to [0, 1] to prevent bar overflow
     const healthPercent = Math.min(1, Math.max(0, hp) / (maxHp || 1));
     const innerWidth = (barWidth - 4) * healthPercent;
 
-    const graphics = player === "player1" ? this.player1HealthBar : this.player2HealthBar;
     const x = player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.X : UI_POSITIONS.HEALTH_BAR.PLAYER2.X;
     const y = player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.Y : UI_POSITIONS.HEALTH_BAR.PLAYER2.Y;
 
@@ -2768,6 +2767,9 @@ export class FightScene extends Phaser.Scene {
   }
 
   private updateEnergyBarDisplay(player: "player1" | "player2", energy: number, maxEnergy: number): void {
+    const graphics = player === "player1" ? this.player1EnergyBar : this.player2EnergyBar;
+    if (!graphics) return; // Guard against uninitialized graphics
+    
     const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
     const barHeight = 12;
     const yOffset = 30;
@@ -2775,7 +2777,6 @@ export class FightScene extends Phaser.Scene {
     const energyPercent = Math.min(1, Math.max(0, energy) / (maxEnergy || 1));
     const innerWidth = (barWidth - 2) * energyPercent;
 
-    const graphics = player === "player1" ? this.player1EnergyBar : this.player2EnergyBar;
     const x = player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.X : UI_POSITIONS.HEALTH_BAR.PLAYER2.X;
     const y = (player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.Y : UI_POSITIONS.HEALTH_BAR.PLAYER2.Y) + yOffset;
 
@@ -2790,6 +2791,9 @@ export class FightScene extends Phaser.Scene {
   }
 
   private updateGuardMeterDisplay(player: "player1" | "player2", guardMeter: number): void {
+    const graphics = player === "player1" ? this.player1GuardMeter : this.player2GuardMeter;
+    if (!graphics) return; // Guard against uninitialized graphics
+    
     const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
     const barHeight = 6;
     const yOffset = 45;
@@ -2797,7 +2801,6 @@ export class FightScene extends Phaser.Scene {
     const guardPercent = Math.min(1, Math.max(0, guardMeter) / 100);
     const innerWidth = barWidth * guardPercent;
 
-    const graphics = player === "player1" ? this.player1GuardMeter : this.player2GuardMeter;
     const x = player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.X : UI_POSITIONS.HEALTH_BAR.PLAYER2.X;
     const y = (player === "player1" ? UI_POSITIONS.HEALTH_BAR.PLAYER1.Y : UI_POSITIONS.HEALTH_BAR.PLAYER2.Y) + yOffset;
 
@@ -2834,63 +2837,6 @@ export class FightScene extends Phaser.Scene {
       duration: 1000,
       onComplete: () => floatingText.destroy(),
     });
-  }
-
-  /**
-   * Show a healing effect with floating text and HP bar glow
-   */
-  private showHealEffect(player: "player1" | "player2", amount: number): void {
-    if (amount <= 0) return;
-
-    // Get position near the HP bar
-    const hpBarX = player === "player1" 
-      ? UI_POSITIONS.HEALTH_BAR.PLAYER1.X + 50
-      : UI_POSITIONS.HEALTH_BAR.PLAYER2.X + UI_POSITIONS.HEALTH_BAR.PLAYER2.WIDTH - 50;
-    const hpBarY = UI_POSITIONS.HEALTH_BAR.PLAYER1.Y;
-
-    // Show floating "+X HP" text in green
-    const healText = this.add.text(hpBarX, hpBarY + 20, `+${amount.toFixed(1)} HP`, {
-      fontFamily: "monospace",
-      fontSize: "20px",
-      color: "#00ff88",
-      fontStyle: "bold",
-      stroke: "#003311",
-      strokeThickness: 3,
-    }).setOrigin(0.5).setDepth(100);
-
-    // Animate the heal text floating up
-    this.tweens.add({
-      targets: healText,
-      y: hpBarY - 30,
-      alpha: { from: 1, to: 0 },
-      scale: { from: 1.2, to: 0.8 },
-      duration: 1500,
-      ease: "Power2",
-      onComplete: () => healText.destroy(),
-    });
-
-    // Flash the HP bar green briefly
-    const hpBar = player === "player1" ? this.player1HealthBar : this.player2HealthBar;
-    const originalColor = hpBar.defaultFillColor;
-    
-    // Create a green flash overlay
-    const flashX = player === "player1" 
-      ? UI_POSITIONS.HEALTH_BAR.PLAYER1.X 
-      : UI_POSITIONS.HEALTH_BAR.PLAYER2.X;
-    const flashGraphics = this.add.graphics();
-    flashGraphics.fillStyle(0x00ff88, 0.5);
-    flashGraphics.fillRoundedRect(flashX, hpBarY, UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH, 25, 5);
-    flashGraphics.setDepth(99);
-
-    // Fade out the flash
-    this.tweens.add({
-      targets: flashGraphics,
-      alpha: 0,
-      duration: 500,
-      onComplete: () => flashGraphics.destroy(),
-    });
-
-    console.log(`[FightScene] Showing heal effect for ${player}: +${amount.toFixed(1)} HP`);
   }
 
   private setupEventListeners(): void {
@@ -3745,12 +3691,39 @@ export class FightScene extends Phaser.Scene {
 
     // Check if we are stunned
     const isPlayer1 = this.config.playerRole === "player1";
-    const amIStunned = isPlayer1
+    let amIStunned = isPlayer1
       ? this.serverState?.player1IsStunned
       : this.serverState?.player2IsStunned;
-    const isOpponentStunned = isPlayer1
+
+    let isOpponentStunned = isPlayer1
       ? this.serverState?.player2IsStunned
       : this.serverState?.player1IsStunned;
+
+    // CHECK ACTIVE SURGES FOR IMMEDIATE STUN (Mempool Congest)
+    // This handles the gap between surge reveal and server state update
+    const opponentRole = isPlayer1 ? "player2" : "player1";
+    const myRole = this.config.playerRole;
+
+    const opponentSurgeId = this.activeSurges[opponentRole];
+    if (opponentSurgeId) {
+      const card = getPowerSurgeCard(opponentSurgeId);
+      // If opponent used opponent_stun card (Mempool Congest), I am stunned
+      if (card?.effectType === "opponent_stun") {
+        console.log(`[FightScene] Anticipating stun from opponent's surge: ${card.name}`);
+        amIStunned = true;
+      }
+    }
+
+    const mySurgeId = this.activeSurges[myRole];
+    if (mySurgeId) {
+      const card = getPowerSurgeCard(mySurgeId);
+      // If I used opponent_stun card, opponent is stunned
+      if (card?.effectType === "opponent_stun") {
+        console.log(`[FightScene] Anticipating opponent stun from my surge: ${card.name}`);
+        isOpponentStunned = true;
+      }
+    }
+
     const bothStunned = amIStunned && isOpponentStunned;
 
     if (bothStunned) {
@@ -3812,6 +3785,15 @@ export class FightScene extends Phaser.Scene {
       // Normal state
       this.turnIndicatorText.setText("Select your move!");
       this.turnIndicatorText.setColor("#40e0d0");
+    }
+
+    // Apply visual stun effect to opponent if they are stunned
+    // This ensures that if we (or they) used a stun card, we see the effect immediately
+    if (isOpponentStunned) {
+      // Apply persistent visual stun to opponent character
+      // The toggleStunEffect handles which sprite based on player role
+      const opponentKey = isPlayer1 ? "player2" : "player1";
+      this.toggleStunEffect(opponentKey, true);
     }
 
     // Start synchronized timer that updates every second based on deadline
@@ -3889,16 +3871,6 @@ export class FightScene extends Phaser.Scene {
     // Store previous health for damage calculation
     const prevP1Health = this.serverState?.player1Health ?? payload.player1Health;
     const prevP2Health = this.serverState?.player2Health ?? payload.player2Health;
-
-    // Calculate total healing for each player (regen + lifesteal)
-    const p1TotalHeal = (payload.player1.hpRegen || 0) + (payload.player1.lifesteal || 0);
-    const p2TotalHeal = (payload.player2.hpRegen || 0) + (payload.player2.lifesteal || 0);
-
-    // Store pending heals for animation after combat
-    this.pendingHeal = {
-      player1: p1TotalHeal,
-      player2: p2TotalHeal,
-    };
 
     // Store PENDING server state - don't apply to serverState yet!
     // This prevents UI from showing new HP/energy values before animations complete.
@@ -4050,16 +4022,34 @@ export class FightScene extends Phaser.Scene {
                   repeat: 3
                 });
               });
+            } else if (payload.player2.outcome === "missed") {
+              // Show DODGE! text when Hash Hurricane triggers (attack dodged)
+              this.time.delayedCall(300, () => {
+                this.showFloatingText("DODGE!", p2TargetX, CHARACTER_POSITIONS.PLAYER2.Y - 130, "#8800ff");
+              });
             }
-            
-            // Show energy drain effect if P2 lost energy from P1's surge (e.g., GhostDAG)
-            if (payload.player2.energyDrained && payload.player2.energyDrained > 15) {
+
+            // Show energy drain effect if P2 lost energy from P1's surge (e.g., GhostDAG, Vaultbreaker)
+            if (payload.player2.energyDrained && payload.player2.energyDrained > 0) {
               this.time.delayedCall(500, () => {
                 this.showFloatingText(
                   `-${Math.round(payload.player2.energyDrained!)} EN`,
                   p2TargetX,
                   CHARACTER_POSITIONS.PLAYER2.Y - 100,
                   "#3b82f6"
+                );
+              });
+            }
+
+            // Show HP regen effect if P1 healed (from Blue Set Heal or lifesteal)
+            const p1TotalHeal = (payload.player1.hpRegen || 0) + (payload.player1.lifesteal || 0);
+            if (p1TotalHeal > 0) {
+              this.time.delayedCall(700, () => {
+                this.showFloatingText(
+                  `+${Math.round(p1TotalHeal)} HP`,
+                  p1TargetX,
+                  CHARACTER_POSITIONS.PLAYER1.Y - 100,
+                  "#00ff88"
                 );
               });
             }
@@ -4111,16 +4101,34 @@ export class FightScene extends Phaser.Scene {
                   repeat: 3
                 });
               });
+            } else if (payload.player1.outcome === "missed") {
+              // Show DODGE! text when Hash Hurricane triggers (attack dodged)
+              this.time.delayedCall(300, () => {
+                this.showFloatingText("DODGE!", p1TargetX, CHARACTER_POSITIONS.PLAYER1.Y - 130, "#8800ff");
+              });
             }
-            
-            // Show energy drain effect if P1 lost energy from P2's surge (e.g., GhostDAG)
-            if (payload.player1.energyDrained && payload.player1.energyDrained > 15) {
+
+            // Show energy drain effect if P1 lost energy from P2's surge (e.g., GhostDAG, Vaultbreaker)
+            if (payload.player1.energyDrained && payload.player1.energyDrained > 0) {
               this.time.delayedCall(500, () => {
                 this.showFloatingText(
                   `-${Math.round(payload.player1.energyDrained!)} EN`,
                   p1TargetX,
                   CHARACTER_POSITIONS.PLAYER1.Y - 100,
                   "#3b82f6"
+                );
+              });
+            }
+
+            // Show HP regen effect if P2 healed (from Blue Set Heal or lifesteal)
+            const p2TotalHeal = (payload.player2.hpRegen || 0) + (payload.player2.lifesteal || 0);
+            if (p2TotalHeal > 0) {
+              this.time.delayedCall(700, () => {
+                this.showFloatingText(
+                  `+${Math.round(p2TotalHeal)} HP`,
+                  p2TargetX,
+                  CHARACTER_POSITIONS.PLAYER2.Y - 100,
+                  "#00ff88"
                 );
               });
             }
@@ -4156,17 +4164,6 @@ export class FightScene extends Phaser.Scene {
 
           // Update UI/Health Bars
           this.syncUIWithCombatState();
-
-          // Show heal animation if any player healed this turn
-          if (this.pendingHeal) {
-            if (this.pendingHeal.player1 > 0) {
-              this.showHealEffect("player1", this.pendingHeal.player1);
-            }
-            if (this.pendingHeal.player2 > 0) {
-              this.showHealEffect("player2", this.pendingHeal.player2);
-            }
-            this.pendingHeal = null;
-          }
 
           this.roundScoreText.setText(
             `Round ${this.serverState?.currentRound ?? 1}  •  ${payload.player1RoundsWon} - ${payload.player2RoundsWon}  (First to 3)`
@@ -4528,12 +4525,10 @@ export class FightScene extends Phaser.Scene {
       return;
     }
 
-    this.surgeCardsShownThisRound = true;
-    this.lastSurgeRound = roundNumber;
-
     // Fetch surge cards from API or generate locally
     let cardIds: PowerSurgeCardId[] = [];
     let fetchedFromServer = false;
+    let playerAlreadySelected = false;
 
     // Try fetching multiple times with a small delay to handle race conditions
     // (in case opponent is creating the row right now)
@@ -4543,6 +4538,22 @@ export class FightScene extends Phaser.Scene {
         if (response.ok) {
           const data = await response.json();
           cardIds = data.data?.offeredCards || [];
+          
+          // Check if current player has already selected a surge card
+          // This handles the case where user refreshes after selecting
+          const myRole = this.config.playerRole;
+          const mySelection = myRole === "player1" 
+            ? data.data?.player1Selection 
+            : data.data?.player2Selection;
+          
+          if (mySelection && mySelection.ready) {
+            console.log(`[FightScene] Player already selected surge card for round ${roundNumber}, skipping UI`);
+            playerAlreadySelected = true;
+            this.surgeCardsShownThisRound = true;
+            this.lastSurgeRound = roundNumber;
+            return;
+          }
+          
           if (cardIds.length > 0) {
             fetchedFromServer = true;
             console.log(`[FightScene] Fetched surge cards from server (attempt ${attempt + 1}):`, cardIds);
@@ -4558,6 +4569,10 @@ export class FightScene extends Phaser.Scene {
         await new Promise(resolve => setTimeout(resolve, 300)); // Wait 300ms before retry
       }
     }
+
+    // Mark as shown now that we're proceeding
+    this.surgeCardsShownThisRound = true;
+    this.lastSurgeRound = roundNumber;
 
     // If no cards from server after retries, generate locally
     if (!fetchedFromServer || cardIds.length === 0) {
@@ -4675,6 +4690,26 @@ export class FightScene extends Phaser.Scene {
     // Store selection
     this.activeSurges[payload.player] = payload.cardId;
 
+    // CHECK FOR IMMEDIATE STUN EFFECT (Mempool Congest)
+    // If we are already in selecting phase, disable buttons immediately
+    if (this.phase === "selecting") {
+      const card = getPowerSurgeCard(payload.cardId);
+      const isOpponent = payload.player !== this.config.playerRole;
+
+      // If opponent picked a stun card, I am stunned
+      if (isOpponent && card?.effectType === "opponent_stun") {
+        console.log(`[FightScene] Late stun apply from handleOpponentSurgeSelected: ${card.name}`);
+        this.turnIndicatorText.setText("YOU ARE STUNNED!");
+        this.turnIndicatorText.setColor("#ff4444");
+        this.roundTimerText.setColor("#ff4444");
+
+        this.moveButtons.forEach(btn => {
+          btn.setAlpha(0.3);
+          btn.disableInteractive();
+        });
+      }
+    }
+
     if (isOpponent) {
       console.log(`[FightScene] Opponent surge recorded: ${payload.player} chose ${payload.cardId}`);
 
@@ -4709,6 +4744,23 @@ export class FightScene extends Phaser.Scene {
 
       // Apply visual effect overlay based on card type
       this.applySurgeVisualEffect(payload.player, card);
+
+      // IMMEDIATE VISUAL FEEDBACK: If card is a stunner, show it on opponent immediately
+      if (card.effectType === "opponent_stun") {
+        console.log(`[FightScene] Applying immediate visual stun to opponent from my selection: ${card.name}`);
+        const opponentRole = this.config.playerRole === "player1" ? "player2" : "player1";
+        this.toggleStunEffect(opponentRole, true);
+
+        // Also update text to reinforce effect
+        this.narrativeText.setText("You stunned the opponent!");
+        this.narrativeText.setAlpha(1);
+        this.tweens.add({
+          targets: this.narrativeText,
+          alpha: 0,
+          delay: 2000,
+          duration: 500
+        });
+      }
     }
   }
 

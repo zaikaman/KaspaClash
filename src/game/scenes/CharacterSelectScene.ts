@@ -114,7 +114,7 @@ export class CharacterSelectScene extends Phaser.Scene {
       existingPlayerBan: data?.existingPlayerBan,
       existingOpponentBan: data?.existingOpponentBan,
     }));
-    
+
     // Provide defaults if data is missing (e.g., if scene started without config)
     this.config = {
       matchId: data?.matchId || "unknown",
@@ -239,10 +239,15 @@ export class CharacterSelectScene extends Phaser.Scene {
       }
 
       // Pre-decide pick (different from ban)
-      const allCharIds = CHARACTER_ROSTER.map(c => c.id);
-      const available = allCharIds.filter(id => id !== this.botBanTarget);
-      this.botPickTarget = available[Math.floor(Math.random() * available.length)];
-      console.log(`[CharacterSelectScene] Bot pre-decided pick: ${this.botPickTarget}`);
+      if (this.config.existingOpponentCharacter) {
+        this.botPickTarget = this.config.existingOpponentCharacter;
+        console.log(`[CharacterSelectScene] Bot using pre-set character from database: ${this.botPickTarget}`);
+      } else {
+        const allCharIds = CHARACTER_ROSTER.map(c => c.id);
+        const available = allCharIds.filter(id => id !== this.botBanTarget);
+        this.botPickTarget = available[Math.floor(Math.random() * available.length)];
+        console.log(`[CharacterSelectScene] Bot pre-decided random pick: ${this.botPickTarget}`);
+      }
 
       // Only schedule bot ban reveal if we don't already have bot's ban from database
       // This handles reconnection - if existingOpponentBan is set, we skip the reveal animation
@@ -403,7 +408,7 @@ export class CharacterSelectScene extends Phaser.Scene {
     // =========================================================================
     // STEP 1: Restore Bans
     // =========================================================================
-    
+
     // Restore player's existing ban
     if (this.config.existingPlayerBan) {
       const bannedChar = getCharacter(this.config.existingPlayerBan);
@@ -412,17 +417,17 @@ export class CharacterSelectScene extends Phaser.Scene {
         this.myBan = bannedChar;
         this.hasLockedBan = true;
         this.bannedCharacters.add(bannedChar.id);
-        
+
         // Visual indication of ban
         this.markCardAsBanned(bannedChar.id);
       }
     }
-    
+
     // Restore opponent's existing ban
     // For bot matches, use botBanId if existingOpponentBan is not set
-    const opponentBanId = this.config.existingOpponentBan || 
+    const opponentBanId = this.config.existingOpponentBan ||
       (this.config.isBot ? this.config.botBanId : null);
-    
+
     if (opponentBanId) {
       const bannedChar = getCharacter(opponentBanId);
       console.log("[CharacterSelectScene] Restoring opponent ban:", bannedChar?.name);
@@ -430,22 +435,22 @@ export class CharacterSelectScene extends Phaser.Scene {
         this.opponentBan = bannedChar;
         this.hasOpponentLockedBan = true;
         this.bannedCharacters.add(bannedChar.id);
-        
+
         // Visual indication of ban
         this.markCardAsBanned(bannedChar.id);
       }
     }
-    
+
     // =========================================================================
     // STEP 2: Determine current phase based on restored state
     // =========================================================================
-    
+
     const bothBansComplete = this.hasLockedBan && this.hasOpponentLockedBan;
-    const bothPicksComplete = !!this.config.existingPlayerCharacter && 
+    const bothPicksComplete = !!this.config.existingPlayerCharacter &&
       (!!this.config.existingOpponentCharacter || this.config.isBot);
-    
+
     console.log("[CharacterSelectScene] State check - bothBansComplete:", bothBansComplete, "bothPicksComplete:", bothPicksComplete);
-    
+
     if (bothBansComplete && !this.config.existingPlayerCharacter) {
       // Bans are done, move to PICKING phase
       console.log("[CharacterSelectScene] Both bans complete, transitioning to PICKING phase");
@@ -454,7 +459,7 @@ export class CharacterSelectScene extends Phaser.Scene {
       this.titleText?.setText("CHOOSE YOUR FIGHTER");
       this.titleText?.setColor("#ffffff");
       this.instructionText?.setText("Bans Locked! Choose your fighter (Blind Pick)");
-      
+
       // Disable banned cards, enable pickable cards
       this.updateCardsForPickPhase();
     } else if (this.hasLockedBan && !this.hasOpponentLockedBan) {
@@ -466,7 +471,7 @@ export class CharacterSelectScene extends Phaser.Scene {
     // =========================================================================
     // STEP 3: Restore Character Picks
     // =========================================================================
-    
+
     // Restore player's existing character selection
     if (this.config.existingPlayerCharacter) {
       const character = getCharacter(this.config.existingPlayerCharacter);
@@ -515,7 +520,7 @@ export class CharacterSelectScene extends Phaser.Scene {
     // =========================================================================
     // STEP 4: Update UI for final state
     // =========================================================================
-    
+
     // Update UI text if both are ready (API call is deferred to setupChannelReadyHandler)
     if (this.confirmedCharacter && this.opponentCharacter) {
       console.log("[CharacterSelectScene] Both players have selections, showing ready message");
@@ -526,17 +531,17 @@ export class CharacterSelectScene extends Phaser.Scene {
     }
     // Note: API calls (selection_confirmed events) are deferred to setupChannelReadyHandler
   }
-  
+
   /**
    * Mark a character card as banned (visual indicator).
    */
   private markCardAsBanned(characterId: string): void {
     const card = this.characterCards.find(c => c.getCharacter()?.id === characterId);
     if (!card) return;
-    
+
     // Disable interaction
     card.disable();
-    
+
     // Add visual "BANNED" indicator if not already present
     const bannedText = this.add.text(
       this.CARD_WIDTH / 2,
@@ -555,7 +560,7 @@ export class CharacterSelectScene extends Phaser.Scene {
     card.add(bannedText);
     card.setAlpha(0.5);
   }
-  
+
   /**
    * Update card states for the pick phase.
    */

@@ -9,7 +9,7 @@ interface PracticeResultsProps {
 
 export default function PracticeResults({ winner, onRetry }: PracticeResultsProps) {
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-500">
+        <div className="fixed inset-0 lg:left-72 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-500">
             <div className="relative w-full max-w-2xl text-center">
                 {/* Result Title */}
                 <h1 className="text-[80px] sm:text-[120px] font-black font-orbitron leading-none mb-8 tracking-tighter drop-shadow-[0_0_30px_rgba(0,0,0,0.8)]">

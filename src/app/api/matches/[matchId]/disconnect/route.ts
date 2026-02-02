@@ -503,11 +503,22 @@ export async function POST(
       const defaultHealth = 100;
       const defaultEnergy = 100;
 
-      // Calculate move deadline
-      // If match is in progress, always give them time to move (either for current or next round)
-      const moveDeadlineAt = match.status === "in_progress"
-        ? Date.now() + 15000 // Give them 15 seconds to make a move
-        : null;
+      // Calculate move deadline from database - use the actual server deadline, not a new one
+      // This ensures timer continuity across refreshes/reconnects
+      let moveDeadlineAt: number | null = null;
+      if (match.status === "in_progress" && currentRound?.move_deadline_at) {
+        const deadline = new Date(currentRound.move_deadline_at).getTime();
+        // Only use if deadline is still in the future
+        if (deadline > Date.now()) {
+          moveDeadlineAt = deadline;
+        } else {
+          // Deadline passed - give them a fresh 15 seconds as fallback
+          moveDeadlineAt = Date.now() + 15000;
+        }
+      } else if (match.status === "in_progress") {
+        // No deadline in database - give fresh 15 seconds
+        moveDeadlineAt = Date.now() + 15000;
+      }
 
       // Determine correct health values
       // If current round (turn) is unresolved, health_after is likely null/undefined

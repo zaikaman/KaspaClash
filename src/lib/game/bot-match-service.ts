@@ -41,6 +41,8 @@ export interface BotTurnData {
     bot2HpRegen?: number;
     bot1Lifesteal?: number;
     bot2Lifesteal?: number;
+    bot1Outcome?: "hit" | "blocked" | "stunned" | "staggered" | "reflected" | "shattered" | "missed" | "guarding" | null;
+    bot2Outcome?: "hit" | "blocked" | "stunned" | "staggered" | "reflected" | "shattered" | "missed" | "guarding" | null;
     // Power surge data (present on first turn of each round)
     isRoundStart?: boolean;
     surgeCardIds?: PowerSurgeCardId[];
@@ -297,6 +299,8 @@ export function simulateBotMatch(matchId: string, bot1Id?: string, bot2Id?: stri
             bot2HpRegen: result.player2.hpRegen,
             bot1Lifesteal: result.player1.lifesteal,
             bot2Lifesteal: result.player2.lifesteal,
+            bot1Outcome: result.player1.outcome,
+            bot2Outcome: result.player2.outcome,
         };
 
         // Add power surge data for first turn of round

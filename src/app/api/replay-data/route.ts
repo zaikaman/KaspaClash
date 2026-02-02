@@ -16,6 +16,12 @@ export interface ReplayRoundData {
     player1HealthAfter: number;
     player2HealthAfter: number;
     winnerAddress: string | null;
+    player1EnergyDrained?: number;
+    player2EnergyDrained?: number;
+    player1HpRegen?: number;
+    player2HpRegen?: number;
+    player1Lifesteal?: number;
+    player2Lifesteal?: number;
 }
 
 export interface ReplayData {
@@ -91,6 +97,12 @@ export async function GET(request: NextRequest) {
                 player1HealthAfter: r.player1_health_after ?? 100,
                 player2HealthAfter: r.player2_health_after ?? 100,
                 winnerAddress: r.winner_address,
+                player1EnergyDrained: r.player1_energy_drained ?? 0,
+                player2EnergyDrained: r.player2_energy_drained ?? 0,
+                player1HpRegen: r.player1_hp_regen ?? 0,
+                player2HpRegen: r.player2_hp_regen ?? 0,
+                player1Lifesteal: r.player1_lifesteal ?? 0,
+                player2Lifesteal: r.player2_lifesteal ?? 0,
             }));
 
         const replayData: ReplayData = {

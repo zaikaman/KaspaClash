@@ -17,6 +17,12 @@ export interface ReplayRoundData {
     player1HealthAfter: number;
     player2HealthAfter: number;
     winnerAddress: string | null;
+    player1EnergyDrained?: number;
+    player2EnergyDrained?: number;
+    player1HpRegen?: number;
+    player2HpRegen?: number;
+    player1Lifesteal?: number;
+    player2Lifesteal?: number;
 }
 
 export interface ReplayData {

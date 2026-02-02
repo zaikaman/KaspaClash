@@ -1360,16 +1360,34 @@ export class SurvivalScene extends Phaser.Scene {
                                     repeat: 3
                                 });
                             });
+                        } else if (turnResult.player2.outcome === "missed") {
+                            // Show DODGE! text when Hash Hurricane triggers (attack dodged)
+                            this.time.delayedCall(300, () => {
+                                this.showFloatingText("DODGE!", p2OriginalX - 50, CHARACTER_POSITIONS.PLAYER2.Y - 130, "#8800ff");
+                            });
                         }
                         
-                        // Show energy drain effect from surge
-                        if (turnResult.player2.energyDrained && turnResult.player2.energyDrained > 15) {
+                        // Show energy drain effect from surge (e.g., GhostDAG, Vaultbreaker)
+                        if (turnResult.player2.energyDrained && turnResult.player2.energyDrained > 0) {
                             this.time.delayedCall(500, () => {
                                 this.showFloatingText(
                                     `-${Math.round(turnResult.player2.energyDrained!)} EN`,
                                     p2OriginalX - 50,
                                     CHARACTER_POSITIONS.PLAYER2.Y - 100,
                                     "#3b82f6"
+                                );
+                            });
+                        }
+
+                        // Show HP regen effect if P1 healed (from Blue Set Heal or lifesteal)
+                        const p1TotalHeal = (turnResult.player1.hpRegen || 0) + (turnResult.player1.lifesteal || 0);
+                        if (p1TotalHeal > 0) {
+                            this.time.delayedCall(700, () => {
+                                this.showFloatingText(
+                                    `+${Math.round(p1TotalHeal)} HP`,
+                                    p1OriginalX + 50,
+                                    CHARACTER_POSITIONS.PLAYER1.Y - 100,
+                                    "#00ff88"
                                 );
                             });
                         }
@@ -1414,16 +1432,34 @@ export class SurvivalScene extends Phaser.Scene {
                                     repeat: 3
                                 });
                             });
+                        } else if (turnResult.player1.outcome === "missed") {
+                            // Show DODGE! text when Hash Hurricane triggers (attack dodged)
+                            this.time.delayedCall(300, () => {
+                                this.showFloatingText("DODGE!", p1OriginalX + 50, CHARACTER_POSITIONS.PLAYER1.Y - 130, "#8800ff");
+                            });
                         }
                         
-                        // Show energy drain effect from surge
-                        if (turnResult.player1.energyDrained && turnResult.player1.energyDrained > 15) {
+                        // Show energy drain effect from surge (e.g., GhostDAG, Vaultbreaker)
+                        if (turnResult.player1.energyDrained && turnResult.player1.energyDrained > 0) {
                             this.time.delayedCall(500, () => {
                                 this.showFloatingText(
                                     `-${Math.round(turnResult.player1.energyDrained!)} EN`,
                                     p1OriginalX + 50,
                                     CHARACTER_POSITIONS.PLAYER1.Y - 100,
                                     "#3b82f6"
+                                );
+                            });
+                        }
+
+                        // Show HP regen effect if P2 healed (from Blue Set Heal or lifesteal)
+                        const p2TotalHeal = (turnResult.player2.hpRegen || 0) + (turnResult.player2.lifesteal || 0);
+                        if (p2TotalHeal > 0) {
+                            this.time.delayedCall(700, () => {
+                                this.showFloatingText(
+                                    `+${Math.round(p2TotalHeal)} HP`,
+                                    p2OriginalX - 50,
+                                    CHARACTER_POSITIONS.PLAYER2.Y - 100,
+                                    "#00ff88"
                                 );
                             });
                         }

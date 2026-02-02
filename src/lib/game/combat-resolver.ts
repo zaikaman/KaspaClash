@@ -266,6 +266,15 @@ export async function resolveRound(
                 player2_energy: state.player2.energy,
                 player1_guard_meter: state.player1.guardMeter,
                 player2_guard_meter: state.player2.guardMeter,
+                // Track power surge effects for replay visualization
+                player1_energy_drained: result.player1.energyDrained || 0,
+                player2_energy_drained: result.player2.energyDrained || 0,
+                player1_hp_regen: result.player1.hpRegen || 0,
+                player2_hp_regen: result.player2.hpRegen || 0,
+                player1_lifesteal: result.player1.lifesteal || 0,
+                player2_lifesteal: result.player2.lifesteal || 0,
+                player1_outcome: result.player1.outcome || null,
+                player2_outcome: result.player2.outcome || null,
                 winner_address: state.roundWinner === "player1"
                     ? match.player1_address
                     : state.roundWinner === "player2"
@@ -366,6 +375,7 @@ export async function resolveRound(
                 effects: result.player1.effects,
                 hpRegen: result.player1.hpRegen || 0,
                 lifesteal: result.player1.lifesteal || 0,
+                energyDrained: result.player1.energyDrained || 0,
             },
             player2: {
                 move: currentRound.player2_move,
@@ -375,6 +385,7 @@ export async function resolveRound(
                 effects: result.player2.effects,
                 hpRegen: result.player2.hpRegen || 0,
                 lifesteal: result.player2.lifesteal || 0,
+                energyDrained: result.player2.energyDrained || 0,
             },
             player1Health: state.player1.hp,
             player2Health: state.player2.hp,

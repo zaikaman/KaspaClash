@@ -50,6 +50,14 @@ interface RoundData {
   player2_damage_dealt: number | null;
   player1_health_after: number | null;
   player2_health_after: number | null;
+  player1_energy_drained: number | null;
+  player2_energy_drained: number | null;
+  player1_hp_regen: number | null;
+  player2_hp_regen: number | null;
+  player1_lifesteal: number | null;
+  player2_lifesteal: number | null;
+  player1_outcome: string | null;
+  player2_outcome: string | null;
   winner_address: string | null;
 }
 
@@ -117,6 +125,14 @@ export default async function ReplayPage({ params }: { params: Promise<{ matchId
       player2DamageDealt: r.player2_damage_dealt ?? 0,
       player1HealthAfter: r.player1_health_after ?? 100,
       player2HealthAfter: r.player2_health_after ?? 100,
+      player1EnergyDrained: r.player1_energy_drained ?? 0,
+      player2EnergyDrained: r.player2_energy_drained ?? 0,
+      player1HpRegen: r.player1_hp_regen ?? 0,
+      player2HpRegen: r.player2_hp_regen ?? 0,
+      player1Lifesteal: r.player1_lifesteal ?? 0,
+      player2Lifesteal: r.player2_lifesteal ?? 0,
+      player1Outcome: r.player1_outcome as "hit" | "blocked" | "stunned" | "staggered" | "reflected" | "shattered" | "missed" | "guarding" | null,
+      player2Outcome: r.player2_outcome as "hit" | "blocked" | "stunned" | "staggered" | "reflected" | "shattered" | "missed" | "guarding" | null,
       winnerAddress: r.winner_address,
     }));
 

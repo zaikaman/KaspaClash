@@ -17,17 +17,17 @@ import {
 } from "./types";
 import { getCharacterCombatStats } from "./CharacterStats";
 import {
-  calculateSurgeEffects,
-  applyDamageModifiers,
-  applyDefensiveModifiers,
-  applyEnergyEffects,
-  applyHpEffects,
-  checkRandomWin,
-  isInvisibleMove,
-  shouldStunOpponent,
-  shouldBypassBlock,
-  isBlockDisabled,
-  type SurgeModifiers,
+    calculateSurgeEffects,
+    applyDamageModifiers,
+    applyDefensiveModifiers,
+    applyEnergyEffects,
+    applyHpEffects,
+    checkRandomWin,
+    isInvisibleMove,
+    shouldStunOpponent,
+    shouldBypassBlock,
+    isBlockDisabled,
+    type SurgeModifiers,
 } from "./SurgeEffects";
 import { PowerSurgeCardId } from "@/types/power-surge";
 
@@ -40,11 +40,10 @@ import { PowerSurgeCardId } from "@/types/power-surge";
  */
 export class CombatEngine {
     private state: CombatState;
-    
+
     // Track if surge stun has been applied this round (Mempool Congest)
-    // This prevents re-applying the stun every turn
-    private p1SurgeStunApplied: boolean = false;
-    private p2SurgeStunApplied: boolean = false;
+    // REFACTORED: Now checking currentTurn === 1 instead of using state flags to be stateless-safe
+
 
     constructor(
         player1CharacterId: string,
@@ -108,6 +107,18 @@ export class CombatEngine {
     }
 
     /**
+     * Restore combat state from a saved state object.
+     * Used for reconnection/refresh scenarios.
+     */
+    setState(savedState: CombatState): void {
+        this.state = {
+            ...savedState,
+            player1: { ...savedState.player1 },
+            player2: { ...savedState.player2 }
+        };
+    }
+
+    /**
      * Get specific player state.
      */
     getPlayerState(player: "player1" | "player2"): Readonly<PlayerCombatState> {
@@ -165,13 +176,14 @@ export class CombatEngine {
 
         // Apply Mempool Congest stun BEFORE first turn (only once per round)
         // This ensures the opponent is stunned immediately on turn 1, not after turn 1
-        if (shouldStunOpponent(p1SurgeMods) && !this.p1SurgeStunApplied) {
-            this.state.player2.isStunned = true;
-            this.p1SurgeStunApplied = true;
-        }
-        if (shouldStunOpponent(p2SurgeMods) && !this.p2SurgeStunApplied) {
-            this.state.player1.isStunned = true;
-            this.p2SurgeStunApplied = true;
+        // FIX: Check currentTurn === 1 instead of stateful flag to prevent re-application in stateless environments
+        if (this.state.currentTurn === 1) {
+            if (shouldStunOpponent(p1SurgeMods)) {
+                this.state.player2.isStunned = true;
+            }
+            if (shouldStunOpponent(p2SurgeMods)) {
+                this.state.player1.isStunned = true;
+            }
         }
 
         // Track if players were stunned at the START of this turn
@@ -275,7 +287,7 @@ export class CombatEngine {
         p1Result.lifesteal = p1Lifesteal;
         p2Result.hpRegen = p2HpRegen > 0 ? p2HpRegen : 0;
         p2Result.lifesteal = p2Lifesteal;
-        
+
         // Track energy drained by opponent's surge effects for visual feedback
         // Include BOTH burned (from energyBurn/energyDrain) AND stolen (from energySteal like Vaultbreaker)
         p1Result.energyDrained = p2EnergyEffects.energyBurned + p2EnergyEffects.energyStolen; // P1 lost energy from P2's effects
@@ -319,9 +331,9 @@ export class CombatEngine {
 
         // Apply hit damage (calculated in resolvePlayerTurn)
         // Guard break logic is now handled in resolvePlayerTurn for bypass
-        
+
         // Track if guard break happens THIS turn
-        const p1GuardBreak = this.state.player1.guardMeter >= COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD 
+        const p1GuardBreak = this.state.player1.guardMeter >= COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD
             && p1GuardBeforeTurn < COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD;
         const p2GuardBreak = this.state.player2.guardMeter >= COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD
             && p2GuardBeforeTurn < COMBAT_CONSTANTS.GUARD_BREAK_THRESHOLD;
@@ -353,12 +365,13 @@ export class CombatEngine {
         this.regenerateEnergy();
 
         // Clear old stun (player paid the penalty), then apply new stun if applicable
-        // Mempool Congest stun was applied at the START of resolveTurn, so it persists
-        // Only clear stun if no new stun effects occurred and surge stun is not active
-        this.state.player1.isStunned = p1StunnedByMove || p1GuardBreak || (shouldStunOpponent(p2SurgeMods) && this.p2SurgeStunApplied);
+        // Mempool Congest stun is a ONE-TIME effect: it stuns the opponent on the FIRST turn only.
+        // After they've been stunned (missed their turn), the stun is cleared and NOT re-applied.
+        // The pXSurgeStunApplied flags track that we've already applied the stun, preventing re-application.
+        this.state.player1.isStunned = p1StunnedByMove || p1GuardBreak;
         this.state.player1.isStaggered = p1Result.effects.includes("stagger");
 
-        this.state.player2.isStunned = p2StunnedByMove || p2GuardBreak || (shouldStunOpponent(p1SurgeMods) && this.p1SurgeStunApplied);
+        this.state.player2.isStunned = p2StunnedByMove || p2GuardBreak;
         this.state.player2.isStaggered = p2Result.effects.includes("stagger");
 
         // Check for round end
@@ -424,10 +437,10 @@ export class CombatEngine {
 
         // Handle block disabled (Pruned Rage)
         // If opponent has Pruned Rage, our block is disabled and fails completely
-        const effectiveMove = (myMove === "block" && isBlockDisabled(mySurgeMods, opponentSurgeMods)) 
+        const effectiveMove = (myMove === "block" && isBlockDisabled(mySurgeMods, opponentSurgeMods))
             ? null // Block fails, treated as if stunned
             : myMove;
-        
+
         if (effectiveMove === null && myMove === "block") {
             // Block was disabled - take full damage from opponent
             let damageTaken = 0;
@@ -679,10 +692,10 @@ export class CombatEngine {
         this.state.currentTurn = 1;
         this.state.isRoundOver = false;
         this.state.roundWinner = null;
-        
+
         // Reset surge stun tracking for new round
-        this.p1SurgeStunApplied = false;
-        this.p2SurgeStunApplied = false;
+        // REFACTORED: No longer needed with currentTurn === 1 check
+
     }
 
     // ===========================================================================

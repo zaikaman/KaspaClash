@@ -25,6 +25,15 @@ export interface ReplayRoundData {
   player1HealthAfter: number;
   player2HealthAfter: number;
   winnerAddress: string | null;
+  // Power surge effects
+  player1EnergyDrained?: number;
+  player2EnergyDrained?: number;
+  player1HpRegen?: number;
+  player2HpRegen?: number;
+  player1Lifesteal?: number;
+  player2Lifesteal?: number;
+  player1Outcome?: "hit" | "blocked" | "stunned" | "staggered" | "reflected" | "shattered" | "missed" | "guarding" | null;
+  player2Outcome?: "hit" | "blocked" | "stunned" | "staggered" | "reflected" | "shattered" | "missed" | "guarding" | null;
   // Power surge data (for round display)
   surgeCardIds?: PowerSurgeCardId[];
   player1SurgeSelection?: PowerSurgeCardId;
@@ -1099,6 +1108,40 @@ export class ReplayScene extends Phaser.Scene {
                   repeat: 3
                 });
               });
+            } else if (round.player2Outcome === "missed") {
+              this.time.delayedCall(300, () => {
+                this.showFloatingText(
+                  "DODGE!",
+                  p1IsStunned ? meetingPointX : p2TargetX - (p2IsStunned ? 0 : 50),
+                  CHARACTER_POSITIONS.PLAYER2.Y - 130,
+                  "#8800ff"
+                );
+              });
+            }
+
+            // Show energy drain effect if P2 lost energy from P1's surge (e.g., GhostDAG, Vaultbreaker)
+            if (round.player2EnergyDrained && round.player2EnergyDrained > 0) {
+              this.time.delayedCall(500, () => {
+                this.showFloatingText(
+                  `-${Math.round(round.player2EnergyDrained!)} EN`,
+                  p1IsStunned ? meetingPointX : p2TargetX - (p2IsStunned ? 0 : 50),
+                  CHARACTER_POSITIONS.PLAYER2.Y - 100,
+                  "#3b82f6"
+                );
+              });
+            }
+
+            // Show HP regen effect if P1 healed (from Blue Set Heal or lifesteal)
+            const p1TotalHeal = (round.player1HpRegen || 0) + (round.player1Lifesteal || 0);
+            if (p1TotalHeal > 0) {
+              this.time.delayedCall(700, () => {
+                this.showFloatingText(
+                  `+${Math.round(p1TotalHeal)} HP`,
+                  p1IsStunned ? meetingPointX : p1TargetX + (p1IsStunned ? 0 : 50),
+                  CHARACTER_POSITIONS.PLAYER1.Y - 100,
+                  "#00ff88"
+                );
+              });
             }
 
             // Wait for anim to finish (approx 1.2s)
@@ -1149,6 +1192,40 @@ export class ReplayScene extends Phaser.Scene {
                   duration: 50,
                   repeat: 3
                 });
+              });
+            } else if (round.player1Outcome === "missed") {
+              this.time.delayedCall(300, () => {
+                this.showFloatingText(
+                  "DODGE!",
+                  p2IsStunned ? meetingPointX : p1TargetX + (p1IsStunned ? 0 : 50),
+                  CHARACTER_POSITIONS.PLAYER1.Y - 130,
+                  "#8800ff"
+                );
+              });
+            }
+
+            // Show energy drain effect if P1 lost energy from P2's surge (e.g., GhostDAG, Vaultbreaker)
+            if (round.player1EnergyDrained && round.player1EnergyDrained > 0) {
+              this.time.delayedCall(500, () => {
+                this.showFloatingText(
+                  `-${Math.round(round.player1EnergyDrained!)} EN`,
+                  p2IsStunned ? meetingPointX : p1TargetX + (p1IsStunned ? 0 : 50),
+                  CHARACTER_POSITIONS.PLAYER1.Y - 100,
+                  "#3b82f6"
+                );
+              });
+            }
+
+            // Show HP regen effect if P2 healed (from Blue Set Heal or lifesteal)
+            const p2TotalHeal = (round.player2HpRegen || 0) + (round.player2Lifesteal || 0);
+            if (p2TotalHeal > 0) {
+              this.time.delayedCall(700, () => {
+                this.showFloatingText(
+                  `+${Math.round(p2TotalHeal)} HP`,
+                  p2IsStunned ? meetingPointX : p2TargetX - (p2IsStunned ? 0 : 50),
+                  CHARACTER_POSITIONS.PLAYER2.Y - 100,
+                  "#00ff88"
+                );
               });
             }
 

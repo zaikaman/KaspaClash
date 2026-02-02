@@ -1038,6 +1038,15 @@ export class BotBattleScene extends Phaser.Scene {
                                     repeat: 3
                                 });
                             });
+                        } else if (turn.bot2Outcome === "missed") {
+                            this.time.delayedCall(300, () => {
+                                this.showFloatingText(
+                                    "DODGE!",
+                                    p2TargetX,
+                                    CHARACTER_POSITIONS.PLAYER2.Y - 130,
+                                    "#8800ff"
+                                );
+                            });
                         }
                         
                         // Show energy drain effect if P2 lost energy from P1's surge (e.g., GhostDAG, Vaultbreaker)
@@ -1048,6 +1057,19 @@ export class BotBattleScene extends Phaser.Scene {
                                     p2TargetX,
                                     CHARACTER_POSITIONS.PLAYER2.Y - 100,
                                     "#3b82f6"
+                                );
+                            });
+                        }
+
+                        // Show HP regen effect if Bot1 healed (from Blue Set Heal or lifesteal)
+                        const bot1TotalHeal = (turn.bot1HpRegen || 0) + (turn.bot1Lifesteal || 0);
+                        if (bot1TotalHeal > 0) {
+                            this.time.delayedCall(700, () => {
+                                this.showFloatingText(
+                                    `+${Math.round(bot1TotalHeal)} HP`,
+                                    p1TargetX,
+                                    CHARACTER_POSITIONS.PLAYER1.Y - 100,
+                                    "#00ff88"
                                 );
                             });
                         }
@@ -1105,6 +1127,15 @@ export class BotBattleScene extends Phaser.Scene {
                                     repeat: 3
                                 });
                             });
+                        } else if (turn.bot1Outcome === "missed") {
+                            this.time.delayedCall(300, () => {
+                                this.showFloatingText(
+                                    "DODGE!",
+                                    p1TargetX,
+                                    CHARACTER_POSITIONS.PLAYER1.Y - 130,
+                                    "#8800ff"
+                                );
+                            });
                         }
                         
                         // Show energy drain effect if P1 lost energy from P2's surge (e.g., GhostDAG, Vaultbreaker)
@@ -1115,6 +1146,19 @@ export class BotBattleScene extends Phaser.Scene {
                                     p1TargetX,
                                     CHARACTER_POSITIONS.PLAYER1.Y - 100,
                                     "#3b82f6"
+                                );
+                            });
+                        }
+
+                        // Show HP regen effect if Bot2 healed (from Blue Set Heal or lifesteal)
+                        const bot2TotalHeal = (turn.bot2HpRegen || 0) + (turn.bot2Lifesteal || 0);
+                        if (bot2TotalHeal > 0) {
+                            this.time.delayedCall(700, () => {
+                                this.showFloatingText(
+                                    `+${Math.round(bot2TotalHeal)} HP`,
+                                    p2TargetX,
+                                    CHARACTER_POSITIONS.PLAYER2.Y - 100,
+                                    "#00ff88"
                                 );
                             });
                         }
