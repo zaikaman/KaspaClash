@@ -143,8 +143,7 @@ export class FightScene extends Phaser.Scene {
     player2IsStunned?: boolean;
   } | null = null;
 
-  // Visibility change handler reference for cleanup
-  private visibilityChangeHandler: (() => void) | null = null;
+
 
   // Chat panel for in-game messaging
   private chatPanel?: ChatPanel;
@@ -430,8 +429,7 @@ export class FightScene extends Phaser.Scene {
       EventBus.emit("fight:requestRoundState", { matchId: this.config.matchId });
     }
 
-    // Set up visibility change handler to resync timer when tab becomes visible
-    this.setupVisibilityHandler();
+
 
     // Emit scene ready event
     EventBus.emit("scene:ready", this);
@@ -645,150 +643,7 @@ export class FightScene extends Phaser.Scene {
     });
   }
 
-  // ===========================================================================
-  // VISIBILITY HANDLING - Treat tab switching as disconnect/reconnect
-  // ===========================================================================
 
-  /**
-   * Set up document visibility change handler.
-   * When player hides tab, they are marked as disconnected on server.
-   * If both players disconnect, match is cancelled and bets refunded.
-   */
-  private setupVisibilityHandler(): void {
-    // Only set up if we're in a browser environment
-    if (typeof document === "undefined") return;
-
-    this.visibilityChangeHandler = () => {
-      if (document.visibilityState === "hidden") {
-        // Tab hidden - treat as disconnect
-        console.log("[FightScene] Tab hidden, treating as disconnect");
-        this.notifyServerDisconnect();
-      } else if (document.visibilityState === "visible") {
-        // Tab visible - treat as reconnect
-        console.log("[FightScene] Tab became visible, reconnecting");
-        // DON'T sync UI here with stale state - wait for server response
-        // The notifyServerReconnect() will fetch fresh state and update UI properly
-        // via syncWithFightState() which has the authoritative server values
-        this.notifyServerReconnect();
-      }
-    };
-
-    document.addEventListener("visibilitychange", this.visibilityChangeHandler);
-
-    // Also handle the scene shutdown to clean up
-    this.events.once("shutdown", this.cleanupVisibilityHandler, this);
-    this.events.once("destroy", this.cleanupVisibilityHandler, this);
-  }
-
-  /**
-   * Clean up visibility change handler.
-   */
-  private cleanupVisibilityHandler(): void {
-    if (this.visibilityChangeHandler && typeof document !== "undefined") {
-      document.removeEventListener("visibilitychange", this.visibilityChangeHandler);
-      this.visibilityChangeHandler = null;
-    }
-  }
-
-  /**
-   * Notify server that player has disconnected (tab hidden/minimized).
-   * Server will mark player as disconnected and potentially cancel match.
-   */
-  private async notifyServerDisconnect(): Promise<void> {
-    // Only players need to notify disconnect, not spectators
-    if (this.config.isSpectator) return;
-
-    try {
-      const response = await fetch(`/api/matches/${this.config.matchId}/disconnect`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          address: this.config.playerRole === "player1"
-            ? this.config.player1Address
-            : this.config.player2Address,
-          action: "disconnect",
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log("[FightScene] Disconnect notification sent:", data);
-      } else {
-        console.warn("[FightScene] Failed to send disconnect notification");
-      }
-    } catch (error) {
-      console.error("[FightScene] Error notifying disconnect:", error);
-    }
-  }
-
-  /**
-   * Notify server that player has reconnected (tab visible again).
-   * Server will clear disconnect status and sync game state.
-   */
-  private async notifyServerReconnect(): Promise<void> {
-    // Only players need to notify reconnect, not spectators
-    if (this.config.isSpectator) return;
-
-    try {
-      // First notify disconnect API about reconnection
-      const disconnectResponse = await fetch(`/api/matches/${this.config.matchId}/disconnect`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          address: this.config.playerRole === "player1"
-            ? this.config.player1Address
-            : this.config.player2Address,
-          action: "reconnect",
-        }),
-      });
-
-      if (disconnectResponse.ok) {
-        const data = await disconnectResponse.json();
-        console.log("[FightScene] Reconnect notification sent:", data);
-
-        // Check if match was cancelled/completed while away
-        if (data.data?.matchStatus === "completed" || data.data?.matchStatus === "cancelled") {
-          console.log("[FightScene] Match ended while disconnected, fetching final state");
-          this.fetchFinalMatchState();
-          return;
-        }
-      } else {
-        // Reconnect failed - could be due to timeout (match ended)
-        const errorData = await disconnectResponse.json().catch(() => null);
-        console.warn("[FightScene] Reconnect failed:", errorData);
-
-        // If match ended due to disconnect timeout, fetch final state
-        if (disconnectResponse.status === 409) { // CONFLICT status
-          console.log("[FightScene] Match ended due to disconnect timeout, fetching final state");
-          this.fetchFinalMatchState();
-          return;
-        }
-      }
-
-      // Fetch comprehensive fight state from new API
-      console.log("[FightScene] Fetching comprehensive fight state from server");
-      const fightStateResponse = await fetch(`/api/matches/${this.config.matchId}/fight-state`);
-
-      if (fightStateResponse.ok) {
-        const fightStateData = await fightStateResponse.json();
-        console.log("[FightScene] Got fight state from server:", fightStateData);
-
-        if (fightStateData.success && fightStateData.state) {
-          this.syncWithFightState(fightStateData.state);
-        } else {
-          console.warn("[FightScene] No fight state available, requesting round state");
-          EventBus.emit("fight:requestRoundState", { matchId: this.config.matchId });
-        }
-      } else {
-        console.warn("[FightScene] Failed to fetch fight state, requesting round state via EventBus");
-        EventBus.emit("fight:requestRoundState", { matchId: this.config.matchId });
-      }
-    } catch (error) {
-      console.error("[FightScene] Error notifying reconnect:", error);
-      // Fallback to legacy sync mechanism
-      EventBus.emit("fight:requestRoundState", { matchId: this.config.matchId });
-    }
-  }
 
   /**
    * Sync client with comprehensive fight state from server.
@@ -954,6 +809,10 @@ export class FightScene extends Phaser.Scene {
         EventBus.emit("fight:requestRoundState", { matchId: this.config.matchId });
     }
   }
+
+  // ===========================================================================
+  // VISIBILITY HANDLING - Treat tab switching as disconnect/reconnect
+  // ===========================================================================
 
   /**
    * Fetch final match state when match ended during disconnect.
@@ -2742,7 +2601,7 @@ export class FightScene extends Phaser.Scene {
   private updateHealthBarDisplay(player: "player1" | "player2", hp: number, maxHp: number): void {
     const graphics = player === "player1" ? this.player1HealthBar : this.player2HealthBar;
     if (!graphics) return; // Guard against uninitialized graphics
-    
+
     const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
     const barHeight = 25;
     // Clamp percentage to [0, 1] to prevent bar overflow
@@ -2769,7 +2628,7 @@ export class FightScene extends Phaser.Scene {
   private updateEnergyBarDisplay(player: "player1" | "player2", energy: number, maxEnergy: number): void {
     const graphics = player === "player1" ? this.player1EnergyBar : this.player2EnergyBar;
     if (!graphics) return; // Guard against uninitialized graphics
-    
+
     const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
     const barHeight = 12;
     const yOffset = 30;
@@ -2793,7 +2652,7 @@ export class FightScene extends Phaser.Scene {
   private updateGuardMeterDisplay(player: "player1" | "player2", guardMeter: number): void {
     const graphics = player === "player1" ? this.player1GuardMeter : this.player2GuardMeter;
     if (!graphics) return; // Guard against uninitialized graphics
-    
+
     const barWidth = UI_POSITIONS.HEALTH_BAR.PLAYER1.WIDTH;
     const barHeight = 6;
     const yOffset = 45;
@@ -4538,14 +4397,14 @@ export class FightScene extends Phaser.Scene {
         if (response.ok) {
           const data = await response.json();
           cardIds = data.data?.offeredCards || [];
-          
+
           // Check if current player has already selected a surge card
           // This handles the case where user refreshes after selecting
           const myRole = this.config.playerRole;
-          const mySelection = myRole === "player1" 
-            ? data.data?.player1Selection 
+          const mySelection = myRole === "player1"
+            ? data.data?.player1Selection
             : data.data?.player2Selection;
-          
+
           if (mySelection && mySelection.ready) {
             console.log(`[FightScene] Player already selected surge card for round ${roundNumber}, skipping UI`);
             playerAlreadySelected = true;
@@ -4553,7 +4412,7 @@ export class FightScene extends Phaser.Scene {
             this.lastSurgeRound = roundNumber;
             return;
           }
-          
+
           if (cardIds.length > 0) {
             fetchedFromServer = true;
             console.log(`[FightScene] Fetched surge cards from server (attempt ${attempt + 1}):`, cardIds);
