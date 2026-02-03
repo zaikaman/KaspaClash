@@ -21,7 +21,7 @@ export async function GET() {
         // First, find stale matches to get their IDs for refunding
         const { data: staleMatches } = await supabase
             .from("matches")
-            .select("id, stake_amount")
+            .select("id")
             .eq("status", "in_progress")
             .lt("started_at", fifteenMinutesAgo);
 
