@@ -21,6 +21,7 @@ import { OfflinePowerSurgeCards } from "@/game/ui/OfflinePowerSurgeCards";
 import { PowerSurgeCardView } from "../ui/PowerSurgeCardView";
 import type { PowerSurgeCardId } from "@/types/power-surge";
 import { getRandomPowerSurgeCards, getPowerSurgeCard } from "@/types/power-surge";
+import { TextFactory } from "@/game/ui/TextFactory";
 
 export interface SurvivalSceneConfig {
     playerCharacterId: string;
@@ -239,7 +240,7 @@ export class SurvivalScene extends Phaser.Scene {
         });
 
         this.setupEventListeners();
-        
+
         // Defer state sync and wave start to allow UI to render
         this.time.delayedCall(32, () => {
             this.syncUIWithCombatState();
@@ -452,8 +453,7 @@ export class SurvivalScene extends Phaser.Scene {
         }
 
         // Survival mode indicator
-        this.modeText = this.add.text(GAME_DIMENSIONS.CENTER_X, 20, "SURVIVAL MODE", {
-            fontFamily: "monospace",
+        this.modeText = TextFactory.createLabel(this, GAME_DIMENSIONS.CENTER_X, 20, "SURVIVAL MODE", {
             fontSize: "14px",
             color: "#ef4444",
             fontStyle: "bold",
@@ -484,12 +484,12 @@ export class SurvivalScene extends Phaser.Scene {
         const tierName = getWaveTierName(this.currentWave);
         const tierColor = getWaveTierColor(this.currentWave);
 
-        this.waveIndicatorText = this.add.text(
+        this.waveIndicatorText = TextFactory.createScore(
+            this,
             GAME_DIMENSIONS.CENTER_X,
             UI_POSITIONS.ROUND_INDICATOR.Y,
-            `WAVE ${this.currentWave}/${TOTAL_WAVES}  •  ${tierName}`,
-            { fontFamily: "monospace", fontSize: "16px", color: tierColor }
-        ).setOrigin(0.5);
+            `WAVE ${this.currentWave}/${TOTAL_WAVES}  •  ${tierName}`
+        ).setOrigin(0.5).setColor(tierColor);
     }
 
     private createCharacterSprites(): void {
@@ -540,8 +540,7 @@ export class SurvivalScene extends Phaser.Scene {
 
         const container = this.add.container(x, y);
 
-        const text = this.add.text(0, 0, "YOU", {
-            fontFamily: "monospace",
+        const text = TextFactory.createLabel(this, 0, 0, "YOU", {
             fontSize: "14px",
             color: "#22c55e",
             fontStyle: "bold",
@@ -549,8 +548,7 @@ export class SurvivalScene extends Phaser.Scene {
             padding: { x: 4, y: 2 }
         }).setOrigin(0.5);
 
-        const arrow = this.add.text(0, 20, "▼", {
-            fontFamily: "monospace",
+        const arrow = TextFactory.createLabel(this, 0, 20, "▼", {
             fontSize: "14px",
             color: "#22c55e",
         }).setOrigin(0.5);
@@ -660,12 +658,12 @@ export class SurvivalScene extends Phaser.Scene {
         timerBg.lineStyle(3, 0xef4444, 1);
         timerBg.strokeCircle(UI_POSITIONS.TIMER.X, UI_POSITIONS.TIMER.Y, 35);
 
-        this.roundTimerText = this.add.text(
+        this.roundTimerText = TextFactory.createTimer(
+            this,
             UI_POSITIONS.TIMER.X,
             UI_POSITIONS.TIMER.Y,
-            "15",
-            { fontFamily: "monospace", fontSize: "24px", color: "#ef4444", fontStyle: "bold" }
-        ).setOrigin(0.5);
+            "15"
+        ).setOrigin(0.5).setColor("#ef4444");
     }
 
     private createMoveButtons(): void {
@@ -677,12 +675,13 @@ export class SurvivalScene extends Phaser.Scene {
         const startX = (GAME_DIMENSIONS.WIDTH - totalWidth) / 2 + buttonWidth / 2;
         const y = GAME_DIMENSIONS.HEIGHT - 100;
 
-        this.add.text(
+        // Label
+        TextFactory.createSubtitle(
+            this,
             GAME_DIMENSIONS.CENTER_X,
             y - 95,
-            "YOUR MOVE",
-            { fontFamily: "monospace", fontSize: "14px", color: "#ef4444" }
-        ).setOrigin(0.5);
+            "YOUR MOVE"
+        ).setOrigin(0.5).setColor("#ef4444");
 
         moves.forEach((move, index) => {
             const x = startX + index * (buttonWidth + spacing);
@@ -790,17 +789,11 @@ export class SurvivalScene extends Phaser.Scene {
     }
 
     private createNarrativeDisplay(): void {
-        this.narrativeText = this.add.text(
+        this.narrativeText = TextFactory.createNarrative(
+            this,
             GAME_DIMENSIONS.CENTER_X,
             GAME_DIMENSIONS.CENTER_Y - 80,
-            "",
-            {
-                fontFamily: "monospace",
-                fontSize: "18px",
-                color: "#ffffff",
-                align: "center",
-                wordWrap: { width: 600 },
-            }
+            ""
         ).setOrigin(0.5).setAlpha(0);
     }
 
@@ -1423,7 +1416,7 @@ export class SurvivalScene extends Phaser.Scene {
             this.turnIndicatorText.setText("Select your move!").setColor("#888888");
         }
         // If we already set the text above for AI stunned case, keep it
-        
+
         this.roundTimerText.setColor("#ef4444");
 
         // Reset button visuals and affordability

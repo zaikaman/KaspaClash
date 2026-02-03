@@ -12,6 +12,7 @@ import type { MoveType } from "@/types";
 
 import type { PowerSurgeCardId } from "@/types/power-surge";
 import { SpectatorPowerSurgeCards } from "../ui/SpectatorPowerSurgeCards";
+import { TextFactory } from "@/game/ui/TextFactory";
 
 /**
  * Round data for replay
@@ -292,7 +293,7 @@ export class ReplayScene extends Phaser.Scene {
     if (bgm && bgm.isPlaying) {
       bgm.stop();
     }
-    
+
     // Clean up power surge UI
     if (this.powerSurgeUI) {
       this.powerSurgeUI.destroy();
@@ -418,19 +419,8 @@ export class ReplayScene extends Phaser.Scene {
     );
 
     // Energy labels
-    const labelStyle = { fontFamily: "monospace", fontSize: "10px", color: "#3b82f6" };
-    this.add.text(
-      UI_POSITIONS.HEALTH_BAR.PLAYER1.X + barWidth + 5,
-      UI_POSITIONS.HEALTH_BAR.PLAYER1.Y + 30,
-      "EN",
-      labelStyle
-    );
-    this.add.text(
-      UI_POSITIONS.HEALTH_BAR.PLAYER2.X - 20,
-      UI_POSITIONS.HEALTH_BAR.PLAYER2.Y + 30,
-      "EN",
-      labelStyle
-    );
+    TextFactory.createLabel(this, UI_POSITIONS.HEALTH_BAR.PLAYER1.X + barWidth + 5, UI_POSITIONS.HEALTH_BAR.PLAYER1.Y + 30, "EN", { fontSize: "10px", color: "#3b82f6" });
+    TextFactory.createLabel(this, UI_POSITIONS.HEALTH_BAR.PLAYER2.X - 20, UI_POSITIONS.HEALTH_BAR.PLAYER2.Y + 30, "EN", { fontSize: "10px", color: "#3b82f6" });
 
     // Player labels with character names and addresses
     const p1Char = this.config.player1Character || "dag-warrior";
@@ -439,81 +429,53 @@ export class ReplayScene extends Phaser.Scene {
     const p2Address = this.config.player2Address ? this.config.player2Address.slice(0, 10) + "..." : "Unknown";
 
     // Player 1 label (left side)
-    this.add.text(
+    TextFactory.createLabel(
+      this,
       UI_POSITIONS.HEALTH_BAR.PLAYER1.X,
       UI_POSITIONS.HEALTH_BAR.PLAYER1.Y - 18,
       `P1: ${p1Char.toUpperCase()} (${this.player1MaxHealth} HP)`,
-      {
-        fontFamily: "monospace",
-        fontSize: "12px",
-        color: "#40e0d0",
-        fontStyle: "bold"
-      }
+      { fontSize: "12px", color: "#40e0d0", fontStyle: "bold" }
     );
 
-    this.add.text(
+    TextFactory.createLabel(
+      this,
       UI_POSITIONS.HEALTH_BAR.PLAYER1.X,
       UI_POSITIONS.HEALTH_BAR.PLAYER1.Y + barHeight + 30,
       p1Address,
-      {
-        fontFamily: "monospace",
-        fontSize: "10px",
-        color: "#888888"
-      }
+      { fontSize: "10px", color: "#888888" }
     );
 
     // Player 2 label (right side)
-    this.add.text(
+    TextFactory.createLabel(
+      this,
       UI_POSITIONS.HEALTH_BAR.PLAYER2.X + barWidth,
       UI_POSITIONS.HEALTH_BAR.PLAYER2.Y - 18,
       `P2: ${p2Char.toUpperCase()} (${this.player2MaxHealth} HP)`,
-      {
-        fontFamily: "monospace",
-        fontSize: "12px",
-        color: "#40e0d0",
-        fontStyle: "bold",
-        align: "right"
-      }
+      { fontSize: "12px", color: "#40e0d0", fontStyle: "bold", align: "right" }
     ).setOrigin(1, 0);
 
-    this.add.text(
+    TextFactory.createLabel(
+      this,
       UI_POSITIONS.HEALTH_BAR.PLAYER2.X + barWidth,
       UI_POSITIONS.HEALTH_BAR.PLAYER2.Y + barHeight + 30,
       p2Address,
-      {
-        fontFamily: "monospace",
-        fontSize: "10px",
-        color: "#888888",
-        align: "right"
-      }
+      { fontSize: "10px", color: "#888888", align: "right" }
     ).setOrigin(1, 0);
 
     // Round score text
-    this.roundScoreText = this.add.text(
+    this.roundScoreText = TextFactory.createScore(
+      this,
       GAME_DIMENSIONS.CENTER_X,
       60,
-      `Round ${this.currentGameRound}  •  ${this.player1RoundsWon} - ${this.player2RoundsWon}  (First to 2)`,
-      {
-        fontFamily: "Orbitron",
-        fontSize: "24px",
-        color: "#ffffff",
-      }
+      `Round ${this.currentGameRound}  •  ${this.player1RoundsWon} - ${this.player2RoundsWon}  (First to 2)`
     ).setOrigin(0.5);
 
     // Narrative text
-    this.narrativeText = this.add.text(
+    this.narrativeText = TextFactory.createNarrative(
+      this,
       GAME_DIMENSIONS.CENTER_X,
       GAME_DIMENSIONS.HEIGHT - 100,
-      "",
-      {
-        fontFamily: "Exo 2",
-        fontSize: "140px",
-        color: "#ffffff",
-        align: "center",
-        wordWrap: { width: 1400 },
-        stroke: "#000000",
-        strokeThickness: 4,
-      }
+      ""
     ).setOrigin(0.5).setAlpha(0);
 
     // Draw initial health bars
@@ -589,8 +551,7 @@ export class ReplayScene extends Phaser.Scene {
     const badgeBg = this.add.rectangle(0, 0, 200, 40, 0x000000, 0.8)
       .setStrokeStyle(2, 0x49eacb);
 
-    const badgeText = this.add.text(0, 0, "⏵ REPLAY", {
-      fontFamily: "Orbitron",
+    const badgeText = TextFactory.createLabel(this, 0, 0, "⏵ REPLAY", {
       fontSize: "20px",
       color: "#49eacb",
     }).setOrigin(0.5);
@@ -772,15 +733,15 @@ export class ReplayScene extends Phaser.Scene {
     }
 
     const round = this.config.rounds[this.currentRoundIndex];
-    
+
     // Check if this is the start of a new game round:
     // - First turn (index 0) is always the start of game round 1
     // - After that, a new game round starts when the PREVIOUS turn had a winnerAddress (game round ended)
-    const previousTurn = this.currentRoundIndex > 0 
-      ? this.config.rounds[this.currentRoundIndex - 1] 
+    const previousTurn = this.currentRoundIndex > 0
+      ? this.config.rounds[this.currentRoundIndex - 1]
       : null;
     const isNewGameRound = this.currentRoundIndex === 0 || (previousTurn?.winnerAddress !== null);
-    
+
     // Only show power surge at the START of a new game round
     if (isNewGameRound && round.surgeCardIds && round.player1SurgeSelection && round.player2SurgeSelection) {
       this.showPowerSurgeUI(round, () => {

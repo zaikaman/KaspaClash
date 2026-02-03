@@ -72,12 +72,15 @@ export async function POST(
             return NextResponse.json({ success: true, action: "already_submitted" });
         }
 
-        // Get Power Surge selections for this round to verify player is stunned
+        // Get the MOST RECENT Power Surge selection for this match
+        // Note: The rounds table uses "turn numbers" (1,2,3,4,5...) but power_surges uses "game round" (1,2,3)
+        // So we need to get the latest power_surges entry, not query by round_number
         const { data: surgeData, error: surgeError } = await supabase
             .from("power_surges")
             .select("*")
             .eq("match_id", matchId)
-            .eq("round_number", currentRound.round_number)
+            .order("round_number", { ascending: false })
+            .limit(1)
             .single();
 
         if (surgeError && surgeError.code !== "PGRST116") {

@@ -58,19 +58,33 @@ export async function POST(
             return NextResponse.json({ success: false, error: "Round not found" }, { status: 404 });
         }
 
+        console.log(`[SkipStunnedTurn] Current round from DB: round_number=${currentRound.round_number}, id=${currentRound.id}`);
+
         // Check if both players have already submitted moves
         if (currentRound.player1_move && currentRound.player2_move) {
             console.log("[SkipStunnedTurn] Both moves already submitted, nothing to do");
             return NextResponse.json({ success: true, action: "already_resolved" });
         }
 
-        // Get Power Surge selections for this round to verify both are stunned
+        // Get the MOST RECENT Power Surge selection for this match
+        // Note: The rounds table uses "turn numbers" (1,2,3,4,5...) but power_surges uses "game round" (1,2,3)
+        // So we need to get the latest power_surges entry, not query by round_number
         const { data: surgeData, error: surgeError } = await supabase
             .from("power_surges")
             .select("*")
             .eq("match_id", matchId)
-            .eq("round_number", currentRound.round_number)
+            .order("round_number", { ascending: false })
+            .limit(1)
             .single();
+
+        console.log("[SkipStunnedTurn] Power surge query result:", { 
+            surgeData: surgeData ? { 
+                round_number: surgeData.round_number, 
+                player1_card_id: surgeData.player1_card_id,
+                player2_card_id: surgeData.player2_card_id 
+            } : null, 
+            surgeError: surgeError ? { code: surgeError.code, message: surgeError.message } : null 
+        });
 
         if (surgeError && surgeError.code !== "PGRST116") {
             console.error("[SkipStunnedTurn] Error fetching power surge data:", surgeError);

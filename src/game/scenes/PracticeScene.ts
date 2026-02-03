@@ -16,6 +16,7 @@ import { OfflinePowerSurgeCards } from "@/game/ui/OfflinePowerSurgeCards";
 import type { PowerSurgeCardId } from "@/types/power-surge";
 import { PowerSurgeCardView } from "../ui/PowerSurgeCardView";
 import { getRandomPowerSurgeCards, getPowerSurgeCard } from "@/types/power-surge";
+import { TextFactory } from "@/game/ui/TextFactory";
 
 // For backward compatibility with difficulty settings
 export type AIDifficulty = "easy" | "medium" | "hard";
@@ -474,15 +475,13 @@ export class PracticeScene extends Phaser.Scene {
     }
 
     // Practice mode indicator
-    this.modeText = this.add.text(GAME_DIMENSIONS.CENTER_X, 20, "PRACTICE MODE", {
-      fontFamily: "monospace",
+    this.modeText = TextFactory.createLabel(this, GAME_DIMENSIONS.CENTER_X, 20, "PRACTICE MODE", {
       fontSize: "12px",
       color: "#888888",
     }).setOrigin(0.5);
 
     // AI difficulty indicator
-    this.aiInfoText = this.add.text(GAME_DIMENSIONS.CENTER_X, 38, `AI: ${this.config.aiDifficulty.toUpperCase()}`, {
-      fontFamily: "monospace",
+    this.aiInfoText = TextFactory.createLabel(this, GAME_DIMENSIONS.CENTER_X, 38, `AI: ${this.config.aiDifficulty.toUpperCase()}`, {
       fontSize: "11px",
       color: "#666666",
     }).setOrigin(0.5);
@@ -574,8 +573,7 @@ export class PracticeScene extends Phaser.Scene {
       padding: { x: 4, y: 2 }
     }).setOrigin(0.5);
 
-    const arrow = this.add.text(0, 20, "▼", {
-      fontFamily: "monospace",
+    const arrow = TextFactory.createLabel(this, 0, 20, "▼", {
       fontSize: "14px",
       color: "#22c55e",
     }).setOrigin(0.5);
@@ -754,11 +752,11 @@ export class PracticeScene extends Phaser.Scene {
     timerBg.lineStyle(3, 0x40e0d0, 1);
     timerBg.strokeCircle(UI_POSITIONS.TIMER.X, UI_POSITIONS.TIMER.Y, 35);
 
-    this.roundTimerText = this.add.text(
+    this.roundTimerText = TextFactory.createTimer(
+      this,
       UI_POSITIONS.TIMER.X,
       UI_POSITIONS.TIMER.Y,
-      "15",
-      { fontFamily: "monospace", fontSize: "24px", color: "#40e0d0", fontStyle: "bold" }
+      "15"
     ).setOrigin(0.5);
   }
 
@@ -768,11 +766,11 @@ export class PracticeScene extends Phaser.Scene {
 
   private createRoundScore(): void {
     const roundsToWin = this.config.matchFormat === "best_of_5" ? 3 : 2;
-    this.roundScoreText = this.add.text(
+    this.roundScoreText = TextFactory.createScore(
+      this,
       UI_POSITIONS.ROUND_INDICATOR.X,
       UI_POSITIONS.ROUND_INDICATOR.Y,
-      `Round 1  •  0 - 0  (First to ${roundsToWin})`,
-      { fontFamily: "monospace", fontSize: "16px", color: "#ffffff" }
+      `Round 1  •  0 - 0  (First to ${roundsToWin})`
     ).setOrigin(0.5);
   }
 
@@ -790,12 +788,12 @@ export class PracticeScene extends Phaser.Scene {
     const y = GAME_DIMENSIONS.HEIGHT - 100;
 
     // Label
-    this.add.text(
+    TextFactory.createSubtitle(
+      this,
       GAME_DIMENSIONS.CENTER_X,
       y - 95,
-      "YOUR MOVE",
-      { fontFamily: "monospace", fontSize: "14px", color: "#40e0d0" }
-    ).setOrigin(0.5);
+      "YOUR MOVE"
+    ).setOrigin(0.5).setColor("#40e0d0");
 
     moves.forEach((move, index) => {
       const x = startX + index * (buttonWidth + spacing);
@@ -1622,12 +1620,12 @@ export class PracticeScene extends Phaser.Scene {
     if (state.player2.isStunned) {
       this.turnIndicatorText.setText("OPPONENT IS STUNNED!");
       this.turnIndicatorText.setColor("#22c55e");
-      
+
       // Show narrative
       this.narrativeText.setText("Your opponent is stunned!\nChoose your move wisely!");
       this.narrativeText.setAlpha(1);
       this.narrativeText.setColor("#22c55e");
-      
+
       // Fade out narrative after 2 seconds
       this.tweens.add({
         targets: this.narrativeText,

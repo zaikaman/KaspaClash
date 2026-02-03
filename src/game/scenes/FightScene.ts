@@ -19,6 +19,7 @@ import { SmartBotOpponent } from "@/lib/game/smart-bot-opponent";
 import type { MoveType, PlayerRole } from "@/types";
 import type { CombatState } from "../combat";
 import { PowerSurgeCardView } from "../ui/PowerSurgeCardView";
+import { TextFactory } from "../ui/TextFactory";
 
 /**
  * Fight scene configuration.
@@ -1315,11 +1316,13 @@ export class FightScene extends Phaser.Scene {
     timerBg.lineStyle(3, 0x40e0d0, 1);
     timerBg.strokeCircle(UI_POSITIONS.TIMER.X, UI_POSITIONS.TIMER.Y, 35);
 
-    this.roundTimerText = this.add.text(
+    timerBg.strokeCircle(UI_POSITIONS.TIMER.X, UI_POSITIONS.TIMER.Y, 35);
+
+    this.roundTimerText = TextFactory.createTimer(
+      this,
       UI_POSITIONS.TIMER.X,
       UI_POSITIONS.TIMER.Y,
-      "20",
-      { fontFamily: "monospace", fontSize: "24px", color: "#40e0d0", fontStyle: "bold" }
+      "20"
     ).setOrigin(0.5);
   }
 
@@ -1328,11 +1331,11 @@ export class FightScene extends Phaser.Scene {
   // ===========================================================================
 
   private createRoundScore(): void {
-    this.roundScoreText = this.add.text(
+    this.roundScoreText = TextFactory.createScore(
+      this,
       UI_POSITIONS.ROUND_INDICATOR.X,
       UI_POSITIONS.ROUND_INDICATOR.Y,
-      "Round 1  •  0 - 0  (First to 2)",
-      { fontFamily: "monospace", fontSize: "16px", color: "#ffffff" }
+      "Round 1  •  0 - 0  (First to 2)"
     ).setOrigin(0.5);
   }
 
@@ -1990,7 +1993,7 @@ export class FightScene extends Phaser.Scene {
     const role = this.config.playerRole;
     const isStunned = (role === "player1" && this.serverState?.player1IsStunned) ||
       (role === "player2" && this.serverState?.player2IsStunned);
-    
+
     if (isStunned) {
       this.showFloatingText("You are stunned!", GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.HEIGHT - 150, "#ff4444");
       return;
@@ -2158,26 +2161,20 @@ export class FightScene extends Phaser.Scene {
   // ===========================================================================
 
   private createNarrativeDisplay(): void {
-    this.narrativeText = this.add.text(
+    this.narrativeText = TextFactory.createNarrative(
+      this,
       GAME_DIMENSIONS.CENTER_X,
       GAME_DIMENSIONS.CENTER_Y - 80,
-      "",
-      {
-        fontFamily: "monospace",
-        fontSize: "18px",
-        color: "#ffffff",
-        align: "center",
-        wordWrap: { width: 600 },
-      }
+      ""
     ).setOrigin(0.5).setAlpha(0);
   }
 
   private createTurnIndicator(): void {
-    this.turnIndicatorText = this.add.text(
+    this.turnIndicatorText = TextFactory.createSubtitle(
+      this,
       GAME_DIMENSIONS.CENTER_X,
       130,
-      "Select your move!",
-      { fontFamily: "monospace", fontSize: "14px", color: "#888888" }
+      "Select your move!"
     ).setOrigin(0.5);
   }
 
@@ -2186,12 +2183,15 @@ export class FightScene extends Phaser.Scene {
   // ===========================================================================
 
   private createCountdownOverlay(): void {
-    this.countdownText = this.add.text(
+    this.countdownText = TextFactory.createTitle(
+      this,
       GAME_DIMENSIONS.CENTER_X,
       GAME_DIMENSIONS.CENTER_Y,
-      "",
-      { fontFamily: "monospace", fontSize: "72px", color: "#40e0d0", fontStyle: "bold" }
+      ""
     ).setOrigin(0.5).setAlpha(0);
+
+    // Using cyan color for countdown specifically to match the old style but better
+    this.countdownText.setColor("#40e0d0");
   }
 
   // ===========================================================================
@@ -2203,14 +2203,14 @@ export class FightScene extends Phaser.Scene {
     const currentRound = this.combatEngine?.getState()?.currentRound ?? 1;
     const currentTurn = this.combatEngine?.getState()?.currentTurn ?? 1;
     const turnKey = `${currentRound}-${currentTurn}-local`;
-    
+
     if (this.lastCountdownStartedForTurn === turnKey) {
       console.log(`[FightScene] *** DUPLICATE startRound() BLOCKED for turn ${turnKey}`);
       return;
     }
     this.lastCountdownStartedForTurn = turnKey;
     console.log(`[FightScene] startRound() for turn ${turnKey}`);
-    
+
     this.phase = "countdown";
 
     // Play SFX first (full "3-2-1 Fight" sequence)
@@ -2338,7 +2338,7 @@ export class FightScene extends Phaser.Scene {
 
   private onTimerExpired(): void {
     console.log(`[FightScene] *** onTimerExpired called - phase: ${this.phase}, localMoveSubmitted: ${this.localMoveSubmitted}, Timestamp: ${Date.now()}`);
-    
+
     // If phase changed away from selecting (e.g. round resolved), don't process
     if (this.phase !== "selecting") {
       console.warn(`[FightScene] *** Timer expired but phase is not 'selecting' (phase: ${this.phase}), returning early`);
@@ -2856,7 +2856,7 @@ export class FightScene extends Phaser.Scene {
       if (payload.player === this.config.playerRole) {
         // Mark that we submitted (tracked locally for UI purposes)
         this.localMoveSubmitted = true;
-        
+
         // Update UI to show waiting state, but don't destroy the timer
         this.turnIndicatorText.setText("Waiting for opponent...");
         this.turnIndicatorText.setColor("#22c55e");
@@ -3588,7 +3588,7 @@ export class FightScene extends Phaser.Scene {
     // We show Power Surge cards before the countdown
     const currentRound = this.serverState?.currentRound ?? 1;
     const currentTurn = this.combatEngine?.getState()?.currentTurn ?? 1;
-    
+
     // Deduplicate countdown - prevent playing the same countdown twice for the same turn
     const turnKey = `${currentRound}-${currentTurn}-${moveDeadlineAt}`;
     if (this.lastCountdownStartedForTurn === turnKey) {
@@ -3597,7 +3597,7 @@ export class FightScene extends Phaser.Scene {
     }
     this.lastCountdownStartedForTurn = turnKey;
     console.log(`[FightScene] Starting countdown for turn ${turnKey}`);
-    
+
     const shouldShowSurge = !this.surgeCardsShownThisRound && this.lastSurgeRound !== currentRound;
 
     if (shouldShowSurge) {
@@ -3773,7 +3773,7 @@ export class FightScene extends Phaser.Scene {
           this.localMoveSubmitted = true;
           this.isWaitingForOpponent = true;
           this.turnIndicatorText.setText("Resolving stunned turn...");
-          
+
           // Fade out narrative
           this.tweens.add({
             targets: this.narrativeText,
@@ -3836,7 +3836,7 @@ export class FightScene extends Phaser.Scene {
           this.localMoveSubmitted = true;
           this.isWaitingForOpponent = true;
           this.turnIndicatorText.setText("Waiting for opponent...");
-          
+
           // Fade out narrative
           this.tweens.add({
             targets: this.narrativeText,
@@ -3845,38 +3845,40 @@ export class FightScene extends Phaser.Scene {
           });
 
           // Submit stunned move via API - no transaction required
+          // Then trigger bot auto-move AFTER our move is submitted
           fetch(`/api/matches/${this.config.matchId}/submit-stunned-move`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               playerRole: this.config.playerRole,
             }),
+          }).then(() => {
+            // After our stunned move is submitted, trigger bot to make its move
+            if (this.isBotMatch) {
+              console.log("[FightScene] Stunned move submitted, triggering bot auto-move");
+              fetch(`/api/matches/${this.config.matchId}/bot-auto-move`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ stunned: true }),
+              }).catch(err => {
+                console.error("[FightScene] Failed to trigger bot auto-move:", err);
+              });
+            }
           }).catch(err => {
             console.error("[FightScene] Failed to submit stunned move:", err);
           });
         }
       });
-
-      // Also trigger bot auto-move if opponent is bot
-      if (this.isBotMatch) {
-        fetch(`/api/matches/${this.config.matchId}/bot-auto-move`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ stunned: true }),
-        }).catch(err => {
-          console.error("[FightScene] Failed to trigger bot auto-move:", err);
-        });
-      }
     } else if (isOpponentStunned) {
       // Opponent is stunned - show positive message
       this.turnIndicatorText.setText("OPPONENT IS STUNNED!");
       this.turnIndicatorText.setColor("#22c55e");
-      
+
       // Show narrative
       this.narrativeText.setText("Your opponent is stunned!\nChoose your move wisely!");
       this.narrativeText.setAlpha(1);
       this.narrativeText.setColor("#22c55e");
-      
+
       // Fade out narrative after 2 seconds
       this.tweens.add({
         targets: this.narrativeText,

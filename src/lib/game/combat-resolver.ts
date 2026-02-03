@@ -583,9 +583,33 @@ export async function resolveRound(
                                 console.error(`[CombatResolver] *** Auto-resolve failed:`, err);
                             }
                         }, AUTO_RESOLVE_DELAY_MS);
+                    } else if (match.is_bot && newState.player1.isStunned) {
+                        // Only PLAYER 1 (human) is stunned in a bot match
+                        // Bot (player2) needs to make a move - schedule it with random delay to look realistic
+                        // Delay = countdown (3s) + stun display (2s) + bot thinking (3-6s) = 8-11 seconds total
+                        const COUNTDOWN_MS = 3000;
+                        const STUN_DISPLAY_MS = 2000;
+                        const BOT_THINKING_MS = 3000 + Math.random() * 3000; // 3-6 seconds
+                        const BOT_MOVE_DELAY_MS = COUNTDOWN_MS + STUN_DISPLAY_MS + BOT_THINKING_MS;
+                        console.log(`[CombatResolver] *** HUMAN (player1) STUNNED in bot match - scheduling bot (player2) auto-move in ${Math.round(BOT_MOVE_DELAY_MS)}ms`);
+                        const roundIdForBot = roundData.id;
+                        const matchIdForBot = matchId;
+                        
+                        setTimeout(async () => {
+                            try {
+                                console.log(`[CombatResolver] *** Auto-submitting bot move for player2`);
+                                const { submitBotMoveForMatch } = await import("@/lib/game/bot-move-helper");
+                                await submitBotMoveForMatch(matchIdForBot, roundIdForBot, "player2");
+                            } catch (err) {
+                                console.error(`[CombatResolver] *** Bot auto-move failed:`, err);
+                            }
+                        }, BOT_MOVE_DELAY_MS);
+                    } else if (match.is_bot && newState.player2.isStunned) {
+                        // BOT (player2) is stunned - human (player1) makes their own choice normally
+                        console.log(`[CombatResolver] *** BOT (player2) STUNNED - human will make their own move`);
                     } else {
-                        // Only one player stunned - bot move submission will be handled by a scheduled task
-                        console.log(`[CombatResolver] *** Stunned moves pre-filled. Bot will auto-submit after round countdown.`);
+                        // Only one player stunned in PvP - opponent will submit their own move
+                        console.log(`[CombatResolver] *** Stunned move pre-filled. Waiting for opponent's move.`);
                     }
                 } else {
                     console.log(`[CombatResolver] *** No stunned players, round ${nextRoundNumber} has no pre-filled moves`);

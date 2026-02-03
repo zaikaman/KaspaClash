@@ -10,6 +10,7 @@ import { CharacterCard, SelectionTimer, OpponentStatus, StatsOverlay } from "../
 import { CHARACTER_ROSTER, getCharacter, getRandomCharacter } from "@/data/characters";
 import { getCharacterCombatStats } from "@/game/combat/CharacterStats";
 import { SmartBotOpponent } from "@/lib/game/smart-bot-opponent";
+import { TextFactory } from "@/game/ui/TextFactory";
 import type { Character } from "@/types";
 
 /**
@@ -630,17 +631,16 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.titleText.setOrigin(0.5);
 
     // Subtitle with match info
-    const matchText = this.add.text(
+    const matchText = TextFactory.createLabel(
+      this,
       GAME_DIMENSIONS.CENTER_X,
       90,
       `Match: ${this.config.matchId.slice(0, 8)}`,
       {
-        fontFamily: "monospace",
         fontSize: "14px",
         color: "#888888",
       }
-    );
-    matchText.setOrigin(0.5);
+    ).setOrigin(0.5);
   }
 
   /**

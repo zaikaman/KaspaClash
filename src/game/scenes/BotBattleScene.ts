@@ -19,6 +19,7 @@ import { CHARACTER_ROSTER } from "@/data/characters";
 import type { Character } from "@/types";
 import type { BotTurnData } from "@/lib/game/bot-match-service";
 import { SpectatorPowerSurgeCards } from "../ui/SpectatorPowerSurgeCards";
+import { TextFactory } from "@/game/ui/TextFactory";
 
 /**
  * Bot battle scene configuration - receives pre-computed match data
@@ -166,7 +167,7 @@ export class BotBattleScene extends Phaser.Scene {
 
         // Setup visibility handler for tab switching
         this.setupVisibilityHandler();
-        
+
         // Listen for visibility resync events from React client (server-authoritative)
         this.setupVisibilityResyncListener();
 
@@ -275,7 +276,7 @@ export class BotBattleScene extends Phaser.Scene {
                     secondsRemaining: number;
                 };
             };
-            
+
             // Only handle events for our match
             if (data.matchId !== this.config.matchId) return;
 
@@ -302,7 +303,7 @@ export class BotBattleScene extends Phaser.Scene {
         };
 
         EventBus.on("bot_battle_visibility_resync", handleServerSync);
-        
+
         // Cleanup on shutdown
         this.events.once("shutdown", () => {
             EventBus.off("bot_battle_visibility_resync", handleServerSync);
@@ -323,16 +324,16 @@ export class BotBattleScene extends Phaser.Scene {
         // Check if playback hasn't started yet (betting phase just ended)
         if (!this.isPlaying && this.currentTurnIndex === 0) {
             console.log('[BotBattleScene] Playback not started yet, starting now from turn', serverTurnIndex);
-            
+
             // Cancel any pending scheduled match start (from scheduleMatchStart)
             this.time.removeAllEvents();
-            
+
             // Fast-forward to current turn if needed
             if (serverTurnIndex > 0) {
                 this.fastForwardToTurn(serverTurnIndex);
                 this.currentTurnIndex = serverTurnIndex;
             }
-            
+
             // Start playback
             this.startPlayback();
             return;
@@ -397,16 +398,16 @@ export class BotBattleScene extends Phaser.Scene {
         // Check if playback hasn't started yet (betting phase just ended while tab was hidden)
         if (!this.isPlaying && this.currentTurnIndex === 0) {
             console.log("[BotBattleScene] Betting ended while tab was hidden, starting playback from turn", clampedExpectedTurn);
-            
+
             // Cancel any pending scheduled match start
             this.time.removeAllEvents();
-            
+
             // Fast-forward to current turn if needed
             if (clampedExpectedTurn > 0) {
                 this.fastForwardToTurn(clampedExpectedTurn);
                 this.currentTurnIndex = clampedExpectedTurn;
             }
-            
+
             // Start playback
             this.startPlayback();
             return;
@@ -540,7 +541,7 @@ export class BotBattleScene extends Phaser.Scene {
         const bgm = this.sound.get("bgm_fight");
         if (bgm && bgm.isPlaying) bgm.stop();
         this.cleanupVisibilityHandler();
-        
+
         // Clean up power surge UI
         if (this.powerSurgeUI) {
             this.powerSurgeUI.destroy();
@@ -576,8 +577,7 @@ export class BotBattleScene extends Phaser.Scene {
     private createBotBadge(): void {
         const badge = this.add.container(GAME_DIMENSIONS.CENTER_X, 120);
         const bg = this.add.rectangle(0, 0, 240, 40, 0x000000, 0.8).setStrokeStyle(2, 0xff6b35);
-        const text = this.add.text(0, 0, "BOT BATTLE (LIVE)", {
-            fontFamily: "Orbitron",
+        const text = TextFactory.createLabel(this, 0, 0, "BOT BATTLE (LIVE)", {
             fontSize: "18px",
             color: "#ff6b35",
         }).setOrigin(0.5);
@@ -615,44 +615,37 @@ export class BotBattleScene extends Phaser.Scene {
         this.createGuardMeter(UI_POSITIONS.HEALTH_BAR.PLAYER2.X, UI_POSITIONS.HEALTH_BAR.PLAYER2.Y + 45, barWidth, 6, "player2");
 
         // Labels
-        const labelStyle = { fontFamily: "monospace", fontSize: "10px", color: "#3b82f6" };
-        this.add.text(UI_POSITIONS.HEALTH_BAR.PLAYER1.X + barWidth + 5, UI_POSITIONS.HEALTH_BAR.PLAYER1.Y + 30, "EN", labelStyle);
-        this.add.text(UI_POSITIONS.HEALTH_BAR.PLAYER2.X - 20, UI_POSITIONS.HEALTH_BAR.PLAYER2.Y + 30, "EN", labelStyle);
+        TextFactory.createLabel(this, UI_POSITIONS.HEALTH_BAR.PLAYER1.X + barWidth + 5, UI_POSITIONS.HEALTH_BAR.PLAYER1.Y + 30, "EN", { fontSize: "10px", color: "#3b82f6" });
+        TextFactory.createLabel(this, UI_POSITIONS.HEALTH_BAR.PLAYER2.X - 20, UI_POSITIONS.HEALTH_BAR.PLAYER2.Y + 30, "EN", { fontSize: "10px", color: "#3b82f6" });
 
-        this.add.text(
+        TextFactory.createLabel(
+            this,
             UI_POSITIONS.HEALTH_BAR.PLAYER1.X,
             UI_POSITIONS.HEALTH_BAR.PLAYER1.Y - 18,
             `BOT 1: ${this.config.bot1Name.toUpperCase()} (${this.config.bot1MaxHp} HP)`,
-            { fontFamily: "monospace", fontSize: "12px", color: "#ff6b35", fontStyle: "bold" }
+            { fontSize: "12px", color: "#ff6b35", fontStyle: "bold" }
         );
 
-        this.add.text(
+        TextFactory.createLabel(
+            this,
             UI_POSITIONS.HEALTH_BAR.PLAYER2.X + barWidth,
             UI_POSITIONS.HEALTH_BAR.PLAYER2.Y - 18,
             `BOT 2: ${this.config.bot2Name.toUpperCase()} (${this.config.bot2MaxHp} HP)`,
-            { fontFamily: "monospace", fontSize: "12px", color: "#ff6b35", fontStyle: "bold", align: "right" }
+            { fontSize: "12px", color: "#ff6b35", fontStyle: "bold", align: "right" }
         ).setOrigin(1, 0);
 
-        this.roundScoreText = this.add.text(
+        this.roundScoreText = TextFactory.createScore(
+            this,
             GAME_DIMENSIONS.CENTER_X,
             60,
-            `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`,
-            { fontFamily: "Orbitron", fontSize: "24px", color: "#ffffff" }
+            `Round ${this.currentRound}  •  ${this.bot1RoundsWon} - ${this.bot2RoundsWon}  (First to 2)`
         ).setOrigin(0.5);
 
-        this.narrativeText = this.add.text(
+        this.narrativeText = TextFactory.createNarrative(
+            this,
             GAME_DIMENSIONS.CENTER_X,
             GAME_DIMENSIONS.HEIGHT - 100,
-            "",
-            {
-                fontFamily: "Exo 2",
-                fontSize: "28px",
-                color: "#ffffff",
-                align: "center",
-                wordWrap: { width: 1000 },
-                stroke: "#000000",
-                strokeThickness: 4,
-            }
+            ""
         ).setOrigin(0.5).setAlpha(0).setDepth(100);
 
         // Draw initial bars
@@ -876,7 +869,7 @@ export class BotBattleScene extends Phaser.Scene {
         }
 
         const turn = this.config.turns[this.currentTurnIndex];
-        
+
         // Check if this turn has power surge data (first turn of round)
         if (turn.isRoundStart && turn.surgeCardIds && turn.bot1SurgeSelection && turn.bot2SurgeSelection) {
             this.showPowerSurgeUI(turn, () => {
@@ -1080,7 +1073,7 @@ export class BotBattleScene extends Phaser.Scene {
                                 );
                             });
                         }
-                        
+
                         // Show energy drain effect if P2 lost energy from P1's surge (e.g., GhostDAG, Vaultbreaker)
                         if (turn.bot2EnergyDrained && turn.bot2EnergyDrained > 0) {
                             this.time.delayedCall(500, () => {
@@ -1169,7 +1162,7 @@ export class BotBattleScene extends Phaser.Scene {
                                 );
                             });
                         }
-                        
+
                         // Show energy drain effect if P1 lost energy from P2's surge (e.g., GhostDAG, Vaultbreaker)
                         if (turn.bot1EnergyDrained && turn.bot1EnergyDrained > 0) {
                             this.time.delayedCall(500, () => {
