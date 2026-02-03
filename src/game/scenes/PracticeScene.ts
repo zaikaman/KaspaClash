@@ -1542,8 +1542,8 @@ export class PracticeScene extends Phaser.Scene {
           alpha: 0,
           duration: 500
         });
-        // Both stunned - use punch as placeholder for both
-        this.resolveRound("punch", "punch");
+        // Both stunned - use 'stunned' move for both
+        this.resolveRound("stunned", "stunned");
       });
       return;
     } else if (state.player1.isStunned) {
@@ -1611,8 +1611,8 @@ export class PracticeScene extends Phaser.Scene {
         });
         const decision = this.ai.decide();
         const aiMove = decision.move;
-        // Player's move doesn't matter when stunned - use punch as placeholder
-        this.resolveRound("punch", aiMove);
+        // Player is stunned - use 'stunned' move
+        this.resolveRound("stunned", aiMove);
       });
       return;
     }

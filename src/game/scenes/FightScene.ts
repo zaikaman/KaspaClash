@@ -201,6 +201,9 @@ export class FightScene extends Phaser.Scene {
   private surgeCardsShownThisRound: boolean = false;
   private lastSurgeRound: number = 0;
 
+  // Countdown deduplication - track the last turn we started a countdown for
+  private lastCountdownStartedForTurn: string = "";
+
   constructor() {
     super({ key: "FightScene" });
   }
@@ -2196,6 +2199,18 @@ export class FightScene extends Phaser.Scene {
   // ===========================================================================
 
   private startRound(): void {
+    // Deduplicate countdown - prevent playing the same countdown twice
+    const currentRound = this.combatEngine?.getState()?.currentRound ?? 1;
+    const currentTurn = this.combatEngine?.getState()?.currentTurn ?? 1;
+    const turnKey = `${currentRound}-${currentTurn}-local`;
+    
+    if (this.lastCountdownStartedForTurn === turnKey) {
+      console.log(`[FightScene] *** DUPLICATE startRound() BLOCKED for turn ${turnKey}`);
+      return;
+    }
+    this.lastCountdownStartedForTurn = turnKey;
+    console.log(`[FightScene] startRound() for turn ${turnKey}`);
+    
     this.phase = "countdown";
 
     // Play SFX first (full "3-2-1 Fight" sequence)
@@ -3572,6 +3587,17 @@ export class FightScene extends Phaser.Scene {
     // Check if this is the start of a new round (turn 1)
     // We show Power Surge cards before the countdown
     const currentRound = this.serverState?.currentRound ?? 1;
+    const currentTurn = this.combatEngine?.getState()?.currentTurn ?? 1;
+    
+    // Deduplicate countdown - prevent playing the same countdown twice for the same turn
+    const turnKey = `${currentRound}-${currentTurn}-${moveDeadlineAt}`;
+    if (this.lastCountdownStartedForTurn === turnKey) {
+      console.log(`[FightScene] *** DUPLICATE COUNTDOWN BLOCKED for turn ${turnKey}`);
+      return;
+    }
+    this.lastCountdownStartedForTurn = turnKey;
+    console.log(`[FightScene] Starting countdown for turn ${turnKey}`);
+    
     const shouldShowSurge = !this.surgeCardsShownThisRound && this.lastSurgeRound !== currentRound;
 
     if (shouldShowSurge) {
@@ -3706,6 +3732,7 @@ export class FightScene extends Phaser.Scene {
 
     if (bothStunned) {
       // BOTH players are stunned - show special message and auto-skip
+      // No transaction required since neither player can make a choice
       this.turnIndicatorText.setText("BOTH PLAYERS STUNNED!");
       this.turnIndicatorText.setColor("#ff4444");
       this.roundTimerText.setText("---");
@@ -3738,13 +3765,11 @@ export class FightScene extends Phaser.Scene {
       this.toggleStunEffect("player1", true);
       this.toggleStunEffect("player2", true);
 
-      console.log(`[FightScene] Both players stunned - auto-submitting punch after 2.5s`);
+      console.log(`[FightScene] Both players stunned - calling skip-stunned-turn API after 2.5s`);
 
-      // Auto-submit a move after 2.5 seconds to let players see the stun effect
-      // The combat engine will handle the "both stunned" case appropriately
+      // Skip the turn after 2.5 seconds without requiring transactions
       this.time.delayedCall(2500, () => {
-        // Only submit if we haven't already and still in selecting phase
-        if (!this.localMoveSubmitted && this.phase === "selecting") {
+        if (this.phase === "selecting") {
           this.localMoveSubmitted = true;
           this.isWaitingForOpponent = true;
           this.turnIndicatorText.setText("Resolving stunned turn...");
@@ -3756,11 +3781,16 @@ export class FightScene extends Phaser.Scene {
             duration: 500
           });
 
-          // Submit punch as placeholder (stunned players can't act anyway)
-          EventBus.emit("game:submitMove", {
-            matchId: this.config.matchId,
-            moveType: "punch",
-            playerRole: this.config.playerRole,
+          // Call API to skip the stunned turn - no transaction required
+          // Server will auto-resolve with punch/punch and broadcast the result
+          fetch(`/api/matches/${this.config.matchId}/skip-stunned-turn`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              playerRole: this.config.playerRole,
+            }),
+          }).catch(err => {
+            console.error("[FightScene] Failed to skip stunned turn:", err);
           });
         }
       });
@@ -3798,8 +3828,9 @@ export class FightScene extends Phaser.Scene {
       // Apply visual stun effect
       this.toggleStunEffect(this.config.playerRole, true);
 
-      // Auto-submit a move after 2 seconds (opponent can still pick normally)
-      console.log(`[FightScene] Player is stunned - auto-submitting punch after 2s`);
+      // Auto-submit a move after 2 seconds WITHOUT requiring a transaction
+      // Since we're stunned, we can't make a choice, so no need for the player to sign
+      console.log(`[FightScene] Player is stunned - auto-submitting 'stunned' move via API after 2s (no transaction)`);
       this.time.delayedCall(2000, () => {
         if (!this.localMoveSubmitted && this.phase === "selecting") {
           this.localMoveSubmitted = true;
@@ -3813,11 +3844,15 @@ export class FightScene extends Phaser.Scene {
             duration: 500
           });
 
-          // Submit punch as placeholder (we're stunned anyway)
-          EventBus.emit("game:submitMove", {
-            matchId: this.config.matchId,
-            moveType: "punch",
-            playerRole: this.config.playerRole,
+          // Submit stunned move via API - no transaction required
+          fetch(`/api/matches/${this.config.matchId}/submit-stunned-move`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              playerRole: this.config.playerRole,
+            }),
+          }).catch(err => {
+            console.error("[FightScene] Failed to submit stunned move:", err);
           });
         }
       });

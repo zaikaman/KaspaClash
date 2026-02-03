@@ -14,6 +14,7 @@ import {
   getQueueSize,
 } from "@/lib/matchmaking/matchmaker";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { refundMatchStakes, refundBettingPool } from "@/lib/betting/payout-service";
 
 /**
  * Join queue request body.
@@ -278,6 +279,14 @@ export async function GET(
               completed_at: now.toISOString(),
             })
             .eq("id", pendingMatch.id);
+
+          // Refund stakes and bets for abandoned match (run in background)
+          refundMatchStakes(pendingMatch.id).catch(err => {
+            console.error(`[MATCHMAKING-GET] Error refunding stakes for ${pendingMatch.id}:`, err);
+          });
+          refundBettingPool(pendingMatch.id).catch(err => {
+            console.error(`[MATCHMAKING-GET] Error refunding bets for ${pendingMatch.id}:`, err);
+          });
 
           // Don't return the stale match - continue with normal queue logic
         } else {

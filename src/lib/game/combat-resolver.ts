@@ -136,7 +136,7 @@ export interface RoundResolutionResult {
  * Validate move type
  */
 function isValidMove(move: string | null): move is MoveType {
-    return move !== null && ["punch", "kick", "block", "special"].includes(move);
+    return move !== null && ["punch", "kick", "block", "special", "stunned"].includes(move);
 }
 
 /**

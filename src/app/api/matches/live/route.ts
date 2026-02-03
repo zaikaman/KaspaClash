@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ApiError, ErrorCodes, createErrorResponse } from "@/lib/api/errors";
+import { refundMatchStakes, refundBettingPool } from "@/lib/betting/payout-service";
 
 /**
  * GET handler - Fetch live matches
@@ -17,18 +18,41 @@ export async function GET() {
         // Clean up stale matches - if in_progress for over 15 minutes, mark as cancelled
         const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
 
-        const { error: cleanupError } = await supabase
+        // First, find stale matches to get their IDs for refunding
+        const { data: staleMatches } = await supabase
             .from("matches")
-            .update({
-                status: "completed",
-                completed_at: new Date().toISOString(),
-            })
+            .select("id, stake_amount")
             .eq("status", "in_progress")
             .lt("started_at", fifteenMinutesAgo);
 
-        if (cleanupError) {
-            console.error("Stale matches cleanup error:", cleanupError);
-            // Continue anyway - don't fail the request due to cleanup
+        if (staleMatches && staleMatches.length > 0) {
+            console.log(`[LiveMatches] Found ${staleMatches.length} stale matches to clean up`);
+
+            // Update all stale matches to cancelled
+            const { error: cleanupError } = await supabase
+                .from("matches")
+                .update({
+                    status: "cancelled",
+                    completed_at: new Date().toISOString(),
+                })
+                .eq("status", "in_progress")
+                .lt("started_at", fifteenMinutesAgo);
+
+            if (cleanupError) {
+                console.error("Stale matches cleanup error:", cleanupError);
+                // Continue anyway - don't fail the request due to cleanup
+            } else {
+                // Refund stakes and bets for each stale match (run in background)
+                for (const match of staleMatches) {
+                    console.log(`[LiveMatches] Refunding stale match ${match.id}`);
+                    refundMatchStakes(match.id).catch(err => {
+                        console.error(`[LiveMatches] Error refunding stakes for ${match.id}:`, err);
+                    });
+                    refundBettingPool(match.id).catch(err => {
+                        console.error(`[LiveMatches] Error refunding bets for ${match.id}:`, err);
+                    });
+                }
+            }
         }
 
         // Only show matches started in the last hour to avoid any edge cases

@@ -6,6 +6,7 @@
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getNetworkAddressFilter, detectNetworkFromAddress } from "@/lib/utils/network-filter";
+import { refundMatchStakes, refundBettingPool } from "@/lib/betting/payout-service";
 
 /**
  * Player in queue representation.
@@ -285,6 +286,14 @@ export async function attemptMatch(
       })
       .eq("id", existingMatch.id);
 
+    // Refund stakes and bets for cancelled match (run in background, don't block matchmaking)
+    refundMatchStakes(existingMatch.id).catch(err => {
+      console.error(`[MATCHMAKING] ${shortAddr}: Error refunding stakes for ${shortId}:`, err);
+    });
+    refundBettingPool(existingMatch.id).catch(err => {
+      console.error(`[MATCHMAKING] ${shortAddr}: Error refunding bets for ${shortId}:`, err);
+    });
+
     // Continue execution to create a NEW match
   }
 
@@ -518,6 +527,14 @@ export async function createMatch(
           completed_at: new Date().toISOString(),
         })
         .eq("id", existingMatch.id);
+
+      // Refund stakes and bets for cancelled match (run in background, don't block matchmaking)
+      refundMatchStakes(existingMatch.id).catch(err => {
+        console.error(`[MATCHMAKING-CREATE] Error refunding stakes for ${shortId}:`, err);
+      });
+      refundBettingPool(existingMatch.id).catch(err => {
+        console.error(`[MATCHMAKING-CREATE] Error refunding bets for ${shortId}:`, err);
+      });
 
       // Continue execution to create a NEW match
     }

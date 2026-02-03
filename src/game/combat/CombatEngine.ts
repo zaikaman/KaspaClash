@@ -199,8 +199,9 @@ export class CombatEngine {
         const p2WasStunned = p2State.isStunned;
 
         // Handle stunned players (auto-miss)
-        const effectiveP1Move = p1WasStunned ? null : player1Move;
-        const effectiveP2Move = p2WasStunned ? null : player2Move;
+        // Also treat "stunned" move type as null (for when stunned move is submitted explicitly)
+        const effectiveP1Move = (p1WasStunned || player1Move === "stunned") ? null : player1Move;
+        const effectiveP2Move = (p2WasStunned || player2Move === "stunned") ? null : player2Move;
 
         // Calculate outcomes
         const p1Result = this.resolvePlayerTurn(
@@ -430,7 +431,7 @@ export class CombatEngine {
             }
 
             return {
-                move: "punch", // placeholder
+                move: "stunned",
                 outcome: "stunned",
                 damageDealt: 0,
                 damageTaken,

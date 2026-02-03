@@ -251,13 +251,13 @@ export function simulateBotMatch(matchId: string, bot1Id?: string, bot2Id?: stri
         }
 
         // Get smart moves from AI
-        // If player is stunned, they can't act (will be treated as stunned in engine)
+        // If player is stunned, use "stunned" move type (engine will treat as auto-miss)
         const bot1Move = state.player1.isStunned
-            ? "punch" // Will be treated as stunned in engine
+            ? "stunned" as MoveType
             : getSmartMove(smartBot1, engine, "player1", "player2", currentBot1Surge, currentBot2Surge);
             
         const bot2Move = state.player2.isStunned
-            ? "punch"
+            ? "stunned" as MoveType
             : getSmartMove(smartBot2, engine, "player2", "player1", currentBot2Surge, currentBot1Surge);
 
         // Record opponent moves for pattern recognition
@@ -279,8 +279,8 @@ export function simulateBotMatch(matchId: string, bot1Id?: string, bot2Id?: stri
         const turnData: BotTurnData = {
             turnNumber,
             roundNumber: currentRound,
-            bot1Move: state.player1.isStunned ? "stunned" as MoveType : bot1Move,
-            bot2Move: state.player2.isStunned ? "stunned" as MoveType : bot2Move,
+            bot1Move,
+            bot2Move,
             bot1Hp: newState.player1.hp,
             bot2Hp: newState.player2.hp,
             bot1Energy: newState.player1.energy,
