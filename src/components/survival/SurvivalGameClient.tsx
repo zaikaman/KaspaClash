@@ -55,7 +55,10 @@ export function SurvivalGameClient({
                 const response = await fetch("/api/survival/start", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ playerAddress: address }),
+                    body: JSON.stringify({ 
+                        playerAddress: address,
+                        characterId: characterId, // Include character for session tracking
+                    }),
                 });
 
                 if (!response.ok) {

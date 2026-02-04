@@ -5034,6 +5034,9 @@ export class FightScene extends Phaser.Scene {
         });
       },
     });
+
+    // Apply surge visual effect to sprite (matches PracticeScene behavior)
+    this.applySurgeVisualEffect(player, card);
   }
 
   /**

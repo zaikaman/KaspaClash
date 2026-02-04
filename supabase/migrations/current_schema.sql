@@ -615,6 +615,18 @@ CREATE TABLE public.survival_runs (
   CONSTRAINT survival_runs_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address),
   CONSTRAINT survival_runs_character_id_fkey FOREIGN KEY (character_id) REFERENCES public.characters(id)
 );
+CREATE TABLE public.survival_sessions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  player_id text NOT NULL,
+  character_id text,
+  started_at timestamp with time zone NOT NULL DEFAULT now(),
+  completed_at timestamp with time zone,
+  status text NOT NULL DEFAULT 'active'::text CHECK (status = ANY (ARRAY['active'::text, 'completed'::text, 'abandoned'::text])),
+  waves_cleared integer,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT survival_sessions_pkey PRIMARY KEY (id),
+  CONSTRAINT survival_sessions_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address)
+);
 CREATE TABLE public.treasury_balance_snapshots (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   balance bigint NOT NULL CHECK (balance >= 0),
@@ -677,7 +689,7 @@ CREATE TABLE public.xp_awards (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   player_id text NOT NULL,
   season_id uuid NOT NULL,
-  amount integer NOT NULL CHECK (amount > 0), 
+  amount integer NOT NULL CHECK (amount > 0),
   source text NOT NULL,
   source_id uuid,
   multiplier numeric NOT NULL DEFAULT 1.00,

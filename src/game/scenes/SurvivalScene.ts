@@ -1954,12 +1954,19 @@ export class SurvivalScene extends Phaser.Scene {
                 this.player2Sprite.play(`${this.currentOpponent.id}_dead`);
             }
         } else {
-            // Normal round end - loser already has death animation playing from resolveRound
-            // Don't replay it, just identify winner and loser for celebration
+            // Normal round end - play death animation on loser
             const loser = state.roundWinner === "player1" ? "player2" : "player1";
             const winner = state.roundWinner === "player1" ? "player1" : "player2";
+            const loserChar = loser === "player1" ? this.playerCharacter.id : this.currentOpponent.id;
+            const loserSprite = loser === "player1" ? this.player1Sprite : this.player2Sprite;
             const winnerChar = winner === "player1" ? this.playerCharacter.id : this.currentOpponent.id;
             const winnerSprite = winner === "player1" ? this.player1Sprite : this.player2Sprite;
+
+            // Play death animation on loser
+            if (this.anims.exists(`${loserChar}_dead`)) {
+                loserSprite.setScale(getAnimationScale(loserChar, "dead"));
+                loserSprite.play(`${loserChar}_dead`);
+            }
 
             // Set winner to idle animation before jumping
             if (this.anims.exists(`${winnerChar}_idle`)) {

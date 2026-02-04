@@ -1,6 +1,11 @@
 /**
  * POST /api/survival/start
  * Deduct a play when starting a survival run
+ * 
+ * ANTI-CHEAT MEASURES:
+ * 1. Creates a session record to track the run start time
+ * 2. Invalidates any previous incomplete sessions
+ * 3. Rate limiting via play count
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -11,6 +16,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 interface StartSurvivalRequest {
     playerAddress: string;
+    characterId?: string; // Optional character selection for tracking
 }
 
 export async function POST(request: NextRequest) {
@@ -43,6 +49,39 @@ export async function POST(request: NextRequest) {
             p_player_id: body.playerAddress,
         });
 
+        // ANTI-CHEAT: Invalidate any previous incomplete sessions
+        // This prevents players from starting multiple runs and submitting the best one
+        await supabase
+            .from("survival_sessions")
+            .update({ 
+                status: "abandoned",
+                completed_at: new Date().toISOString()
+            })
+            .eq("player_id", body.playerAddress)
+            .eq("status", "active");
+
+        // ANTI-CHEAT: Create new session record for tracking
+        const sessionData: Record<string, unknown> = {
+            player_id: body.playerAddress,
+            started_at: new Date().toISOString(),
+            status: "active",
+        };
+        
+        if (body.characterId) {
+            sessionData.character_id = body.characterId;
+        }
+
+        const { data: session, error: sessionError } = await supabase
+            .from("survival_sessions")
+            .insert(sessionData)
+            .select("id")
+            .single();
+
+        if (sessionError) {
+            // If table doesn't exist yet, log and continue (backwards compatible)
+            console.warn("[SurvivalStart] Failed to create session (table may not exist):", sessionError.message);
+        }
+
         // Get updated plays remaining
         const { data: newPlaysRemaining } = await supabase.rpc("get_survival_plays_remaining", {
             p_player_id: body.playerAddress,
@@ -51,6 +90,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
             success: true,
             playsRemaining: newPlaysRemaining ?? 0,
+            sessionId: session?.id || null, // Return session ID for client reference
         });
     } catch (error) {
         console.error("Start survival error:", error);
