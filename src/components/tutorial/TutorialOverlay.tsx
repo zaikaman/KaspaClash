@@ -419,10 +419,10 @@ export const TutorialOverlay: React.FC<TutorialOverlayProps> = ({ pageContext })
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        skipTutorial();
+                                        handleDismissStep(currentStep);
                                     }}
                                     className="absolute top-2 right-2 text-zinc-500 hover:text-white transition-colors p-1"
-                                    aria-label="Close Tutorial"
+                                    aria-label="Dismiss Step"
                                 >
                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -432,6 +432,21 @@ export const TutorialOverlay: React.FC<TutorialOverlayProps> = ({ pageContext })
                             )}
 
                             {renderContent()}
+
+                            {/* Footer: Stop Tutorial */}
+                            {currentStep !== 'ask_opt_in' && (
+                                <div className="mt-4 pt-3 border-t border-zinc-700/50 flex justify-center">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            skipTutorial();
+                                        }}
+                                        className="text-[10px] uppercase tracking-widest text-zinc-500 hover:text-red-400 transition-colors font-medium"
+                                    >
+                                        Stop Tutorial
+                                    </button>
+                                </div>
+                            )}
                         </motion.div>
                     </>
                 ) : (
@@ -450,10 +465,10 @@ export const TutorialOverlay: React.FC<TutorialOverlayProps> = ({ pageContext })
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        skipTutorial();
+                                        handleDismissStep(currentStep);
                                     }}
                                     className="absolute top-2 right-2 text-zinc-500 hover:text-white transition-colors p-1"
-                                    aria-label="Close Tutorial"
+                                    aria-label="Dismiss Step"
                                 >
                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -462,6 +477,23 @@ export const TutorialOverlay: React.FC<TutorialOverlayProps> = ({ pageContext })
                                 </button>
                             )}
                             {renderContent()}
+
+                            {/* Footer: Stop Tutorial */}
+                            {currentStep !== 'ask_opt_in' && (
+                                <div className="mt-4 pt-3 border-t border-zinc-700/50 flex justify-center">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            skipTutorial();
+                                        }}
+                                        className="text-[10px] uppercase tracking-widest text-zinc-500 hover:text-red-400 transition-colors font-medium"
+                                    >
+                                        Stop Tutorial
+                                    </button>
+                                </div>
+                            )}
+
+
                         </div>
                     </div>
                 )}

@@ -3212,7 +3212,7 @@ export class FightScene extends Phaser.Scene {
   private handleSubmitMove(payload: any): void {
     const isTutorialComplete = useTutorialStore.getState().isCompleted;
     if (!this.hasShownMovePrompt && !isTutorialComplete) {
-      this.showTransactionPrompt("Please sign to confirm your move.");
+      this.showTransactionPrompt("TUTORIAL: Moves are signed transactions.\nConfirm to execute your attack.");
       this.hasShownMovePrompt = true;
     }
 
@@ -4805,7 +4805,7 @@ export class FightScene extends Phaser.Scene {
             const isTutorialComplete = useTutorialStore.getState().isCompleted;
 
             if (!isTutorialComplete) {
-              this.showTransactionPrompt("Please sign to claim your Power Surge card.");
+              this.showTransactionPrompt("TUTORIAL: Claims require a signature.\nConfirm to receive your card.");
             }
             this.hasShownSurgePrompt = true;
           }

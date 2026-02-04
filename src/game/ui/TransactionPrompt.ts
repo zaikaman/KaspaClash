@@ -92,7 +92,7 @@ export class TransactionPrompt extends Phaser.GameObjects.Container {
             this.scene,
             0,
             -this.MODAL_HEIGHT / 2 + 40,
-            "SIGNATURE REQUIRED"
+            "TUTORIAL: ACTION REQUIRED"
         );
         this.titleText.setOrigin(0.5);
         this.titleText.setFontSize(28);
@@ -103,7 +103,7 @@ export class TransactionPrompt extends Phaser.GameObjects.Container {
         this.messageText = this.scene.add.text(
             0,
             -20,
-            "Please sign the transaction in your wallet.\nThis verifies your move on the blockchain.",
+            "In a real match, every move is a blockchain transaction.\nSign this dummy transaction to practice!",
             {
                 fontFamily: "Orbitron, Arial",
                 fontSize: "18px",
@@ -165,7 +165,7 @@ export class TransactionPrompt extends Phaser.GameObjects.Container {
         if (message) {
             this.messageText.setText(message);
         } else {
-            this.messageText.setText("Please sign the transaction in your wallet.\nThis verifies your move on the blockchain.");
+            this.messageText.setText("In a real match, every move is a blockchain transaction.\nSign this dummy transaction to practice!");
         }
 
         this.setVisible(true);
