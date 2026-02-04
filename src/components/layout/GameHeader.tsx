@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect} from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import WalletConnectModal from "@/components/wallet/WalletConnectModal";
@@ -55,10 +55,10 @@ export function GameHeader() {
 
             // Initial balance fetch
             refreshBalance();
-            
+
             // Keep balance polling at 30 seconds (wallet balance still needs polling)
             const balanceInterval = setInterval(refreshBalance, 30000);
-            
+
             return () => {
                 clearInterval(balanceInterval);
             };
@@ -120,6 +120,7 @@ export function GameHeader() {
                     <Button
                         onClick={() => setIsWalletModalOpen(true)}
                         disabled={isConnecting}
+                        data-tutorial="connect-wallet"
                         className="bg-gradient-cyber text-white border-0 font-bold font-orbitron shadow-[0_0_20px_rgba(240,183,31,0.2)] hover:shadow-[0_0_30px_rgba(240,183,31,0.4)] transition-all duration-300 px-6 py-2 h-auto rounded-xl"
                     >
                         {isConnecting ? (

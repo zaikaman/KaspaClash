@@ -1,4 +1,4 @@
-/**
+﻿/**
  * FightScene - Main battle arena for KaspaClash
  * Core Phaser scene for 1v1 fighting matches with full combat logic
  */
@@ -12,6 +12,7 @@ import { calculateSurgeEffects, isBlockDisabled, shouldStunOpponent } from "../c
 import { ChatPanel } from "../ui/ChatPanel";
 import { StickerPicker, STICKER_LIST, type StickerId } from "../ui/StickerPicker";
 import { TransactionToast } from "../ui/TransactionToast";
+import { TransactionPrompt } from "../ui/TransactionPrompt";
 import { PowerSurgeCards } from "../ui/PowerSurgeCards";
 import type { PowerSurgeCardId } from "@/types/power-surge";
 import { getRandomPowerSurgeCards, getPowerSurgeCard } from "@/types/power-surge";
@@ -20,6 +21,7 @@ import type { MoveType, PlayerRole } from "@/types";
 import type { CombatState } from "../combat";
 import { PowerSurgeCardView } from "../ui/PowerSurgeCardView";
 import { TextFactory } from "../ui/TextFactory";
+import { useTutorialStore } from "../../stores/tutorial-store";
 
 /**
  * Fight scene configuration.
@@ -169,6 +171,11 @@ export class FightScene extends Phaser.Scene {
 
   // Transaction toast for showing confirmed transactions
   private activeTransactionToast?: TransactionToast;
+  // Transaction prompt for instructing signature
+  private transactionPrompt?: TransactionPrompt;
+  // Prompt limit flags
+  private hasShownSurgePrompt: boolean = false;
+  private hasShownMovePrompt: boolean = false;
 
   // Pending server state - holds the new HP/energy values during animations
   // This prevents the UI from showing new values before animations complete
@@ -380,6 +387,9 @@ export class FightScene extends Phaser.Scene {
       this.settingsContainer = this.add.container(0, 0);
       this.createSettingsButton();
       this.createSettingsMenu(); // Create hidden menu
+
+      // Initialize transaction prompt
+      this.transactionPrompt = new TransactionPrompt(this);
     }
 
     // Create chat panel on the bottom right (only for non-spectators)
@@ -435,7 +445,25 @@ export class FightScene extends Phaser.Scene {
       EventBus.emit("fight:requestRoundState", { matchId: this.config.matchId });
     }
 
+    // Tutorial Check
+    const tutorialStore = useTutorialStore.getState();
+    if (tutorialStore.isActive && tutorialStore.currentStep === 'matchmaking_find') {
+      tutorialStore.setStep('fighting');
+      this.time.delayedCall(2000, () => {
+        if (this.narrativeText) {
+          this.narrativeText.setText("TUTORIAL: DEFEAT YOUR OPPONENT!");
+          this.narrativeText.setAlpha(1);
+          this.narrativeText.setColor("#f97316");
 
+          this.tweens.add({
+            targets: this.narrativeText,
+            alpha: 0,
+            delay: 3000,
+            duration: 1000
+          });
+        }
+      });
+    }
 
     // Emit scene ready event
     EventBus.emit("scene:ready", this);
@@ -712,7 +740,7 @@ export class FightScene extends Phaser.Scene {
     // Update round score
     const roundsToWin = this.combatEngine ? this.combatEngine.getState().roundsToWin : 2;
     this.roundScoreText.setText(
-      `Round ${state.currentRound}  •  ${state.player1RoundsWon} - ${state.player2RoundsWon}  (First to ${roundsToWin})`
+      `Round ${state.currentRound}  â€¢  ${state.player1RoundsWon} - ${state.player2RoundsWon}  (First to ${roundsToWin})`
     );
 
     // Handle phase-specific logic
@@ -997,7 +1025,7 @@ export class FightScene extends Phaser.Scene {
     // Update round score
     const roundsToWin = this.combatEngine ? this.combatEngine.getState().roundsToWin : 2;
     this.roundScoreText.setText(
-      `Round ${gameState.currentRound}  •  ${gameState.player1RoundsWon} - ${gameState.player2RoundsWon}  (First to ${roundsToWin})`
+      `Round ${gameState.currentRound}  â€¢  ${gameState.player1RoundsWon} - ${gameState.player2RoundsWon}  (First to ${roundsToWin})`
     );
   }
 
@@ -1335,7 +1363,7 @@ export class FightScene extends Phaser.Scene {
       this,
       UI_POSITIONS.ROUND_INDICATOR.X,
       UI_POSITIONS.ROUND_INDICATOR.Y,
-      "Round 1  •  0 - 0  (First to 2)"
+      "Round 1  |  0 - 0  (First to 2)"
     ).setOrigin(0.5);
   }
 
@@ -1840,7 +1868,7 @@ export class FightScene extends Phaser.Scene {
       this.add.text(
         GAME_DIMENSIONS.CENTER_X,
         GAME_DIMENSIONS.HEIGHT - 80,
-        "👁 SPECTATOR MODE",
+        "ðŸ‘ SPECTATOR MODE",
         { fontFamily: "monospace", fontSize: "18px", color: "#a855f7", fontStyle: "bold" }
       ).setOrigin(0.5);
       return;
@@ -2029,7 +2057,7 @@ export class FightScene extends Phaser.Scene {
       }
     });
 
-    EventBus.emit("game:submitMove", {
+    this.handleSubmitMove({
       matchId: this.config.matchId,
       moveType: move,
       playerRole: this.config.playerRole,
@@ -2388,7 +2416,7 @@ export class FightScene extends Phaser.Scene {
 
     // Update round score
     this.roundScoreText.setText(
-      `Round ${state.currentRound}  •  ${state.player1.roundsWon} - ${state.player2.roundsWon}  (First to 2)`
+      `Round ${state.currentRound}  |  ${state.player1.roundsWon} - ${state.player2.roundsWon}  (First to 2)`
     );
 
     this.time.delayedCall(2000, () => {
@@ -2399,7 +2427,7 @@ export class FightScene extends Phaser.Scene {
       this.combatEngine.startNewRound();
       this.syncUIWithCombatState();
       this.roundScoreText.setText(
-        `Round ${this.combatEngine.getState().currentRound}  •  ${state.player1.roundsWon} - ${state.player2.roundsWon}  (First to 2)`
+        `Round ${this.combatEngine.getState().currentRound}  |  ${state.player1.roundsWon} - ${state.player2.roundsWon}  (First to 2)`
       );
       this.startRound();
     });
@@ -2407,6 +2435,13 @@ export class FightScene extends Phaser.Scene {
 
   private showMatchEnd(winner: "player1" | "player2"): void {
     this.phase = "match_end";
+
+    // Tutorial Completion
+    const tutorialStore = useTutorialStore.getState();
+    if (tutorialStore.isActive && tutorialStore.currentStep === 'fighting') {
+      tutorialStore.nextStep(); // Advance to post_game_tour
+      console.log("[FightScene] Tutorial 'fighting' step complete -> post_game_tour");
+    }
 
     const isLocalWinner = winner === this.config.playerRole;
     const winnerText = isLocalWinner ? "VICTORY!" : "DEFEAT";
@@ -2498,17 +2533,17 @@ export class FightScene extends Phaser.Scene {
     if (totalRefunded > 0) {
       message += `Total refunds: ${totalRefunded} transactions`;
       if (refundStats.stakesRefunded > 0) {
-        message += `\\n• Entry stakes: ${refundStats.stakesRefunded} players`;
+        message += `\\nâ€¢ Entry stakes: ${refundStats.stakesRefunded} players`;
       }
       if (refundStats.betsRefunded > 0) {
-        message += `\\n• Spectator bets: ${refundStats.betsRefunded} bettors`;
+        message += `\\nâ€¢ Spectator bets: ${refundStats.betsRefunded} bettors`;
       }
     } else {
       message += "No refunds required";
     }
 
     if (hasErrors) {
-      message += "\\n\\n⚠️ Some refunds failed - Contact support";
+      message += "\\n\\nâš ï¸ Some refunds failed - Contact support";
     }
 
     // Show cancellation overlay
@@ -2865,6 +2900,9 @@ export class FightScene extends Phaser.Scene {
         if (payload.txId) {
           this.showTransactionToast(payload.txId);
         }
+
+        // Hide prompt on success
+        this.hideTransactionPrompt();
       }
     });
 
@@ -3106,6 +3144,9 @@ export class FightScene extends Phaser.Scene {
       const payload = data as { error: string };
       console.log("[FightScene] Move error:", payload.error);
 
+      // Hide transaction prompt
+      this.hideTransactionPrompt();
+
       // If we are "waiting for opponent" due to submitting, but it failed locally
       // We should reset the UI to allow retry
       // BUT if we successfully recorded rejection (which emits game:rejectionWaiting), we shouldn't reset.
@@ -3166,8 +3207,41 @@ export class FightScene extends Phaser.Scene {
   }
 
   /**
+   * Submit move logic wrapper to handle prompt limiting
+   */
+  private handleSubmitMove(payload: any): void {
+    const isTutorialComplete = useTutorialStore.getState().isCompleted;
+    if (!this.hasShownMovePrompt && !isTutorialComplete) {
+      this.showTransactionPrompt("Please sign to confirm your move.");
+      this.hasShownMovePrompt = true;
+    }
+
+    EventBus.emit("game:submitMove", payload);
+  }
+
+  /**
    * Show a transaction confirmation toast notification.
    * Displays the transaction ID with a link to the Kaspa explorer.
+   */
+  /**
+   * Show transaction prompt modal
+   */
+  private showTransactionPrompt(message?: string): void {
+    if (!this.transactionPrompt) {
+      this.transactionPrompt = new TransactionPrompt(this);
+    }
+    this.transactionPrompt.show(message);
+  }
+
+  /**
+   * Hide transaction prompt modal
+   */
+  private hideTransactionPrompt(): void {
+    this.transactionPrompt?.hide();
+  }
+
+  /**
+   * Show transaction toast notification
    */
   private showTransactionToast(txId: string): void {
     // Close any existing toast first
@@ -3367,7 +3441,7 @@ export class FightScene extends Phaser.Scene {
     // Update UI
     this.syncUIWithCombatState();
     this.roundScoreText.setText(
-      `Round ${state.currentRound}  •  ${state.player1RoundsWon} - ${state.player2RoundsWon}  (First to 2)`
+      `Round ${state.currentRound}  |  ${state.player1RoundsWon} - ${state.player2RoundsWon}  (First to 2)`
     );
 
     // If there's an active move deadline, start/continue the selection phase
@@ -4282,7 +4356,7 @@ export class FightScene extends Phaser.Scene {
           this.syncUIWithCombatState();
 
           this.roundScoreText.setText(
-            `Round ${this.serverState?.currentRound ?? 1}  •  ${payload.player1RoundsWon} - ${payload.player2RoundsWon}  (First to 2)`
+            `Round ${this.serverState?.currentRound ?? 1}  |  ${payload.player1RoundsWon} - ${payload.player2RoundsWon}  (First to 2)`
           );
 
           // Run back animations
@@ -4452,7 +4526,7 @@ export class FightScene extends Phaser.Scene {
       // Wait for death animation to complete (36 frames at 24fps = 1.5s)
       this.time.delayedCall(1500, () => {
         // Show draw result text
-        this.countdownText.setText("⚡ DOUBLE KO - DRAW! ⚡");
+        this.countdownText.setText("DOUBLE KO - DRAW!");
         this.countdownText.setFontSize(42);
         this.countdownText.setColor("#fbbf24");
         this.countdownText.setAlpha(1);
@@ -4727,27 +4801,39 @@ export class FightScene extends Phaser.Scene {
           const { claimPowerSurge } = await import("@/lib/game/power-surge-service");
 
           // Claim the card (sends transaction, passing the offered cards)
-          const result = await claimPowerSurge(
-            this.config.matchId,
-            roundNumber,
-            cardId,
-            playerAddress,
-            cardIds  // Pass the cards shown to this player
-          );
+          if (!this.hasShownSurgePrompt) {
+            const isTutorialComplete = useTutorialStore.getState().isCompleted;
 
-          if (!result.success) {
-            throw new Error(result.error || "Failed to claim surge");
+            if (!isTutorialComplete) {
+              this.showTransactionPrompt("Please sign to claim your Power Surge card.");
+            }
+            this.hasShownSurgePrompt = true;
           }
+          try {
+            const result = await claimPowerSurge(
+              this.config.matchId,
+              roundNumber,
+              cardId,
+              playerAddress,
+              cardIds  // Pass the cards shown to this player
+            );
 
-          // Store local active surge
-          this.activeSurges[this.config.playerRole] = cardId;
+            if (!result.success) {
+              throw new Error(result.error || "Failed to claim surge");
+            }
 
-          // Emit event for combat engine
-          EventBus.emit("surge:applied", {
-            player: this.config.playerRole,
-            cardId,
-            roundNumber,
-          });
+            // Store local active surge
+            this.activeSurges[this.config.playerRole] = cardId;
+
+            // Emit event for combat engine
+            EventBus.emit("surge:applied", {
+              player: this.config.playerRole,
+              cardId,
+              roundNumber,
+            });
+          } finally {
+            this.hideTransactionPrompt();
+          }
         },
         onTimeout: () => {
           console.log("[FightScene] Power Surge selection timed out");

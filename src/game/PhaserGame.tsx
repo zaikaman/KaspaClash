@@ -15,6 +15,7 @@ import React, {
 } from "react";
 import { EventBus } from "./EventBus";
 import type { GameEvents } from "./EventBus";
+import { useRouter } from "next/navigation";
 import type { FightSceneConfig } from "./scenes/FightScene";
 import type { CharacterSelectSceneConfig } from "./scenes/CharacterSelectScene";
 
@@ -57,6 +58,7 @@ export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
   ) {
     const containerRef = useRef<HTMLDivElement>(null);
     const gameRef = useRef<Phaser.Game | null>(null);
+    const router = useRouter();
     // Use refs to store latest props to avoid stale closures in async callbacks
     const sceneConfigRef = useRef(sceneConfig);
     const currentSceneRef = useRef(currentScene);
@@ -165,7 +167,15 @@ export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
             if (!isMounted) return;
             const scene = data as Phaser.Scene;
             setCurrentActiveScene(scene);
+            setCurrentActiveScene(scene);
             onSceneChange?.(scene);
+          });
+
+          // Listen for navigation requests from within Phaser
+          EventBus.onEvent("navigate", (data) => {
+            if (!isMounted) return;
+            console.log("[PhaserGame] Received navigation request to:", data.path);
+            router.push(data.path);
           });
 
           setIsLoading(false);
@@ -191,6 +201,7 @@ export const PhaserGame = forwardRef<PhaserGameRef, PhaserGameProps>(
         // DO NOT call removeAllListeners() as it clears listeners from other components!
         EventBus.off("scene:ready");
         EventBus.off("scene:change");
+        EventBus.off("navigate");
       };
     }, [onSceneReady, onSceneChange]);
 

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import NextImage from "next/image";
 import { Button } from "@/components/ui/button";
 import { CHARACTER_ROSTER } from "@/data/characters";
 import type { Character } from "@/types";
@@ -27,7 +28,7 @@ export default function PracticeMenu({ onStart }: PracticeMenuProps) {
     const address = useWalletStore(selectPersistedAddress);
     const [selectedChar, setSelectedChar] = useState<string>(CHARACTER_ROSTER[0].id);
     const [difficulty, setDifficulty] = useState<string>("medium");
-    
+
     // Use robust hook for owned characters with retry logic and caching
     const { ownedCharacterIds, isLoading } = useOwnedCharacters(address);
 
@@ -67,14 +68,13 @@ export default function PracticeMenu({ onStart }: PracticeMenuProps) {
                             >
                                 {/* Character Portrait */}
                                 <div className="h-32 sm:h-40 bg-black/50 flex items-center justify-center relative overflow-hidden">
-                                    <img
+                                    <NextImage
                                         src={char.portraitUrl}
                                         alt={char.name}
-                                        className="w-full h-full object-cover object-top"
-                                        onError={(e) => {
-                                            (e.target as HTMLImageElement).style.display = 'none';
-                                            (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-                                        }}
+                                        fill
+                                        className="object-cover object-top"
+                                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                                        unoptimized // Handle external/dynamic URLs easily
                                     />
                                     {selectedChar === char.id && (
                                         <div className="absolute inset-0 bg-gradient-to-t from-cyber-orange/40 to-transparent"></div>
@@ -111,7 +111,7 @@ export default function PracticeMenu({ onStart }: PracticeMenuProps) {
             </div>
 
             {/* Right: Difficulty & Start */}
-            <div className="w-full md:w-80 flex flex-col gap-6 sm:gap-8 bg-black/40 border border-cyber-gold/20 p-6 sm:p-8 rounded-2xl backdrop-blur-md h-fit">
+            <div className="w-full md:w-80 flex flex-col gap-6 sm:gap-8 bg-zinc-950/90 border border-cyber-gold/20 p-6 sm:p-8 rounded-2xl h-fit shadow-xl">
                 <div>
                     <h2 className="text-xl sm:text-2xl font-bold font-orbitron text-white mb-4 sm:mb-6">DIFFICULTY</h2>
                     <div className="flex flex-col gap-3">
@@ -141,6 +141,7 @@ export default function PracticeMenu({ onStart }: PracticeMenuProps) {
                     <Button
                         onClick={() => onStart(selectedChar, difficulty)}
                         className="w-full h-14 text-lg bg-gradient-cyber text-white font-orbitron font-bold shadow-[0_0_20px_rgba(240,183,31,0.3)] hover:shadow-[0_0_30px_rgba(240,183,31,0.5)] transition-all"
+                        data-tutorial="start-training"
                     >
                         START TRAINING
                     </Button>

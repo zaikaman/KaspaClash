@@ -1,6 +1,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { motion } from "framer-motion";
 
 interface PracticeResultsProps {
     winner: "player" | "ai";
@@ -34,13 +35,50 @@ export default function PracticeResults({ winner, onRetry }: PracticeResultsProp
                         >
                             PLAY AGAIN
                         </Button>
-                        <Link href="/matchmaking" className="w-full">
+                        {/* Spotlight Overlay: Dims everything EXCEPT this button when active */}
+                        {winner === "player" && (
+                            <div className="fixed inset-0 bg-black/80 z-10 pointer-events-none animate-in fade-in duration-500" />
+                        )}
+
+                        <Link href="/matchmaking" className={`w-full relative ${winner === "player" ? "z-20" : ""}`}>
                             <Button
                                 variant="outline"
-                                className="w-full h-12 border-cyber-gray text-cyber-gray hover:text-white hover:border-white font-orbitron"
+                                className={`
+                                        w-full h-12 font-orbitron transition-all duration-300
+                                        ${winner === "player"
+                                        ? "border-orange-500 bg-orange-500/10 text-orange-400 hover:text-white hover:bg-orange-500/20 shadow-[0_0_15px_rgba(249,115,22,0.3)] animate-pulse"
+                                        : "border-cyber-gray text-cyber-gray hover:text-white hover:border-white"
+                                    }
+                                    `}
                             >
                                 BACK TO MENU
                             </Button>
+
+                            {/* Tutorial-style Tooltip */}
+                            {winner === "player" && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: 0.5, duration: 0.5 }}
+                                    className="absolute top-full mt-4 left-1/2 -translate-x-1/2 w-[280px] bg-zinc-900 border border-zinc-700 rounded-xl p-4 shadow-2xl z-20 pointer-events-none"
+                                >
+                                    {/* Arrow pointing up */}
+                                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-zinc-900 drop-shadow-sm">
+                                        <svg width="24" height="12" viewBox="0 0 24 12" fill="currentColor">
+                                            <path d="M0 12L12 0L24 12H0Z" />
+                                        </svg>
+                                    </div>
+
+                                    <div className="flex flex-col gap-2 text-center">
+                                        <h3 className="text-sm font-bold text-orange-500 uppercase tracking-wider">
+                                            Return to Menu
+                                        </h3>
+                                        <p className="text-white text-xs leading-relaxed">
+                                            Head back to the menu to find a real match!
+                                        </p>
+                                    </div>
+                                </motion.div>
+                            )}
                         </Link>
                     </div>
                 </div>

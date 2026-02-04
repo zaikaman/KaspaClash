@@ -2,13 +2,15 @@
  * Power Surge Service
  * Handles the client-side flow for selecting and claiming power surge cards
  * 
- * Flow:
+ * Optimized Flow (matches move-service for speed):
  * 1. Show power surge cards UI
  * 2. Player clicks a card
  * 3. Trigger Kaspa wallet transaction (1 KAS to self with payload)
- * 4. Poll for transaction confirmation
- * 5. Submit selection to API
- * 6. Apply effect locally and wait for server confirmation
+ * 4. Submit selection to API immediately (don't wait for block confirmation)
+ * 5. Apply effect locally - fire-and-forget background confirmation check
+ * 
+ * This mirrors the fast move submission pattern where wallet acceptance
+ * is treated as sufficient proof of commitment.
  */
 
 import { EventBus } from "@/game/EventBus";
@@ -22,11 +24,15 @@ import { encodeSurgePayload, getPowerSurgeCard } from "@/types/power-surge";
 /** Amount to send (1 KAS = 100,000,000 sompi) */
 const SURGE_TX_AMOUNT_SOMPI = 100_000_000;
 
-/** Maximum time to wait for transaction confirmation (ms) */
-const TX_CONFIRMATION_TIMEOUT_MS = 10000;
+// Kaspa has 10 BPS (100ms blocks) after Crescendo hardfork
+// Transaction should be confirmed in ~1 second
+const BLOCK_CONFIRMATION_CHECK_DELAY_MS = 100; // Wait 100ms between checks
+const BLOCK_CONFIRMATION_MAX_RETRIES = 12; // Max 12 checks = ~1.2 seconds
+const BLOCK_CONFIRMATION_TIMEOUT_MS = 3000; // 3 second absolute timeout
 
-/** Polling interval for transaction confirmation (ms) */
-const TX_POLL_INTERVAL_MS = 200;
+// Skip waiting for block confirmation - just fire and submit to API immediately
+// Set to true for fastest possible experience (wallet accept = good enough)
+const SKIP_BLOCK_CONFIRMATION = true;
 
 // =============================================================================
 // TYPES
@@ -53,6 +59,7 @@ export interface SurgeSelectionState {
 
 /**
  * Claim a power surge card by sending a Kaspa transaction.
+ * Optimized for speed - submits to API immediately after wallet accepts tx.
  * 
  * @param matchId - Match ID
  * @param roundNumber - Current round number
@@ -68,8 +75,10 @@ export async function claimPowerSurge(
   playerAddress: string,
   offeredCards?: PowerSurgeCardId[]
 ): Promise<ClaimSurgeResult> {
+  const startTime = Date.now();
+  
   try {
-    console.log(`[PowerSurgeService] Claiming surge: ${cardId} for round ${roundNumber}`);
+    console.log(`[PowerSurgeService] ⚡ Claiming surge: ${cardId} for round ${roundNumber}`);
 
     // Step 1: Build the transaction payload
     const payload = encodeSurgePayload(cardId, matchId, roundNumber);
@@ -90,28 +99,37 @@ export async function claimPowerSurge(
 
     // Send transaction to self with payload
     const txId = await sendKaspa(playerAddress, SURGE_TX_AMOUNT_SOMPI, payload);
-    console.log(`[PowerSurgeService] Transaction sent: ${txId}`);
+    const txAcceptedTime = Date.now();
+    console.log(`[PowerSurgeService] ⚡ TX accepted by wallet in ${txAcceptedTime - startTime}ms, txId: ${txId}`);
 
-    // Emit event for UI update
+    // Emit event for UI update - transaction accepted by wallet
     EventBus.emit("surge:txSent", { cardId, txId });
 
-    // Step 3: Wait for transaction confirmation
-    const confirmed = await waitForConfirmation(txId, playerAddress);
-    if (!confirmed) {
-      console.warn(`[PowerSurgeService] Transaction not confirmed within timeout, proceeding anyway`);
-      // Kaspa is fast enough that we proceed even if confirmation check fails
-    }
-
-    console.log(`[PowerSurgeService] Transaction confirmed: ${txId}`);
-    EventBus.emit("surge:confirmed", { cardId, txId });
-
-    // Step 4: Submit to API
+    // Step 3: Submit to API immediately (don't wait for block confirmation)
+    // The txId proves the player committed to this choice
+    console.log(`[PowerSurgeService] ⚡ Submitting to API immediately...`);
     const apiResult = await submitSurgeSelection(matchId, roundNumber, cardId, txId, playerAddress, offeredCards);
+    const apiTime = Date.now();
+    console.log(`[PowerSurgeService] ⚡ API response in ${apiTime - txAcceptedTime}ms`);
+    
     if (!apiResult.success) {
       throw new Error(apiResult.error || "Failed to submit surge selection");
     }
 
-    console.log(`[PowerSurgeService] Surge selection submitted successfully`);
+    // Emit confirmed event
+    EventBus.emit("surge:confirmed", { cardId, txId });
+    console.log(`[PowerSurgeService] ⚡ Surge selection complete in ${Date.now() - startTime}ms`);
+
+    // Step 4: Fire-and-forget block confirmation check (just for logging/analytics)
+    if (!SKIP_BLOCK_CONFIRMATION) {
+      waitForBlockConfirmation(txId, playerAddress).then(confirmed => {
+        if (confirmed) {
+          console.log(`[PowerSurgeService] ✓ Background: TX confirmed in block`);
+        } else {
+          console.log(`[PowerSurgeService] Background: TX not yet confirmed in block`);
+        }
+      }).catch(() => {});
+    }
 
     return {
       success: true,
@@ -131,44 +149,80 @@ export async function claimPowerSurge(
 }
 
 /**
- * Wait for transaction to be confirmed on Kaspa blockchain.
- * Uses rapid polling to match Kaspa's ~1s block times.
+ * Check if a transaction is confirmed in a block using server-side API.
+ * Uses the same fast verification endpoint as move-service.
  */
-async function waitForConfirmation(txId: string, address: string): Promise<boolean> {
-  const network = address.startsWith("kaspatest:") ? "testnet" : "mainnet";
-  const apiUrl = network === "testnet"
-    ? "https://api-tn11.kaspa.org"
-    : "https://api.kaspa.org";
+async function checkBlockConfirmation(
+  txId: string, 
+  network: 'mainnet' | 'testnet'
+): Promise<{ confirmed: boolean; inMempool: boolean; elapsed: number }> {
+  const start = Date.now();
+  try {
+    const response = await fetch('/api/verify-mempool', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ txId, network }),
+    });
 
-  const startTime = Date.now();
-  let attempts = 0;
-
-  while (Date.now() - startTime < TX_CONFIRMATION_TIMEOUT_MS) {
-    attempts++;
-    try {
-      const response = await fetch(`${apiUrl}/transactions/${txId}`, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        // Transaction found in blockchain - confirmed
-        if (data && data.transaction_id === txId) {
-          console.log(`[PowerSurgeService] Transaction confirmed after ${attempts} attempts`);
-          return true;
-        }
-      }
-    } catch (error) {
-      // Network error, keep trying
-      console.warn(`[PowerSurgeService] Confirmation check failed:`, error);
+    if (!response.ok) {
+      return { confirmed: false, inMempool: false, elapsed: Date.now() - start };
     }
 
-    // Wait before next poll
-    await new Promise((resolve) => setTimeout(resolve, TX_POLL_INTERVAL_MS));
+    const data = await response.json();
+    return { 
+      confirmed: data.confirmed === true,
+      inMempool: data.inMempool === true, 
+      elapsed: data.elapsed || Date.now() - start 
+    };
+  } catch (error) {
+    console.warn('[PowerSurgeService] Block confirmation check error:', error);
+    return { confirmed: false, inMempool: false, elapsed: Date.now() - start };
+  }
+}
+
+/**
+ * Wait for transaction to be confirmed in a block.
+ * Kaspa has 10 BPS (100ms blocks) so tx should be confirmed in ~1 second.
+ * Uses the same optimized approach as move-service.
+ */
+async function waitForBlockConfirmation(txId: string, address: string): Promise<boolean> {
+  const startTime = Date.now();
+  const network = address.startsWith("kaspatest:") ? "testnet" : "mainnet";
+
+  console.log(`[PowerSurgeService] ⚡ Waiting for tx ${txId.substring(0, 16)}... to be confirmed in block`);
+
+  // Brief delay to let transaction propagate
+  await new Promise(resolve => setTimeout(resolve, BLOCK_CONFIRMATION_CHECK_DELAY_MS));
+
+  // Check repeatedly until confirmed or timeout
+  for (let i = 0; i < BLOCK_CONFIRMATION_MAX_RETRIES; i++) {
+    // Check timeout
+    if (Date.now() - startTime > BLOCK_CONFIRMATION_TIMEOUT_MS) {
+      break;
+    }
+
+    const result = await checkBlockConfirmation(txId, network);
+    
+    if (result.confirmed) {
+      const elapsed = Date.now() - startTime;
+      console.log(`[PowerSurgeService] ⚡ ✓ TX CONFIRMED in block after ${elapsed}ms`);
+      return true;
+    }
+
+    // Log if in mempool but not yet confirmed (first check only)
+    if (result.inMempool && i === 0) {
+      console.log(`[PowerSurgeService] TX in mempool, waiting for block confirmation...`);
+    }
+
+    // Wait before next check (unless it's the last retry)
+    if (i < BLOCK_CONFIRMATION_MAX_RETRIES - 1) {
+      await new Promise(resolve => setTimeout(resolve, BLOCK_CONFIRMATION_CHECK_DELAY_MS));
+    }
   }
 
-  console.warn(`[PowerSurgeService] Confirmation timeout after ${attempts} attempts`);
+  // Timeout reached
+  const elapsed = Date.now() - startTime;
+  console.warn(`[PowerSurgeService] TX not confirmed after ${elapsed}ms - proceeding optimistically`);
   return false;
 }
 

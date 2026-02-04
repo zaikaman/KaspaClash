@@ -749,11 +749,11 @@ export class CombatEngine {
             parts.push(`P2 deals ${p2Result.damageDealt} damage!`);
         }
 
-        if (p1Result.outcome === "blocked" || p1Result.outcome === "guarding") {
-            parts.push("P2 blocks!");
-        }
-        if (p2Result.outcome === "blocked" || p2Result.outcome === "guarding") {
+        if (p1Result.outcome === "guarding") {
             parts.push("P1 blocks!");
+        }
+        if (p2Result.outcome === "guarding") {
+            parts.push("P2 blocks!");
         }
 
         if (p1Result.effects.includes("stun")) {

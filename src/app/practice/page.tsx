@@ -11,6 +11,7 @@ import GameLayout from "@/components/layout/GameLayout";
 import PracticeMenu from "@/components/practice/PracticeMenu";
 import PracticeResults from "@/components/practice/PracticeResults";
 import type { AIDifficulty } from "@/lib/game/ai-opponent";
+import { TutorialOverlay } from "@/components/tutorial/TutorialOverlay";
 
 // Dynamically import PracticeGameClient to avoid SSR issues
 const PracticeGameClient = dynamic(
@@ -39,10 +40,15 @@ interface MatchResult {
     aiRoundsWon: number;
 }
 
+import { useTutorialStore } from "@/stores/tutorial-store";
+
+// ... (existing imports)
+
 export default function PracticePage() {
     const [gameState, setGameState] = useState<"menu" | "playing" | "results">("menu");
     const [practiceConfig, setPracticeConfig] = useState<PracticeConfig | null>(null);
     const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
+    const { currentStep, setStep } = useTutorialStore();
 
     const handleStart = useCallback((characterId: string, difficulty: string) => {
         setPracticeConfig({
@@ -50,12 +56,22 @@ export default function PracticePage() {
             difficulty: difficulty as AIDifficulty,
         });
         setGameState("playing");
-    }, []);
+
+        // Advance tutorial if needed
+        if (currentStep === 'practice_setup') {
+            setStep('practice_surge');
+        }
+    }, [currentStep, setStep]);
 
     const handleMatchEnd = useCallback((result: MatchResult) => {
         setMatchResult(result);
         setGameState("results");
-    }, []);
+
+        // Complete practice tutorial if active
+        if (currentStep === 'practice_mode') {
+            setStep('matchmaking_find');
+        }
+    }, [currentStep, setStep]);
 
     const handleRetry = useCallback(() => {
         // Keep same config, start new match
@@ -73,6 +89,7 @@ export default function PracticePage() {
     if (gameState === "playing" && practiceConfig) {
         return (
             <div className="fixed inset-0 z-50 bg-black overflow-hidden">
+                <TutorialOverlay pageContext="practice" />
                 <PracticeGameClient
                     characterId={practiceConfig.characterId}
                     aiDifficulty={practiceConfig.difficulty}
@@ -86,11 +103,12 @@ export default function PracticePage() {
 
     return (
         <GameLayout>
+            <TutorialOverlay pageContext="practice" />
             <div className="min-h-screen pt-6 sm:pt-10 pb-20 relative">
                 {/* Background Elements */}
                 <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                    <div className="absolute top-[20%] left-[-10%] w-[500px] h-[500px] bg-cyber-orange/10 rounded-full blur-[100px]"></div>
-                    <div className="absolute bottom-[10%] right-[-10%] w-[600px] h-[600px] bg-cyber-gold/5 rounded-full blur-[120px]"></div>
+                    <div className="absolute top-[20%] left-[-10%] w-[500px] h-[500px] bg-cyber-orange/10 rounded-full blur-[100px] translate-z-0"></div>
+                    <div className="absolute bottom-[10%] right-[-10%] w-[600px] h-[600px] bg-cyber-gold/5 rounded-full blur-[120px] translate-z-0"></div>
                 </div>
 
                 <div className="container mx-auto px-4 sm:px-6 lg:px-12 xl:px-24 relative z-10">

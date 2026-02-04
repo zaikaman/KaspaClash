@@ -1,6 +1,8 @@
 import { Scene } from "phaser";
 import type { MatchResult, PlayerRole } from "@/types";
 import { GAME_DIMENSIONS } from "../config";
+import { useTutorialStore } from "../../stores/tutorial-store";
+import { EventBus } from "../EventBus";
 
 interface ResultsSceneData {
     result: MatchResult;
@@ -101,7 +103,7 @@ export class ResultsScene extends Scene {
         const reasonText =
             this.resultsData.result.reason === "knockout" ? "KNOCKOUT!" :
                 this.resultsData.result.reason === "timeout" ? "TIME OUT" :
-                    this.resultsData.result.reason === "forfeit" ? "OPPONENT FORFEITED" :
+                    this.resultsData.result.reason === "forfeit" ? (isWinner ? "OPPONENT FORFEITED" : "YOU FORFEITED") :
                         "DECISION";
 
         this.add.text(
@@ -309,6 +311,10 @@ export class ResultsScene extends Scene {
                     });
                 }
             });
+            // Explanation Text
+            container.add(this.add.text(0, 160, "Ranked Match: Wins increase Rating, Losses decrease it.", {
+                fontFamily: "Exo 2", fontSize: "14px", color: "#666666", fontStyle: "italic"
+            }).setOrigin(0.5));
         }
 
         // Animate container
@@ -364,15 +370,63 @@ export class ResultsScene extends Scene {
         );
 
         // Return to Menu Button (right)
-        this.createButton(
+        const returnBtn = this.createButton(
             GAME_DIMENSIONS.CENTER_X + buttonSpacing,
             y,
             "🏠 RETURN TO MENU",
             () => {
-                window.location.href = "/";
+                const { isActive, currentStep, setStep } = useTutorialStore.getState();
+                if (isActive && currentStep === 'fighting') {
+                    setStep('post_game_tour');
+                    // Force a small delay to ensure local storage write?
+                    // LocalStorage is synchronous, so it should be fine.
+                }
+                EventBus.emit("navigate", { path: "/matchmaking" });
             },
             0x6b7280 // Gray for menu
         );
+
+        // Add visual hint (pulsing arrow)
+        const hintArrow = this.add.text(
+            GAME_DIMENSIONS.CENTER_X + buttonSpacing,
+            y - 50,
+            "▼",
+            {
+                fontFamily: "monospace",
+                fontSize: "24px",
+                color: "#49eacb",
+            }
+        ).setOrigin(0.5);
+
+        const hintText = this.add.text(
+            GAME_DIMENSIONS.CENTER_X + buttonSpacing,
+            y - 75,
+            "CLICK TO RETURN",
+            {
+                fontFamily: "Exo 2",
+                fontSize: "12px",
+                color: "#49eacb",
+                fontStyle: "bold"
+            }
+        ).setOrigin(0.5);
+
+        this.tweens.add({
+            targets: [hintArrow],
+            y: y - 40,
+            yoyo: true,
+            repeat: -1,
+            duration: 600,
+            ease: "Sine.easeInOut"
+        });
+
+        this.tweens.add({
+            targets: [hintText],
+            alpha: 0.7,
+            yoyo: true,
+            repeat: -1,
+            duration: 1000,
+            ease: "Sine.easeInOut"
+        });
     }
 
     private showCopiedNotification() {

@@ -77,34 +77,30 @@ export async function POST(
         if (player1HasMove && !player2HasMove && player2IsBot) {
             console.log("[BotAutoMove] Player 1 stunned, submitting bot (player 2) move immediately");
             
-            // Submit bot move immediately in background (no delay)
-            setTimeout(async () => {
-                try {
-                    await submitBotMoveForMatch(matchId, currentRound.id, "player2");
-                    console.log("[BotAutoMove] Bot move submitted successfully");
-                } catch (error) {
-                    console.error("[BotAutoMove] Error submitting bot move:", error);
-                }
-            }, 0);
-
-            return NextResponse.json({ success: true, action: "bot_scheduled", player: "player2" });
+            // Submit bot move synchronously - must await to ensure it completes before response
+            try {
+                await submitBotMoveForMatch(matchId, currentRound.id, "player2");
+                console.log("[BotAutoMove] Bot move submitted successfully");
+                return NextResponse.json({ success: true, action: "bot_submitted", player: "player2" });
+            } catch (error) {
+                console.error("[BotAutoMove] Error submitting bot move:", error);
+                return NextResponse.json({ success: false, error: "Failed to submit bot move" }, { status: 500 });
+            }
         }
 
         // If player 2 is stunned (has move) and player 1 is bot (needs to move)
         if (player2HasMove && !player1HasMove && player1IsBot) {
             console.log("[BotAutoMove] Player 2 stunned, submitting bot (player 1) move immediately");
             
-            // Submit bot move immediately in background (no delay)
-            setTimeout(async () => {
-                try {
-                    await submitBotMoveForMatch(matchId, currentRound.id, "player1");
-                    console.log("[BotAutoMove] Bot move submitted successfully");
-                } catch (error) {
-                    console.error("[BotAutoMove] Error submitting bot move:", error);
-                }
-            }, 0);
-
-            return NextResponse.json({ success: true, action: "bot_scheduled", player: "player1" });
+            // Submit bot move synchronously - must await to ensure it completes before response
+            try {
+                await submitBotMoveForMatch(matchId, currentRound.id, "player1");
+                console.log("[BotAutoMove] Bot move submitted successfully");
+                return NextResponse.json({ success: true, action: "bot_submitted", player: "player1" });
+            } catch (error) {
+                console.error("[BotAutoMove] Error submitting bot move:", error);
+                return NextResponse.json({ success: false, error: "Failed to submit bot move" }, { status: 500 });
+            }
         }
 
         return NextResponse.json({ success: true, action: "none" });

@@ -135,6 +135,7 @@ export function GameSidebar() {
                                 key={item.href}
                                 href={item.href}
                                 onClick={() => setIsMobileMenuOpen(false)}
+                                data-tutorial={item.label === "Leaderboard" ? "leaderboard-nav" : undefined}
                                 className={cn(
                                     "relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group overflow-hidden",
                                     isActive

@@ -12,6 +12,8 @@ import { createPortal } from "react-dom";
 import { useAbandonedMatchCleanup } from "@/hooks/useAbandonedMatchCleanup";
 import { useWalletStore } from "@/stores/wallet-store";
 import { prefetchOwnedCharacters } from "@/hooks/useOwnedCharacters";
+import { TutorialOverlay } from "@/components/tutorial/TutorialOverlay";
+import { useTutorialStore } from "@/stores/tutorial-store";
 
 type ViewState = "main" | "create" | "join";
 
@@ -20,6 +22,7 @@ export default function MatchmakingPage() {
     const [isTransitioning, setIsTransitioning] = useState(false);
     const router = useRouter();
     const { address } = useWalletStore();
+    const { setStep, currentStep, isActive } = useTutorialStore();
 
     // Clean up any abandoned bot matches
     useAbandonedMatchCleanup();
@@ -32,6 +35,9 @@ export default function MatchmakingPage() {
     }, [address]);
 
     const handleQuickMatch = () => {
+        if (isActive) {
+            setStep('fighting');
+        }
         setIsTransitioning(true);
         // Play sound if available?
         setTimeout(() => {
@@ -67,6 +73,7 @@ export default function MatchmakingPage() {
 
     return (
         <GameLayout>
+            <TutorialOverlay pageContext="matchmaking" />
             {/* Wormhole Transition Overlay - Portaled to cover global UI */}
             {isTransitioning && typeof document !== 'undefined' && createPortal(
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black animate-[fadeIn_0.5s_ease-out_forwards]">
@@ -143,6 +150,7 @@ export default function MatchmakingPage() {
                                     className="w-full bg-gradient-cyber text-white border-0 font-orbitron hover:opacity-90 relative overflow-hidden"
                                     onClick={() => handleQuickMatch()}
                                     disabled={isTransitioning}
+                                    data-tutorial="find-match"
                                 >
                                     {isTransitioning ? (
                                         <span className="animate-pulse">INITIALIZING...</span>
@@ -173,7 +181,10 @@ export default function MatchmakingPage() {
                                 </p>
 
                                 <Link href="/practice" className="w-full">
-                                    <Button className="w-full bg-transparent border border-emerald-500 text-emerald-500 font-orbitron hover:bg-emerald-500/10">
+                                    <Button
+                                        className="w-full bg-transparent border border-emerald-500 text-emerald-500 font-orbitron hover:bg-emerald-500/10"
+                                        data-tutorial="enter-practice"
+                                    >
                                         ENTER DOJO
                                     </Button>
                                 </Link>
@@ -237,3 +248,6 @@ export default function MatchmakingPage() {
         </GameLayout>
     );
 }
+
+// Add import if missing (this part handles the import separately via another edit or implicitly if I could edit top, but replacer is block based)
+// I need to add the import to the top of the file.

@@ -63,6 +63,7 @@ export interface GameEvents {
   "game:matchStarting": any;
   "game:rejectionWaiting": { message: string };
   "game:opponentRejected": { rejectedAt: number };
+  "navigate": { path: string };
 
   // Game Control Events
   "request-surrender": void;

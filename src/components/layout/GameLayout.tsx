@@ -1,3 +1,5 @@
+"use client";
+
 import { ReactNode } from "react";
 import { GameSidebar } from "./GameSidebar";
 import { GameHeader } from "./GameHeader";
@@ -6,7 +8,20 @@ interface GameLayoutProps {
     children: ReactNode;
 }
 
+import { useRouter, usePathname } from "next/navigation";
+import { useTutorialStore } from "@/stores/tutorial-store";
+
 export default function GameLayout({ children }: GameLayoutProps) {
+    const router = useRouter();
+    const pathname = usePathname();
+    const { resetTutorial } = useTutorialStore();
+
+    const handleRestartTutorial = () => {
+        resetTutorial();
+        if (pathname !== "/matchmaking") {
+            router.push("/matchmaking");
+        }
+    };
     return (
         <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-cyber-black text-white font-montserrat flex">
             {/* Background Effects */}
@@ -29,6 +44,15 @@ export default function GameLayout({ children }: GameLayoutProps) {
                     {children}
                 </div>
             </main>
+
+            {/* Tutorial Restart Button */}
+            <button
+                onClick={handleRestartTutorial}
+                className="fixed bottom-4 right-4 z-[9000] w-8 h-8 rounded-full bg-zinc-800/80 border border-zinc-600 text-zinc-400 hover:text-white hover:bg-zinc-700 flex items-center justify-center transition-all shadow-lg text-sm font-bold opacity-50 hover:opacity-100"
+                title="Restart Tutorial"
+            >
+                ?
+            </button>
         </div>
     );
 }
