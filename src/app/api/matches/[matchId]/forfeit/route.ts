@@ -136,6 +136,20 @@ export async function POST(
       console.log(`[Forfeit API] Skipping ELO update for private room match ${matchId}`);
     }
 
+    // Process betting payouts for the match
+    try {
+      const { resolveMatchPayouts, resolveMatchStakePayout } = await import("@/lib/betting/payout-service");
+      console.log(`[Forfeit API] Processing betting payouts for match ${matchId}`);
+      await resolveMatchPayouts(matchId);
+      
+      // Also process stake payout if applicable
+      await resolveMatchStakePayout(matchId);
+      console.log(`[Forfeit API] Betting payouts processed successfully for match ${matchId}`);
+    } catch (payoutError) {
+      // Log but don't fail the forfeit - payouts can be retried
+      console.error(`[Forfeit API] Error processing betting payouts for match ${matchId}:`, payoutError);
+    }
+
     // Broadcast match_ended event via Supabase Realtime REST API
     // Server-side sends without subscribing explicitly use HTTP/REST
     const gameChannel = supabase.channel(`game:${matchId}`);

@@ -251,32 +251,6 @@ export function GamersShop() {
                     </div>
                 </section>
 
-                {/* Weekly Rotation */}
-                <section>
-                    <h2 className="text-3xl text-cyber-gold mt-12 mb-6 border-b border-cyber-gold/30 pb-3">Weekly Featured Rotation</h2>
-                    <p>
-                        Every <strong className="text-white">Monday at 00:00 UTC</strong>, the shop refreshes with a new selection of featured items. 
-                        Keep an eye out for discounts and highlighting of rare collectibles.
-                    </p>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 not-prose">
-                        <div className="bg-black/30 p-4 rounded-xl border border-white/5">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="text-2xl">🔄</div>
-                                <div className="text-sm font-bold text-white">20% Featured Discount</div>
-                            </div>
-                            <p className="text-xs text-muted-foreground">Randomly selected items are discounted by 20% during their featured week.</p>
-                        </div>
-                        <div className="bg-black/30 p-4 rounded-xl border border-white/5">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="text-2xl">⏳</div>
-                                <div className="text-sm font-bold text-white">Limited Time Offers</div>
-                            </div>
-                            <p className="text-xs text-muted-foreground">Certain promotional items may only be available during specific event rotations.</p>
-                        </div>
-                    </div>
-                </section>
-
                 {/* Blockchain NFT Minting */}
                 <section>
                     <h2 className="text-3xl text-cyber-gold mt-12 mb-6 border-b border-cyber-gold/30 pb-3">Blockchain NFT Minting</h2>

@@ -702,6 +702,7 @@ export class PowerSurgeCards {
   /**
    * Wait for both players to complete their selections before closing.
    * Polls the database every 500ms to check if both cards are selected.
+   * Also handles the case where opponent times out (doesn't pick a card).
    */
   private async waitForBothPlayersReady(): Promise<void> {
     this.instructionText.setText("Waiting for opponent...");
@@ -736,6 +737,8 @@ export class PowerSurgeCards {
     const pollInterval = 500;
     const maxWaitTime = 20000; // 20 seconds max
     const startTime = Date.now();
+    // Grace period after deadline for opponent selection to propagate
+    const deadlineGracePeriod = 2000; // 2 seconds after deadline
 
     const poll = async () => {
       if (this.isDestroyed) return;
@@ -756,8 +759,24 @@ export class PowerSurgeCards {
         return;
       }
 
-      // Check timeout
-      if (Date.now() - startTime > maxWaitTime) {
+      // Check if deadline has passed with grace period - opponent likely timed out
+      const now = Date.now();
+      if (now > this.config.deadline + deadlineGracePeriod) {
+        console.log("[PowerSurgeCards] Deadline passed + grace period, opponent likely timed out. Closing UI.");
+        this.instructionText.setText("Opponent skipped - continuing!");
+        this.instructionText.setColor("#f97316");
+
+        // Close after brief delay
+        this.scene.time.delayedCall(800, () => {
+          if (!this.isDestroyed) {
+            this.animateExit();
+          }
+        });
+        return;
+      }
+
+      // Check absolute timeout (failsafe)
+      if (now - startTime > maxWaitTime) {
         console.log("[PowerSurgeCards] Wait timeout, closing anyway");
         this.animateExit();
         return;

@@ -8,12 +8,14 @@
 import { useEffect, useState, useRef } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 import { useSpectatorChannel } from "@/hooks/useSpectatorChannel";
 import { useMatchStore, useMatchActions } from "@/stores/match-store";
 import { EventBus } from "@/game/EventBus";
 import { BettingPanel } from "@/components/betting/BettingPanel";
 import { SpectatorChat } from "@/components/spectate/SpectatorChat";
 import { WinningNotification } from "@/components/betting/WinningNotification";
+import { Button } from "@/components/ui/button";
 import { useWallet } from "@/hooks/useWallet";
 import { sompiToKas } from "@/lib/betting/betting-service";
 import type { Match } from "@/types";
@@ -101,47 +103,8 @@ export function SpectatorClient({ match }: SpectatorClientProps) {
     const { state: channelState } = useSpectatorChannel({
         matchId: match.id,
         onMatchEnded: async (payload) => {
-            console.log("[SpectatorClient] Match ended:", payload);
-
-            // Check if user won their bet
-            if (address) {
-                try {
-                    // Fetch user's bet for this match
-                    const response = await fetch(`/api/betting/pool/${match.id}`);
-                    if (response.ok) {
-                        const data = await response.json();
-                        const userBet = data.data?.bets?.find(
-                            (b: any) => b.bettor_address === address
-                        );
-
-                        if (userBet) {
-                            const winnerRole = payload.winnerAddress === match.player1Address ? "player1" : "player2";
-                            
-                            // Check if user's prediction matches the winner
-                            if (userBet.bet_on === winnerRole) {
-                                // User won! Show celebration immediately
-                                const winnerName = winnerRole === "player1" 
-                                    ? (match.player1?.display_name || "Player 1")
-                                    : (match.player2?.display_name || "Player 2");
-                                
-                                // Calculate expected payout from pool data
-                                const payoutAmount = userBet.payout_amount 
-                                    ? BigInt(userBet.payout_amount)
-                                    : BigInt(userBet.amount || 0); // Fallback to bet amount
-                                
-                                setWinningNotification({
-                                    show: true,
-                                    amount: sompiToKas(payoutAmount),
-                                    prediction: userBet.bet_on as "player1" | "player2",
-                                    winnerName,
-                                });
-                            }
-                        }
-                    }
-                } catch (err) {
-                    console.error("[SpectatorClient] Error checking win status:", err);
-                }
-            }
+            console.log("[SpectatorClient] Match ended from channel:", payload);
+            // We now handle the win check in game:matchEnded EventBus listener for better sync with the Phaser scene
         },
         onMatchCancelled: async (payload) => {
             console.log("[SpectatorClient] Match cancelled:", payload);
@@ -253,10 +216,87 @@ export function SpectatorClient({ match }: SpectatorClientProps) {
 
         EventBus.on("scene:ready", handleSceneReady);
 
+        // Listen for match end to check if user won
+        const handleMatchEnd = async (data: unknown) => {
+            const eventData = data as { matchId: string; winner: "player1" | "player2"; winnerAddress: string | null };
+            console.log("[SpectatorClient] Match ended event received:", eventData);
+            console.log("[SpectatorClient] Current match ID:", match.id);
+            console.log("[SpectatorClient] User address:", address);
+
+            if (eventData.matchId === match.id && address) {
+                console.log("[SpectatorClient] Match ended, checking if user won bet");
+
+                try {
+                    // Fetch user's bet for this match with address parameter
+                    const url = `/api/betting/pool/${match.id}`;
+                    console.log("[SpectatorClient] Fetching bet data from:", url);
+
+                    const response = await fetch(url);
+                    console.log("[SpectatorClient] Response status:", response.status);
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log("[SpectatorClient] Bet data received:", data);
+
+                        const userBet = data.data?.bets?.find(
+                            (b: any) => b.bettor_address === address
+                        );
+                        console.log("[SpectatorClient] User bet found:", userBet);
+
+                        if (userBet) {
+                            const winnerRole = eventData.winnerAddress === match.player1Address ? "player1" : "player2";
+                            console.log("[SpectatorClient] Winner role:", winnerRole);
+                            console.log("[SpectatorClient] User bet on:", userBet.bet_on);
+
+                            // Check if user's prediction matches the winner
+                            if (userBet.bet_on === winnerRole) {
+                                console.log("[SpectatorClient] USER WON! Showing notification");
+
+                                // User won! Show celebration immediately
+                                const winnerName = winnerRole === "player1"
+                                    ? (match.player1?.display_name || "Player 1")
+                                    : (match.player2?.display_name || "Player 2");
+
+                                // Calculate payout: use payout_amount from bet or fallback to 2x bet amount
+                                const betAmount = BigInt(userBet.amount);
+                                const payoutAmount = userBet.payout_amount
+                                    ? BigInt(userBet.payout_amount)
+                                    : betAmount * 2n;
+
+                                console.log("[SpectatorClient] Payout amount:", sompiToKas(payoutAmount), "KAS");
+
+                                setWinningNotification({
+                                    show: true,
+                                    amount: sompiToKas(payoutAmount),
+                                    prediction: userBet.bet_on as "player1" | "player2",
+                                    winnerName,
+                                });
+                            } else {
+                                console.log("[SpectatorClient] User lost - no notification");
+                            }
+                        } else {
+                            console.log("[SpectatorClient] No bet found for this user");
+                        }
+                    } else {
+                        console.error("[SpectatorClient] Failed to fetch bet data");
+                    }
+                } catch (err) {
+                    console.error("[SpectatorClient] Error checking win status:", err);
+                }
+            } else {
+                if (!address) console.log("[SpectatorClient] No wallet address");
+                if (eventData.matchId !== match.id) {
+                    console.log("[SpectatorClient] Match ID mismatch:", eventData.matchId, "vs", match.id);
+                }
+            }
+        };
+        EventBus.on("game:matchEnded", handleMatchEnd);
+
         return () => {
             EventBus.off("scene:ready", handleSceneReady);
+            EventBus.off("game:matchEnded", handleMatchEnd);
         };
-    }, []);
+    }, [match.id, match.player1Address, match.player1, match.player2, address]);
 
     // Show loading state
     if (isLoading) {
@@ -271,18 +311,24 @@ export function SpectatorClient({ match }: SpectatorClientProps) {
     }
 
     return (
-        <div className="relative min-h-screen bg-[#0a0a0a]">
-            {/* Spectator header */}
-            <div className="absolute top-0 left-0 right-0 z-10 flex justify-between items-center p-4 bg-gradient-to-b from-black/80 to-transparent">
+        <div className="relative w-full h-screen flex flex-col bg-[#0a0a0a] overflow-hidden">
+            {/* Header */}
+            <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-4 flex items-center justify-between bg-black/40 backdrop-blur-sm border-b border-cyber-gold/20"
+            >
                 <div className="flex items-center gap-4">
-                    <Link href="/spectate" className="text-cyber-gray hover:text-white transition-colors">
-                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                        </svg>
+                    <Link href="/spectate">
+                        <Button variant="ghost" className="text-cyber-gold hover:text-white font-orbitron">
+                            ← Back
+                        </Button>
                     </Link>
+
                     <span className="text-2xl font-bold font-orbitron text-white tracking-wider drop-shadow-[0_0_10px_rgba(240,183,31,0.5)]">
                         KASPA<span className="text-cyber-gold">CLASH</span>
                     </span>
+
                     {/* Spectating Badge */}
                     <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-500/50">
                         <svg className="w-4 h-4 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -291,6 +337,7 @@ export function SpectatorClient({ match }: SpectatorClientProps) {
                         </svg>
                         <span className="text-purple-400 text-sm font-orbitron uppercase tracking-wider">Spectating</span>
                     </div>
+
                     {!channelState.isConnected && (
                         <span className="text-cyber-gold text-sm flex items-center gap-1 font-orbitron tracking-wide">
                             <span className="w-2 h-2 bg-cyber-gold rounded-full animate-pulse" />
@@ -298,78 +345,111 @@ export function SpectatorClient({ match }: SpectatorClientProps) {
                         </span>
                     )}
                 </div>
-                <div className="text-cyber-gray text-xs font-orbitron tracking-widest opacity-80">
-                    MATCH: <span className="text-cyber-gold">{match.id.slice(0, 8)}</span>
+
+                <div className="text-white font-orbitron text-sm">
+                    <span className="text-purple-400">{match.player1?.display_name || "Player 1"}</span>
+                    <span className="mx-2 text-gray-500">vs</span>
+                    <span className="text-purple-400">{match.player2?.display_name || "Player 2"}</span>
                 </div>
-            </div>
+            </motion.div>
 
-            {/* Main content */}
-            <div className="flex h-screen">
-                {/* Phaser game container */}
-                <div className="flex-1 h-full">
-                    <PhaserGame
-                        currentScene={initialScene}
-                        sceneConfig={
-                            initialScene === "FightScene" ? {
-                                matchId: match.id,
-                                player1Address: match.player1Address,
-                                player2Address: match.player2Address || "",
-                                player1Character: match.player1CharacterId || "dag-warrior",
-                                player2Character: match.player2CharacterId || "dag-warrior",
-                                playerRole: "player1", // Spectators view from player1's perspective
-                                isSpectator: true, // Key flag for spectator mode
-                                isReconnect: false,
-                                reconnectState: null,
-                            } : initialScene === "ResultsScene" ? {
-                                result: {
-                                    winner: match.winnerAddress === match.player1Address ? "player1" :
-                                        match.winnerAddress === match.player2Address ? "player2" : null,
-                                    reason: (match as any).endReason || "rounds_won",
-                                    player1FinalHealth: 0,
-                                    player2FinalHealth: 0,
-                                    player1RoundsWon: match.player1RoundsWon,
-                                    player2RoundsWon: match.player2RoundsWon,
-                                    txIds: [],
-                                },
-                                playerRole: "player1",
-                                matchId: match.id,
-                                player1CharacterId: match.player1CharacterId || "dag-warrior",
-                                player2CharacterId: match.player2CharacterId || "dag-warrior",
-                                isSpectator: true,
-                            } : {
-                                matchId: match.id,
-                                playerAddress: "", // Empty for spectators
-                                opponentAddress: "",
-                                isHost: false,
-                                isSpectator: true,
-                                selectionDeadlineAt: match.selectionDeadlineAt,
-                                existingPlayerCharacter: match.player1CharacterId,
-                                existingOpponentCharacter: match.player2CharacterId,
-                            } as any
-                        }
-                    />
+            {/* Main Content - Game + Betting Panel */}
+            <div className="flex-1 w-full flex flex-col xl:flex-row items-stretch justify-center gap-4 p-4 min-h-0 overflow-y-auto xl:overflow-hidden">
+                {/* Game Container */}
+                <div className="flex-1 flex items-center justify-center w-full">
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.2 }}
+                        className="w-full max-w-[1280px] aspect-video bg-black rounded-lg overflow-hidden border-2 border-purple-500/30 shadow-lg shadow-purple-500/10 relative xl:h-full xl:max-h-full"
+                    >
+                        <PhaserGame
+                            currentScene={initialScene}
+                            sceneConfig={
+                                initialScene === "FightScene" ? {
+                                    matchId: match.id,
+                                    player1Address: match.player1Address,
+                                    player2Address: match.player2Address || "",
+                                    player1Character: match.player1CharacterId || "dag-warrior",
+                                    player2Character: match.player2CharacterId || "dag-warrior",
+                                    playerRole: "player1", // Spectators view from player1's perspective
+                                    isSpectator: true, // Key flag for spectator mode
+                                    isReconnect: false,
+                                    reconnectState: null,
+                                } : initialScene === "ResultsScene" ? {
+                                    result: {
+                                        winner: match.winnerAddress === match.player1Address ? "player1" :
+                                            match.winnerAddress === match.player2Address ? "player2" : null,
+                                        reason: (match as any).endReason || "rounds_won",
+                                        player1FinalHealth: 0,
+                                        player2FinalHealth: 0,
+                                        player1RoundsWon: match.player1RoundsWon,
+                                        player2RoundsWon: match.player2RoundsWon,
+                                        txIds: [],
+                                    },
+                                    playerRole: "player1",
+                                    matchId: match.id,
+                                    player1CharacterId: match.player1CharacterId || "dag-warrior",
+                                    player2CharacterId: match.player2CharacterId || "dag-warrior",
+                                    isSpectator: true,
+                                } : {
+                                    matchId: match.id,
+                                    playerAddress: "", // Empty for spectators
+                                    opponentAddress: "",
+                                    isHost: false,
+                                    isSpectator: true,
+                                    selectionDeadlineAt: match.selectionDeadlineAt,
+                                    existingPlayerCharacter: match.player1CharacterId,
+                                    existingOpponentCharacter: match.player2CharacterId,
+                                } as any
+                            }
+                        />
+                    </motion.div>
                 </div>
 
-                {/* Betting panel sidebar */}
-                <div className="w-80 h-full pt-20 p-4 bg-black/40 border-l border-cyber-gold/20 overflow-y-auto">
-                    <BettingPanel
-                        matchId={match.id}
-                        player1Name={match.player1?.display_name || match.player1Address.slice(0, 12) + "..."}
-                        player2Name={match.player2?.display_name || (match.player2Address?.slice(0, 12) + "...") || "Player 2"}
-                    />
-
-                    {/* Spectator Chat */}
-                    <div className="mt-4">
-                        <SpectatorChat
+                {/* Betting Panel Sidebar */}
+                <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="w-full xl:w-[380px] shrink-0 flex flex-col gap-4 min-h-0 xl:h-full xl:overflow-y-auto scrollbar-thin scrollbar-thumb-purple-500/20 scrollbar-track-transparent pr-1"
+                >
+                    <div className="shrink-0">
+                        <BettingPanel
                             matchId={match.id}
-                            matchStartTime={match.createdAt ? new Date(match.createdAt).getTime() : undefined}
-                            isBotMatch={false}
-                            player1Name={match.player1?.display_name || "Player 1"}
-                            player2Name={match.player2?.display_name || "Player 2"}
+                            player1Name={match.player1?.display_name || match.player1Address.slice(0, 12) + "..."}
+                            player2Name={match.player2?.display_name || (match.player2Address?.slice(0, 12) + "...") || "Player 2"}
                         />
                     </div>
-                </div>
+
+                    {/* Spectator Chat using flex-1 to fill remaining vertical space */}
+                    <SpectatorChat
+                        matchId={match.id}
+                        matchStartTime={match.createdAt ? new Date(match.createdAt).getTime() : undefined}
+                        isBotMatch={false}
+                        player1Name={match.player1?.display_name || "Player 1"}
+                        player2Name={match.player2?.display_name || "Player 2"}
+                        className="flex-1 min-h-[250px]"
+                    />
+                </motion.div>
             </div>
+
+            {/* Info Footer */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="p-4 bg-black/40 border-t border-cyber-gold/20"
+            >
+                <div className="max-w-4xl mx-auto flex items-center justify-between text-sm">
+                    <p className="text-cyber-gray">
+                        <span className="text-purple-400">●</span> Live Match • Spectator Mode
+                    </p>
+                    <p className="text-cyber-gray font-mono text-xs">
+                        Match: {match.id.slice(0, 20)}...
+                    </p>
+                </div>
+            </motion.div>
 
             {/* Winning Notification */}
             {winningNotification && (
@@ -383,59 +463,95 @@ export function SpectatorClient({ match }: SpectatorClientProps) {
             )}
 
             {/* Match Cancelled Notification */}
-            {showCancelledNotification && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-                    <div className="relative max-w-md w-full mx-4 p-8 bg-gradient-to-br from-red-900/90 to-black/90 border-2 border-red-500/50 rounded-lg shadow-2xl">
-                        {/* Warning Icon */}
-                        <div className="flex justify-center mb-6">
-                            <div className="w-20 h-20 rounded-full bg-red-500/20 border-2 border-red-500 flex items-center justify-center">
-                                <svg className="w-12 h-12 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                            </div>
-                        </div>
+            <AnimatePresence>
+                {showCancelledNotification && (
+                    <>
+                        {/* Backdrop */}
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9998]"
+                        />
 
-                        {/* Title */}
-                        <h2 className="text-3xl font-bold font-orbitron text-center text-red-500 mb-4 tracking-wider uppercase">
-                            Match Cancelled
-                        </h2>
-
-                        {/* Message */}
-                        <p className="text-center text-white mb-2 font-orbitron text-lg">
-                            This match has been cancelled.
-                        </p>
-
-                        {/* Refund Information */}
-                        {cancelledBetAmount !== null && (
-                            <div className="my-6 p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
-                                <p className="text-center text-green-400 mb-2 font-orbitron">
-                                    Your bet will be refunded shortly
-                                </p>
-                                <p className="text-center text-2xl font-bold text-cyber-gold font-orbitron">
-                                    {cancelledBetAmount.toFixed(4)} KAS
-                                </p>
-                            </div>
-                        )}
-
-                        {!cancelledBetAmount && (
-                            <p className="text-center text-cyber-gray mb-6 font-orbitron">
-                                Any bets placed will be refunded.
-                            </p>
-                        )}
-
-                        {/* Action Button */}
-                        <button
-                            onClick={() => {
-                                setShowCancelledNotification(false);
-                                window.location.href = "/matchmaking";
-                            }}
-                            className="w-full py-3 px-6 bg-gradient-to-r from-cyber-gold to-yellow-600 text-black font-bold font-orbitron text-lg rounded-lg hover:from-yellow-600 hover:to-cyber-gold transition-all duration-300 shadow-lg hover:shadow-cyber-gold/50 uppercase tracking-wider"
+                        {/* Modal Container */}
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-none"
                         >
-                            Return to Matchmaking
-                        </button>
-                    </div>
-                </div>
-            )}
+                            <div className="relative max-w-md w-full p-8 bg-gradient-to-br from-red-900/40 via-black to-black border-2 border-red-500/50 rounded-2xl shadow-[0_0_50px_rgba(239,68,68,0.2)] overflow-hidden pointer-events-auto">
+                                {/* Decorative elements */}
+                                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent" />
+                                <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent" />
+
+                                {/* Warning Icon */}
+                                <div className="flex justify-center mb-6">
+                                    <motion.div
+                                        initial={{ rotate: -10, scale: 0.8 }}
+                                        animate={{ rotate: 0, scale: 1 }}
+                                        transition={{ type: "spring", stiffness: 200 }}
+                                        className="w-20 h-20 rounded-full bg-red-500/20 border-2 border-red-500 flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.3)]"
+                                    >
+                                        <svg className="w-12 h-12 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                    </motion.div>
+                                </div>
+
+                                {/* Title */}
+                                <h2 className="text-3xl font-bold font-orbitron text-center text-red-500 mb-4 tracking-wider uppercase drop-shadow-[0_0_10px_rgba(239,68,68,0.5)]">
+                                    Match Cancelled
+                                </h2>
+
+                                {/* Message */}
+                                <p className="text-center text-gray-300 mb-6 font-orbitron text-lg">
+                                    This match has been cancelled and finalized.
+                                </p>
+
+                                {/* Refund Information */}
+                                {cancelledBetAmount !== null ? (
+                                    <div className="my-6 p-4 bg-green-500/10 border border-green-500/30 rounded-xl relative overflow-hidden group">
+                                        <div className="absolute inset-0 bg-green-500/5 animate-pulse" />
+                                        <p className="relative text-center text-green-400 mb-2 font-orbitron text-sm uppercase tracking-wider">
+                                            Your bet will be refunded
+                                        </p>
+                                        <div className="relative flex items-center justify-center gap-2">
+                                            <span className="text-3xl font-bold text-cyber-gold font-orbitron">
+                                                {cancelledBetAmount.toFixed(4)}
+                                            </span>
+                                            <span className="text-cyber-gold/70 font-orbitron">KAS</span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="text-center text-cyber-gray/60 mb-8 font-orbitron text-sm uppercase tracking-widest bg-white/5 py-4 rounded-xl border border-white/10">
+                                        Any bets placed will be refunded
+                                    </p>
+                                )}
+
+                                {/* Action Button */}
+                                <Button
+                                    onClick={() => {
+                                        setShowCancelledNotification(false);
+                                        window.location.href = "/spectate";
+                                    }}
+                                    className="w-full py-6 bg-gradient-to-r from-red-600 to-red-900 hover:from-red-500 hover:to-red-700 text-white font-bold font-orbitron text-lg rounded-xl transition-all duration-300 shadow-[0_4px_20px_rgba(239,68,68,0.4)] hover:shadow-[0_4px_30px_rgba(239,68,68,0.6)] uppercase tracking-wider border border-red-400/30"
+                                >
+                                    Return to Spectate
+                                </Button>
+
+                                <button
+                                    onClick={() => setShowCancelledNotification(false)}
+                                    className="w-full mt-4 text-gray-500 hover:text-gray-300 font-orbitron text-xs uppercase tracking-widest transition-colors"
+                                >
+                                    Dismiss
+                                </button>
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

@@ -187,21 +187,21 @@ describe('Power Surge Cards - All 15 Cards', () => {
   });
 
   // ==========================================================================
-  // 5. BLUE SET HEAL - Restore 5 HP per turn
+  // 5. BLUE SET HEAL - Restore 10 HP per turn
   // ==========================================================================
   describe('Blue Set Heal (hp_regen)', () => {
     it('should have correct card definition', () => {
       const card = getPowerSurgeCard('blue-set-heal');
       expect(card).toBeDefined();
       expect(card!.effectType).toBe('hp_regen');
-      expect(card!.effectParams.hpRegen).toBe(5);
+      expect(card!.effectParams.hpRegen).toBe(10);
     });
 
-    it('should set HP regen to 5', () => {
+    it('should set HP regen to 10', () => {
       const surgeResults = calculateSurgeEffects('blue-set-heal', null);
       const mods = surgeResults.player1Modifiers;
       
-      expect(mods.hpRegen).toBe(5);
+      expect(mods.hpRegen).toBe(10);
     });
 
     it('should regenerate HP each turn', () => {
@@ -297,21 +297,21 @@ describe('Power Surge Cards - All 15 Cards', () => {
   });
 
   // ==========================================================================
-  // 7. 10BPS BARRAGE - +18 energy regen
+  // 7. 10BPS BARRAGE - +20 energy regen
   // ==========================================================================
   describe('10BPS Barrage (energy_regen)', () => {
     it('should have correct card definition', () => {
       const card = getPowerSurgeCard('10bps-barrage');
       expect(card).toBeDefined();
       expect(card!.effectType).toBe('energy_regen');
-      expect(card!.effectParams.energyRegenBonus).toBe(18);
+      expect(card!.effectParams.energyRegenBonus).toBe(20);
     });
 
-    it('should set energy regen bonus to 18', () => {
+    it('should set energy regen bonus to 20', () => {
       const surgeResults = calculateSurgeEffects('10bps-barrage', null);
       const mods = surgeResults.player1Modifiers;
       
-      expect(mods.energyRegenBonus).toBe(18);
+      expect(mods.energyRegenBonus).toBe(20);
     });
   });
 
@@ -431,21 +431,21 @@ describe('Power Surge Cards - All 15 Cards', () => {
   });
 
   // ==========================================================================
-  // 11. GHOSTDAG - Opponent loses 15 energy every turn
+  // 11. GHOSTDAG - Opponent loses 30 energy every turn
   // ==========================================================================
   describe('GhostDAG (energy_drain)', () => {
     it('should have correct card definition', () => {
       const card = getPowerSurgeCard('ghost-dag');
       expect(card).toBeDefined();
       expect(card!.effectType).toBe('energy_drain');
-      expect(card!.effectParams.energyDrain).toBe(15);
+      expect(card!.effectParams.energyDrain).toBe(30);
     });
 
-    it('should set energy drain to 15', () => {
+    it('should set energy drain to 30', () => {
       const surgeResults = calculateSurgeEffects('ghost-dag', null);
       const mods = surgeResults.player1Modifiers;
       
-      expect(mods.energyDrain).toBe(15);
+      expect(mods.energyDrain).toBe(30);
     });
 
     it('should drain opponent energy via applyEnergyEffects', () => {
@@ -455,7 +455,7 @@ describe('Power Surge Cards - All 15 Cards', () => {
       // GhostDAG drains even without hitting
       const energyEffects = applyEnergyEffects(mods, 100, false);
       
-      expect(energyEffects.energyBurned).toBe(15);
+      expect(energyEffects.energyBurned).toBe(30);
     });
 
     it('should drain opponent energy in actual combat', () => {
@@ -476,7 +476,7 @@ describe('Power Surge Cards - All 15 Cards', () => {
   });
 
   // ==========================================================================
-  // 12. FINALITY FIST - Special +70% damage, costs +12 energy
+  // 12. FINALITY FIST - Special +70% damage, costs +24 energy
   // ==========================================================================
   describe('Finality Fist (critical_special)', () => {
     it('should have correct card definition', () => {
@@ -484,7 +484,7 @@ describe('Power Surge Cards - All 15 Cards', () => {
       expect(card).toBeDefined();
       expect(card!.effectType).toBe('critical_special');
       expect(card!.effectParams.damageMultiplier).toBe(1.7);
-      expect(card!.effectParams.energyCostBonus).toBe(12);
+      expect(card!.effectParams.energyCostBonus).toBe(24);
     });
 
     it('should set damage multiplier and extra energy cost', () => {
@@ -492,7 +492,7 @@ describe('Power Surge Cards - All 15 Cards', () => {
       const mods = surgeResults.player1Modifiers;
       
       expect(mods.damageMultiplier).toBe(1.7);
-      expect(mods.specialEnergyCost).toBe(12);
+      expect(mods.specialEnergyCost).toBe(24);
       expect(mods.criticalHit).toBe(true);
     });
 
@@ -562,21 +562,21 @@ describe('Power Surge Cards - All 15 Cards', () => {
   });
 
   // ==========================================================================
-  // 14. VAULTBREAKER - Steal 18 energy on hit
+  // 14. VAULTBREAKER - Steal 50 energy on hit
   // ==========================================================================
   describe('Vaultbreaker (energy_steal)', () => {
     it('should have correct card definition', () => {
       const card = getPowerSurgeCard('vaultbreaker');
       expect(card).toBeDefined();
       expect(card!.effectType).toBe('energy_steal');
-      expect(card!.effectParams.energySteal).toBe(18);
+      expect(card!.effectParams.energySteal).toBe(50);
     });
 
-    it('should set energy steal to 18', () => {
+    it('should set energy steal to 50', () => {
       const surgeResults = calculateSurgeEffects('vaultbreaker', null);
       const mods = surgeResults.player1Modifiers;
       
-      expect(mods.energySteal).toBe(18);
+      expect(mods.energySteal).toBe(50);
     });
 
     it('should steal energy only when attack hits', () => {
@@ -585,7 +585,7 @@ describe('Power Surge Cards - All 15 Cards', () => {
       
       // When hit connects
       const effectsOnHit = applyEnergyEffects(mods, 100, true);
-      expect(effectsOnHit.energyStolen).toBe(18);
+      expect(effectsOnHit.energyStolen).toBe(50);
       
       // When hit misses
       const effectsOnMiss = applyEnergyEffects(mods, 100, false);

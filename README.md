@@ -98,7 +98,6 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 ### 🛍️ Customization & Shop
 - **Client-Side NFT Cosmetics:** Every cosmetic item purchased triggers a **1 KAS transaction to the treasury vault** with NFT metadata embedded in the payload, inscribing your cosmetic on-chain.
 - **Cosmetic Shop:** Browse and purchase skins, emotes, victory poses, and profile badges
-- **Weekly Featured Rotation:** Special limited-time items with exclusive designs
 - **Inventory Management:** Track owned cosmetics and transaction history
 - **Currency Economy:** Spend Clash Shards earned from gameplay to unlock new cosmetics
 

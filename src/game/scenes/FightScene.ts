@@ -1868,7 +1868,7 @@ export class FightScene extends Phaser.Scene {
       this.add.text(
         GAME_DIMENSIONS.CENTER_X,
         GAME_DIMENSIONS.HEIGHT - 80,
-        "ðŸ‘ SPECTATOR MODE",
+        "SPECTATOR MODE",
         { fontFamily: "monospace", fontSize: "18px", color: "#a855f7", fontStyle: "bold" }
       ).setOrigin(0.5);
       return;
@@ -3747,7 +3747,11 @@ export class FightScene extends Phaser.Scene {
     // Check database to see if both players have submitted their Power Surge selections
     const areBothSurgesComplete = await this.checkBothSurgesComplete(currentRound);
 
-    if (!areBothSurgesComplete) {
+    // Grace period after surge deadline (15 seconds from round start) for selections to propagate
+    // If we're well past the surge window, proceed even if not both complete (opponent timed out)
+    const surgeDeadlinePassed = Date.now() > (moveDeadlineAt - 5000); // Surge ends ~5s before move deadline
+
+    if (!areBothSurgesComplete && !surgeDeadlinePassed) {
       console.log(`[FightScene] *** Waiting for both players to complete Power Surge selections`);
       // Retry after 500ms
       this.time.delayedCall(500, () => {
@@ -3756,7 +3760,11 @@ export class FightScene extends Phaser.Scene {
       return;
     }
 
-    console.log(`[FightScene] *** Both players completed Power Surge or no surge this round - starting timer`);
+    if (!areBothSurgesComplete && surgeDeadlinePassed) {
+      console.log(`[FightScene] *** Surge deadline passed, opponent likely timed out - proceeding anyway`);
+    } else {
+      console.log(`[FightScene] *** Both players completed Power Surge or no surge this round - starting timer`);
+    }
 
     this.phase = "selecting";
     this.selectedMove = null;
