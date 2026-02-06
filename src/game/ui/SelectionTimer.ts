@@ -380,6 +380,15 @@ export class SelectionTimer extends Phaser.GameObjects.Container {
   }
 
   /**
+   * Called from the scene's update() loop to drive visual refreshes.
+   * This ensures the timer UI updates even when the tab was backgrounded
+   * (Phaser's time.addEvent pauses, but the scene update loop fires on refocus).
+   */
+  tickFromUpdate(): void {
+    this.tick();
+  }
+
+  /**
    * Set the label text.
    */
   setLabel(text: string): void {

@@ -92,6 +92,21 @@ export class CharacterSelectScene extends Phaser.Scene {
   private hasLockedBan: boolean = false;
   private hasOpponentLockedBan: boolean = false;
 
+  // =========================================================================
+  // DEADLINE-BASED TIMERS (server-side / Date.now())
+  // These replace Phaser delayedCall so timers keep running when tab is hidden
+  // =========================================================================
+  private botBanRevealAt: number = 0;
+  private channelReadyFallbackAt: number = 0;
+  private channelReadyHandler?: () => void;
+  private banToPickTransitionAt: number = 0;
+  private botPickAt: number = 0;
+  private revealBothReadyAt: number = 0;
+  private matchStartTransitionAt: number = 0;
+
+  // Visibility change handler reference for cleanup
+  private visibilityHandler?: () => void;
+
   // Layout constants - optimized for compact 10x2 grid at bottom
   private readonly CARD_WIDTH = 110;
   private readonly CARD_HEIGHT = 140;
@@ -153,6 +168,15 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.bannedCharacters.clear();
     this.hasLockedBan = false;
     this.hasOpponentLockedBan = false;
+
+    // Reset all deadlines
+    this.botBanRevealAt = 0;
+    this.channelReadyFallbackAt = 0;
+    this.channelReadyHandler = undefined;
+    this.banToPickTransitionAt = 0;
+    this.botPickAt = 0;
+    this.revealBothReadyAt = 0;
+    this.matchStartTransitionAt = 0;
   }
 
   /**
@@ -217,6 +241,7 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.statsOverlay = new StatsOverlay(this);
 
     this.setupEventListeners();
+    this.setupVisibilityChangeHandler();
 
     // Initialize Bot BEFORE restoreExistingSelectionsUI to ensure isBot flag is set correctly
     // This prevents incorrect opponent character restoration for bot matches
@@ -255,7 +280,7 @@ export class CharacterSelectScene extends Phaser.Scene {
       if (!this.config.existingOpponentBan) {
         const botBanDelay = 3000 + Math.random() * 3000; // 3-6 seconds
         console.log(`[CharacterSelectScene] Bot ban will be revealed in ${Math.round(botBanDelay)}ms`);
-        this.time.delayedCall(botBanDelay, () => this.revealBotBan());
+        this.botBanRevealAt = Date.now() + botBanDelay;
       } else {
         console.log(`[CharacterSelectScene] Bot ban already in database, skipping reveal animation`);
       }
@@ -374,19 +399,11 @@ export class CharacterSelectScene extends Phaser.Scene {
       };
 
       EventBus.on("channel_ready", handleChannelReady);
+      this.channelReadyHandler = handleChannelReady;
       console.log("[CharacterSelectScene] Registered channel_ready listener");
 
-      // Also set a timeout fallback in case channel_ready was already emitted
-      this.time.delayedCall(500, () => {
-        console.log("[CharacterSelectScene] Timeout fallback check - isActive FightScene:", this.scene.isActive("FightScene"));
-        if (this.confirmedCharacter && !this.scene.isActive("FightScene")) {
-          console.log("[CharacterSelectScene] Timeout fallback - triggering selection confirmation");
-          EventBus.off("channel_ready", handleChannelReady);
-          EventBus.emit("selection_confirmed", {
-            characterId: this.confirmedCharacter.id,
-          });
-        }
-      });
+      // Also set a deadline fallback in case channel_ready was already emitted
+      this.channelReadyFallbackAt = Date.now() + 500;
     } else {
       console.log("[CharacterSelectScene] No pending selections to confirm on channel ready");
     }
@@ -1194,9 +1211,7 @@ export class CharacterSelectScene extends Phaser.Scene {
       this.instructionText.setText("Ban Phase Complete. Prepare to Pick...");
 
       const delay = Phaser.Math.Between(2000, 4000);
-      this.time.delayedCall(delay, () => {
-        this.startPickPhase();
-      });
+      this.banToPickTransitionAt = Date.now() + delay;
     }
   }
 
@@ -1223,7 +1238,7 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     // Trigger Bot Pick Logic if bot match
     if (this.config.isBot) {
-      this.time.delayedCall(3000 + Math.random() * 3000, () => this.performBotPick());
+      this.botPickAt = Date.now() + 3000 + Math.random() * 3000;
     }
   }
 
@@ -1261,13 +1276,8 @@ export class CharacterSelectScene extends Phaser.Scene {
       this.opponentCharacter.theme
     );
 
-    // Optional: Delay before emitting "both_ready" to allow players to see the match-up
-    this.time.delayedCall(1500, () => {
-      EventBus.emit("both_ready", {
-        player: this.confirmedCharacter!.id,
-        opponent: this.opponentCharacter!.id,
-      });
-    });
+    // Delay before emitting "both_ready" to allow players to see the match-up
+    this.revealBothReadyAt = Date.now() + 1500;
   }
 
   /**
@@ -1356,11 +1366,8 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     console.log("[CharacterSelectScene] Scheduling transition to FightScene in", countdown, "seconds");
 
-    // Transition to fight scene after countdown
-    this.time.delayedCall(countdown * 1000, () => {
-      console.log("[CharacterSelectScene] Countdown complete, calling transitionToFight()");
-      this.transitionToFight();
-    });
+    // Set deadline for fight scene transition
+    this.matchStartTransitionAt = Date.now() + countdown * 1000;
   }
 
   /**
@@ -1432,10 +1439,81 @@ export class CharacterSelectScene extends Phaser.Scene {
   }
 
   /**
-   * Scene update loop.
+   * Scene update loop — single source of truth for all deadline-based transitions.
+   * Uses Date.now() so timers keep running even when the browser tab is backgrounded.
    */
   update(_time: number, _delta: number): void {
-    // Update any animated elements if needed
+    const now = Date.now();
+
+    // --- SelectionTimer visual refresh (driven by update loop, not Phaser timer) ---
+    if (this.selectionTimer) {
+      this.selectionTimer.tickFromUpdate?.();
+    }
+
+    // --- Bot ban reveal deadline ---
+    if (this.botBanRevealAt > 0 && now >= this.botBanRevealAt) {
+      this.botBanRevealAt = 0;
+      this.revealBotBan();
+    }
+
+    // --- Channel ready fallback deadline ---
+    if (this.channelReadyFallbackAt > 0 && now >= this.channelReadyFallbackAt) {
+      this.channelReadyFallbackAt = 0;
+      console.log("[CharacterSelectScene] Timeout fallback check - isActive FightScene:", this.scene.isActive("FightScene"));
+      if (this.confirmedCharacter && !this.scene.isActive("FightScene")) {
+        console.log("[CharacterSelectScene] Timeout fallback - triggering selection confirmation");
+        if (this.channelReadyHandler) {
+          EventBus.off("channel_ready", this.channelReadyHandler);
+          this.channelReadyHandler = undefined;
+        }
+        EventBus.emit("selection_confirmed", {
+          characterId: this.confirmedCharacter.id,
+        });
+      }
+    }
+
+    // --- Ban → Pick transition deadline ---
+    if (this.banToPickTransitionAt > 0 && now >= this.banToPickTransitionAt) {
+      this.banToPickTransitionAt = 0;
+      this.startPickPhase();
+    }
+
+    // --- Bot pick deadline ---
+    if (this.botPickAt > 0 && now >= this.botPickAt) {
+      this.botPickAt = 0;
+      this.performBotPick();
+    }
+
+    // --- Reveal → both_ready deadline ---
+    if (this.revealBothReadyAt > 0 && now >= this.revealBothReadyAt) {
+      this.revealBothReadyAt = 0;
+      EventBus.emit("both_ready", {
+        player: this.confirmedCharacter!.id,
+        opponent: this.opponentCharacter!.id,
+      });
+    }
+
+    // --- Match starting → fight transition deadline ---
+    if (this.matchStartTransitionAt > 0 && now >= this.matchStartTransitionAt) {
+      this.matchStartTransitionAt = 0;
+      console.log("[CharacterSelectScene] Countdown complete, calling transitionToFight()");
+      this.transitionToFight();
+    }
+  }
+
+  /**
+   * Set up a visibility-change listener so the scene can catch up instantly
+   * when the player returns to the tab.
+   */
+  private setupVisibilityChangeHandler(): void {
+    this.visibilityHandler = () => {
+      if (document.visibilityState === "visible") {
+        console.log("[CharacterSelectScene] Tab re-focused, forcing update catch-up");
+        // Force an immediate update tick to process any expired deadlines
+        this.update(0, 0);
+      }
+    };
+    document.addEventListener("visibilitychange", this.visibilityHandler);
   }
 
   /**
@@ -1448,5 +1526,11 @@ export class CharacterSelectScene extends Phaser.Scene {
     EventBus.off("opponent_disconnected");
     EventBus.off("channel_ready");
     EventBus.off("game:banConfirmed");
+
+    // Clean up visibility handler
+    if (this.visibilityHandler) {
+      document.removeEventListener("visibilitychange", this.visibilityHandler);
+      this.visibilityHandler = undefined;
+    }
   }
 }

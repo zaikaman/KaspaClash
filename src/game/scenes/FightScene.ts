@@ -3020,6 +3020,13 @@ export class FightScene extends Phaser.Scene {
         isPrivateRoom?: boolean;
       };
 
+      // Guard: ignore duplicate match_ended events (e.g. broadcast arriving after
+      // forfeiter already processed locally from the API response)
+      if (this.phase === "match_end") {
+        console.log("[FightScene] Ignoring duplicate game:matchEnded - already in match_end phase");
+        return;
+      }
+
       if (this.isResolving) {
         console.log("[FightScene] Match ended while resolving round - queueing payload");
         this.pendingMatchEndPayload = payload;
@@ -4441,7 +4448,11 @@ export class FightScene extends Phaser.Scene {
     // Use helper for SFX and Animations
     this.showMatchEnd(payload.winner);
 
-    this.time.delayedCall(5000, () => {
+    // Use a shorter delay for forfeits so the result feels instant
+    // Normal match endings (knockout/rounds_won) keep the full 5s for animations
+    const delayMs = payload.reason === "forfeit" ? 1500 : 5000;
+
+    this.time.delayedCall(delayMs, () => {
       // Construct detailed result from server state + payload
       const result = {
         winner: payload.winner,

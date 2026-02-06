@@ -136,22 +136,8 @@ export async function POST(
       console.log(`[Forfeit API] Skipping ELO update for private room match ${matchId}`);
     }
 
-    // Process betting payouts for the match
-    try {
-      const { resolveMatchPayouts, resolveMatchStakePayout } = await import("@/lib/betting/payout-service");
-      console.log(`[Forfeit API] Processing betting payouts for match ${matchId}`);
-      await resolveMatchPayouts(matchId);
-      
-      // Also process stake payout if applicable
-      await resolveMatchStakePayout(matchId);
-      console.log(`[Forfeit API] Betting payouts processed successfully for match ${matchId}`);
-    } catch (payoutError) {
-      // Log but don't fail the forfeit - payouts can be retried
-      console.error(`[Forfeit API] Error processing betting payouts for match ${matchId}:`, payoutError);
-    }
-
-    // Broadcast match_ended event via Supabase Realtime REST API
-    // Server-side sends without subscribing explicitly use HTTP/REST
+    // Broadcast match_ended event FIRST via Supabase Realtime REST API
+    // so the opponent sees the result instantly before slow payout processing
     const gameChannel = supabase.channel(`game:${matchId}`);
     await gameChannel.send({
       type: "broadcast",
@@ -191,6 +177,23 @@ export async function POST(
       },
     });
     await supabase.removeChannel(gameChannel);
+
+    // Process betting payouts AFTER broadcast (fire-and-forget, don't block the response)
+    // This runs after the response is prepared but we don't await it blocking the response
+    const payoutPromise = (async () => {
+      try {
+        const { resolveMatchPayouts, resolveMatchStakePayout } = await import("@/lib/betting/payout-service");
+        console.log(`[Forfeit API] Processing betting payouts for match ${matchId}`);
+        await resolveMatchPayouts(matchId);
+        await resolveMatchStakePayout(matchId);
+        console.log(`[Forfeit API] Betting payouts processed successfully for match ${matchId}`);
+      } catch (payoutError) {
+        console.error(`[Forfeit API] Error processing betting payouts for match ${matchId}:`, payoutError);
+      }
+    })();
+    // Don't await payoutPromise - let it run in the background
+    // Edge runtime will keep the promise alive until it resolves
+    void payoutPromise;
 
     // Return full match ended payload for client-side handling (especially bot matches)
     return NextResponse.json({

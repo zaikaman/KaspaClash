@@ -529,20 +529,19 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
           console.log("[MatchGameClient] Surrender successful");
           const data = await response.json();
           
-          // For bot matches, we need to emit the match ended event manually
-          // since the broadcast may not reach the client properly
-          if (isOpponentBot) {
-            console.log("[MatchGameClient] Bot match - emitting game:matchEnded manually");
-            // Emit the match ended event to trigger ResultsScene transition
-            EventBus.emit("game:matchEnded", {
-              winner: data.winner,
-              winnerAddress: data.winnerAddress,
-              reason: "forfeit",
-              finalScore: data.finalScore,
-              ratingChanges: data.ratingChanges,
-            });
-          }
-          // For human matches, backend broadcasts 'match_ended' which the game channel handles
+          // Emit game:matchEnded immediately for BOTH bot and human matches
+          // so the forfeiter sees DEFEAT instantly without waiting for the broadcast
+          console.log("[MatchGameClient] Emitting game:matchEnded immediately for forfeiter");
+          EventBus.emit("game:matchEnded", {
+            winner: data.winner,
+            winnerAddress: data.winnerAddress,
+            reason: "forfeit",
+            finalScore: data.finalScore,
+            ratingChanges: data.ratingChanges,
+            isPrivateRoom: data.isPrivateRoom,
+          });
+          // For human matches, the broadcast will also arrive but processMatchEnd
+          // is idempotent (phase will already be match_end so it won't re-trigger)
         } else {
           console.error("Surrender failed:", await response.text());
           EventBus.emit("game:moveError", { error: "Surrender failed" });
