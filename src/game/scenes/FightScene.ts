@@ -86,9 +86,10 @@ export class FightScene extends Phaser.Scene {
   // Move selection
   private selectedMove: MoveType | null = null;
 
-  // Timer
+  // Timer - ALL timers use real-time deadlines (Date.now()) instead of Phaser timers
+  // This ensures timers continue counting down even when the browser tab is backgrounded
   private turnTimer: number = 15;
-  private timerEvent?: Phaser.Time.TimerEvent;
+  // REMOVED: private timerEvent - replaced by update() loop using moveDeadlineAt
 
   // State
   private phase: "waiting" | "countdown" | "selecting" | "resolving" | "round_end" | "match_end" = "waiting";
@@ -96,11 +97,25 @@ export class FightScene extends Phaser.Scene {
   private moveDeadlineAt: number = 0; // Server-synchronized move deadline timestamp
   private localMoveSubmitted: boolean = false; // Track if local player submitted move this round
 
+  // Real-time deadline tracking (all use Date.now() so they work across tab switches)
+  private countdownEndsAt: number = 0; // When the 3-2-1 FIGHT countdown ends
+  private countdownPhaseNumber: number = 0; // Which countdown number was last displayed (3, 2, 1, 0=FIGHT)
+  private roundEndCountdownEndsAt: number = 0; // When the "Next round in X" countdown ends
+  private roundEndCountdownStartedAt: number = 0; // When the round-end countdown started
+  private stunnedAutoSubmitAt: number = 0; // When to auto-submit stunned move
+  private bothStunnedSkipAt: number = 0; // When to auto-skip both-stunned turn
+  private timerExpiredHandled: boolean = false; // Prevent double-handling of timer expiry
+
+  // Visibility change handler for catch-up on tab refocus
+  private visibilityChangeHandler?: () => void;
+
+  // Store round-end data for processing after countdown
+  private roundEndData?: { p1Char: string; p2Char: string };
+
   // Disconnect handling
   private disconnectOverlay?: Phaser.GameObjects.Container;
   private disconnectTimerText?: Phaser.GameObjects.Text;
   private disconnectTimeoutAt: number = 0;
-  private disconnectTimerEvent?: Phaser.Time.TimerEvent;
   private opponentDisconnected: boolean = false;
 
   // Audio settings
@@ -428,6 +443,10 @@ export class FightScene extends Phaser.Scene {
     // Setup event listeners
     this.setupEventListeners();
 
+    // Setup visibility change handler for tab-switch catch-up
+    // This ensures timers continue correctly when the user switches tabs
+    this.setupVisibilityChangeHandler();
+
     // Check if we have reconnect state passed via config
     console.log("[FightScene] create() - checking reconnect config");
     console.log("[FightScene] config.isReconnect:", this.config.isReconnect);
@@ -533,11 +552,113 @@ export class FightScene extends Phaser.Scene {
   }
 
   /**
-   * Update loop.
+   * Update loop - THE single source of truth for all time-based game logic.
+   * Uses Date.now() so timers continue correctly even when the tab is backgrounded.
+   * Phaser's clock pauses on tab switch, but Date.now() doesn't.
    */
   update(_time: number, _delta: number): void {
-    if (this.phase === "selecting" && this.roundTimerText) {
-      this.roundTimerText.setText(`${Math.ceil(this.turnTimer)}`);
+    const now = Date.now();
+
+    // === COUNTDOWN PHASE (3-2-1 FIGHT) ===
+    if (this.phase === "countdown" && this.countdownEndsAt > 0) {
+      const remainingMs = this.countdownEndsAt - now;
+      const remainingSeconds = Math.ceil(remainingMs / 1000);
+
+      if (remainingMs <= 0) {
+        // Countdown finished - show FIGHT! briefly then start selection
+        if (this.countdownPhaseNumber !== -1) {
+          this.countdownPhaseNumber = -1;
+          this.countdownText.setText("FIGHT!");
+          this.countdownText.setAlpha(1);
+          this.countdownText.setScale(1);
+          // Start selection phase after 500ms
+          const selectionStartAt = this.countdownEndsAt + 500;
+          if (now >= selectionStartAt) {
+            // Already past the FIGHT! display time, start immediately
+            this.countdownText.setAlpha(0);
+            this.countdownEndsAt = 0;
+            this.startSynchronizedSelectionPhase(this.moveDeadlineAt);
+          }
+        } else if (now >= this.countdownEndsAt + 500) {
+          // FIGHT! text display time is over
+          this.countdownText.setAlpha(0);
+          this.countdownEndsAt = 0;
+          this.startSynchronizedSelectionPhase(this.moveDeadlineAt);
+        }
+      } else if (remainingSeconds !== this.countdownPhaseNumber && remainingSeconds > 0 && remainingSeconds <= 3) {
+        // Show next countdown number
+        this.countdownPhaseNumber = remainingSeconds;
+        this.countdownText.setText(remainingSeconds.toString());
+        this.countdownText.setAlpha(1);
+        this.tweens.killTweensOf(this.countdownText);
+        this.tweens.add({
+          targets: this.countdownText,
+          scale: { from: 1.5, to: 1 },
+          alpha: { from: 1, to: 0.5 },
+          duration: 800,
+        });
+      }
+    }
+
+    // === SELECTING PHASE (move timer countdown) ===
+    if (this.phase === "selecting" && this.moveDeadlineAt > 0 && this.roundTimerText) {
+      const remainingMs = this.moveDeadlineAt - now;
+      this.turnTimer = Math.max(0, Math.ceil(remainingMs / 1000));
+      this.roundTimerText.setText(`${this.turnTimer}s`);
+
+      if (this.turnTimer <= 5) {
+        this.roundTimerText.setColor("#ff4444");
+      } else {
+        this.roundTimerText.setColor("#40e0d0");
+      }
+
+      // Handle timer expiry
+      if (remainingMs <= 0 && !this.timerExpiredHandled) {
+        this.timerExpiredHandled = true;
+        this.onTimerExpired();
+      }
+    }
+
+    // === STUNNED AUTO-SUBMIT ===
+    if (this.stunnedAutoSubmitAt > 0 && now >= this.stunnedAutoSubmitAt) {
+      const submitAt = this.stunnedAutoSubmitAt;
+      this.stunnedAutoSubmitAt = 0; // Clear to prevent re-trigger
+      this.handleStunnedAutoSubmit();
+    }
+
+    // === BOTH STUNNED SKIP ===
+    if (this.bothStunnedSkipAt > 0 && now >= this.bothStunnedSkipAt) {
+      this.bothStunnedSkipAt = 0; // Clear to prevent re-trigger
+      this.handleBothStunnedSkip();
+    }
+
+    // === ROUND END COUNTDOWN ===
+    if (this.phase === "round_end" && this.roundEndCountdownEndsAt > 0) {
+      const remainingMs = this.roundEndCountdownEndsAt - now;
+      const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+
+      if (remainingMs <= 0) {
+        // Round-end countdown finished
+        this.roundEndCountdownEndsAt = 0;
+        this.processRoundEndCountdownComplete();
+      } else {
+        // Update countdown text
+        this.countdownText.setText(`Next round starting in ${remainingSeconds}`);
+        this.countdownText.setFontSize(32);
+        this.countdownText.setColor("#40e0d0");
+        this.countdownText.setAlpha(1);
+      }
+    }
+
+    // === DISCONNECT TIMER ===
+    if (this.opponentDisconnected && this.disconnectTimeoutAt > 0) {
+      const remaining = Math.max(0, Math.ceil((this.disconnectTimeoutAt - now) / 1000));
+      if (this.disconnectTimerText) {
+        this.disconnectTimerText.setText(`Waiting for reconnection: ${remaining}s`);
+      }
+      if (remaining <= 0) {
+        this.handleDisconnectTimeout();
+      }
     }
   }
 
@@ -750,7 +871,7 @@ export class FightScene extends Phaser.Scene {
     // Update round score
     const roundsToWin = this.combatEngine ? this.combatEngine.getState().roundsToWin : 2;
     this.roundScoreText.setText(
-      `Round ${state.currentRound}  â€¢  ${state.player1RoundsWon} - ${state.player2RoundsWon}  (First to ${roundsToWin})`
+      `Round ${state.currentRound}  |  ${state.player1RoundsWon} - ${state.player2RoundsWon}  (First to ${roundsToWin})`
     );
 
     // Handle phase-specific logic
@@ -1035,7 +1156,7 @@ export class FightScene extends Phaser.Scene {
     // Update round score
     const roundsToWin = this.combatEngine ? this.combatEngine.getState().roundsToWin : 2;
     this.roundScoreText.setText(
-      `Round ${gameState.currentRound}  â€¢  ${gameState.player1RoundsWon} - ${gameState.player2RoundsWon}  (First to ${roundsToWin})`
+      `Round ${gameState.currentRound}  |  ${gameState.player1RoundsWon} - ${gameState.player2RoundsWon}  (First to ${roundsToWin})`
     );
   }
 
@@ -2254,61 +2375,26 @@ export class FightScene extends Phaser.Scene {
     // Play SFX first (full "3-2-1 Fight" sequence)
     this.playSFX("sfx_cd_fight");
 
-    // Delay visual countdown slightly to match audio timing (approx 0.3s before "3" appears)
-    this.time.delayedCall(300, () => {
-      this.showCountdown(3);
-    });
+    // Set up deadline-based countdown (update() loop handles the rest)
+    const now = Date.now();
+    this.countdownEndsAt = now + 3300; // 3 seconds + 300ms delay
+    this.countdownPhaseNumber = 0;
+    this.moveDeadlineAt = now + 3300 + 20000; // Countdown + 20s selection time
   }
 
+  // showCountdown() method is deprecated - countdown is now handled by update() loop
   private showCountdown(seconds: number): void {
-    let count = seconds;
-
-    const updateCountdown = () => {
-      if (count > 0) {
-        this.countdownText.setText(count.toString());
-        this.countdownText.setAlpha(1);
-
-        this.tweens.add({
-          targets: this.countdownText,
-          scale: { from: 1.5, to: 1 },
-          alpha: { from: 1, to: 0.5 },
-          duration: 800,
-          onComplete: () => {
-            count--;
-            if (count > 0) {
-              updateCountdown();
-            } else {
-              this.countdownText.setText("FIGHT!");
-              this.countdownText.setAlpha(1);
-              this.tweens.add({
-                targets: this.countdownText,
-                alpha: 0,
-                duration: 500,
-                delay: 500,
-                onComplete: () => {
-                  this.startSelectionPhase();
-                },
-              });
-            }
-          },
-        });
-      }
-    };
-
-    updateCountdown();
+    // Legacy method - no longer used
+    // Countdown is now handled by the update() loop using real-time deadlines
+    console.warn("[FightScene] showCountdown() is deprecated - use deadline-based approach");
   }
 
   private startSelectionPhase(): void {
-    // IMPORTANT: Always destroy existing timer before creating a new one
-    if (this.timerEvent) {
-      this.timerEvent.destroy();
-      this.timerEvent = undefined;
-    }
-
     this.phase = "selecting";
     this.selectedMove = null;
     this.turnTimer = 20;
-    this.localMoveSubmitted = false; // Reset for new round
+    this.localMoveSubmitted = false;
+    this.timerExpiredHandled = false;
     this.turnIndicatorText.setText("Select your move!");
 
     this.hasRequestedCancel = false;
@@ -2317,23 +2403,8 @@ export class FightScene extends Phaser.Scene {
     this.resetButtonVisuals();
     this.updateMoveButtonAffordability();
 
-    // Start timer
-    this.timerEvent = this.time.addEvent({
-      delay: 1000,
-      callback: () => {
-        // Guard: only run if still in selecting phase
-        if (this.phase !== "selecting") return;
-
-        this.turnTimer--;
-        if (this.turnTimer <= 5) {
-          this.roundTimerText.setColor("#ff4444");
-        }
-        if (this.turnTimer <= 0) {
-          this.onTimerExpired();
-        }
-      },
-      repeat: 19,
-    });
+    // Timer is now handled by update() loop using this.moveDeadlineAt and Date.now()
+    // No Phaser TimerEvent needed - this works correctly across tab switches
 
     // Sync UI
     this.syncUIWithCombatState();
@@ -2383,12 +2454,8 @@ export class FightScene extends Phaser.Scene {
       return;
     }
 
-    // IMPORTANT: Stop the timer immediately to prevent multiple calls
-    if (this.timerEvent) {
-      console.log(`[FightScene] *** Destroying timer on expiration`);
-      this.timerEvent.destroy();
-      this.timerEvent = undefined;
-    }
+    // Mark as handled to prevent duplicate calls from update() loop
+    this.timerExpiredHandled = true;
 
     // Update UI to show timeout state
     // Different message based on whether we submitted or not
@@ -2515,11 +2582,12 @@ export class FightScene extends Phaser.Scene {
     // Transition to match end phase
     this.phase = "match_end";
 
-    // Clear any active timers
-    if (this.timerEvent) {
-      this.timerEvent.remove();
-      this.timerEvent = undefined;
-    }
+    // Clear any deadline-based timers
+    this.timerExpiredHandled = true;
+    this.stunnedAutoSubmitAt = 0;
+    this.bothStunnedSkipAt = 0;
+    this.roundEndCountdownEndsAt = 0;
+    this.countdownEndsAt = 0;
 
     // Hide move selection UI
     this.moveButtons.forEach((button) => button.setVisible(false));
@@ -2543,17 +2611,17 @@ export class FightScene extends Phaser.Scene {
     if (totalRefunded > 0) {
       message += `Total refunds: ${totalRefunded} transactions`;
       if (refundStats.stakesRefunded > 0) {
-        message += `\\nâ€¢ Entry stakes: ${refundStats.stakesRefunded} players`;
+        message += `\\n- Entry stakes: ${refundStats.stakesRefunded} players`;
       }
       if (refundStats.betsRefunded > 0) {
-        message += `\\nâ€¢ Spectator bets: ${refundStats.betsRefunded} bettors`;
+        message += `\\n- Spectator bets: ${refundStats.betsRefunded} bettors`;
       }
     } else {
       message += "No refunds required";
     }
 
     if (hasErrors) {
-      message += "\\n\\nâš ï¸ Some refunds failed - Contact support";
+      message += "\\n\\n[!] Some refunds failed - Contact support";
     }
 
     // Show cancellation overlay
@@ -3063,11 +3131,12 @@ export class FightScene extends Phaser.Scene {
         this.activeDialogBlocker = undefined;
       }
 
-      // Stop any running timer
-      if (this.timerEvent) {
-        this.timerEvent.destroy();
-        this.timerEvent = undefined;
-      }
+      // Stop any deadline-based timers
+      this.timerExpiredHandled = true;
+      this.stunnedAutoSubmitAt = 0;
+      this.bothStunnedSkipAt = 0;
+      this.roundEndCountdownEndsAt = 0;
+      this.countdownEndsAt = 0;
 
       // If this is a disconnect refund scenario, show detailed overlay
       if (payload.refundsProcessed !== undefined) {
@@ -3367,27 +3436,8 @@ export class FightScene extends Phaser.Scene {
 
     this.disconnectOverlay.setVisible(true);
 
-    // Start countdown timer
-    if (this.disconnectTimerEvent) {
-      this.disconnectTimerEvent.destroy();
-    }
-
-    this.disconnectTimerEvent = this.time.addEvent({
-      delay: 1000,
-      callback: () => {
-        const remaining = Math.max(0, Math.ceil((this.disconnectTimeoutAt - Date.now()) / 1000));
-
-        if (this.disconnectTimerText) {
-          this.disconnectTimerText.setText(`Waiting for reconnection: ${remaining}s`);
-        }
-
-        if (remaining <= 0) {
-          // Timeout expired - claim victory
-          this.handleDisconnectTimeout();
-        }
-      },
-      loop: true,
-    });
+    // Disconnect countdown is now handled by the update() loop using this.disconnectTimeoutAt
+    // No Phaser TimerEvent needed - works correctly across tab switches
   }
 
   /**
@@ -3395,11 +3445,7 @@ export class FightScene extends Phaser.Scene {
    */
   private hideDisconnectOverlay(): void {
     this.opponentDisconnected = false;
-
-    if (this.disconnectTimerEvent) {
-      this.disconnectTimerEvent.destroy();
-      this.disconnectTimerEvent = undefined;
-    }
+    this.disconnectTimeoutAt = 0;
 
     if (this.disconnectOverlay) {
       this.disconnectOverlay.setVisible(false);
@@ -3413,10 +3459,7 @@ export class FightScene extends Phaser.Scene {
    * Handle disconnect timeout - claim victory.
    */
   private handleDisconnectTimeout(): void {
-    if (this.disconnectTimerEvent) {
-      this.disconnectTimerEvent.destroy();
-      this.disconnectTimerEvent = undefined;
-    }
+    this.disconnectTimeoutAt = 0; // Clear to prevent re-triggering from update()
 
     // Update overlay to show claiming victory
     if (this.disconnectTimerText) {
@@ -3545,7 +3588,7 @@ export class FightScene extends Phaser.Scene {
   }, skipCountdown: boolean = false): void {
     console.log(`[FightScene] *** startRoundFromServer called - Round ${payload.roundNumber}, Turn ${payload.turnNumber}`);
     console.log(`[FightScene] *** Current phase: ${this.phase}, skipCountdown: ${skipCountdown}, isResolving: ${this.isResolving}, Timestamp: ${Date.now()}`);
-    console.log(`[FightScene] *** Timer exists: ${!!this.timerEvent}, pendingRoundStart exists: ${!!this.pendingRoundStart}`);
+    console.log(`[FightScene] *** pendingRoundStart exists: ${!!this.pendingRoundStart}`);
 
     // Queue the round_starting event if we're currently in an animation sequence.
     // Use isResolving flag to detect active animations (set in handleServerRoundResolved).
@@ -3569,11 +3612,10 @@ export class FightScene extends Phaser.Scene {
 
     console.log(`[FightScene] *** PROCESSING round start immediately - phase allows it`);
 
-    // Stop any existing timer
-    if (this.timerEvent) {
-      this.timerEvent.destroy();
-      this.timerEvent = undefined;
-    }
+    // Clear any pending deadline-based timers
+    this.timerExpiredHandled = true;
+    this.stunnedAutoSubmitAt = 0;
+    this.bothStunnedSkipAt = 0;
 
     // Store the deadline for synchronized timing
     this.moveDeadlineAt = payload.moveDeadlineAt;
@@ -3690,6 +3732,7 @@ export class FightScene extends Phaser.Scene {
   /**
    * Show countdown then start synchronized selection phase.
    * At the START of each round (turn 1), show Power Surge cards first.
+   * Uses real-time deadlines so countdown works correctly across tab switches.
    */
   private async showCountdownThenSync(countdownSeconds: number, moveDeadlineAt: number): Promise<void> {
     // Check if this is the start of a new round (turn 1)
@@ -3715,50 +3758,24 @@ export class FightScene extends Phaser.Scene {
       await this.showPowerSurgeCards(currentRound, moveDeadlineAt);
     }
 
-    let count = countdownSeconds;
+    if (countdownSeconds <= 0) {
+      // No countdown, start immediately
+      this.startSynchronizedSelectionPhase(moveDeadlineAt);
+      return;
+    }
 
-    // Play SFX first (0.3s before "3" appears)
+    // Set up deadline-based countdown - update() loop handles the rest
+    // This uses Date.now() so it works correctly even when tab is backgrounded
+    const now = Date.now();
+    this.countdownEndsAt = now + (countdownSeconds * 1000);
+    this.countdownPhaseNumber = 0; // Will be set by update() loop
+    this.phase = "countdown";
+    this.moveDeadlineAt = moveDeadlineAt;
+
+    // Play SFX
     this.playSFX("sfx_cd_fight");
 
-    const updateCountdown = () => {
-      if (count > 0) {
-        this.countdownText.setText(count.toString());
-        this.countdownText.setAlpha(1);
-
-        this.tweens.add({
-          targets: this.countdownText,
-          scale: { from: 1.5, to: 1 },
-          alpha: { from: 1, to: 0.5 },
-          duration: 800,
-          onComplete: () => {
-            count--;
-            if (count > 0) {
-              updateCountdown();
-            } else {
-              this.countdownText.setText("FIGHT!");
-              this.countdownText.setAlpha(1);
-              this.tweens.add({
-                targets: this.countdownText,
-                alpha: 0,
-                duration: 500,
-                delay: 500,
-                onComplete: () => {
-                  this.startSynchronizedSelectionPhase(moveDeadlineAt);
-                },
-              });
-            }
-          },
-        });
-      } else {
-        // No countdown, start immediately
-        this.startSynchronizedSelectionPhase(moveDeadlineAt);
-      }
-    };
-
-    // Delay visual countdown by 0.3s so audio plays first
-    this.time.delayedCall(300, () => {
-      updateCountdown();
-    });
+    // If tab was backgrounded and we're already past the countdown, update() will handle it
   }
 
   /**
@@ -3768,12 +3785,10 @@ export class FightScene extends Phaser.Scene {
     console.log(`[FightScene] *** startSynchronizedSelectionPhase called - deadline: ${moveDeadlineAt}, Timestamp: ${Date.now()}`);
     console.log(`[FightScene] *** Time until deadline: ${Math.floor((moveDeadlineAt - Date.now()) / 1000)}s`);
 
-    // IMPORTANT: Always destroy existing timer before creating a new one
-    if (this.timerEvent) {
-      console.log(`[FightScene] *** Destroying existing timer in startSynchronizedSelectionPhase`);
-      this.timerEvent.destroy();
-      this.timerEvent = undefined;
-    }
+    // Clear any previous deadline-based timers
+    this.timerExpiredHandled = false;
+    this.stunnedAutoSubmitAt = 0;
+    this.bothStunnedSkipAt = 0;
 
     // Check if Power Surge selection is still ongoing - BOTH players must complete
     const currentRound = this.serverState?.currentRound ?? 1;
@@ -3883,33 +3898,9 @@ export class FightScene extends Phaser.Scene {
 
       console.log(`[FightScene] Both players stunned - calling skip-stunned-turn API after 2.5s`);
 
-      // Skip the turn after 2.5 seconds without requiring transactions
-      this.time.delayedCall(2500, () => {
-        if (this.phase === "selecting") {
-          this.localMoveSubmitted = true;
-          this.isWaitingForOpponent = true;
-          this.turnIndicatorText.setText("Resolving stunned turn...");
-
-          // Fade out narrative
-          this.tweens.add({
-            targets: this.narrativeText,
-            alpha: 0,
-            duration: 500
-          });
-
-          // Call API to skip the stunned turn - no transaction required
-          // Server will auto-resolve with punch/punch and broadcast the result
-          fetch(`/api/matches/${this.config.matchId}/skip-stunned-turn`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              playerRole: this.config.playerRole,
-            }),
-          }).catch(err => {
-            console.error("[FightScene] Failed to skip stunned turn:", err);
-          });
-        }
-      });
+      // Use deadline-based auto-skip (handled by update() loop)
+      // This works correctly even when tab is backgrounded
+      this.bothStunnedSkipAt = Date.now() + 2500;
 
       return;
     } else if (amIStunned) {
@@ -3945,46 +3936,9 @@ export class FightScene extends Phaser.Scene {
       this.toggleStunEffect(this.config.playerRole, true);
 
       // Auto-submit a move after 2 seconds WITHOUT requiring a transaction
-      // Since we're stunned, we can't make a choice, so no need for the player to sign
+      // Uses deadline-based approach (handled by update() loop) so it works across tab switches
       console.log(`[FightScene] Player is stunned - auto-submitting 'stunned' move via API after 2s (no transaction)`);
-      this.time.delayedCall(2000, () => {
-        if (!this.localMoveSubmitted && this.phase === "selecting") {
-          this.localMoveSubmitted = true;
-          this.isWaitingForOpponent = true;
-          this.turnIndicatorText.setText("Waiting for opponent...");
-
-          // Fade out narrative
-          this.tweens.add({
-            targets: this.narrativeText,
-            alpha: 0,
-            duration: 500
-          });
-
-          // Submit stunned move via API - no transaction required
-          // Then trigger bot auto-move AFTER our move is submitted
-          fetch(`/api/matches/${this.config.matchId}/submit-stunned-move`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              playerRole: this.config.playerRole,
-            }),
-          }).then(() => {
-            // After our stunned move is submitted, trigger bot to make its move
-            if (this.isBotMatch) {
-              console.log("[FightScene] Stunned move submitted, triggering bot auto-move");
-              fetch(`/api/matches/${this.config.matchId}/bot-auto-move`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ stunned: true }),
-              }).catch(err => {
-                console.error("[FightScene] Failed to trigger bot auto-move:", err);
-              });
-            }
-          }).catch(err => {
-            console.error("[FightScene] Failed to submit stunned move:", err);
-          });
-        }
-      });
+      this.stunnedAutoSubmitAt = Date.now() + 2000;
     } else if (isOpponentStunned) {
       // Opponent is stunned - show positive message
       this.turnIndicatorText.setText("OPPONENT IS STUNNED!");
@@ -4026,32 +3980,11 @@ export class FightScene extends Phaser.Scene {
       this.toggleStunEffect("player2", false);
     }
 
-    // Start synchronized timer that updates every second based on deadline
-    this.timerEvent = this.time.addEvent({
-      delay: 1000,
-      callback: () => {
-        // Guard: only run if still in selecting phase
-        if (this.phase !== "selecting") return;
-
-        const nowRemainingMs = moveDeadlineAt - Date.now();
-        this.turnTimer = Math.max(0, Math.floor(nowRemainingMs / 1000));
-
-        this.roundTimerText.setText(`${this.turnTimer}s`);
-        if (this.turnTimer <= 5 || amIStunned) {
-          this.roundTimerText.setColor("#ff4444");
-        } else {
-          this.roundTimerText.setColor("#40e0d0");
-        }
-
-        // Trigger expiry logic when timer reaches 0 (unless stunned)
-        // IMPORTANT: Always trigger even if we submitted our move, so we can enforce
-        // the deadline against opponents who didn't submit
-        if (this.turnTimer <= 0 && !amIStunned) {
-          this.onTimerExpired();
-        }
-      },
-      loop: true,
-    });
+    // Store the deadline for the update() loop to use
+    // The timer countdown and expiry are now handled by update() using Date.now()
+    // This works correctly even when the browser tab is backgrounded
+    this.moveDeadlineAt = moveDeadlineAt;
+    this.timerExpiredHandled = false;
 
     this.roundTimerText.setText(`${this.turnTimer}s`);
     this.roundTimerText.setColor("#40e0d0");
@@ -4090,12 +4023,10 @@ export class FightScene extends Phaser.Scene {
     this.isResolving = true;
     this.phase = "resolving";
 
-    // Stop timer
-    if (this.timerEvent) {
-      console.log(`[FightScene] *** Stopping timer in handleServerRoundResolved`);
-      this.timerEvent.destroy();
-      this.timerEvent = undefined;
-    }
+    // Clear any pending deadline-based timers to prevent them firing during animations
+    this.timerExpiredHandled = true;
+    this.stunnedAutoSubmitAt = 0;
+    this.bothStunnedSkipAt = 0;
 
     // Get max values from local engine for fallback (server should provide these)
     const localState = this.combatEngine.getState();
@@ -4627,73 +4558,71 @@ export class FightScene extends Phaser.Scene {
   }
 
   /**
-   * Start the countdown to the next round
+   * Start the countdown to the next round.
+   * Uses real-time deadline so it works correctly across tab switches.
+   * The actual countdown display is handled by the update() loop.
    */
   private startRoundCountdown(p1Char: string, p2Char: string): void {
-    let countdown = 5;
+    const now = Date.now();
+    // 5 second countdown + 1 second for the final "1" to display
+    this.roundEndCountdownEndsAt = now + 6000;
+    this.roundEndCountdownStartedAt = now;
+    this.roundEndData = { p1Char, p2Char };
 
-    const updateRoundCountdown = () => {
-      this.countdownText.setText(`Next round starting in ${countdown}`);
-      this.countdownText.setFontSize(32);
-      this.countdownText.setColor("#40e0d0");
+    // Initial display
+    this.countdownText.setText("Next round starting in 5");
+    this.countdownText.setFontSize(32);
+    this.countdownText.setColor("#40e0d0");
+    this.countdownText.setAlpha(1);
 
-      // Pulse effect on the countdown text
-      this.tweens.add({
-        targets: this.countdownText,
-        scale: { from: 1.1, to: 1 },
-        duration: 400,
-        ease: 'Power2',
-      });
+    // The update() loop handles the rest using this.roundEndCountdownEndsAt
+  }
 
-      if (countdown > 1) {
-        countdown--;
-        this.time.delayedCall(1000, updateRoundCountdown);
-      } else {
-        // Countdown finished - reset for next round
-        this.time.delayedCall(1000, () => {
-          // Hide countdown text
-          this.countdownText.setAlpha(0);
-          this.countdownText.setFontSize(72);
+  /**
+   * Called by update() when round-end countdown reaches zero.
+   * Resets sprites and processes pending round start.
+   */
+  private processRoundEndCountdownComplete(): void {
+    const p1Char = this.roundEndData?.p1Char || this.config.player1Character || "dag-warrior";
+    const p2Char = this.roundEndData?.p2Char || this.config.player2Character || "dag-warrior";
+    this.roundEndData = undefined;
 
-          // Reset both sprites to idle animations with proper scales
-          // Use centralized scale from sprite-config.ts
-          if (this.anims.exists(`${p1Char}_idle`)) {
-            this.player1Sprite.setScale(getAnimationScale(p1Char, "idle"));
-            this.player1Sprite.play(`${p1Char}_idle`);
-          }
-          if (this.anims.exists(`${p2Char}_idle`)) {
-            this.player2Sprite.setScale(getAnimationScale(p2Char, "idle"));
-            this.player2Sprite.play(`${p2Char}_idle`);
-          }
+    // Hide countdown text
+    this.countdownText.setAlpha(0);
+    this.countdownText.setFontSize(72);
 
-          // Reset selected move for next round
-          this.selectedMove = null;
+    // Reset both sprites to idle animations with proper scales
+    if (this.anims.exists(`${p1Char}_idle`)) {
+      this.player1Sprite.setScale(getAnimationScale(p1Char, "idle"));
+      this.player1Sprite.play(`${p1Char}_idle`);
+    }
+    if (this.anims.exists(`${p2Char}_idle`)) {
+      this.player2Sprite.setScale(getAnimationScale(p2Char, "idle"));
+      this.player2Sprite.play(`${p2Char}_idle`);
+    }
 
-          // Clear active surges from previous round (including stun visual effects)
-          this.clearSurgeEffects();
+    // Reset selected move for next round
+    this.selectedMove = null;
 
-          // Change phase to allow processing queued events
-          this.phase = "selecting";
+    // Clear active surges from previous round (including stun visual effects)
+    this.clearSurgeEffects();
 
-          // Process pending round start if we received one during the round_end sequence
-          if (this.pendingRoundStart) {
-            console.log("[FightScene] *** Processing queued round start after round end countdown");
-            const payload = this.pendingRoundStart;
-            this.pendingRoundStart = null;
-            // Skip the 3-2-1 FIGHT countdown since we already showed our 5-second countdown
-            this.startRoundFromServer(payload, true);
-          } else {
-            console.warn(`[FightScene] *** WARNING: No pendingRoundStart after round end countdown! Waiting for round_starting event`);
-            console.warn(`[FightScene] *** This may indicate round_starting arrived before round_end phase or was lost`);
-            // No pending event, just wait
-            this.turnIndicatorText.setText("Starting next round...");
-            this.turnIndicatorText.setColor("#888888");
-          }
-        });
-      }
-    };
+    // Change phase to allow processing queued events
+    this.phase = "selecting";
 
-    updateRoundCountdown();
+    // Process pending round start if we received one during the round_end sequence
+    if (this.pendingRoundStart) {
+      console.log("[FightScene] *** Processing queued round start after round end countdown");
+      const payload = this.pendingRoundStart;
+      this.pendingRoundStart = null;
+      // Skip the 3-2-1 FIGHT countdown since we already showed our 5-second countdown
+      this.startRoundFromServer(payload, true);
+    } else {
+      console.warn(`[FightScene] *** WARNING: No pendingRoundStart after round end countdown! Waiting for round_starting event`);
+      // No pending event, just wait
+      this.turnIndicatorText.setText("Starting next round...");
+      this.turnIndicatorText.setColor("#888888");
+    }
   }
 
   // ===========================================================================
@@ -5296,6 +5225,144 @@ export class FightScene extends Phaser.Scene {
     // CRITICAL: Stop any active stun tweens to prevent visual stun persisting
     this.toggleStunEffect("player1", false);
     this.toggleStunEffect("player2", false);
+  }
+
+  // ===========================================================================
+  // DEADLINE-BASED STUN HANDLERS (called by update() loop)
+  // ===========================================================================
+
+  /**
+   * Handle auto-submission of stunned move.
+   * Called by update() when stunnedAutoSubmitAt deadline is reached.
+   * Works correctly even if the tab was backgrounded.
+   */
+  private handleStunnedAutoSubmit(): void {
+    if (this.localMoveSubmitted || this.phase !== "selecting") return;
+
+    this.localMoveSubmitted = true;
+    this.isWaitingForOpponent = true;
+    this.turnIndicatorText.setText("Waiting for opponent...");
+
+    // Fade out narrative
+    this.tweens.add({
+      targets: this.narrativeText,
+      alpha: 0,
+      duration: 500
+    });
+
+    // Submit stunned move via API - no transaction required
+    fetch(`/api/matches/${this.config.matchId}/submit-stunned-move`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        playerRole: this.config.playerRole,
+      }),
+    }).then(() => {
+      // After our stunned move is submitted, trigger bot to make its move
+      if (this.isBotMatch) {
+        console.log("[FightScene] Stunned move submitted, triggering bot auto-move");
+        fetch(`/api/matches/${this.config.matchId}/bot-auto-move`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stunned: true }),
+        }).catch(err => {
+          console.error("[FightScene] Failed to trigger bot auto-move:", err);
+        });
+      }
+    }).catch(err => {
+      console.error("[FightScene] Failed to submit stunned move:", err);
+    });
+  }
+
+  /**
+   * Handle both-stunned turn skip.
+   * Called by update() when bothStunnedSkipAt deadline is reached.
+   * Works correctly even if the tab was backgrounded.
+   */
+  private handleBothStunnedSkip(): void {
+    if (this.phase !== "selecting") return;
+
+    this.localMoveSubmitted = true;
+    this.isWaitingForOpponent = true;
+    this.turnIndicatorText.setText("Resolving stunned turn...");
+
+    // Fade out narrative
+    this.tweens.add({
+      targets: this.narrativeText,
+      alpha: 0,
+      duration: 500
+    });
+
+    // Call API to skip the stunned turn - no transaction required
+    fetch(`/api/matches/${this.config.matchId}/skip-stunned-turn`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        playerRole: this.config.playerRole,
+      }),
+    }).catch(err => {
+      console.error("[FightScene] Failed to skip stunned turn:", err);
+    });
+  }
+
+  // ===========================================================================
+  // VISIBILITY CHANGE HANDLER - Catch-up on tab refocus
+  // ===========================================================================
+
+  /**
+   * Set up the document visibility change listener.
+   * When a user switches back to the tab, this ensures the game catches up
+   * with real time immediately instead of waiting for the next Phaser update tick.
+   * 
+   * Called from create().
+   */
+  private setupVisibilityChangeHandler(): void {
+    this.visibilityChangeHandler = () => {
+      if (document.visibilityState === "visible") {
+        console.log("[FightScene] Tab became visible - catching up with real time");
+        // Force an immediate update to catch up with any elapsed time
+        // The update() loop uses Date.now() so it will automatically
+        // show the correct timer value, trigger expiry, etc.
+        this.update(0, 0);
+
+        // If we're in selecting phase and deadline has passed, trigger timeout immediately
+        if (this.phase === "selecting" && this.moveDeadlineAt > 0) {
+          const remaining = this.moveDeadlineAt - Date.now();
+          if (remaining <= 0 && !this.timerExpiredHandled) {
+            console.log("[FightScene] Tab refocus: deadline already passed, triggering timeout");
+            this.timerExpiredHandled = true;
+            this.onTimerExpired();
+          }
+        }
+
+        // If countdown should have ended, force completion
+        if (this.phase === "countdown" && this.countdownEndsAt > 0 && Date.now() >= this.countdownEndsAt + 500) {
+          console.log("[FightScene] Tab refocus: countdown already ended, jumping to selection");
+          this.countdownText.setAlpha(0);
+          this.countdownEndsAt = 0;
+          this.startSynchronizedSelectionPhase(this.moveDeadlineAt);
+        }
+
+        // If round-end countdown should have ended, force completion
+        if (this.phase === "round_end" && this.roundEndCountdownEndsAt > 0 && Date.now() >= this.roundEndCountdownEndsAt) {
+          console.log("[FightScene] Tab refocus: round-end countdown already ended, processing");
+          this.roundEndCountdownEndsAt = 0;
+          this.processRoundEndCountdownComplete();
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", this.visibilityChangeHandler);
+  }
+
+  /**
+   * Clean up visibility change listener when scene is destroyed.
+   */
+  destroy(): void {
+    if (this.visibilityChangeHandler) {
+      document.removeEventListener("visibilitychange", this.visibilityChangeHandler);
+      this.visibilityChangeHandler = undefined;
+    }
   }
 }
 
