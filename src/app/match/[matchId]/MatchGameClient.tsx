@@ -11,7 +11,6 @@ import { useRouter } from "next/navigation";
 import { useWalletStore } from "@/stores/wallet-store";
 import { useMatchStore, useMatchActions } from "@/stores/match-store";
 import { useGameChannel } from "@/hooks/useGameChannel";
-import { useWallet } from "@/hooks/useWallet";
 import { useOwnedCharacters } from "@/hooks/useOwnedCharacters";
 import { EventBus } from "@/game/EventBus";
 import { ConnectWalletButton } from "@/components/wallet/ConnectWalletButton";
@@ -73,7 +72,6 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
   console.log("[MatchGameClient] DEADLINE VALUE:", match.selectionDeadlineAt ?? "UNDEFINED/NULL");
 
 
-  const { signMessage, signMessageWithPublicKey } = useWallet();
   const { address, connectionState } = useWalletStore();
   const matchStore = useMatchStore();
   const matchActions = useMatchActions();
@@ -509,9 +507,12 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       try {
         console.log("[MatchGameClient] Processing surrender request...");
 
-        // 1. Sign message
+        // 1. Sign message - use wallet module directly to avoid stale React state issues
+        // after page refresh (same pattern as move submission)
+        const { signMessage: signWalletMessage } = await import("@/lib/kaspa/wallet");
         const message = `Forfeit match: ${currentMatchId}`;
-        const { signature, publicKey } = await signMessageWithPublicKey(message);
+        const signResult = await signWalletMessage(message);
+        const { signature, publicKey } = signResult;
 
         // 2. Call forfeit API
         const response = await fetch(`/api/matches/${currentMatchId}/forfeit`, {

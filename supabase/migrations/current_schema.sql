@@ -699,3 +699,16 @@ CREATE TABLE public.xp_awards (
   CONSTRAINT xp_awards_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(address),
   CONSTRAINT xp_awards_season_id_fkey FOREIGN KEY (season_id) REFERENCES public.battle_pass_seasons(id)
 );
+CREATE TABLE public.bet_claim_attempts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  bettor_address text NOT NULL,
+  bet_id uuid NOT NULL,
+  bet_type text NOT NULL CHECK (bet_type IN ('player', 'bot')),
+  status text NOT NULL CHECK (status IN ('pending', 'success', 'failed', 'rejected')),
+  reason text,
+  tx_id text,
+  amount bigint,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT bet_claim_attempts_pkey PRIMARY KEY (id),
+  CONSTRAINT bet_claim_attempts_bettor_fkey FOREIGN KEY (bettor_address) REFERENCES public.players(address)
+);

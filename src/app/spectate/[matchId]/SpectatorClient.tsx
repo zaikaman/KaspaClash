@@ -112,26 +112,21 @@ export function SpectatorClient({ match }: SpectatorClientProps) {
             // Fetch user's bet information to show personalized refund message
             let userBet = null;
             try {
-                const walletStr = localStorage.getItem("kaspa_wallet");
-                if (walletStr) {
-                    const wallet = JSON.parse(walletStr);
-                    console.log("[SpectatorClient] Fetching bet info for:", wallet.address);
-                    const betResponse = await fetch(`/api/betting/pool/${match.id}`);
+                if (address) {
+                    console.log("[SpectatorClient] Fetching bet info for:", address);
+                    const betResponse = await fetch(`/api/betting/pool/${match.id}?address=${encodeURIComponent(address)}`);
                     if (betResponse.ok) {
                         const betData = await betResponse.json();
                         console.log("[SpectatorClient] Bet data:", betData);
-                        const foundBet = betData.data?.bets?.find(
-                            (b: any) => b.bettor_address === wallet.address
-                        );
 
-                        if (foundBet) {
+                        if (betData.userBet) {
                             userBet = {
-                                amount: foundBet.amount,
-                                prediction: foundBet.predicted_winner,
+                                amount: betData.userBet.amount,
+                                prediction: betData.userBet.bet_on,
                             };
                             console.log("[SpectatorClient] Found user bet:", userBet);
                             // Set bet amount for notification
-                            setCancelledBetAmount(sompiToKas(BigInt(foundBet.amount)));
+                            setCancelledBetAmount(sompiToKas(BigInt(betData.userBet.amount)));
                         } else {
                             console.log("[SpectatorClient] No bet found for user");
                         }
@@ -218,17 +213,27 @@ export function SpectatorClient({ match }: SpectatorClientProps) {
 
         // Listen for match end to check if user won
         const handleMatchEnd = async (data: unknown) => {
-            const eventData = data as { matchId: string; winner: "player1" | "player2"; winnerAddress: string | null };
+            const eventData = data as { 
+                matchId?: string; 
+                winner: "player1" | "player2"; 
+                winnerAddress: string | null;
+                reason?: string;
+            };
             console.log("[SpectatorClient] Match ended event received:", eventData);
             console.log("[SpectatorClient] Current match ID:", match.id);
             console.log("[SpectatorClient] User address:", address);
+            console.log("[SpectatorClient] Event matchId:", eventData.matchId);
 
-            if (eventData.matchId === match.id && address) {
+            // Check if this event is for our match
+            // If matchId is missing from event (e.g., from Phaser scene), assume it's for current match
+            const isForCurrentMatch = !eventData.matchId || eventData.matchId === match.id;
+            
+            if (isForCurrentMatch && address) {
                 console.log("[SpectatorClient] Match ended, checking if user won bet");
 
                 try {
                     // Fetch user's bet for this match with address parameter
-                    const url = `/api/betting/pool/${match.id}`;
+                    const url = `/api/betting/pool/${match.id}?address=${encodeURIComponent(address)}`;
                     console.log("[SpectatorClient] Fetching bet data from:", url);
 
                     const response = await fetch(url);
@@ -238,15 +243,17 @@ export function SpectatorClient({ match }: SpectatorClientProps) {
                         const data = await response.json();
                         console.log("[SpectatorClient] Bet data received:", data);
 
-                        const userBet = data.data?.bets?.find(
-                            (b: any) => b.bettor_address === address
-                        );
+                        const userBet = data.userBet;
                         console.log("[SpectatorClient] User bet found:", userBet);
 
                         if (userBet) {
-                            const winnerRole = eventData.winnerAddress === match.player1Address ? "player1" : "player2";
+                            // Use the winner field directly from the event payload (already computed by server)
+                            // Fallback to computing from winnerAddress for backwards compatibility
+                            const winnerRole = eventData.winner || 
+                                (eventData.winnerAddress === match.player1Address ? "player1" : "player2");
                             console.log("[SpectatorClient] Winner role:", winnerRole);
                             console.log("[SpectatorClient] User bet on:", userBet.bet_on);
+                            console.log("[SpectatorClient] Match end reason:", eventData.reason);
 
                             // Check if user's prediction matches the winner
                             if (userBet.bet_on === winnerRole) {
@@ -285,18 +292,34 @@ export function SpectatorClient({ match }: SpectatorClientProps) {
                 }
             } else {
                 if (!address) console.log("[SpectatorClient] No wallet address");
-                if (eventData.matchId !== match.id) {
+                if (!isForCurrentMatch) {
                     console.log("[SpectatorClient] Match ID mismatch:", eventData.matchId, "vs", match.id);
                 }
             }
         };
         EventBus.on("game:matchEnded", handleMatchEnd);
+        
+        // Also listen to the match:ended event (emitted by FightScene after processing)
+        // This serves as a backup in case game:matchEnded doesn't trigger properly
+        const handleMatchEndedFromScene = (data: unknown) => {
+            const eventData = data as { result: { winner: "player1" | "player2"; reason: string } };
+            console.log("[SpectatorClient] match:ended event received (from FightScene):", eventData);
+            // Call the same handler with adapted payload
+            handleMatchEnd({
+                matchId: match.id,
+                winner: eventData.result.winner,
+                winnerAddress: eventData.result.winner === "player1" ? match.player1Address : match.player2Address || null,
+                reason: eventData.result.reason,
+            });
+        };
+        EventBus.on("match:ended", handleMatchEndedFromScene);
 
         return () => {
             EventBus.off("scene:ready", handleSceneReady);
             EventBus.off("game:matchEnded", handleMatchEnd);
+            EventBus.off("match:ended", handleMatchEndedFromScene);
         };
-    }, [match.id, match.player1Address, match.player1, match.player2, address]);
+    }, [match.id, match.player1Address, match.player2Address, match.player1, match.player2, address]);
 
     // Show loading state
     if (isLoading) {

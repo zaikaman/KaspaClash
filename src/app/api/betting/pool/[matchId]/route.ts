@@ -21,6 +21,8 @@ interface RouteParams {
 export async function GET(request: Request, { params }: RouteParams) {
     try {
         const { matchId } = await params;
+        const { searchParams } = new URL(request.url);
+        const address = searchParams.get("address");
         const supabase = await createSupabaseServerClient();
 
         // Get match data first
@@ -104,6 +106,33 @@ export async function GET(request: Request, { params }: RouteParams) {
         const poolData = transformPoolFromDb(pool);
         const odds = calculateOdds(poolData);
 
+        // If address provided, fetch user's bet for this pool
+        let userBet = null;
+        if (address && pool) {
+            const { data: bet } = await (supabase
+                .from("bets" as any)
+                .select("*")
+                .eq("pool_id", pool.id)
+                .eq("bettor_address", address)
+                .single() as any);
+
+            if (bet) {
+                userBet = {
+                    id: bet.id,
+                    bet_on: bet.bet_on,
+                    amount: bet.amount,
+                    net_amount: bet.net_amount,
+                    fee_paid: bet.fee_paid,
+                    status: bet.status,
+                    payout_amount: bet.payout_amount,
+                    tx_id: bet.tx_id,
+                    payout_tx_id: bet.payout_tx_id,
+                    created_at: bet.created_at,
+                    paid_at: bet.paid_at,
+                };
+            }
+        }
+
         return NextResponse.json({
             pool: {
                 id: pool.id,
@@ -131,6 +160,7 @@ export async function GET(request: Request, { params }: RouteParams) {
                 player2RoundsWon: match.player2_rounds_won,
                 format,
             },
+            userBet,
         });
     } catch (error) {
         console.error("Betting pool endpoint error:", error);

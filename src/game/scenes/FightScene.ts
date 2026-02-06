@@ -14,6 +14,7 @@ import { StickerPicker, STICKER_LIST, type StickerId } from "../ui/StickerPicker
 import { TransactionToast } from "../ui/TransactionToast";
 import { TransactionPrompt } from "../ui/TransactionPrompt";
 import { PowerSurgeCards } from "../ui/PowerSurgeCards";
+import { SpectatorPowerSurgeCards } from "../ui/SpectatorPowerSurgeCards";
 import type { PowerSurgeCardId } from "@/types/power-surge";
 import { getRandomPowerSurgeCards, getPowerSurgeCard } from "@/types/power-surge";
 import { SmartBotOpponent } from "@/lib/game/smart-bot-opponent";
@@ -208,6 +209,15 @@ export class FightScene extends Phaser.Scene {
   } = { player1: null, player2: null };
   private surgeCardsShownThisRound: boolean = false;
   private lastSurgeRound: number = 0;
+
+  // Spectator Power Surge state (read-only display for spectators)
+  private spectatorSurgeUI: SpectatorPowerSurgeCards | null = null;
+  private spectatorSurgeData: {
+    roundNumber: number;
+    cardIds: PowerSurgeCardId[];
+    player1Selection: PowerSurgeCardId | null;
+    player2Selection: PowerSurgeCardId | null;
+  } | null = null;
 
   // Countdown deduplication - track the last turn we started a countdown for
   private lastCountdownStartedForTurn: string = "";
@@ -2993,6 +3003,30 @@ export class FightScene extends Phaser.Scene {
       this.handleOpponentSurgeSelected(payload);
     });
 
+    // Listen for Power Surge cards offered (from realtime channel) - spectator mode
+    if (this.config.isSpectator) {
+      EventBus.on("game:powerSurgeCards", (data: unknown) => {
+        const payload = data as {
+          matchId: string;
+          roundNumber: number;
+          cardIds: string[];
+          deadline: number;
+        };
+        console.log("[FightScene] Spectator received surge cards broadcast:", payload);
+        if (!this.spectatorSurgeData || this.spectatorSurgeData.roundNumber !== payload.roundNumber) {
+          this.spectatorSurgeData = {
+            roundNumber: payload.roundNumber,
+            cardIds: payload.cardIds as PowerSurgeCardId[],
+            player1Selection: null,
+            player2Selection: null,
+          };
+        } else {
+          this.spectatorSurgeData.cardIds = payload.cardIds as PowerSurgeCardId[];
+        }
+        this.tryShowSpectatorSurgeUI();
+      });
+    }
+
     // Listen for match cancellation (both players rejected OR both disconnected)
     EventBus.on("game:matchCancelled", (data: unknown) => {
       const payload = data as {
@@ -4501,6 +4535,7 @@ export class FightScene extends Phaser.Scene {
         player1CharacterId: this.config.player1Character,
         player2CharacterId: this.config.player2Character,
         isPrivateRoom: payload.isPrivateRoom,
+        isSpectator: this.config.isSpectator,
       });
     });
   }
@@ -4713,9 +4748,40 @@ export class FightScene extends Phaser.Scene {
    * @returns Promise that resolves when surge selection is complete or times out
    */
   private async showPowerSurgeCards(roundNumber: number, moveDeadlineAt: number): Promise<void> {
-    // Don't show surge cards for spectators or bot matches (optional)
+    // Spectators see a read-only display of power surge cards
     if (this.config.isSpectator) {
-      console.log("[FightScene] Skipping Power Surge for spectator");
+      console.log("[FightScene] Setting up spectator Power Surge for round", roundNumber);
+      // Initialize spectator surge data - will be shown when both players have selected
+      this.spectatorSurgeData = {
+        roundNumber,
+        cardIds: [],
+        player1Selection: null,
+        player2Selection: null,
+      };
+      // Fetch the offered cards from the API
+      try {
+        const response = await fetch(`/api/matches/${this.config.matchId}/power-surge?round=${roundNumber}&reveal=true`);
+        if (response.ok) {
+          const data = await response.json();
+          const offeredCards = data.data?.offeredCards || [];
+          if (offeredCards.length > 0 && this.spectatorSurgeData) {
+            this.spectatorSurgeData.cardIds = offeredCards;
+            console.log("[FightScene] Spectator got surge cards:", offeredCards);
+            // Also check if selections are already in (late join scenario)
+            const p1Sel = data.data?.player1Selection;
+            const p2Sel = data.data?.player2Selection;
+            if (p1Sel?.cardId && p1Sel.cardId !== "hidden") {
+              this.spectatorSurgeData.player1Selection = p1Sel.cardId;
+            }
+            if (p2Sel?.cardId && p2Sel.cardId !== "hidden") {
+              this.spectatorSurgeData.player2Selection = p2Sel.cardId;
+            }
+            this.tryShowSpectatorSurgeUI();
+          }
+        }
+      } catch (error) {
+        console.error("[FightScene] Spectator failed to fetch surge cards:", error);
+      }
       return;
     }
 
@@ -4901,6 +4967,53 @@ export class FightScene extends Phaser.Scene {
     cardId: PowerSurgeCardId;
     roundNumber: number;
   }): Promise<void> {
+    // Spectators: record both players' selections for the read-only display
+    if (this.config.isSpectator) {
+      console.log(`[FightScene] Spectator received surge selection: ${payload.player} chose ${payload.cardId} (round ${payload.roundNumber})`);
+      this.activeSurges[payload.player] = payload.cardId;
+
+      if (this.spectatorSurgeData && this.spectatorSurgeData.roundNumber === payload.roundNumber) {
+        if (payload.player === "player1") {
+          this.spectatorSurgeData.player1Selection = payload.cardId;
+        } else {
+          this.spectatorSurgeData.player2Selection = payload.cardId;
+        }
+        this.tryShowSpectatorSurgeUI();
+      } else {
+        // No surge data yet (cards haven't been fetched). Create it and fetch cards.
+        this.spectatorSurgeData = {
+          roundNumber: payload.roundNumber,
+          cardIds: [],
+          player1Selection: payload.player === "player1" ? payload.cardId : null,
+          player2Selection: payload.player === "player2" ? payload.cardId : null,
+        };
+        // Fetch offered cards
+        try {
+          const response = await fetch(`/api/matches/${this.config.matchId}/power-surge?round=${payload.roundNumber}&reveal=true`);
+          if (response.ok) {
+            const data = await response.json();
+            const offeredCards = data.data?.offeredCards || [];
+            if (offeredCards.length > 0 && this.spectatorSurgeData) {
+              this.spectatorSurgeData.cardIds = offeredCards;
+              // Also pick up any selections already returned
+              const p1Sel = data.data?.player1Selection;
+              const p2Sel = data.data?.player2Selection;
+              if (p1Sel?.cardId && p1Sel.cardId !== "hidden" && !this.spectatorSurgeData.player1Selection) {
+                this.spectatorSurgeData.player1Selection = p1Sel.cardId;
+              }
+              if (p2Sel?.cardId && p2Sel.cardId !== "hidden" && !this.spectatorSurgeData.player2Selection) {
+                this.spectatorSurgeData.player2Selection = p2Sel.cardId;
+              }
+              this.tryShowSpectatorSurgeUI();
+            }
+          }
+        } catch (error) {
+          console.error("[FightScene] Spectator failed to fetch surge cards:", error);
+        }
+      }
+      return;
+    }
+
     const isOpponent = payload.player !== this.config.playerRole;
 
     // Store selection
@@ -4977,6 +5090,52 @@ export class FightScene extends Phaser.Scene {
         });
       }
     }
+  }
+
+  /**
+   * Try to show spectator power surge UI once we have cards and both selections.
+   * Called after receiving surge data from API or broadcast events.
+   */
+  private tryShowSpectatorSurgeUI(): void {
+    if (!this.spectatorSurgeData) return;
+    const { cardIds, player1Selection, player2Selection, roundNumber } = this.spectatorSurgeData;
+
+    // Need all three: the offered cards AND both player selections
+    if (cardIds.length === 0 || !player1Selection || !player2Selection) {
+      console.log("[FightScene] Spectator surge data incomplete, waiting...", {
+        hasCards: cardIds.length > 0,
+        p1: player1Selection,
+        p2: player2Selection,
+      });
+      return;
+    }
+
+    console.log("[FightScene] Showing spectator Power Surge UI for round", roundNumber);
+
+    // Clean up any existing spectator surge UI
+    if (this.spectatorSurgeUI) {
+      this.spectatorSurgeUI.destroy();
+      this.spectatorSurgeUI = null;
+    }
+
+    // Create the read-only spectator power surge display
+    this.spectatorSurgeUI = new SpectatorPowerSurgeCards({
+      scene: this,
+      roundNumber,
+      cardIds,
+      player1Selection,
+      player2Selection,
+      player1SpriteY: this.player1Sprite.y,
+      player2SpriteY: this.player2Sprite.y,
+      player1Sprite: this.player1Sprite,
+      player2Sprite: this.player2Sprite,
+      player1Label: "P1",
+      player2Label: "P2",
+      onComplete: () => {
+        this.spectatorSurgeUI = null;
+        this.spectatorSurgeData = null;
+      },
+    });
   }
 
   /**

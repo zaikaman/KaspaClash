@@ -11,6 +11,7 @@ interface ResultsSceneData {
     player1CharacterId: string;
     player2CharacterId: string;
     isPrivateRoom?: boolean;
+    isSpectator?: boolean;
 }
 
 export class ResultsScene extends Scene {
@@ -48,14 +49,25 @@ export class ResultsScene extends Scene {
         );
 
         // Determine if player won
-        const isWinner =
-            (this.resultsData.result.winner === "player1" && this.resultsData.playerRole === "player1") ||
-            (this.resultsData.result.winner === "player2" && this.resultsData.playerRole === "player2");
+        const isSpectator = this.resultsData.isSpectator === true;
+        const isWinner = !isSpectator &&
+            ((this.resultsData.result.winner === "player1" && this.resultsData.playerRole === "player1") ||
+            (this.resultsData.result.winner === "player2" && this.resultsData.playerRole === "player2"));
 
-        // Victory/Defeat Text
-        const titleText = isWinner ? "VICTORY" : "DEFEAT";
-        const titleColor = isWinner ? "#49eacb" : "#ef4444";
-        const glowColor = isWinner ? 0x49eacb : 0xef4444;
+        // Victory/Defeat Text - spectators see "PLAYER X WINS"
+        let titleText: string;
+        let titleColor: string;
+        let glowColor: number;
+        if (isSpectator) {
+            const winnerLabel = this.resultsData.result.winner === "player1" ? "PLAYER 1" : "PLAYER 2";
+            titleText = `${winnerLabel} WINS`;
+            titleColor = "#a855f7"; // Purple for spectator
+            glowColor = 0xa855f7;
+        } else {
+            titleText = isWinner ? "VICTORY" : "DEFEAT";
+            titleColor = isWinner ? "#49eacb" : "#ef4444";
+            glowColor = isWinner ? 0x49eacb : 0xef4444;
+        }
 
         const title = this.add.text(
             GAME_DIMENSIONS.CENTER_X,
@@ -100,11 +112,21 @@ export class ResultsScene extends Scene {
         });
 
         // Subtitle (Reason)
-        const reasonText =
-            this.resultsData.result.reason === "knockout" ? "KNOCKOUT!" :
-                this.resultsData.result.reason === "timeout" ? "TIME OUT" :
-                    this.resultsData.result.reason === "forfeit" ? (isWinner ? "OPPONENT FORFEITED" : "YOU FORFEITED") :
-                        "DECISION";
+        let reasonText: string;
+        if (isSpectator) {
+            const forfeitLabel = this.resultsData.result.winner === "player1" ? "PLAYER 2" : "PLAYER 1";
+            reasonText =
+                this.resultsData.result.reason === "knockout" ? "KNOCKOUT!" :
+                    this.resultsData.result.reason === "timeout" ? "TIME OUT" :
+                        this.resultsData.result.reason === "forfeit" ? `${forfeitLabel} FORFEITED` :
+                            "DECISION";
+        } else {
+            reasonText =
+                this.resultsData.result.reason === "knockout" ? "KNOCKOUT!" :
+                    this.resultsData.result.reason === "timeout" ? "TIME OUT" :
+                        this.resultsData.result.reason === "forfeit" ? (isWinner ? "OPPONENT FORFEITED" : "YOU FORFEITED") :
+                            "DECISION";
+        }
 
         this.add.text(
             GAME_DIMENSIONS.CENTER_X,
@@ -127,6 +149,7 @@ export class ResultsScene extends Scene {
 
     private createStatsDisplay(isWinner: boolean) {
         const container = this.add.container(GAME_DIMENSIONS.CENTER_X, 450);
+        const isSpectator = this.resultsData.isSpectator === true;
 
         // Stats Panel Background - Increased height for rating animation
         const panel = this.add.rectangle(0, 0, 600, 260, 0x111111, 0.9)
@@ -139,20 +162,33 @@ export class ResultsScene extends Scene {
         const scoreY = -30;
         const ratingY = 50;
 
-        // Headers
-        container.add(this.add.text(leftX, headerY, "YOU", {
-            fontFamily: "Exo 2", fontSize: "24px", color: isWinner ? "#49eacb" : "#ef4444"
+        // Headers - spectators see Player 1 / Player 2
+        const leftHeader = isSpectator ? "PLAYER 1" : "YOU";
+        const rightHeader = isSpectator ? "PLAYER 2" : "OPPONENT";
+        const leftColor = isSpectator
+            ? (this.resultsData.result.winner === "player1" ? "#a855f7" : "#ef4444")
+            : (isWinner ? "#49eacb" : "#ef4444");
+        const rightColor = isSpectator
+            ? (this.resultsData.result.winner === "player2" ? "#a855f7" : "#ef4444")
+            : (!isWinner ? "#49eacb" : "#ef4444");
+
+        container.add(this.add.text(leftX, headerY, leftHeader, {
+            fontFamily: "Exo 2", fontSize: "24px", color: leftColor
         }).setOrigin(0.5));
 
-        container.add(this.add.text(rightX, headerY, "OPPONENT", {
-            fontFamily: "Exo 2", fontSize: "24px", color: !isWinner ? "#49eacb" : "#ef4444"
+        container.add(this.add.text(rightX, headerY, rightHeader, {
+            fontFamily: "Exo 2", fontSize: "24px", color: rightColor
         }).setOrigin(0.5));
 
-        // Scores
-        const myScore = this.resultsData.playerRole === "player1" ? this.resultsData.result.player1RoundsWon : this.resultsData.result.player2RoundsWon;
-        const opScore = this.resultsData.playerRole === "player1" ? this.resultsData.result.player2RoundsWon : this.resultsData.result.player1RoundsWon;
+        // Scores - spectators always see P1 on left, P2 on right
+        const leftScore = isSpectator
+            ? this.resultsData.result.player1RoundsWon
+            : (this.resultsData.playerRole === "player1" ? this.resultsData.result.player1RoundsWon : this.resultsData.result.player2RoundsWon);
+        const rightScore = isSpectator
+            ? this.resultsData.result.player2RoundsWon
+            : (this.resultsData.playerRole === "player1" ? this.resultsData.result.player2RoundsWon : this.resultsData.result.player1RoundsWon);
 
-        container.add(this.add.text(leftX, scoreY, `${myScore} WINS`, {
+        container.add(this.add.text(leftX, scoreY, `${leftScore} WINS`, {
             fontFamily: "Orbitron", fontSize: "40px", color: "#ffffff"
         }).setOrigin(0.5));
 
@@ -160,7 +196,7 @@ export class ResultsScene extends Scene {
             fontFamily: "Orbitron", fontSize: "40px", color: "#666666"
         }).setOrigin(0.5));
 
-        container.add(this.add.text(rightX, scoreY, `${opScore} WINS`, {
+        container.add(this.add.text(rightX, scoreY, `${rightScore} WINS`, {
             fontFamily: "Orbitron", fontSize: "40px", color: "#ffffff"
         }).setOrigin(0.5));
 
@@ -215,50 +251,58 @@ export class ResultsScene extends Scene {
                 ease: "Sine.easeInOut"
             });
         } else if (ratingChanges) {
-            const myRating = isWinner ? ratingChanges.winner : ratingChanges.loser;
-            const opRating = isWinner ? ratingChanges.loser : ratingChanges.winner;
+            // For spectators: left = player1 (winner if p1 won), right = player2
+            // For players: left = you, right = opponent
+            let leftRating, rightRating;
+            if (isSpectator) {
+                leftRating = this.resultsData.result.winner === "player1" ? ratingChanges.winner : ratingChanges.loser;
+                rightRating = this.resultsData.result.winner === "player2" ? ratingChanges.winner : ratingChanges.loser;
+            } else {
+                leftRating = isWinner ? ratingChanges.winner : ratingChanges.loser;
+                rightRating = isWinner ? ratingChanges.loser : ratingChanges.winner;
+            }
 
             // Rating label
             container.add(this.add.text(0, ratingY - 20, "RATING", {
                 fontFamily: "Exo 2", fontSize: "16px", color: "#666666"
             }).setOrigin(0.5));
 
-            // My Rating Text (Start at 'before')
-            const myRatingText = this.add.text(leftX, ratingY + 15, `${myRating.before}`, {
+            // Left Rating Text (Start at 'before')
+            const myRatingText = this.add.text(leftX, ratingY + 15, `${leftRating.before}`, {
                 fontFamily: "Orbitron", fontSize: "56px", color: "#ffffff",
                 stroke: "#000000", strokeThickness: 4
             }).setOrigin(0.5);
             container.add(myRatingText);
 
-            // My Change Text (e.g. +25)
-            const myChangeStr = myRating.change >= 0 ? `+${myRating.change}` : `${myRating.change}`;
-            const myChangeColor = myRating.change >= 0 ? "#49eacb" : "#ef4444";
+            // Left Change Text (e.g. +25)
+            const myChangeStr = leftRating.change >= 0 ? `+${leftRating.change}` : `${leftRating.change}`;
+            const myChangeColor = leftRating.change >= 0 ? "#49eacb" : "#ef4444";
             const myChangeText = this.add.text(leftX, ratingY + 60, myChangeStr, {
                 fontFamily: "Orbitron", fontSize: "24px", color: myChangeColor,
                 fontStyle: "bold"
             }).setOrigin(0.5).setAlpha(0).setScale(0.5);
             container.add(myChangeText);
 
-            // Opponent Rating Text
-            const opRatingText = this.add.text(rightX, ratingY + 15, `${opRating.before}`, {
+            // Right Rating Text
+            const opRatingText = this.add.text(rightX, ratingY + 15, `${rightRating.before}`, {
                 fontFamily: "Orbitron", fontSize: "56px", color: "#ffffff",
                 stroke: "#000000", strokeThickness: 4
             }).setOrigin(0.5);
             container.add(opRatingText);
 
-            // Opponent Change Text
-            const opChangeStr = opRating.change >= 0 ? `+${opRating.change}` : `${opRating.change}`;
-            const opChangeColor = opRating.change >= 0 ? "#49eacb" : "#ef4444";
+            // Right Change Text
+            const opChangeStr = rightRating.change >= 0 ? `+${rightRating.change}` : `${rightRating.change}`;
+            const opChangeColor = rightRating.change >= 0 ? "#49eacb" : "#ef4444";
             const opChangeText = this.add.text(rightX, ratingY + 60, opChangeStr, {
                 fontFamily: "Orbitron", fontSize: "24px", color: opChangeColor,
                 fontStyle: "bold"
             }).setOrigin(0.5).setAlpha(0).setScale(0.5);
             container.add(opChangeText);
 
-            // Animate my rating
+            // Animate left rating
             this.tweens.addCounter({
-                from: myRating.before,
-                to: myRating.after,
+                from: leftRating.before,
+                to: leftRating.after,
                 duration: 2000,
                 ease: "Power2",
                 delay: 800,
@@ -266,14 +310,14 @@ export class ResultsScene extends Scene {
                     const val = Math.round(tween.getValue());
                     myRatingText.setText(`${val}`);
                     // Pulse effect on update
-                    if (Math.random() > 0.8 && myRating.change !== 0) {
-                        myRatingText.setTint(myRating.change > 0 ? 0x49eacb : 0xef4444);
+                    if (Math.random() > 0.8 && leftRating.change !== 0) {
+                        myRatingText.setTint(leftRating.change > 0 ? 0x49eacb : 0xef4444);
                         setTimeout(() => myRatingText.clearTint(), 50);
                     }
                 },
                 onComplete: () => {
-                    myRatingText.setText(`${myRating.after}`); // Ensure final value
-                    myRatingText.setTint(myRating.change >= 0 ? 0x49eacb : 0xef4444); // Final tint
+                    myRatingText.setText(`${leftRating.after}`); // Ensure final value
+                    myRatingText.setTint(leftRating.change >= 0 ? 0x49eacb : 0xef4444); // Final tint
 
                     // Show change text with pop effect
                     this.tweens.add({
@@ -287,10 +331,10 @@ export class ResultsScene extends Scene {
                 }
             });
 
-            // Animate opponent rating
+            // Animate right rating
             this.tweens.addCounter({
-                from: opRating.before,
-                to: opRating.after,
+                from: rightRating.before,
+                to: rightRating.after,
                 duration: 2000,
                 ease: "Power2",
                 delay: 800,
@@ -299,7 +343,7 @@ export class ResultsScene extends Scene {
                     opRatingText.setText(`${val}`);
                 },
                 onComplete: () => {
-                    opRatingText.setText(`${opRating.after}`);
+                    opRatingText.setText(`${rightRating.after}`);
 
                     this.tweens.add({
                         targets: opChangeText,
@@ -331,6 +375,7 @@ export class ResultsScene extends Scene {
 
     private createButtons() {
         const y = 620;
+        const isSpectator = this.resultsData.isSpectator === true;
         const buttonSpacing = 280;
 
         // Watch Replay Button (left)
@@ -369,21 +414,23 @@ export class ResultsScene extends Scene {
             0x49eacb // Cyber gold for share
         );
 
-        // Return to Menu Button (right)
+        // Return Button (right) - different destination for spectators vs players
+        const returnLabel = isSpectator ? "👁 BACK TO SPECTATE" : "🏠 RETURN TO MENU";
+        const returnPath = isSpectator ? "/spectate" : "/matchmaking";
         const returnBtn = this.createButton(
             GAME_DIMENSIONS.CENTER_X + buttonSpacing,
             y,
-            "🏠 RETURN TO MENU",
+            returnLabel,
             () => {
-                const { isActive, currentStep, setStep } = useTutorialStore.getState();
-                if (isActive && currentStep === 'fighting') {
-                    setStep('post_game_tour');
-                    // Force a small delay to ensure local storage write?
-                    // LocalStorage is synchronous, so it should be fine.
+                if (!isSpectator) {
+                    const { isActive, currentStep, setStep } = useTutorialStore.getState();
+                    if (isActive && currentStep === 'fighting') {
+                        setStep('post_game_tour');
+                    }
                 }
-                EventBus.emit("navigate", { path: "/matchmaking" });
+                EventBus.emit("navigate", { path: returnPath });
             },
-            0x6b7280 // Gray for menu
+            isSpectator ? 0xa855f7 : 0x6b7280 // Purple for spectator, gray for player
         );
 
         // Add visual hint (pulsing arrow)
@@ -401,7 +448,7 @@ export class ResultsScene extends Scene {
         const hintText = this.add.text(
             GAME_DIMENSIONS.CENTER_X + buttonSpacing,
             y - 75,
-            "CLICK TO RETURN",
+            isSpectator ? "CLICK TO GO BACK" : "CLICK TO RETURN",
             {
                 fontFamily: "Exo 2",
                 fontSize: "12px",

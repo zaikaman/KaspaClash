@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import GameLayout from "@/components/layout/GameLayout";
 import DecorativeLine from "@/components/landing/DecorativeLine";
 import { Button } from "@/components/ui/button";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { getCharacter } from "@/data/characters";
 import { useWallet } from "@/hooks/useWallet";
 import { NETWORK_CONFIG } from "@/types/constants";
@@ -54,6 +54,14 @@ function truncateTxId(txId: string): string {
     return `${txId.slice(0, 8)}...${txId.slice(-8)}`;
 }
 
+// Notification types
+interface ClaimNotification {
+    type: 'success' | 'error';
+    title: string;
+    message: string;
+    txId?: string;
+}
+
 export default function BetHistoryPage() {
     const [history, setHistory] = useState<UnifiedBetHistoryItem[]>([]);
     const [stats, setStats] = useState<BetStats | null>(null);
@@ -61,6 +69,8 @@ export default function BetHistoryPage() {
     const [error, setError] = useState<string | null>(null);
     const [page, setPage] = useState(0);
     const [hasMore, setHasMore] = useState(false);
+    const [claimingBetId, setClaimingBetId] = useState<string | null>(null);
+    const [claimNotification, setClaimNotification] = useState<ClaimNotification | null>(null);
     
     const { address, isConnected, network } = useWallet();
     const ITEMS_PER_PAGE = 10;
@@ -69,6 +79,94 @@ export default function BetHistoryPage() {
     const explorerUrl = network === "testnet" 
         ? NETWORK_CONFIG.testnet.explorerUrl 
         : NETWORK_CONFIG.mainnet.explorerUrl;
+
+    // Auto-dismiss notification after 5 seconds
+    useEffect(() => {
+        if (claimNotification) {
+            const timer = setTimeout(() => {
+                setClaimNotification(null);
+            }, 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [claimNotification]);
+
+    // Check if a bet is eligible for manual claim
+    const isClaimable = useCallback((bet: UnifiedBetHistoryItem): boolean => {
+        // Must be a won bet without a payout transaction
+        return bet.status === 'won' && 
+               bet.payoutAmount !== null && 
+               BigInt(bet.payoutAmount) > 0 &&
+               !bet.payoutTxId;
+    }, []);
+
+    // Handle manual claim
+    const handleClaim = useCallback(async (bet: UnifiedBetHistoryItem) => {
+        if (!address || claimingBetId) return;
+        
+        setClaimingBetId(bet.id);
+        setClaimNotification(null);
+        
+        try {
+            const response = await fetch('/api/betting/claim', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    betId: bet.id,
+                    betType: bet.matchType,
+                    walletAddress: address,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                // Handle rate limiting
+                if (response.status === 429) {
+                    const resetTime = data.error?.details?.resetAt || data.error?.details?.cooldownEndsAt;
+                    const resetDate = resetTime ? new Date(resetTime) : null;
+                    const waitMessage = resetDate 
+                        ? `Please wait until ${resetDate.toLocaleTimeString()}`
+                        : 'Please try again later';
+                    
+                    setClaimNotification({
+                        type: 'error',
+                        title: 'Too Many Attempts',
+                        message: waitMessage,
+                    });
+                    return;
+                }
+
+                throw new Error(data.error?.message || 'Claim failed');
+            }
+
+            // Success!
+            setClaimNotification({
+                type: 'success',
+                title: 'Claim Successful! 🎉',
+                message: `${sompiToKas(data.amount).toFixed(2)} KAS sent to your wallet`,
+                txId: data.txId,
+            });
+
+            // Update the bet in local state to reflect the payout
+            setHistory(prev => prev.map(b => 
+                b.id === bet.id 
+                    ? { ...b, payoutTxId: data.txId, paidAt: new Date().toISOString() }
+                    : b
+            ));
+
+        } catch (err) {
+            console.error('Claim error:', err);
+            setClaimNotification({
+                type: 'error',
+                title: 'Claim Failed',
+                message: err instanceof Error ? err.message : 'An error occurred while processing your claim',
+            });
+        } finally {
+            setClaimingBetId(null);
+        }
+    }, [address, claimingBetId, explorerUrl]);
 
     useEffect(() => {
         if (!isConnected || !address) {
@@ -431,6 +529,39 @@ export default function BetHistoryPage() {
                                                         </a>
                                                     </div>
                                                 )}
+
+                                                {/* Manual Claim Button - Shows when payout failed */}
+                                                {isClaimable(bet) && (
+                                                    <div className="mt-4 pt-4 border-t border-yellow-500/30">
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <span className="text-yellow-400 text-xs">
+                                                                ⚠️ Payout not received
+                                                            </span>
+                                                        </div>
+                                                        <Button
+                                                            onClick={() => handleClaim(bet)}
+                                                            disabled={claimingBetId === bet.id}
+                                                            className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-black font-orbitron font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        >
+                                                            {claimingBetId === bet.id ? (
+                                                                <span className="flex items-center gap-2">
+                                                                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                                                    </svg>
+                                                                    Claiming...
+                                                                </span>
+                                                            ) : (
+                                                                <span className="flex items-center gap-2">
+                                                                    💰 CLAIM {sompiToKas(bet.payoutAmount!).toFixed(2)} KAS
+                                                                </span>
+                                                            )}
+                                                        </Button>
+                                                        <p className="text-gray-500 text-xs mt-2 text-center">
+                                                            Click to manually claim your winnings
+                                                        </p>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </motion.div>
@@ -461,6 +592,58 @@ export default function BetHistoryPage() {
                     </>
                 )}
             </div>
+
+            {/* Claim Notification Toast */}
+            <AnimatePresence>
+                {claimNotification && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 50, x: "-50%" }}
+                        animate={{ opacity: 1, y: 0, x: "-50%" }}
+                        exit={{ opacity: 0, y: 50, x: "-50%" }}
+                        className="fixed bottom-8 left-1/2 z-50"
+                    >
+                        <div className={`
+                            px-6 py-4 rounded-lg border shadow-lg backdrop-blur-sm
+                            ${claimNotification.type === 'success' 
+                                ? 'bg-green-900/90 border-green-500/50' 
+                                : 'bg-red-900/90 border-red-500/50'
+                            }
+                        `}>
+                            <div className="flex items-start gap-4">
+                                <span className="text-2xl">
+                                    {claimNotification.type === 'success' ? '✓' : '⚠️'}
+                                </span>
+                                <div className="flex-1">
+                                    <h4 className={`font-orbitron font-bold ${
+                                        claimNotification.type === 'success' ? 'text-green-400' : 'text-red-400'
+                                    }`}>
+                                        {claimNotification.title}
+                                    </h4>
+                                    <p className="text-gray-300 text-sm mt-1">
+                                        {claimNotification.message}
+                                    </p>
+                                    {claimNotification.txId && (
+                                        <a
+                                            href={`${explorerUrl}/txs/${claimNotification.txId}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 mt-2 text-green-400 hover:text-green-300 text-xs font-mono underline"
+                                        >
+                                            🔗 View Transaction
+                                        </a>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={() => setClaimNotification(null)}
+                                    className="text-gray-400 hover:text-white"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </GameLayout>
     );
 }
