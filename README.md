@@ -1,6 +1,6 @@
 <div align="center">
 
-# KaspaClash ⚔️
+# KaspaClash
 
 </div>
 
@@ -12,11 +12,15 @@
 
 > **A real-time blockchain-powered fighting game showcasing Kaspa's lightning-fast block times through competitive PvP combat, live betting, and on-chain matchmaking.**
 
+<div align="center">
+  <a href="https://kaspaclash.vercel.app"><strong>PLAY NOW →</strong></a>
+</div>
+
 ![KaspaClash Banner](https://kaspaclash.vercel.app/logo.webp)
 
 ---
 
-## 🎮 Table of Contents
+## Table of Contents
 
 - [Overview](#overview)
 - [Why KaspaClash?](#why-kaspaclash)
@@ -39,20 +43,22 @@
 ---
 
 <a id="overview"></a>
-## 🎯 Overview
+## Overview
 
 **KaspaClash** is a competitive 1v1 turn-based fighting game that demonstrates the true power of Kaspa's BlockDAG architecture through real-time gameplay mechanics. Players connect their Kaspa wallets to compete in skill-based matches, bet on ongoing fights, climb the leaderboard, and experience blockchain gaming without the traditional latency constraints.
 
-Built for the **Kaspathon 2026 hackathon** under the **Gaming & Interactive** track, KaspaClash leverages Kaspa's sub-second block times to create a seamless gaming experience where **every move you make is a real on-chain transaction that must be confirmed in a block before gameplay continues**—demonstrating true blockchain speed with ~1 second confirmations, not optimistic UI tricks.
+The game supports both **Kaspa testnet-10** and **mainnet**, automatically detecting the connected wallet's network and routing transactions accordingly.
 
-### 🏆 Hackathon Category
+Built for the **Kaspathon 2026 hackathon** under the **Gaming & Interactive** track, KaspaClash leverages Kaspa's sub-second block times to create a seamless gaming experience where **every move you make is a real on-chain transaction that must be confirmed in a block before gameplay continues** -- demonstrating true blockchain speed with ~1 second confirmations, not optimistic UI tricks.
+
+### Hackathon Category
 - **Primary Track:** Gaming & Interactive
 - **Special Mentions Target:** Best UX/UI, Most Creative Use of Kaspa
 
 ---
 
 <a id="why-kaspaclash"></a>
-## 💡 Why KaspaClash?
+## Why KaspaClash?
 
 ### The Problem
 Traditional blockchain games suffer from:
@@ -64,67 +70,69 @@ Traditional blockchain games suffer from:
 ### The Solution: Kaspa's Speed
 KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 
-- ⚡ **Real Block Confirmations:** With Kaspa's 10 BPS (100ms blocks), transactions confirm in ~1 second. **The game actually waits for blockchain confirmation before each move executes**—this isn't optimistic UI, it's genuine on-chain verification happening faster than traditional blockchains can even broadcast
-- 🎲 **Live Betting:** Spectators can place bets that confirm before the next round
-- 🔗 **On-Chain Everything:** All game state, matches, and transactions are blockchain-native
-- 🎨 **Seamless UX:** Players experience gaming-first design with blockchain in the background
-- 💰 **Low Fees:** Kaspa's efficiency keeps transaction costs negligible
+- **Real Block Confirmations:** With Kaspa's 10 BPS (100ms blocks), transactions confirm in ~1 second. **The game actually waits for blockchain confirmation before each move executes** -- this isn't optimistic UI, it's genuine on-chain verification happening faster than traditional blockchains can even broadcast
+- **Live Betting:** Spectators can place bets that confirm before the next round
+- **On-Chain Everything:** All game state, matches, and transactions are blockchain-native
+- **Seamless UX:** Players experience gaming-first design with blockchain in the background
+- **Low Fees:** Kaspa's efficiency keeps transaction costs negligible
 
 ---
 
 <a id="key-features"></a>
-## ✨ Key Features
+## Key Features
 
-### 🎮 Core Gameplay
-- **Turn-Based Combat System:** Strategic rock-paper-scissors style fighting where **every move is a Kaspa transaction that is verified and confirmed in a block before the turn resolves**—the game literally waits for blockchain confirmation (typically ~1 second with Kaspa's 10 BPS)
-- **Power Surge Cards:** Choose from 3 random round boosts at the start of each round (15 unique cards). Balanced effects with strategic trade-offs—no auto-pick legendaries. Each card selection is also a Kaspa transaction that is verified and confirmed in a block before confirming on the UI.
-- **20 Unique Characters:** Diverse roster with **Tier-Based Scaling** (Common to Legendary). Higher tiers possess reinforced stats and stronger counters.
+### Core Gameplay
+- **Turn-Based Combat System:** Strategic rock-paper-scissors style fighting where **every move is a Kaspa transaction that is verified and confirmed in a block before the turn resolves** -- the game literally waits for blockchain confirmation (typically ~1 second with Kaspa's 10 BPS)
+- **Power Surge Cards:** Choose from 3 random round boosts at the start of each round (15 unique cards). Balanced effects with strategic trade-offs -- no auto-pick legendaries. Each card selection is also a Kaspa transaction that is verified and confirmed in a block before confirming on the UI.
+- **20 Unique Characters:** Diverse roster across 4 archetypes (Speed, Tech, Tank, Precision) with **Tier-Based Scaling** (Common to Legendary). Higher tiers possess reinforced stats and stronger counters.
 - **Multiple Game Modes:**
   - **Ranked Matchmaking:** ELO-based competitive queue with a **30-second failover to Smart Bots** to ensure near-instant entry into combat.
   - **Private Rooms:** 6-character room codes for custom matches with **P2P Wagering** (Challenge your friends with real KAS stakes).
   - **Practice Mode:** Train against the Smart Bot AI in an offline environment.
-  - **Survival Mode:** Endless wave-based challenge with escalating difficulty
+  - **Survival Mode:** Endless wave-based challenge with escalating difficulty (max 3 daily plays with anti-cheat tracking)
   - **Spectator Mode:** Watch live matches with real-time betting
   - **Bot Battles:** 24/7 automated bot-vs-bot matches with betting support
 
-### 🏆 Progression & Rewards
+### Progression & Rewards
 - **Battle Pass System:** Progress through 50 tiers by earning XP from matches and quests
 - **Daily Quests:** Complete 3 rotating objectives daily (Easy/Medium/Hard difficulty)
-- **Achievement System:** Unlock 60+ achievements across 5 categories (Combat, Mastery, Social, Collection, Milestones)
+- **Achievement System:** Unlock achievements across 5 categories (Combat, Progression, Social, Collection, Mastery) with 5 tier levels (Bronze, Silver, Gold, Platinum, Diamond)
 - **Prestige System:** Reset progression at tier 50 for permanent XP/currency multipliers and exclusive rewards
-- **Clash Shards Currency:** Earn in-game currency from matches, quests, and achievements
+- **Clash Shards Currency:** Earn in-game currency from matches, quests, and achievements with a full transaction ledger
 - **Season System:** Seasonal battle pass content with unique rewards and progression resets
 
-### 🛍️ Customization & Shop
-- **Client-Side NFT Cosmetics:** Every cosmetic item purchased triggers a **1 KAS transaction to the treasury vault** with NFT metadata embedded in the payload, inscribing your cosmetic on-chain.
-- **Cosmetic Shop:** Browse and purchase skins, emotes, victory poses, and profile badges
+### Customization & Shop
+- **Client-Side NFT Cosmetics:** Every cosmetic item purchased triggers a **1 KAS transaction to the treasury vault** with KRC-721 NFT metadata embedded in the payload, inscribing your cosmetic on-chain.
+- **Cosmetic Shop:** Browse and purchase skins, stickers, victory poses, and profile badges/frames
 - **Inventory Management:** Track owned cosmetics and transaction history
+- **Player Loadouts:** Equip owned cosmetics per character
 - **Currency Economy:** Spend Clash Shards earned from gameplay to unlock new cosmetics
 
-### 🔗 Blockchain Features
-- **Kaspa Wallet Integration:** Seamless connection via Kasware wallet
-- **True On-Chain Combat:** Every Punch, Kick, and Block is a confirmed blockchain transaction. **The game verifies each transaction is included in a block before executing the move**—showcasing Kaspa's genuine ~1 second confirmation speed, not optimistic UI workarounds
-- **Live Betting System:** Spectators can bet on match outcomes with instant confirmations
+### Blockchain Features
+- **Kaspa Wallet Integration:** Seamless connection via Kasware wallet with public key signature authentication
+- **Dual Network Support:** Fully supports both Kaspa **testnet-10** and **mainnet** -- the game auto-detects the connected wallet's network
+- **True On-Chain Combat:** Every Punch, Kick, and Block is a confirmed blockchain transaction. **The game verifies each transaction is included in a block before executing the move** -- showcasing Kaspa's genuine ~1 second confirmation speed, not optimistic UI workarounds
+- **Live Betting System:** Spectators can bet on match outcomes with instant confirmations (minimum 1 KAS)
 - **Bot Betting:** Bet on automated bot matches running 24/7 with fixed 2x odds and 1% house fee
 - **On-Chain Leaderboard:** Transparent ranking system powered by ELO ratings
 - **Match History:** All game results stored with blockchain verification
 - **Transaction Verification:** Real-time bet confirmation and payout tracking
 - **Automated Payouts:** Instant KAS payouts to winners via scheduled cron jobs
-- **Treasury System:** Automated weekly KAS payouts to top leaderboard players
+- **Treasury System:** Automated weekly KAS payouts to top leaderboard players funded by betting fees and cosmetic purchases
 
-### 📹 Replay & Sharing
+### Replay & Sharing
 - **High-Quality MP4 Export:** Convert any match replay into a sharable video file directly in the browser
 - **Silent Audio Capture:** Advanced audio routing captures full BGM and SFX without playing sound through speakers
-- **Client-Side Processing:** No server costs or queues - renders locally using a hidden accelerated game instance
+- **Client-Side Processing:** No server costs or queues -- renders locally using a hidden accelerated game instance
 - **Smart Muxing:** Combines perfectly timed video frames with AAC-encoded audio for professional-quality results
 
-### 💬 Social Features
-- **Real-Time Chat:** Instant in-game messaging system for active matches
+### Social Features
+- **Real-Time Chat:** Instant in-game messaging system for active matches with sticker support
 - **Quick Chat Presets:** One-tap communication tokens (GG, Nice!, GL HF, etc.)
 - **Collapsible UI:** Unobtrusive chat panel with Floating Action Button (FAB) design
 - **Spectator Isolation:** Secure channel separation ensures private player strategy
 
-### 🎭 Live Spectator Chat
+### Live Spectator Chat
 - **Real-Time Sync:** Instant message delivery to all spectators via Supabase Realtime
 - **Dual Contexts:** Distinct commentary logic for **Bot Matches** (tech-themed) vs **Player Matches** (strategy-themed)
 - **Automated Engagement:** Sophisticated fake message generator creates lively chat environments with:
@@ -133,37 +141,43 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 - **Smart Variety:** 200+ unique message templates to prevent repetition
 - **Premium UI:** Glassmorphic design with dynamic layout adjustment (compact during betting, full-height during match)
 
-### 🎨 User Experience
+### User Experience
 - **Real-Time Updates:** Supabase Realtime for instant game state synchronization
 - **Progressive Web App:** Installable with offline character previews
 - **Smooth Animations:** Framer Motion + Phaser.js for fluid gameplay
 - **Cyberpunk Aesthetic:** Neon-lit UI matching Kaspa's futuristic brand
+- **In-App Documentation:** Comprehensive docs section for both gamers and developers
 
 ---
 
 <a id="technology-stack"></a>
-## 🛠 Technology Stack
+## Technology Stack
 
 ### Frontend
-- **[Next.js 16.1](https://nextjs.org/)** - React framework with App Router and Server Components
+- **[Next.js 16.1](https://nextjs.org/)** - React framework with App Router, Server Components, and Turbopack
 - **[React 19.2](https://react.dev/)** - Latest React with concurrent features
-- **[TypeScript 5.0](https://www.typescriptlang.org/)** - Type-safe development
+- **[TypeScript 5](https://www.typescriptlang.org/)** - Type-safe development
 - **[Phaser 3.88](https://phaser.io/)** - HTML5 game engine for combat scenes
-- **[Tailwind CSS 4](https://tailwindcss.com/)** - Utility-first styling
+- **[Tailwind CSS 4](https://tailwindcss.com/)** - Utility-first styling (CSS-based configuration)
 - **[Framer Motion 12](https://www.framer.com/motion/)** - Advanced animation library
 - **[Zustand 5.0](https://zustand-demo.pmnd.rs/)** - Lightweight state management
+- **[Zod 4](https://zod.dev/)** - Runtime schema validation for API inputs
 
 ### Blockchain
-- **[Kaspa WASM 0.13+](https://github.com/kaspanet/rusty-kaspa)** - Native SDK used for transaction building and signing
+- **[Kaspa WASM 0.13+](https://github.com/kaspanet/rusty-kaspa)** - Native SDK used for transaction building, signing, and wallet signature verification
 - **[kaspalib 0.0.3](https://www.npmjs.com/package/kaspalib)** - Kaspa address utilities
 - **[Kasware Wallet](https://kasware.xyz/)** - Browser wallet for player transactions
-- **Client-Side NFT Minting:** Users mint NFTs directly from their wallets using transaction payloads with embedded metadata.
+- **Client-Side NFT Minting:** Users mint KRC-721 NFTs directly from their wallets using transaction payloads with embedded metadata.
 
 ### Backend
 - **[Supabase](https://supabase.com/)** - PostgreSQL database with Row Level Security
-- **[Supabase Realtime](https://supabase.com/realtime)** - WebSocket-based live updates
+- **[Supabase Realtime](https://supabase.com/realtime)** - WebSocket-based live updates and broadcast channels
 - **Next.js API Routes** - Serverless functions for game logic
-- **[Cloudinary](https://cloudinary.com/)** - Match replay image generation
+- **[Cloudinary](https://cloudinary.com/)** - Image uploads for match sharing
+- **Cron Jobs** - Scheduled bot match payouts and weekly treasury distributions
+
+### Testing
+- **[Vitest 4](https://vitest.dev/)** - Unit testing framework with path alias support
 
 ### Development Tools
 - **[ESLint 9](https://eslint.org/)** - Code linting
@@ -173,75 +187,76 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 ---
 
 <a id="game-architecture"></a>
-## 🏗 Game Architecture
+## Game Architecture
 
 ### System Overview
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      Client (Browser)                       │
-├─────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌───────────────────┐  │
-│  │   Next.js    │  │   Phaser.js  │  │   Kaspa Wallet    │  │
-│  │  React App   │  │  Game Engine │  │     (Kasware)     │  │
-│  └──────┬───────┘  └──────┬───────┘  └──────────┬────────┘  │
-│         │                 │                     │           │
-│         └─────────────────┴─────────────────────┘           │
-│                           │                                 │
-└───────────────────────────┼─────────────────────────────────┘
-                            │
-                    ┌───────▼────────┐
-                    │  Supabase      │
-                    │  Realtime      │
-                    │  (WebSocket)   │
-                    └───────┬────────┘
-                            │
-┌───────────────────────────┼─────────────────────────────────┐
-│                      Server (Next.js)                       │
-├───────────────────────────┴─────────────────────────────────┤
-│                                                             │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │            API Routes (Serverless)                   │   │
-│  ├──────────────────────────────────────────────────────┤   │
-│  │  • Matchmaking      • Match Management               │   │
-│  │  • Betting          • Leaderboard                    │   │
-│  │  • Player Profiles  • Game State Logic               │   │
-│  └──────────────────────────────────────────────────────┘   │
-│                           │                                 │
-│                           ▼                                 │
-│              ┌────────────────────────┐                     │
-│              │  Supabase PostgreSQL   │                     │
-│              │  (Database + RLS)      │                     │
-│              └────────────────────────┘                     │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-              ┌─────────────────────────┐
-              │   Kaspa Blockchain      │
-              │  (Transaction Layer)    │
-              └─────────────────────────┘
++-----------------------------------------------------------------+
+|                      Client (Browser)                           |
++-----------------------------------------------------------------+
+|  +----------------+  +----------------+  +-------------------+  |
+|  |   Next.js      |  |   Phaser.js    |  |   Kaspa Wallet    |  |
+|  |  React App     |  |  Game Engine   |  |     (Kasware)     |  |
+|  +--------+-------+  +--------+-------+  +----------+--------+  |
+|           |                   |                      |          |
+|           +-------------------+----------------------+          |
+|                               |                                 |
++-----------------------------------------------------------------+
+                                |
+                    +-----------v----------+
+                    |  Supabase            |
+                    |  Realtime            |
+                    |  (WebSocket)         |
+                    +-----------+----------+
+                                |
++-----------------------------------------------------------------+
+|                      Server (Next.js)                           |
++-------------------------------+---------------------------------+
+|                                                                 |
+|  +-----------------------------------------------------------+  |
+|  |            API Routes (Serverless)                        |  |
+|  +-----------------------------------------------------------+  |
+|  |  - Matchmaking      - Match Management                    |  |
+|  |  - Betting          - Leaderboard                         |  |
+|  |  - Player Profiles  - Game State Logic                    |  |
+|  |  - Auth (Kaspa Sig) - Treasury                            |  |
+|  |  - Bot Games        - Cron (Payouts)                      |  |
+|  +-----------------------------------------------------------+  |
+|                               |                                 |
+|              +----------------v-----------+                     |
+|              |  Supabase PostgreSQL       |                     |
+|              |  (40+ Tables + RLS)        |                     |
+|              +----------------------------+                     |
++-----------------------------------------------------------------+
+                                |
+                                v
+              +-----------------------------+
+              |   Kaspa Blockchain          |
+              |  (Testnet-10 & Mainnet)     |
+              +-----------------------------+
 ```
 
 ### Data Flow
 
 #### Match Flow
-1. **Queue Join:** Player connects wallet → API validates → Supabase stores queue entry
+1. **Queue Join:** Player connects wallet -> API validates via signature auth -> Supabase stores queue entry
 2. **Matchmaking:** Server matches players by ELO. If no human opponent is found within **30 seconds**, the system automatically pairs the player with a **Smart Bot** to minimize wait times.
-3. **Strategic Ban & Pick:** 
+3. **Strategic Ban & Pick:**
    - **Ban Phase:** Both players blindly ban one character from the roster.
    - **Blind Pick:** Players select their fighter (excluding bans). Choices are hidden until both lock in.
    - **Reveal:** Dramatic unveil of the selected fighters before combat begins.
-4. **Combat Rounds:** 
+4. **Combat Rounds:**
    - Client submits moves via API
    - Server validates + resolves combat using deterministic engine
    - Results broadcast to both players + spectators
-5. **Match End:** Winner determined → ELO updated → Results written to database
+5. **Match End:** Winner determined -> ELO updated -> Results written to database
 
 #### Betting Flow
-1. **Pool Creation:** Match starts → Betting pool created → Open for bets
-2. **Place Bet:** Spectator sends KAS to vault → API records bet with tx_id → Pool updated
-3. **Lock Pool:** Match reaches final round → Pool locked → No more bets accepted
-4. **Resolve:** Match ends → Payouts calculated using odds → Winners receive funds
+1. **Pool Creation:** Match starts -> Betting pool created -> Open for bets
+2. **Place Bet:** Spectator sends KAS to vault -> API records bet with tx_id -> Pool updated
+3. **Lock Pool:** Match reaches final round -> Pool locked -> No more bets accepted
+4. **Resolve:** Match ends -> Payouts calculated using odds -> Winners receive funds
 
 #### Bot Betting Flow
 1. **Match Creation:** Server generates bot vs bot match with pre-computed turns
@@ -252,15 +267,15 @@ KaspaClash demonstrates how Kaspa's BlockDAG architecture solves these problems:
 6. **Instant Payout:** The system automatically triggers batch payouts from vault to winners
 
 #### Chat Flow
-1. **Send Message:** Player enters message or clicks quick chat
+1. **Send Message:** Player enters message or clicks quick chat / sends sticker
 2. **Local Echo:** Message displays immediately for sender (optimistic UI)
 3. **Broadcast:** Event sent to Supabase Realtime channel
-4. **Receive:** Opponent receives broadcast → Deduplicates → Displays message
+4. **Receive:** Opponent receives broadcast -> Deduplicates -> Displays message
 
 ---
 
 <a id="getting-started"></a>
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -305,21 +320,31 @@ NEXT_PUBLIC_KASPA_NETWORK=testnet
 NEXT_PUBLIC_BETTING_VAULT_ADDRESS_TESTNET=kaspatest:your-testnet-address
 NEXT_PUBLIC_BETTING_VAULT_ADDRESS_MAINNET=kaspa:your-mainnet-address
 
-# Cloudinary (optional, for match replay images)
+# Vault Private Keys (for automated payouts)
+BETTING_VAULT_PRIVATE_KEY_TESTNET=your-testnet-private-key
+BETTING_VAULT_PRIVATE_KEY_MAINNET=your-mainnet-private-key
+
+# Cloudinary (optional, for match sharing images)
 CLOUDINARY_CLOUD_NAME=your-cloud-name
 CLOUDINARY_API_KEY=your-api-key
 CLOUDINARY_API_SECRET=your-api-secret
 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=your-cloud-name
+
+# Kaspa RPC (optional)
+KASPA_RPC_URL=your-mainnet-rpc-url
+KASPA_RPC_URL_TESTNET=your-testnet-rpc-url
 ```
 
 4. **Set up Supabase database**
 
 Run migrations in your Supabase SQL editor:
 ```bash
-# Navigate to Supabase dashboard → SQL Editor → New Query
-# Copy and execute files in order:
-# 1. supabase/migrations/001_initial_schema.sql
-# 2. supabase/migrations/002_rls_policies.sql
+# Navigate to Supabase dashboard -> SQL Editor -> New Query
+# Copy and execute the schema file:
+# supabase/migrations/current_schema.sql
+#
+# Then seed cosmetics data:
+# supabase/migrations/003_seed_cosmetics.sql
 ```
 
 5. **Run the development server**
@@ -338,29 +363,26 @@ Navigate to [http://localhost:3000](http://localhost:3000)
 - Install Kasware extension
 - Create/import a wallet
 - Click "Connect Wallet" in KaspaClash
-- Switch to testnet for development
+- Switch to testnet-10 for development
 
 ---
 
 <a id="project-structure"></a>
-## 📁 Project Structure
+## Project Structure
 
 ```
 KaspaClash/
 ├── public/                          # Static assets
 │   ├── assets/
 │   │   ├── audio/                   # Game sound effects & music (AI-generated)
-│   │   │   ├── 3-2-1-fight.mp3
-│   │   │   ├── character-selection.mp3
-│   │   │   ├── dojo.mp3
-│   │   │   ├── victory.mp3
-│   │   │   └── [character]-[move].mp3
-│   │   └── icons/                   # PWA icons
-│   ├── characters/                  # Character assets (AI-generated)
+│   │   └── icons/                   # Move type icons (punch, kick, block, special)
+│   ├── cards/                       # Power Surge card images (15 cards)
+│   ├── characters/                  # Character assets (AI-generated, 20 characters)
 │   │   ├── cyber-ninja/
 │   │   ├── dag-warrior/
 │   │   ├── block-bruiser/
-│   │   └── hash-hunter/
+│   │   ├── hash-hunter/
+│   │   └── ... (16 more)
 │   │       ├── portrait.webp        # Character select portrait
 │   │       ├── idle.webp            # Animation spritesheets
 │   │       ├── punch.webp
@@ -368,108 +390,194 @@ KaspaClash/
 │   │       ├── block.webp
 │   │       ├── special.webp
 │   │       └── [other animations]
+│   ├── icons/                       # PWA icons
+│   ├── stickers/                    # In-game chat stickers (12 stickers)
+│   ├── wasm/                        # Kaspa WASM binaries (bundled)
 │   ├── manifest.json                # PWA manifest
 │   └── sw.js                        # Service worker
 │
 ├── src/
 │   ├── app/                         # Next.js App Router
+│   │   ├── layout.tsx               # Root layout with providers
+│   │   ├── page.tsx                 # Landing page
+│   │   ├── globals.css              # Global styles
 │   │   ├── api/                     # API routes (serverless functions)
-│   │   │   ├── achievements/        # Achievement system endpoints
+│   │   │   ├── achievements/        # Achievement system
 │   │   │   │   ├── list/            # GET - Fetch all achievements
-│   │   │   │   ├── unlock/          # POST - Unlock achievement
-│   │   │   │   └── progress/        # GET - Fetch progress
-│   │   │   ├── betting/             # Betting system endpoints
+│   │   │   │   ├── progress/        # GET - Fetch progress
+│   │   │   │   └── unlock/          # POST - Unlock achievement
+│   │   │   ├── auth/
+│   │   │   │   └── login/           # POST - Kaspa wallet signature auth
+│   │   │   ├── battle-pass/
+│   │   │   │   └── claim/           # POST - Claim tier rewards
+│   │   │   ├── betting/             # PvP betting system
+│   │   │   │   ├── claim/           # POST - Claim winnings
+│   │   │   │   ├── history/         # GET - Bet history
+│   │   │   │   ├── payout/[matchId]/ # POST - Process payouts
 │   │   │   │   ├── place/           # POST - Place bet
-│   │   │   │   ├── pool/            # GET - Get betting pool
-│   │   │   │   └── payout/          # POST - Process payouts
+│   │   │   │   └── pool/[matchId]/  # GET - Get betting pool
+│   │   │   ├── bot-betting/         # Bot match betting system
+│   │   │   │   ├── history/         # GET - Bot bet history
+│   │   │   │   ├── payout/[matchId]/ # POST - Bot match payouts
+│   │   │   │   ├── place/           # POST - Place bot bet
+│   │   │   │   └── pool/[matchId]/  # GET - Bot betting pool
+│   │   │   ├── bot-games/           # Bot match management
+│   │   │   │   ├── route.ts         # GET/POST - Bot matches
+│   │   │   │   └── sync/            # POST - Sync bot match state
+│   │   │   ├── cron/                # Scheduled tasks
+│   │   │   │   ├── bot-match-payout/ # Automated bot betting payouts
+│   │   │   │   └── weekly-distribution/ # Treasury distribution
+│   │   │   ├── currency/
+│   │   │   │   └── [playerId]/      # GET - Player currency balance
 │   │   │   ├── health/              # GET - Health check
 │   │   │   ├── leaderboard/         # GET - Fetch rankings
 │   │   │   ├── matches/             # Match management
-│   │   │   │   ├── [matchId]/       # GET - Match details
-│   │   │   │   ├── create/          # POST - Create match
-│   │   │   │   ├── move/            # POST - Submit move
-│   │   │   │   └── resolve/         # POST - Resolve round
+│   │   │   │   ├── cleanup-abandoned/ # POST - Cleanup stale matches
+│   │   │   │   ├── live/            # GET - Active matches list
+│   │   │   │   └── [matchId]/       # Match-specific endpoints
+│   │   │   │       ├── route.ts     # GET - Match details
+│   │   │   │       ├── ban/         # POST - Ban character
+│   │   │   │       ├── bot-auto-move/ # POST - Bot AI move
+│   │   │   │       ├── disconnect/  # POST - Handle disconnect
+│   │   │   │       ├── fight-state/ # GET - Real-time fight state
+│   │   │   │       ├── forfeit/     # POST - Forfeit match
+│   │   │   │       ├── move/        # POST - Submit move
+│   │   │   │       ├── move-timeout/ # POST - Handle move timeout
+│   │   │   │       ├── power-surge/ # POST - Select power surge card
+│   │   │   │       ├── reject/      # POST - Reject match
+│   │   │   │       ├── rounds/      # GET - Round history
+│   │   │   │       ├── select/      # POST - Select character
+│   │   │   │       ├── skip-stunned-turn/ # POST - Skip stunned turn
+│   │   │   │       ├── submit-stunned-move/ # POST - Submit while stunned
+│   │   │   │       ├── timeout/     # POST - Match timeout
+│   │   │   │       └── verify/      # POST - Verify match state
 │   │   │   ├── matchmaking/
-│   │   │   │   ├── queue/           # POST - Join/leave queue
-│   │   │   │   └── rooms/           # POST - Create/join private room
+│   │   │   │   ├── create-bot-match/ # POST - Create bot match
+│   │   │   │   ├── queue/           # POST/DELETE - Join/leave queue
+│   │   │   │   └── rooms/           # Private room management
+│   │   │   │       ├── route.ts     # POST - Create room
+│   │   │   │       ├── cancel/      # POST - Cancel room
+│   │   │   │       ├── join/        # POST - Join room
+│   │   │   │       └── stake/       # POST - Set room stake
+│   │   │   ├── player/
+│   │   │   │   └── characters/      # GET - Player's owned characters
 │   │   │   ├── players/
-│   │   │   │   ├── [address]/       # GET - Player profile
-│   │   │   │   └── create/          # POST - Create player
-│   │   │   ├── progression/         # Battle Pass progression endpoints
+│   │   │   │   └── [address]/       # Player profile endpoints
+│   │   │   │       ├── route.ts     # GET - Player profile
+│   │   │   │       ├── matches/     # GET - Match history
+│   │   │   │       └── profile/     # PUT - Update profile
+│   │   │   ├── progression/         # Battle Pass progression
 │   │   │   │   ├── award-xp/        # POST - Award XP
-│   │   │   │   ├── unlock-tier/     # POST - Unlock tier
+│   │   │   │   ├── player/[address]/ # GET - Player progression
 │   │   │   │   ├── prestige/        # POST - Execute prestige
-│   │   │   │   └── prestige-status/ # GET - Check eligibility
-│   │   │   ├── quests/              # Daily quest system endpoints
-│   │   │   │   ├── daily/           # GET - Fetch active quests
+│   │   │   │   ├── prestige-status/ # GET - Check eligibility
+│   │   │   │   ├── season/          # GET - Current season info
+│   │   │   │   └── unlock-tier/     # POST - Unlock tier
+│   │   │   ├── quests/              # Daily quest system
 │   │   │   │   ├── claim/           # POST - Claim quest rewards
+│   │   │   │   ├── daily/           # GET - Fetch active quests
 │   │   │   │   └── progress/        # POST - Update progress
-│   │   │   ├── shop/                # Cosmetic shop endpoints
+│   │   │   ├── replay-data/         # GET - Match replay data
+│   │   │   ├── shop/                # Cosmetic shop
+│   │   │   │   ├── featured/        # GET - Weekly rotation
 │   │   │   │   ├── inventory/       # GET - Fetch shop items
+│   │   │   │   ├── nfts/            # NFT management
+│   │   │   │   │   ├── route.ts     # GET - List NFTs
+│   │   │   │   │   ├── player/[address]/ # GET - Player NFTs
+│   │   │   │   │   └── verify/      # POST - Verify NFT
 │   │   │   │   ├── purchase/        # POST - Process purchase
-│   │   │   │   └── featured/        # GET - Weekly rotation
-│   │   │   └── survival/            # Survival mode endpoints
-│   │   │       ├── start/           # POST - Initialize run
-│   │   │       ├── end/             # POST - Save results
-│   │   │       └── leaderboard/     # GET - Fetch rankings
-│   │   ├── achievements/
-│   │   │   └── page.tsx             # Achievement collection screen
-│   │   ├── battle-pass/
-│   │   │   └── page.tsx             # Battle Pass progression screen
-│   │   ├── leaderboard/
-│   │   │   └── page.tsx             # Leaderboard page
-│   │   ├── m/[matchId]/             # Short URL for matches
-│   │   │   └── page.tsx
+│   │   │   │   └── test-nft-mint/   # POST - Test NFT minting
+│   │   │   ├── survival/            # Survival mode
+│   │   │   │   ├── end/             # POST - Save results
+│   │   │   │   ├── leaderboard/     # GET - Fetch rankings
+│   │   │   │   ├── start/           # POST - Initialize run
+│   │   │   │   └── status/          # GET - Current run status
+│   │   │   ├── treasury/            # Treasury system
+│   │   │   │   ├── balance/         # GET - Vault balance
+│   │   │   │   ├── distribute/      # POST - Trigger distribution
+│   │   │   │   └── distributions/   # GET - Distribution history
+│   │   │   └── verify-mempool/      # POST - Verify mempool tx
+│   │   │
+│   │   ├── achievements/            # Achievement collection page
+│   │   ├── battle-pass/             # Battle Pass progression page
+│   │   ├── bet-history/             # Betting history page
+│   │   ├── bot-bet-history/         # Bot betting history page
+│   │   ├── docs/                    # In-app documentation
+│   │   │   ├── layout.tsx           # Docs layout with sidebar
+│   │   │   ├── page.tsx             # Docs landing page
+│   │   │   └── [section]/[slug]/    # Dynamic docs routes
+│   │   ├── fake/                    # Bot battle spectator page
+│   │   ├── leaderboard/             # Leaderboard page
+│   │   ├── m/[matchId]/             # Short URL for match sharing (with OG image)
 │   │   ├── match/[matchId]/         # Full match page
-│   │   │   └── page.tsx
-│   │   ├── matchmaking/
-│   │   │   └── page.tsx             # Matchmaking hub
+│   │   ├── matchmaking/             # Matchmaking hub
 │   │   ├── player/[address]/        # Player profile
-│   │   │   └── page.tsx
-│   │   ├── practice/
-│   │   │   └── page.tsx             # Practice mode
-│   │   ├── quests/
-│   │   │   └── page.tsx             # Daily quests screen
-│   │   ├── queue/
-│   │   │   └── page.tsx             # Queue waiting room
+│   │   ├── practice/                # Practice mode
+│   │   ├── quests/                  # Daily quests page
+│   │   ├── queue/                   # Queue waiting room
 │   │   ├── replay/[matchId]/        # Match replay viewer
-│   │   │   └── page.tsx
-│   │   ├── shop/
-│   │   │   └── page.tsx             # Cosmetic shop screen
-│   │   ├── spectate/
-│   │   │   ├── page.tsx             # Spectator lobby
-│   │   │   └── [matchId]/           # Live spectate match
-│   │   │       └── page.tsx
-│   │   ├── survival/
-│   │   │   └── page.tsx             # Survival mode launcher
-│   │   ├── layout.tsx               # Root layout with providers
-│   │   ├── page.tsx                 # Landing page
-│   │   └── globals.css              # Global styles
+│   │   ├── shop/                    # Cosmetic shop page
+│   │   ├── spectate/                # Live spectating
+│   │   │   ├── [matchId]/           # PvP match spectator
+│   │   │   └── bot/[matchId]/       # Bot match spectator
+│   │   └── survival/                # Survival mode launcher
 │   │
 │   ├── components/                  # React components
 │   │   ├── achievements/
-│   │   │   ├── AchievementCard.tsx  # Individual achievement display
-│   │   │   ├── AchievementGrid.tsx  # Achievement collection grid
-│   │   │   ├── ProgressBar.tsx      # Progress tracking
-│   │   │   └── UnlockNotification.tsx # Achievement unlock popup
+│   │   │   ├── AchievementCard.tsx
+│   │   │   ├── AchievementGrid.tsx
+│   │   │   ├── ProgressBar.tsx
+│   │   │   └── UnlockNotification.tsx
 │   │   ├── betting/
-│   │   │   └── BettingPanel.tsx     # Live betting UI for spectators
+│   │   │   ├── BettingPanel.tsx      # PvP betting UI
+│   │   │   ├── BotBettingPanel.tsx   # Bot match betting UI
+│   │   │   └── WinningNotification.tsx
 │   │   ├── currency/
-│   │   │   ├── ClashShardsDisplay.tsx # Currency balance display
-│   │   │   └── TransactionHistory.tsx # Earn/spend log
+│   │   │   ├── ClashShardsDisplay.tsx
+│   │   │   ├── ClashShardsIcon.tsx
+│   │   │   └── TransactionHistory.tsx
+│   │   ├── docs/                    # Documentation components
+│   │   │   ├── DocsHeader.tsx
+│   │   │   ├── DocsMobileNav.tsx
+│   │   │   ├── DocsNavContent.tsx
+│   │   │   ├── DocsSidebar.tsx
+│   │   │   ├── MermaidDiagram.tsx
+│   │   │   └── content/             # 15 doc content components
+│   │   │       ├── DevAPI.tsx
+│   │   │       ├── DevArchitecture.tsx
+│   │   │       ├── DevBlockchain.tsx
+│   │   │       ├── DevDatabase.tsx
+│   │   │       ├── DevEngine.tsx
+│   │   │       ├── DevGettingStarted.tsx
+│   │   │       ├── DevRealtime.tsx
+│   │   │       ├── GamersAchievements.tsx
+│   │   │       ├── GamersBattlePass.tsx
+│   │   │       ├── GamersBetting.tsx
+│   │   │       ├── GamersMechanics.tsx
+│   │   │       ├── GamersOverview.tsx
+│   │   │       ├── GamersQuests.tsx
+│   │   │       ├── GamersShop.tsx
+│   │   │       └── GamersTreasury.tsx
 │   │   ├── game/
-│   │   │   └── MatchResults.tsx     # Post-match results display
+│   │   │   └── MatchResults.tsx
 │   │   ├── landing/
-│   │   │   ├── DecorativeLine.tsx   # Cyberpunk design elements
+│   │   │   ├── DecorativeLine.tsx
 │   │   │   ├── LandingHeader.tsx
 │   │   │   └── LandingLayout.tsx
+│   │   ├── layout/
+│   │   │   ├── GameHeader.tsx
+│   │   │   ├── GameLayout.tsx
+│   │   │   └── GameSidebar.tsx
 │   │   ├── leaderboard/
-│   │   │   └── LeaderboardTable.tsx
+│   │   │   ├── LeaderboardTable.tsx
+│   │   │   └── SurvivalLeaderboardTable.tsx
 │   │   ├── matchmaking/
+│   │   │   ├── BlockDAGVisualizer.tsx
+│   │   │   ├── MatchmakingHUD.tsx
 │   │   │   ├── MatchmakingQueue.tsx
-│   │   │   ├── RoomCreate.tsx       # Private room creation
-│   │   │   ├── RoomJoin.tsx         # Room code entry
-│   │   │   └── StakeDeposit.tsx     # Optional match staking
+│   │   │   ├── RoomCreate.tsx
+│   │   │   ├── RoomJoin.tsx
+│   │   │   └── StakeDeposit.tsx
 │   │   ├── player/
 │   │   │   ├── MatchHistory.tsx
 │   │   │   ├── ProfileEditModal.tsx
@@ -479,35 +587,43 @@ KaspaClash/
 │   │   │   ├── PracticeMenu.tsx
 │   │   │   └── PracticeResults.tsx
 │   │   ├── progression/
-│   │   │   ├── BattlePassTiers.tsx  # 50-tier grid display
-│   │   │   ├── PrestigeConfirmation.tsx # Prestige modal
-│   │   │   ├── TierUnlockModal.tsx  # Tier unlock celebration
-│   │   │   └── XPProgressBar.tsx    # Current tier progress
+│   │   │   ├── BattlePassTiers.tsx
+│   │   │   ├── PrestigeConfirmation.tsx
+│   │   │   ├── TierUnlockModal.tsx
+│   │   │   └── XPProgressBar.tsx
 │   │   ├── providers/
-│   │   │   └── WalletProvider.tsx   # Wallet context provider
+│   │   │   └── WalletProvider.tsx
 │   │   ├── quests/
-│   │   │   ├── DailyQuestList.tsx   # 3 active quests display
-│   │   │   ├── QuestCard.tsx        # Individual quest card
-│   │   │   └── QuestClaimButton.tsx # Claim rewards button
+│   │   │   ├── DailyQuestList.tsx
+│   │   │   ├── QuestCard.tsx
+│   │   │   └── QuestClaimButton.tsx
 │   │   ├── share/
+│   │   │   ├── ExportMP4Button.tsx
+│   │   │   ├── ExportMP4Wrapper.tsx
 │   │   │   ├── MatchSummary.tsx
 │   │   │   ├── ShareMatchButton.tsx
 │   │   │   └── TransactionTimeline.tsx
 │   │   ├── shared/
 │   │   │   └── NetworkModeIndicator.tsx
 │   │   ├── shop/
-│   │   │   ├── CategoryFilter.tsx   # Shop category tabs
-│   │   │   ├── CosmeticPreview.tsx  # Item preview modal
-│   │   │   ├── PurchaseModal.tsx    # Purchase confirmation
-│   │   │   └── ShopGrid.tsx         # Shop item grid
+│   │   │   ├── CategoryFilter.tsx
+│   │   │   ├── CosmeticPreview.tsx
+│   │   │   ├── PurchaseModal.tsx
+│   │   │   └── ShopGrid.tsx
+│   │   ├── spectate/
+│   │   │   └── SpectatorChat.tsx
 │   │   ├── survival/
-│   │   │   ├── SurvivalLauncher.tsx # Mode selection screen
-│   │   │   ├── SurvivalResults.tsx  # Post-run stats
-│   │   │   └── WaveTransition.tsx   # Wave number display
+│   │   │   ├── SurvivalGameClient.tsx
+│   │   │   ├── SurvivalMenu.tsx
+│   │   │   └── SurvivalResults.tsx
+│   │   ├── tutorial/
+│   │   │   └── TutorialOverlay.tsx
 │   │   ├── ui/                      # shadcn/ui components
 │   │   │   ├── button.tsx
 │   │   │   ├── card.tsx
 │   │   │   ├── dialog.tsx
+│   │   │   ├── Pagination.tsx
+│   │   │   ├── Skeleton.tsx
 │   │   │   └── table.tsx
 │   │   └── wallet/
 │   │       ├── ConnectWalletButton.tsx
@@ -515,142 +631,246 @@ KaspaClash/
 │   │       └── WalletInfo.tsx
 │   │
 │   ├── data/
-│   │   └── characters.ts            # Character definitions & stats
+│   │   └── characters.ts            # Character definitions & stats (20 characters)
 │   │
 │   ├── game/                        # Phaser game engine
+│   │   ├── AudioKeys.ts             # Audio asset constants
+│   │   ├── config.ts                # Phaser configuration
+│   │   ├── EventBus.ts              # React <-> Phaser communication
+│   │   ├── PhaserGame.tsx           # React wrapper component
+│   │   ├── SceneManager.ts          # Scene lifecycle management
 │   │   ├── combat/
-│   │   │   ├── CombatEngine.ts      # Core combat resolution logic
 │   │   │   ├── CharacterStats.ts    # Character-specific stats
+│   │   │   ├── CombatEngine.ts      # Core combat resolution logic
+│   │   │   ├── SurgeEffects.ts      # Power Surge card effect application
 │   │   │   ├── types.ts             # Combat type definitions
 │   │   │   └── index.ts
-│   │   ├── handlers/                # Event handlers
-│   │   ├── input/                   # Input management
+│   │   ├── config/
+│   │   │   └── sprite-config.ts     # Spritesheet frame definitions
+│   │   ├── handlers/
+│   │   │   └── RoundAnimationHandler.ts
+│   │   ├── input/
+│   │   │   └── TouchInput.ts        # Mobile touch controls
 │   │   ├── managers/
 │   │   │   ├── AchievementTracker.ts # In-game achievement tracking
 │   │   │   └── ProgressionManager.ts # XP award management
 │   │   ├── scenes/
+│   │   │   ├── BotBattleScene.ts    # Bot-vs-bot spectator scene
 │   │   │   ├── CharacterSelectScene.ts
-│   │   │   ├── FightScene.ts        # Main battle arena (3485 lines)
+│   │   │   ├── FakeScene.ts         # Fake bot battle scene
+│   │   │   ├── FightScene.ts        # Main battle arena
 │   │   │   ├── PracticeScene.ts
 │   │   │   ├── ReplayScene.ts
 │   │   │   ├── ResultsScene.ts
 │   │   │   └── SurvivalScene.ts     # Survival mode scene
-│   │   ├── sprites/                 # Sprite management
+│   │   ├── sprites/
+│   │   │   └── FighterSprite.ts     # Character sprite rendering
 │   │   ├── ui/                      # In-game UI elements
-│   │   ├── AudioKeys.ts             # Audio asset constants
-│   │   ├── config.ts                # Phaser configuration
-│   │   ├── EventBus.ts              # React ↔ Phaser communication
-│   │   ├── PhaserGame.tsx           # React wrapper component
-│   │   └── SceneManager.ts
+│   │   │   ├── CharacterCard.ts
+│   │   │   ├── ChatPanel.ts
+│   │   │   ├── HealthBar.ts
+│   │   │   ├── MobileControls.ts
+│   │   │   ├── MoveButton.ts
+│   │   │   ├── OfflinePowerSurgeCards.ts
+│   │   │   ├── OpponentStatus.ts
+│   │   │   ├── PowerSurgeCards.ts
+│   │   │   ├── PowerSurgeCardView.ts
+│   │   │   ├── RoundScore.ts
+│   │   │   ├── RoundTimer.ts
+│   │   │   ├── SelectionTimer.ts
+│   │   │   ├── SpectatorPowerSurgeCards.ts
+│   │   │   ├── StatsOverlay.ts
+│   │   │   ├── StickerPicker.ts
+│   │   │   ├── TextFactory.ts
+│   │   │   ├── TransactionPrompt.ts
+│   │   │   ├── TransactionToast.ts
+│   │   │   └── index.ts
+│   │   └── utils/
+│   │       └── asset-loader.ts      # Asset preloading utilities
 │   │
 │   ├── hooks/                       # Custom React hooks
+│   │   ├── useAbandonedMatchCleanup.ts
 │   │   ├── useBettingPool.ts        # Betting state management
-│   │   ├── useGameChannel.ts        # Realtime game events (674 lines)
-│   │   ├── useMatchmakingQueue.ts   # Queue management (407 lines)
+│   │   ├── useCurrencyRealtime.ts   # Real-time currency updates
+│   │   ├── useGameChannel.ts        # Realtime game events
+│   │   ├── useMatchmakingQueue.ts   # Queue management
+│   │   ├── useOwnedCharacters.ts    # Character ownership
 │   │   ├── useQuestProgress.ts      # Quest progress tracking
 │   │   ├── useSpectatorChannel.ts   # Spectator mode events
+│   │   ├── useSpectatorChat.ts      # Spectator chat hook
 │   │   └── useWallet.ts             # Wallet connection state
 │   │
 │   ├── lib/                         # Core libraries
+│   │   ├── utils.ts                 # Shared utilities (cn, etc.)
+│   │   ├── video-recorder.ts        # MP4 replay recording
 │   │   ├── achievements/
-│   │   │   ├── achievement-definitions.ts # 80+ achievement configs
-│   │   │   ├── achievement-evaluator.ts # Completion checking
-│   │   │   └── achievement-tracker.ts # Progress tracking
-│   │   ├── api/                     # API client utilities
+│   │   │   ├── achievement-definitions.ts
+│   │   │   ├── achievement-evaluator.ts
+│   │   │   ├── achievement-tracker.ts
+│   │   │   └── player-stats-fetcher.ts
+│   │   ├── api/                     # API utilities
+│   │   │   ├── auth-middleware.ts    # Kaspa signature auth
+│   │   │   ├── client.ts            # API client
+│   │   │   ├── errors.ts            # Error handling
+│   │   │   ├── middleware.ts        # Request middleware
+│   │   │   ├── security-headers.ts  # Security headers
+│   │   │   └── validators.ts        # Zod validators
 │   │   ├── betting/
-│   │   │   ├── betting-service.ts   # Odds calculation & payouts (422 lines)
-│   │   │   └── payout-service.ts
-│   │   ├── cloudinary/              # Image generation for match replays
+│   │   │   ├── betting-service.ts   # Odds calculation & pool management
+│   │   │   ├── bot-payout-service.ts # Bot match payout processing
+│   │   │   └── payout-service.ts    # PvP payout processing
+│   │   ├── chat/
+│   │   │   └── fake-chat-service.ts # Spectator fake chat generator
+│   │   ├── cloudinary/
+│   │   │   └── upload.ts            # Image upload for match sharing
+│   │   ├── docs/
+│   │   │   └── config.ts            # Documentation navigation config
 │   │   ├── game/
-│   │   │   └── state-machine.ts     # Game state transitions (368 lines)
+│   │   │   ├── ai-difficulty.ts     # AI difficulty scaling
+│   │   │   ├── ai-opponent.ts       # AI decision engine
+│   │   │   ├── bot-match-lifecycle.ts # Bot match lifecycle
+│   │   │   ├── bot-match-service.ts # Bot match management
+│   │   │   ├── bot-move-helper.ts   # Bot move generation
+│   │   │   ├── character-selection.ts # Ban/pick logic
+│   │   │   ├── combat-resolver.ts   # Server-side combat resolution
+│   │   │   ├── fight-state-service.ts # Fight state persistence
+│   │   │   ├── move-service.ts      # Move validation & submission
+│   │   │   ├── power-surge-service.ts # Power Surge card logic
+│   │   │   ├── round-resolver.ts    # Round resolution engine
+│   │   │   ├── smart-bot-opponent.ts # Smart bot AI
+│   │   │   └── state-machine.ts     # Game state transitions
 │   │   ├── kaspa/
-│   │   │   ├── wallet.ts            # Kaspa wallet integration (407 lines)
-│   │   │   ├── wallet-discovery.ts
-│   │   │   ├── move-transaction.ts  # Optional on-chain move storage
-│   │   │   └── loader.ts
-│   │   ├── leaderboard/             # Ranking algorithms
-│   │   ├── matchmaking/             # Matchmaking logic
-│   │   ├── player/                  # Player management
+│   │   │   ├── loader.ts            # WASM loader
+│   │   │   ├── move-transaction.ts  # On-chain move storage
+│   │   │   ├── nft-minter-client.ts # Client-side NFT minting
+│   │   │   ├── nft-minter-server.ts # Server-side NFT verification
+│   │   │   ├── nft-minter-wasm.ts   # WASM-based NFT minting
+│   │   │   ├── nft-minter.ts        # NFT minting orchestrator
+│   │   │   ├── vault-service.ts     # Treasury vault operations
+│   │   │   ├── wallet-discovery.ts  # Wallet detection
+│   │   │   └── wallet.ts            # Kaspa wallet integration
+│   │   ├── leaderboard/
+│   │   │   └── service.ts           # Ranking algorithms
+│   │   ├── matchmaking/
+│   │   │   └── matchmaker.ts        # Matchmaking logic
+│   │   ├── player/
+│   │   │   ├── match-history.ts     # Match history queries
+│   │   │   └── registration.ts      # Player registration
 │   │   ├── progression/
 │   │   │   ├── currency-utils.ts    # Clash Shards utilities
 │   │   │   ├── prestige-calculator.ts # Prestige multipliers
+│   │   │   ├── prestige-cosmetics.ts # Prestige-exclusive cosmetics
 │   │   │   ├── prestige-handler.ts  # Prestige reset logic
 │   │   │   ├── season-manager.ts    # Season transitions
 │   │   │   ├── tier-rewards.ts      # Reward distribution
 │   │   │   └── xp-calculator.ts     # XP curve calculations
 │   │   ├── quests/
 │   │   │   ├── quest-generator.ts   # Daily quest selection
-│   │   │   ├── quest-templates.ts   # 40+ quest definitions
-│   │   │   └── quest-validator.ts   # Server-side validation
-│   │   ├── rating/                  # ELO rating system
-│   │   ├── share/                   # Social sharing utilities
+│   │   │   ├── quest-service.ts     # Quest CRUD operations
+│   │   │   ├── quest-templates.ts   # Quest definitions
+│   │   │   ├── quest-validator.ts   # Server-side validation
+│   │   │   └── win-streak-service.ts # Win streak tracking
+│   │   ├── rating/
+│   │   │   └── elo.ts               # ELO rating system
+│   │   ├── share/
+│   │   │   ├── og-meta.ts           # OpenGraph metadata
+│   │   │   └── url-builder.ts       # Share URL generation
 │   │   ├── shop/
 │   │   │   ├── purchase-handler.ts  # Transaction processing
+│   │   │   ├── purchase-service.ts  # Purchase orchestration
 │   │   │   ├── rotation-scheduler.ts # Weekly featured items
 │   │   │   └── shop-inventory.ts    # Item catalog management
 │   │   ├── supabase/
+│   │   │   ├── broadcast.ts         # Realtime broadcast helpers
 │   │   │   ├── client.ts            # Browser client
-│   │   │   └── types.ts             # Generated database types
+│   │   │   ├── query-utils.ts       # Query helpers
+│   │   │   ├── server.ts            # Server-side client
+│   │   │   └── types.ts             # Database types
 │   │   ├── survival/
 │   │   │   ├── leaderboard-updater.ts # Rank management
 │   │   │   ├── score-calculator.ts  # Scoring formulas
 │   │   │   └── wave-generator.ts    # AI difficulty scaling
-│   │   └── utils.ts                 # Shared utilities
+│   │   ├── treasury/
+│   │   │   └── treasury-service.ts  # Treasury distribution logic
+│   │   └── utils/
+│   │       ├── bot-detection.ts     # Bot detection helpers
+│   │       ├── network-filter.ts    # Network-aware filtering
+│   │       └── request-deduplication.ts # Request dedup
 │   │
 │   ├── stores/                      # Zustand state stores
-│   │   ├── achievement-store.ts     # Achievement state
-│   │   ├── inventory-store.ts       # Cosmetic inventory
-│   │   ├── match-store.ts           # Match state
-│   │   ├── matchmaking-store.ts     # Queue state
-│   │   ├── network-store.ts         # Network status
-│   │   ├── practice-store.ts        # Practice mode state
-│   │   ├── progression-store.ts     # Battle Pass state
-│   │   ├── quest-store.ts           # Quest state
-│   │   ├── shop-store.ts            # Shop state
-│   │   └── wallet-store.ts          # Wallet state (167 lines)
+│   │   ├── achievement-store.ts
+│   │   ├── inventory-store.ts
+│   │   ├── match-store.ts
+│   │   ├── matchmaking-store.ts
+│   │   ├── network-store.ts
+│   │   ├── practice-store.ts
+│   │   ├── progression-store.ts
+│   │   ├── quest-store.ts
+│   │   ├── shop-store.ts
+│   │   ├── tutorial-store.ts
+│   │   └── wallet-store.ts
 │   │
-│   └── types/                       # TypeScript definitions
-│       ├── achievement.ts           # Achievement types
-│       ├── api.ts                   # API response types
-│       ├── blockchain.ts            # Blockchain anchor types
-│       ├── constants.ts             # Game constants
-│       ├── cosmetic.ts              # Cosmetic item types
-│       ├── database.ts              # Database types
-│       ├── index.ts                 # Core game types (255 lines)
-│       ├── kaspa.ts                 # Kaspa SDK types
-│       ├── kaspalib.d.ts            # kaspalib type declarations
-│       ├── progression.ts           # Progression types
-│       ├── quest.ts                 # Quest types
-│       └── websocket.ts             # Realtime event types
+│   ├── types/                       # TypeScript definitions
+│   │   ├── achievement.ts
+│   │   ├── api.ts
+│   │   ├── blockchain.ts
+│   │   ├── constants.ts
+│   │   ├── cosmetic.ts
+│   │   ├── database.ts
+│   │   ├── fight-state.ts           # Fight state types
+│   │   ├── index.ts                 # Core game types
+│   │   ├── kaspa.ts
+│   │   ├── kaspalib.d.ts
+│   │   ├── power-surge.ts           # Power Surge card types
+│   │   ├── progression.ts
+│   │   ├── quest.ts
+│   │   ├── supabase.ts              # Supabase generated types
+│   │   └── websocket.ts
+│   │
+│   └── utils/
+│       └── device.ts                # Device detection utilities
+│
+├── scripts/
+│   ├── calc_frames.py               # Spritesheet frame calculator
+│   ├── gen_sprite_config.py         # Sprite config generator
+│   ├── test_frames.py               # Frame validation tests
+│   └── frame_config.txt             # Frame configuration data
 │
 ├── supabase/
 │   └── migrations/
-│       ├── 001_initial_schema.sql   # Core database schema (128 lines)
-│       ├── 002_rls_policies.sql     # Row Level Security policies
-│       ├── 020_battle_pass_schema.sql # Battle Pass tables
-│       ├── 021_quests_schema.sql    # Daily quest tables
-│       ├── 022_cosmetics_shop.sql   # Shop & inventory tables
-│       ├── 023_achievements_schema.sql # Achievement tables
-│       ├── 024_blockchain_anchors.sql # Blockchain verification
-│       ├── 025_rls_progression.sql  # Progression RLS policies
-│       ├── 026_rls_quests.sql       # Quest RLS policies
-│       ├── 027_rls_cosmetics.sql    # Cosmetics RLS policies
-│       ├── 028_rls_achievements.sql # Achievement RLS policies
-│       └── 029_indexes.sql          # Performance indexes
+│       ├── current_schema.sql       # Full database schema (40+ tables)
+│       └── 003_seed_cosmetics.sql   # Cosmetic item seed data
+│
+├── tests/                           # Vitest unit tests
+│   ├── achievements.test.ts
+│   ├── betting-service.test.ts
+│   ├── character-stats.test.ts
+│   ├── combat-engine.test.ts
+│   ├── elo-rating.test.ts
+│   ├── power-surge-cards.test.ts
+│   ├── power-surge-types.test.ts
+│   └── utils.test.ts
+│
+├── specs/                           # Project specifications
+│   └── main/
+│       ├── plan.md
+│       ├── research.md
+│       ├── spec.md
+│       └── tasks.md
 │
 ├── components.json                  # shadcn/ui configuration
 ├── eslint.config.mjs                # ESLint configuration
 ├── next.config.ts                   # Next.js configuration
 ├── package.json                     # Dependencies
 ├── postcss.config.mjs               # PostCSS configuration
-├── tailwind.config.ts               # Tailwind CSS configuration
+├── vitest.config.ts                 # Vitest test configuration
 └── tsconfig.json                    # TypeScript configuration
 ```
 
 ---
 
 <a id="progression-system"></a>
-## 🏆 Progression System
+## Progression System
 
 ### Battle Pass (50 Tiers)
 
@@ -662,7 +882,7 @@ KaspaClash features a comprehensive Battle Pass system with seasonal progression
   - Daily quests: 100-500 XP per quest
   - Achievements: 50-1000 XP per unlock
   - Survival mode: XP based on waves survived
-  
+
 - **XP Curve:** Hybrid exponential-linear progression
   - Early tiers (1-10): ~500-800 XP per tier
   - Mid tiers (11-30): ~800-1200 XP per tier
@@ -671,8 +891,6 @@ KaspaClash features a comprehensive Battle Pass system with seasonal progression
 #### Tier Rewards
 Each tier unlocks rewards including:
 - **Clash Shards:** 50-500 shards per tier
-- **Cosmetics:** Skins, emotes, victory poses, badges
-- **Milestone Rewards:** Special items at tiers 10, 25, 50
 
 #### Season System
 - **Duration:** 8-12 weeks per season
@@ -693,23 +911,25 @@ Complete 3 rotating daily objectives for bonus rewards:
 - **Quest Pool:** 40+ unique quest templates across multiple categories
 - **Progress Tracking:** Real-time progress updates via Supabase Realtime
 - **Smart Generation:** Ensures variety with weighted random selection
+- **Win Streak Tracking:** Dedicated service for streak-based quest objectives
 
 ### Achievement System
 
-Unlock 80+ achievements across 5 categories:
+Unlock achievements across 5 categories with 5 tier levels:
 
 #### Categories
-1. **Combat (25 achievements):** Win streaks, perfect rounds, specific move mastery
-2. **Mastery (20 achievements):** Character-specific challenges, advanced combos
-3. **Social (15 achievements):** Matchmaking, spectating, betting
-4. **Collection (10 achievements):** Cosmetic unlocks, shop purchases
-5. **Milestones (10 achievements):** Prestige levels, total matches, lifetime stats
+1. **Combat:** Win streaks, perfect rounds, specific move mastery
+2. **Progression:** Battle Pass milestones, prestige levels
+3. **Social:** Matchmaking, spectating, betting
+4. **Collection:** Cosmetic unlocks, shop purchases
+5. **Mastery:** Character-specific challenges, advanced combos
+
+#### Achievement Tiers
+- **Bronze** -> **Silver** -> **Gold** -> **Platinum** -> **Diamond**
 
 #### Achievement Rewards
 - **XP Bonuses:** 50-1000 XP per achievement
 - **Clash Shards:** 25-500 shards per achievement
-- **Cosmetic Unlocks:** Exclusive badges and profile frames
-- **Mastery Badges:** Complete all achievements in a category for special rewards
 
 ### Prestige System
 
@@ -719,8 +939,8 @@ For dedicated players who reach tier 50:
 - **Permanent Bonuses:**
   - +10% XP multiplier per prestige level (stacks)
   - +5% Clash Shards earnings per prestige level
-  - Exclusive cosmetic rewards at prestige levels 1, 5, 10
-  
+  - Exclusive prestige cosmetics at prestige levels 1, 5, 10
+
 - **Visual Recognition:**
   - Prestige badge on profile with animated effects
   - Special nameplate borders and auras
@@ -738,16 +958,14 @@ For dedicated players who reach tier 50:
 Spend earned Clash Shards on customization:
 
 #### Shop Categories
-- **Skins:** Character-specific alternate appearances
-- **Emotes:** Animated expressions for pre/post-match
-- **Victory Poses:** Special animations for match victories
-- **Profile Badges:** Decorative profile customization
+- **Characters:** 20 different characters with a variety of stats
+- **Stickers:** Animated chat expressions for in-game use
 
 #### Shop Features
-- **Weekly Featured Rotation:** 4-6 limited-time exclusive items
 - **Rarity Tiers:** Common, Rare, Epic, Legendary
 - **Preview System:** View cosmetics before purchasing
 - **Transaction History:** Track all Clash Shards spending
+- **NFT Inscription:** Each purchase inscribes an NFT on-chain through payload
 
 #### Pricing
 - **Common:** 100-250 Shards
@@ -763,7 +981,8 @@ Endless wave-based challenge mode:
 - **Wave System:** Fight progressively harder AI opponents
 - **Difficulty Scaling:** +10% HP, +5% damage per wave
 - **Milestone Bonuses:** Extra rewards every 5 waves
-- **Leaderboard:** Top 100 players by waves survived
+- **Leaderboard:** Top players by waves survived
+- **Daily Play Limit:** Maximum 3 runs per day with anti-cheat session tracking
 
 #### Rewards
 - **XP Earned:** 50 XP per wave survived
@@ -775,10 +994,10 @@ Endless wave-based challenge mode:
 A decentralized automated reward system powered by Kaspa:
 
 #### Weekly Distribution
-Every **Monday at 00:00 UTC**, the treasury automatically distributes accumulated funds from betting fees and cosmetics buying fees to top players:
+Every **Monday at 00:00 UTC**, the treasury automatically distributes accumulated funds from betting fees and cosmetic purchase fees to top players:
 
-- **40% to Top 10 ELO Players:** Weighted distribution based on rank (Rank 1 gets 20%, Rank 10 gets 2%)
-- **40% to Top 10 Survival Players:** Weighted distribution based on rank (Rank 1 gets 20%, Rank 10 gets 2%)
+- **40% to Top 10 ELO Players:** Weighted distribution based on rank 
+- **40% to Top 10 Survival Players:** Weighted distribution based on rank
 - **20% to Project Wallet:** Supports ongoing development and operations
 - **Minimum Reserve:** Always keeps at least 10 KAS in treasury for transaction fees
 
@@ -789,26 +1008,27 @@ Rewards are distributed using a **rank-based weighted system** that favors highe
 |------|--------------|-----------------------------|-----------------------------|
 | 1st  | 20 shares    | 20%                         | 55.6%                       |
 | 2nd  | 16 shares    | 16%                         | 44.4%                       |
-| 3rd  | 14 shares    | 14%                         | —                           |
-| 4th  | 12 shares    | 12%                         | —                           |
-| 5th  | 10 shares    | 10%                         | —                           |
-| 6th  | 9 shares     | 9%                          | —                           |
-| 7th  | 7 shares     | 7%                          | —                           |
-| 8th  | 6 shares     | 6%                          | —                           |
-| 9th  | 4 shares     | 4%                          | —                           |
-| 10th | 2 shares     | 2%                          | —                           |
+| 3rd  | 14 shares    | 14%                         | --                          |
+| 4th  | 12 shares    | 12%                         | --                          |
+| 5th  | 10 shares    | 10%                         | --                          |
+| 6th  | 9 shares     | 9%                          | --                          |
+| 7th  | 7 shares     | 7%                          | --                          |
+| 8th  | 6 shares     | 6%                          | --                          |
+| 9th  | 4 shares     | 4%                          | --                          |
+| 10th | 2 shares     | 2%                          | --                          |
 
 **Dynamic Scaling:** If fewer than 10 players are on a leaderboard, the shares are recalculated proportionally to ensure **100% of the pool is always distributed**. For example, with only 2 players, Rank 1 receives 55.6% and Rank 2 receives 44.4%.
 
 #### Funding
-- The treasury is funded by a **0.1% fee** on all betting pools and 1 KAS for each cosmetics purchase
+- The treasury is funded by a **0.1% fee** on all betting pools and 1 KAS for each cosmetic purchase
 - Funds are stored in a secure vault address
 - Distributions are executed on-chain via chained batch transactions for reliability
+- Balance snapshots are tracked for auditing
 
 ---
 
 <a id="game-mechanics"></a>
-## 🎲 Game Mechanics
+## Game Mechanics
 
 ### Pre-Match Strategy
 
@@ -830,21 +1050,21 @@ KaspaClash matches begin before the first punch is thrown. The selection phase t
 KaspaClash uses a **turn-based combat engine** with simultaneous move submission:
 
 #### Move Types
-1. **Punch** 🥊
+1. **Punch**
    - Base Damage: 10 (modified by character stats)
    - Energy Cost: 0 (free)
    - Priority: 3 (medium speed)
    - Beats: Special (stuns opponent)
    - Loses to: Block, Kick (staggers)
 
-2. **Kick** 🦵
+2. **Kick**
    - Base Damage: 15 (modified by character stats)
    - Energy Cost: 25
    - Priority: 2 (slow)
    - Beats: Punch (staggers), Block (reflects back at blocker)
    - Loses to: Special
 
-3. **Block** 🛡️
+3. **Block**
    - Damage: 0
    - Energy Cost: 0 (free)
    - Priority: 4 (fastest)
@@ -852,7 +1072,7 @@ KaspaClash uses a **turn-based combat engine** with simultaneous move submission
    - Beats: Punch, Kick (reflects kick back)
    - Loses to: Special (guard shattered)
 
-4. **Special** ⚡
+4. **Special**
    - Base Damage: 25 (modified by character stats)
    - Energy Cost: 42-62 (character-dependent, base 50)
    - Priority: 1 (very slow)
@@ -880,7 +1100,7 @@ Special  Stunned    Hit        Shatter    Both Hit
 
 **Key Interactions:**
 - **Punch vs Special:** Punch user hits and stuns special user (special misses)
-- **Kick vs Block:** Kick is reflected - blocker guards, kicker takes self-damage
+- **Kick vs Block:** Kick is reflected -- blocker guards, kicker takes self-damage
 - **Special vs Block:** Special shatters guard, dealing full damage
 - **Guard Break:** Reaching 100 guard meter stuns the player (resets to 0)
 
@@ -901,7 +1121,7 @@ Special  Stunned    Hit        Shatter    Both Hit
 - **Timeout:** If move not submitted within 20 seconds, the match is cancelled
 - **Disconnect:** If player disconnects for 30+ seconds, opponent wins by forfeit
 
-### Power Surge Cards ⚡
+### Power Surge Cards
 
 At the start of each round, players are offered **3 randomly selected Power Surge cards** from a pool of 15 unique abilities. These powerful round-specific boosts add strategic depth and unpredictability to every match.
 
@@ -911,7 +1131,7 @@ At the start of each round, players are offered **3 randomly selected Power Surg
 3. **Blockchain Transaction:** Selecting a card costs **1 KAS** and must be confirmed in a block
 4. **Synchronized Phase:** The game waits for BOTH players to complete their selections before starting the round timer
 5. **Round Duration:** Card effects last for ONE round only
-6. **Strategic Choice:** All 15 cards are balanced with trade-offs—no "auto-pick" legendary cards
+6. **Strategic Choice:** All 15 cards are balanced with trade-offs -- no "auto-pick" legendary cards
 
 #### Card Catalog (15 Unique Cards)
 
@@ -936,7 +1156,7 @@ Each card features balanced effects with strategic considerations:
 | **Chainbreaker** | Bypass block, +15% damage | Bypass blocks completely |
 
 #### Design Philosophy
-- **No Tiers:** Unlike character rarities, all Power Surge cards are presented equally—no "common" vs "legendary" visual hierarchy
+- **No Tiers:** Unlike character rarities, all Power Surge cards are presented equally -- no "common" vs "legendary" visual hierarchy
 - **Balanced Trade-offs:** Every card has strategic pros and cons (e.g., +damage but -defense, +energy but -HP)
 - **Pre-computed Decks:** Cards are generated when the match starts and stored in the database to prevent race conditions
 - **Synchronized Exit:** Both players remain on the selection screen until BOTH transactions confirm, ensuring fair simultaneous gameplay
@@ -946,17 +1166,17 @@ Each card features balanced effects with strategic considerations:
 Power Surge cards are fully integrated into the combat engine:
 - Pre-computed deck stored in `matches.power_surge_deck` (JSONB column)
 - Selection recorded in `power_surges` table with transaction IDs
-- Combat engine applies effects during damage calculation
+- Combat engine applies effects via `SurgeEffects.ts` during damage calculation
 - Real-time sync ensures both players see the same cards
 
 ### Counter & Tier System
 
 #### The Triangle of Power
 Combat revolves around a strict advantage system:
-*   **Block** 🛡️ counters **Punch** 🥊 (Reflects damage)
-*   **Punch** 🥊 counters **Special** ⚡ (Interrupts & Stuns)
-*   **Special** ⚡ counters **Block** 🛡️ (Shatters Guard)
-*   **Kick** 🦵 acts as a wild-card, beating Punch but losing to Special.
+*   **Block** counters **Punch** (Reflects damage)
+*   **Punch** counters **Special** (Interrupts & Stuns)
+*   **Special** counters **Block** (Shatters Guard)
+*   **Kick** acts as a wild-card, beating Punch but losing to Special.
 
 #### Tier Scaling
 Characters are minted with specific rarities that define their combat potential. Higher tiers are statistically superior but skill remains king:
@@ -976,18 +1196,19 @@ Characters are minted with specific rarities that define their combat potential.
 To ensure a seamless experience and zero waiting time, KaspaClash features a sophisticated AI decision engine:
 
 - **Intelligent Decision Making:** The bot analyzes current health, energy, guard meters, and move history to choose the optimal strategy.
-- **Realistic Matchmaking:** Bots are assigned names and ratings (±100 ELO of the player) to simulate a real competitive environment.
+- **Realistic Matchmaking:** Bots are assigned names and ratings (+/-100 ELO of the player) to simulate a real competitive environment.
 - **Failover Logic:** If you remain in the matchmaking queue for more than **30 seconds** without a human match, the system automatically transitions you into a bot match.
 - **On-Chain Consistency:** Bot matches follow the same rules as PvP matches, with server-side settlement ensuring fair gameplay.
+- **Difficulty Scaling:** AI difficulty adapts based on context via dedicated difficulty scaling logic.
 
 ---
 
 <a id="kaspa-integration"></a>
-## 🔗 Kaspa Integration
+## Kaspa Integration
 
 ### Real Blockchain Verification
 
-**KaspaClash doesn't fake blockchain speed—it proves it.**
+**KaspaClash doesn't fake blockchain speed -- it proves it.**
 
 Unlike most blockchain games that use "optimistic UI" (showing results immediately while transactions process in the background), KaspaClash **actually waits for on-chain confirmation** before each move executes:
 
@@ -996,13 +1217,13 @@ Unlike most blockchain games that use "optimistic UI" (showing results immediate
 export async function waitForBlockConfirmation(txId: string) {
   // 1. Check if transaction is in mempool (unconfirmed)
   const result = await checkBlockConfirmation(txId, network);
-  
+
   if (result.confirmed) {
     // 2. Transaction confirmed in a block!
-    console.log(`✓ TX CONFIRMED in block after ${elapsed}ms`);
+    console.log(`TX CONFIRMED in block after ${elapsed}ms`);
     return { confirmed: true };
   }
-  
+
   // 3. Retry up to 12 times with 100ms delays (~1.2 seconds max)
   // Kaspa's 10 BPS means transactions confirm in ~1 second
 }
@@ -1014,10 +1235,10 @@ const confirmStatus = await waitForBlockConfirmation(txId);
 ```
 
 **This means:**
-- ✅ Every punch, kick, and block is a real blockchain transaction
-- ✅ The game literally pauses until Kaspa confirms the transaction
-- ✅ Typical confirmation time: **~1 second** (showcasing Kaspa's 10 BPS)
-- ✅ No optimistic UI tricks—what you see is blockchain-verified reality
+- Every punch, kick, and block is a real blockchain transaction
+- The game literally pauses until Kaspa confirms the transaction
+- Typical confirmation time: **~1 second** (showcasing Kaspa's 10 BPS)
+- No optimistic UI tricks -- what you see is blockchain-verified reality
 
 **Why this matters for Kaspathon judges:**
 Most blockchain games sacrifice decentralization for speed by using optimistic updates. KaspaClash proves Kaspa is fast enough to be the source of truth WITHOUT compromising on true blockchain verification. This is only possible because of Kaspa's BlockDAG architecture and 10 blocks per second throughput.
@@ -1036,7 +1257,7 @@ export async function connectWallet(): Promise<WalletConnection> {
   const accounts = await kasware.requestAccounts();
   const address = accounts[0];
   const network = await kasware.getNetwork();
-  
+
   return { address, network };
 }
 
@@ -1048,6 +1269,16 @@ export async function sendKaspa(
   const txId = await window.kasware.sendKaspa(toAddress, amount);
   return txId;
 }
+```
+
+### Authentication
+
+KaspaClash uses Kaspa wallet signatures for authentication instead of traditional username/password:
+
+```typescript
+// src/lib/api/auth-middleware.ts
+// Uses kaspa-wasm verifyMessage to validate wallet signatures
+// Session tokens stored in session_tokens table
 ```
 
 ### Transaction Flow
@@ -1076,9 +1307,10 @@ export async function sendKaspa(
 - **Network Security:** Proof-of-Work consensus without speed compromise
 - **Scalability:** BlockDAG allows parallel block creation
 
-### Testnet vs Mainnet
+### Testnet-10 and Mainnet Support
 
-Development uses **Kaspa testnet** for safety:
+The game fully supports both **Kaspa testnet-10** and **mainnet**. The network is automatically detected from the connected wallet:
+
 ```typescript
 // Automatically detected from wallet
 const isTestnet = address.startsWith("kaspatest:");
@@ -1089,12 +1321,14 @@ const vaultAddress = isTestnet
   : process.env.NEXT_PUBLIC_BETTING_VAULT_ADDRESS_MAINNET;
 ```
 
+Development uses **testnet-10** for safety, while the production deployment supports mainnet for real KAS transactions.
+
 ### Blockchain Data Storage
 
 While game state is managed in Supabase for performance, key assets and events are recorded on-chain:
-- **Client-Side NFT Minting:** When purchasing cosmetics, users send 1 KAS to the treasury vault with NFT metadata embedded in the transaction payload.
+- **Client-Side NFT Minting:** When purchasing cosmetics, users send 1 KAS to the treasury vault with KRC-721 NFT metadata embedded in the transaction payload.
 - **On-Chain Metadata:** Each NFT transaction contains a JSON payload with the `KCLASH-NFT v1.0` protocol, including cosmetic details, rarity, and asset links.
-- **Payment & Inscription:** The 1 KAS payment serves dual purpose - funding the treasury while inscribing the NFT on-chain with immutable metadata.
+- **Payment & Inscription:** The 1 KAS payment serves dual purpose -- funding the treasury while inscribing the NFT on-chain with immutable metadata.
 - **Match creation transactions**
 - **Final match results**
 - **Betting pool resolutions**
@@ -1103,99 +1337,135 @@ While game state is managed in Supabase for performance, key assets and events a
 ---
 
 <a id="api-documentation"></a>
-## 📡 API Documentation
+## API Documentation
+
+All API routes are implemented as Next.js serverless functions under `src/app/api/`. Input validation is handled with Zod schemas.
 
 ### Authentication
-All protected endpoints require wallet signature verification:
-```typescript
-// Example header
-Authorization: Bearer <wallet-signed-message>
+
+Authentication uses Kaspa wallet signature verification via kaspa-wasm:
+
 ```
+POST /api/auth/login
+```
+
+**Request Body:**
+```json
+{
+  "address": "kaspa:qz...",
+  "message": "Sign in to KaspaClash",
+  "signature": "base64-signature",
+  "publicKey": "hex-public-key"
+}
+```
+
+### Health Check
+
+```
+GET /api/health
+```
+
+Returns service status.
 
 ### Matchmaking Endpoints
 
 #### POST `/api/matchmaking/queue`
-Join or leave the matchmaking queue.
+Join the matchmaking queue. Validates Kaspa address and checks player rating for match pairing.
 
-**Request Body:**
-```json
-{
-  "action": "join" | "leave",
-  "playerAddress": "kaspa:qz...",
-  "characterId": "cyber-ninja"
-}
-```
+#### DELETE `/api/matchmaking/queue`
+Leave the matchmaking queue.
 
-**Response:**
-```json
-{
-  "success": true,
-  "queueSize": 5,
-  "estimatedWait": 30
-}
-```
+#### POST `/api/matchmaking/create-bot-match`
+Create a bot match when no human opponent is found within the timeout window.
 
 #### POST `/api/matchmaking/rooms`
-Create or join a private room.
+Create a private room.
 
-**Request Body:**
-```json
-{
-  "action": "create" | "join",
-  "playerAddress": "kaspa:qz...",
-  "roomCode": "ABC123", // for join
-  "characterId": "dag-warrior"
-}
-```
+#### POST `/api/matchmaking/rooms/join`
+Join an existing private room by room code.
+
+#### POST `/api/matchmaking/rooms/cancel`
+Cancel a private room.
+
+#### POST `/api/matchmaking/rooms/stake`
+Set the KAS stake for a private room.
 
 ### Match Endpoints
 
 #### GET `/api/matches/[matchId]`
 Fetch match details and current state.
 
-**Response:**
-```json
-{
-  "id": "uuid",
-  "player1Address": "kaspa:qz...",
-  "player2Address": "kaspa:qz...",
-  "player1Character": "cyber-ninja",
-  "player2Character": "block-bruiser",
-  "status": "in_progress",
-  "currentRound": 2,
-  "player1RoundsWon": 1,
-  "player2RoundsWon": 0,
-  "state": {
-    "player1Health": 75,
-    "player2Health": 60,
-    "player1Energy": 80,
-    "player2Energy": 50
-  }
-}
-```
+#### GET `/api/matches/live`
+Fetch currently active matches (for spectator lobby).
 
-#### POST `/api/matches/move`
-Submit a move for the current round.
+#### POST `/api/matches/cleanup-abandoned`
+Clean up stale/abandoned matches.
+
+#### POST `/api/matches/[matchId]/ban`
+Submit a character ban during the ban phase.
+
+#### POST `/api/matches/[matchId]/select`
+Submit a character selection during the pick phase.
+
+#### POST `/api/matches/[matchId]/move`
+Submit a move for the current turn.
 
 **Request Body:**
 ```json
 {
   "matchId": "uuid",
   "playerAddress": "kaspa:qz...",
-  "move": "punch" | "kick" | "block" | "special"
+  "move": "punch",
+  "txId": "kaspa-transaction-hash"
 }
 ```
 
-### Betting Endpoints
+#### GET `/api/matches/[matchId]/fight-state`
+Get real-time fight state (health, energy, guard meter, round info, animations).
 
-#### GET `/api/betting/pool?matchId=uuid`
+#### GET `/api/matches/[matchId]/rounds`
+Get round history for a match.
+
+#### POST `/api/matches/[matchId]/power-surge`
+Select a Power Surge card for the current round.
+
+#### POST `/api/matches/[matchId]/forfeit`
+Forfeit the current match.
+
+#### POST `/api/matches/[matchId]/disconnect`
+Handle player disconnect.
+
+#### POST `/api/matches/[matchId]/timeout`
+Handle match timeout.
+
+#### POST `/api/matches/[matchId]/move-timeout`
+Handle move submission timeout.
+
+#### POST `/api/matches/[matchId]/bot-auto-move`
+Trigger bot AI move for bot matches.
+
+#### POST `/api/matches/[matchId]/skip-stunned-turn`
+Skip a stunned player's turn.
+
+#### POST `/api/matches/[matchId]/submit-stunned-move`
+Submit a move while the player is stunned.
+
+#### POST `/api/matches/[matchId]/reject`
+Reject a match invitation.
+
+#### POST `/api/matches/[matchId]/verify`
+Verify match state integrity.
+
+### Betting Endpoints (PvP)
+
+#### GET `/api/betting/pool/[matchId]`
 Get current betting pool and odds.
 
 **Response:**
 ```json
 {
   "matchId": "uuid",
-  "player1Total": "5000000000", // sompi
+  "player1Total": "5000000000",
   "player2Total": "3000000000",
   "totalPool": "8000000000",
   "odds": {
@@ -1207,23 +1477,75 @@ Get current betting pool and odds.
 ```
 
 #### POST `/api/betting/place`
-Place a bet on a match.
+Place a bet on a match. Minimum bet is 1 KAS (100,000,000 sompi).
 
 **Request Body:**
 ```json
 {
   "matchId": "uuid",
   "bettorAddress": "kaspa:qz...",
-  "betOn": "player1" | "player2",
-  "amount": "1000000000", // sompi
+  "betOn": "player1",
+  "amount": "1000000000",
   "txId": "transaction-hash"
 }
 ```
 
+#### POST `/api/betting/claim`
+Claim winnings from a resolved bet.
+
+#### GET `/api/betting/history`
+Get betting history for a player.
+
+#### POST `/api/betting/payout/[matchId]`
+Process payouts for a resolved match.
+
+### Bot Betting Endpoints
+
+#### GET `/api/bot-betting/pool/[matchId]`
+Get bot match betting pool.
+
+#### POST `/api/bot-betting/place`
+Place a bet on a bot match. Fixed 2x odds with 1% house fee.
+
+#### POST `/api/bot-betting/payout/[matchId]`
+Process payouts for a resolved bot match.
+
+#### GET `/api/bot-betting/history`
+Get bot betting history.
+
+### Bot Games Endpoints
+
+#### GET `/api/bot-games`
+Fetch active bot matches.
+
+#### POST `/api/bot-games`
+Create a new bot match.
+
+#### POST `/api/bot-games/sync`
+Synchronize bot match state.
+
+### Player Endpoints
+
+#### GET `/api/players/[address]`
+Fetch player profile including wins, losses, rating, and display name.
+
+#### GET `/api/players/[address]/matches`
+Fetch player match history.
+
+#### PUT `/api/players/[address]/profile`
+Update player profile (display name, avatar).
+
+#### GET `/api/player/characters`
+Fetch player's owned characters.
+
 ### Leaderboard Endpoints
 
-#### GET `/api/leaderboard?limit=50&sortBy=rating`
-Fetch top players.
+#### GET `/api/leaderboard`
+Fetch top players. Supports sorting by `rating`, `wins`, or `winRate`.
+
+**Query Parameters:**
+- `limit` - Number of results (default: 50)
+- `sortBy` - Sort field: `rating`, `wins`, `winRate`
 
 **Response:**
 ```json
@@ -1248,318 +1570,131 @@ Fetch top players.
 #### POST `/api/progression/award-xp`
 Award XP to a player for match completion or other activities.
 
-**Request Body:**
-```json
-{
-  "playerAddress": "kaspa:qz...",
-  "xpAmount": 150,
-  "source": "match_completion"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "newXp": 2350,
-  "currentTier": 15,
-  "tierUnlocked": false,
-  "prestigeMultiplier": 1.2
-}
-```
+#### GET `/api/progression/player/[address]`
+Get player's current progression state (tier, XP, prestige level).
 
 #### POST `/api/progression/unlock-tier`
 Unlock a battle pass tier and claim rewards.
 
-**Request Body:**
-```json
-{
-  "playerAddress": "kaspa:qz...",
-  "tierNumber": 16
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "rewards": {
-    "clashShards": 150,
-    "cosmetics": ["skin_cyber_ninja_02"]
-  }
-}
-```
-
 #### POST `/api/progression/prestige`
 Execute prestige for a player at tier 50.
 
-**Request Body:**
-```json
-{
-  "playerAddress": "kaspa:qz..."
-}
-```
+#### GET `/api/progression/prestige-status`
+Check prestige eligibility.
 
-**Response:**
-```json
-{
-  "success": true,
-  "prestigeLevel": 3,
-  "bonuses": {
-    "xpMultiplier": 1.3,
-    "shardMultiplier": 1.15
-  },
-  "rewards": ["prestige_badge_03", "prestige_aura_gold"]
-}
-```
+#### GET `/api/progression/season`
+Get current season information.
 
 ### Quest Endpoints
 
-#### GET `/api/quests/daily?playerAddress=kaspa:qz...`
+#### GET `/api/quests/daily`
 Fetch active daily quests for a player.
 
-**Response:**
-```json
-{
-  "quests": [
-    {
-      "id": "uuid",
-      "difficulty": "easy",
-      "description": "Play 3 matches",
-      "objectiveType": "play_matches",
-      "targetValue": 3,
-      "currentProgress": 1,
-      "xpReward": 100,
-      "shardReward": 50,
-      "isCompleted": false,
-      "isClaimed": false,
-      "expiresAt": "2026-01-16T00:00:00Z"
-    }
-  ]
-}
-```
+**Query Parameters:**
+- `playerAddress` - Player's Kaspa wallet address
 
 #### POST `/api/quests/claim`
 Claim rewards for a completed quest.
 
-**Request Body:**
-```json
-{
-  "playerAddress": "kaspa:qz...",
-  "questId": "uuid"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "rewards": {
-    "xp": 100,
-    "clashShards": 50
-  }
-}
-```
-
 #### POST `/api/quests/progress`
 Update progress for a quest.
 
-**Request Body:**
-```json
-{
-  "playerAddress": "kaspa:qz...",
-  "questId": "uuid",
-  "progressIncrement": 1
-}
-```
+### Currency Endpoints
+
+#### GET `/api/currency/[playerId]`
+Fetch player's Clash Shards balance.
 
 ### Shop Endpoints
 
 #### GET `/api/shop/inventory`
 Fetch all available cosmetic items.
 
-**Response:**
-```json
-{
-  "items": [
-    {
-      "id": "uuid",
-      "itemId": "skin_dag_warrior_02",
-      "name": "DAG Warrior Neon Skin",
-      "type": "skin",
-      "rarity": "epic",
-      "price": 800,
-      "isFeatured": false,
-      "characterId": "dag-warrior",
-      "previewUrl": "https://...",
-      "thumbnailUrl": "https://..."
-    }
-  ]
-}
-```
-
-#### POST `/api/shop/purchase`
-Purchase a cosmetic item with Clash Shards.
-
-**Request Body:**
-```json
-{
-  "playerAddress": "kaspa:qz...",
-  "cosmeticId": "uuid"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "item": {
-    "itemId": "skin_dag_warrior_02",
-    "name": "DAG Warrior Neon Skin"
-  },
-  "remainingShards": 2450
-}
-```
-
 #### GET `/api/shop/featured`
 Get weekly featured items.
 
-**Response:**
-```json
-{
-  "featured": [
-    {
-      "itemId": "emote_legendary_taunt",
-      "name": "Legendary Taunt",
-      "type": "emote",
-      "rarity": "legendary",
-      "price": 2000,
-      "endsAt": "2026-01-22T00:00:00Z"
-    }
-  ]
-}
-```
+#### POST `/api/shop/purchase`
+Purchase a cosmetic item with Clash Shards. Triggers a 1 KAS NFT inscription transaction.
+
+#### GET `/api/shop/nfts`
+List all minted NFTs.
+
+#### GET `/api/shop/nfts/player/[address]`
+Get NFTs owned by a specific player.
+
+#### POST `/api/shop/nfts/verify`
+Verify an NFT's on-chain status.
+
+#### POST `/api/shop/test-nft-mint`
+Test NFT minting flow (development only).
 
 ### Achievement Endpoints
 
-#### GET `/api/achievements/list?playerAddress=kaspa:qz...`
+#### GET `/api/achievements/list`
 Fetch all achievements and player progress.
 
-**Response:**
-```json
-{
-  "achievements": [
-    {
-      "id": "uuid",
-      "achievementId": "win_10_matches",
-      "name": "Veteran Fighter",
-      "description": "Win 10 ranked matches",
-      "category": "combat",
-      "requirementType": "win_matches",
-      "requirementValue": 10,
-      "xpReward": 200,
-      "shardReward": 100,
-      "progress": 7,
-      "isUnlocked": false
-    }
-  ]
-}
-```
+**Query Parameters:**
+- `playerAddress` - Player's Kaspa wallet address
+
+#### GET `/api/achievements/progress`
+Fetch achievement progress for a player.
 
 #### POST `/api/achievements/unlock`
 Unlock an achievement (server-validated).
 
-**Request Body:**
-```json
-{
-  "playerAddress": "kaspa:qz...",
-  "achievementId": "win_10_matches"
-}
-```
+### Battle Pass Endpoints
 
-**Response:**
-```json
-{
-  "success": true,
-  "achievement": {
-    "name": "Veteran Fighter",
-    "xpReward": 200,
-    "shardReward": 100,
-    "cosmeticReward": "badge_veteran"
-  }
-}
-```
+#### POST `/api/battle-pass/claim`
+Claim a battle pass tier reward.
 
 ### Survival Endpoints
 
 #### POST `/api/survival/start`
-Initialize a survival mode run.
-
-**Request Body:**
-```json
-{
-  "playerAddress": "kaspa:qz...",
-  "characterId": "cyber-ninja"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "runId": "uuid",
-  "startingWave": 1
-}
-```
+Initialize a survival mode run (max 3 daily plays, anti-cheat session tracking).
 
 #### POST `/api/survival/end`
 Save survival run results.
 
-**Request Body:**
-```json
-{
-  "playerAddress": "kaspa:qz...",
-  "runId": "uuid",
-  "wavesSurvived": 23,
-  "finalScore": 5640
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "rewards": {
-    "xp": 1150,
-    "clashShards": 575
-  },
-  "leaderboardRank": 42
-}
-```
-
-#### GET `/api/survival/leaderboard?limit=100`
+#### GET `/api/survival/leaderboard`
 Fetch survival mode rankings.
 
-**Response:**
-```json
-{
-  "entries": [
-    {
-      "rank": 1,
-      "playerAddress": "kaspa:qz...",
-      "displayName": "SurvivalKing",
-      "wavesSurvived": 47,
-      "score": 12850,
-      "characterUsed": "block-bruiser"
-    }
-  ]
-}
-```
+#### GET `/api/survival/status`
+Get current survival run status.
+
+### Treasury Endpoints
+
+#### GET `/api/treasury/balance`
+Get treasury vault balance, KAS amount, and next distribution date.
+
+#### POST `/api/treasury/distribute`
+Trigger a treasury distribution (admin/cron).
+
+#### GET `/api/treasury/distributions`
+Get distribution history.
+
+### Cron Endpoints
+
+#### POST `/api/cron/bot-match-payout`
+Automated cron job for processing bot match payouts.
+
+#### POST `/api/cron/weekly-distribution`
+Automated cron job for weekly treasury distributions.
+
+### Replay Endpoints
+
+#### GET `/api/replay-data`
+Fetch match replay data for client-side replay rendering.
+
+### Verification Endpoints
+
+#### POST `/api/verify-mempool`
+Verify a transaction exists in the Kaspa mempool.
 
 ---
 
 <a id="database-schema"></a>
-## 🗄 Database Schema
+## Database Schema
+
+The database is hosted on Supabase (PostgreSQL) with Row Level Security (RLS) policies. The full schema is defined in `supabase/migrations/current_schema.sql` containing **40+ tables**.
 
 ### Core Tables
 
@@ -1567,11 +1702,11 @@ Fetch survival mode rankings.
 ```sql
 CREATE TABLE players (
   address TEXT PRIMARY KEY,              -- Kaspa wallet address
-  display_name TEXT,                     -- Username
-  avatar_url TEXT,                       -- Cloudinary URL
+  display_name TEXT,
+  avatar_url TEXT,
   wins INTEGER DEFAULT 0,
   losses INTEGER DEFAULT 0,
-  rating INTEGER DEFAULT 1000,           -- ELO rating
+  rating INTEGER DEFAULT 1000,           -- ELO rating (100-3000)
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -1581,157 +1716,31 @@ CREATE TABLE players (
 ```sql
 CREATE TABLE matches (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  room_code TEXT UNIQUE,                 -- 6-character code
+  room_code TEXT UNIQUE,
   player1_address TEXT REFERENCES players(address),
   player2_address TEXT REFERENCES players(address),
   player1_character TEXT NOT NULL,
   player2_character TEXT NOT NULL,
-  format TEXT DEFAULT 'best_of_3',       -- best_of_3 | best_of_5
-  status TEXT DEFAULT 'waiting',          -- waiting | in_progress | completed
+  format TEXT DEFAULT 'best_of_3',        -- best_of_3 | best_of_5
+  status TEXT DEFAULT 'waiting',          -- waiting | character_select | in_progress | completed | cancelled
   winner_address TEXT REFERENCES players(address),
-  state JSONB NOT NULL,                  -- Current game state
-  move_history JSONB[],                  -- Array of all moves
+  state JSONB NOT NULL,
+  move_history JSONB[],
+  power_surge_deck JSONB,                -- Pre-computed Power Surge card decks
   created_at TIMESTAMPTZ DEFAULT NOW(),
   started_at TIMESTAMPTZ,
   ended_at TIMESTAMPTZ
 );
 ```
 
-### Progression Tables
+#### `rounds`
+Stores per-round data with moves, damage, health, energy, guard meter, stun states, and animation phases.
 
-#### `battle_pass_seasons`
-```sql
-CREATE TABLE battle_pass_seasons (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  season_number INTEGER UNIQUE NOT NULL,
-  name TEXT NOT NULL,
-  start_date TIMESTAMPTZ NOT NULL,
-  end_date TIMESTAMPTZ NOT NULL,
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
+#### `moves`
+Individual move records (punch | kick | block | special | stunned).
 
-#### `battle_pass_tiers`
-```sql
-CREATE TABLE battle_pass_tiers (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  season_id UUID REFERENCES battle_pass_seasons(id),
-  tier_number INTEGER NOT NULL,
-  xp_required INTEGER NOT NULL,
-  rewards JSONB NOT NULL,                -- {shards: 100, cosmetics: [...]}
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(season_id, tier_number)
-);
-```
-
-#### `player_progression`
-```sql
-CREATE TABLE player_progression (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  player_address TEXT REFERENCES players(address),
-  season_id UUID REFERENCES battle_pass_seasons(id),
-  current_xp INTEGER DEFAULT 0,
-  current_tier INTEGER DEFAULT 1,
-  clash_shards INTEGER DEFAULT 0,
-  prestige_level INTEGER DEFAULT 0,
-  lifetime_xp BIGINT DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(player_address, season_id)
-);
-```
-
-#### `daily_quests`
-```sql
-CREATE TABLE daily_quests (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  template_id TEXT NOT NULL,
-  difficulty TEXT NOT NULL,              -- easy | medium | hard
-  description TEXT NOT NULL,
-  objective_type TEXT NOT NULL,          -- win_matches | deal_damage | etc
-  target_value INTEGER NOT NULL,
-  xp_reward INTEGER NOT NULL,
-  shard_reward INTEGER NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-#### `player_quest_progress`
-```sql
-CREATE TABLE player_quest_progress (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  player_address TEXT REFERENCES players(address),
-  quest_id UUID REFERENCES daily_quests(id),
-  current_progress INTEGER DEFAULT 0,
-  is_completed BOOLEAN DEFAULT false,
-  is_claimed BOOLEAN DEFAULT false,
-  expires_at TIMESTAMPTZ NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(player_address, quest_id)
-);
-```
-
-#### `achievements`
-```sql
-CREATE TABLE achievements (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  achievement_id TEXT UNIQUE NOT NULL,
-  name TEXT NOT NULL,
-  description TEXT NOT NULL,
-  category TEXT NOT NULL,                -- combat | mastery | social | collection | milestones
-  requirement_type TEXT NOT NULL,
-  requirement_value INTEGER NOT NULL,
-  xp_reward INTEGER NOT NULL,
-  shard_reward INTEGER NOT NULL,
-  cosmetic_reward TEXT,
-  icon_url TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-#### `player_achievements`
-```sql
-CREATE TABLE player_achievements (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  player_address TEXT REFERENCES players(address),
-  achievement_id UUID REFERENCES achievements(id),
-  progress INTEGER DEFAULT 0,
-  is_unlocked BOOLEAN DEFAULT false,
-  unlocked_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(player_address, achievement_id)
-);
-```
-
-#### `cosmetic_items`
-```sql
-CREATE TABLE cosmetic_items (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  item_id TEXT UNIQUE NOT NULL,
-  name TEXT NOT NULL,
-  type TEXT NOT NULL,                    -- skin | emote | victory_pose | badge
-  rarity TEXT NOT NULL,                  -- common | rare | epic | legendary
-  price INTEGER NOT NULL,                -- Cost in Clash Shards
-  is_featured BOOLEAN DEFAULT false,
-  character_id TEXT,                     -- NULL for universal items
-  preview_url TEXT,
-  thumbnail_url TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-#### `player_inventory`
-```sql
-CREATE TABLE player_inventory (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  player_address TEXT REFERENCES players(address),
-  cosmetic_id UUID REFERENCES cosmetic_items(id),
-  acquired_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(player_address, cosmetic_id)
-);
-```
+#### `fight_state_snapshots`
+Real-time fight state for live spectating: health, energy, guard meter, round data, animations.
 
 ### Betting Tables
 
@@ -1740,12 +1749,12 @@ CREATE TABLE player_inventory (
 CREATE TABLE betting_pools (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   match_id UUID UNIQUE REFERENCES matches(id),
-  player1_total BIGINT DEFAULT 0,        -- Total bets on player1 (sompi)
+  player1_total BIGINT DEFAULT 0,
   player2_total BIGINT DEFAULT 0,
   total_pool BIGINT DEFAULT 0,
   total_fees BIGINT DEFAULT 0,
-  status TEXT DEFAULT 'open',            -- open | locked | resolved | refunded
-  winner TEXT,                           -- player1 | player2
+  status TEXT DEFAULT 'open',             -- open | locked | resolved | refunded
+  winner TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   resolved_at TIMESTAMPTZ
 );
@@ -1757,11 +1766,11 @@ CREATE TABLE bets (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   pool_id UUID REFERENCES betting_pools(id),
   bettor_address TEXT REFERENCES players(address),
-  bet_on TEXT NOT NULL,                  -- player1 | player2
-  amount BIGINT NOT NULL,                -- Amount in sompi
+  bet_on TEXT NOT NULL,                   -- player1 | player2
+  amount BIGINT NOT NULL,                 -- Min 100000000 (1 KAS)
   fee_paid BIGINT DEFAULT 0,
   net_amount BIGINT NOT NULL,
-  tx_id TEXT UNIQUE NOT NULL,            -- Kaspa transaction ID
+  tx_id TEXT UNIQUE NOT NULL,
   payout_amount BIGINT,
   payout_tx_id TEXT,
   status TEXT DEFAULT 'pending',          -- pending | confirmed | won | lost | refunded
@@ -1771,45 +1780,127 @@ CREATE TABLE bets (
 );
 ```
 
-#### `bot_betting_pools`
-```sql
-CREATE TABLE bot_betting_pools (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  bot_match_id TEXT UNIQUE NOT NULL,
-  bot1_character_id TEXT NOT NULL,
-  bot2_character_id TEXT NOT NULL,
-  bot1_total BIGINT DEFAULT 0,
-  bot2_total BIGINT DEFAULT 0,
-  total_pool BIGINT DEFAULT 0,
-  total_fees BIGINT DEFAULT 0,
-  status TEXT DEFAULT 'open',            -- open | locked | resolved | refunded
-  winner TEXT,                           -- bot1 | bot2
-  betting_closes_at_turn INTEGER DEFAULT 3,
-  match_created_at TIMESTAMPTZ DEFAULT NOW(),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  resolved_at TIMESTAMPTZ
-);
-```
+#### `bot_betting_pools` / `bot_bets`
+Mirrors the PvP betting tables but for automated bot-vs-bot matches.
 
-#### `bot_bets`
-```sql
-CREATE TABLE bot_bets (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  pool_id UUID REFERENCES bot_betting_pools(id),
-  bettor_address TEXT REFERENCES players(address),
-  bet_on TEXT NOT NULL,                  -- bot1 | bot2
-  amount BIGINT NOT NULL,                -- Amount in sompi
-  fee_paid BIGINT DEFAULT 0,
-  net_amount BIGINT NOT NULL,
-  tx_id TEXT UNIQUE NOT NULL,            -- Kaspa transaction ID
-  payout_amount BIGINT,
-  payout_tx_id TEXT,
-  status TEXT DEFAULT 'pending',          -- pending | confirmed | won | lost | refunded
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  confirmed_at TIMESTAMPTZ,
-  paid_at TIMESTAMPTZ
-);
-```
+#### `bot_matches`
+Automated bot-vs-bot match records.
+
+#### `bet_claim_attempts`
+Audit trail for bet claim attempts (type: player | bot).
+
+### Progression Tables
+
+#### `battle_pass_seasons`
+Season definitions with tier counts, start/end dates.
+
+#### `battle_pass_tiers`
+Tier rewards per season (XP requirements, shard/cosmetic rewards).
+
+#### `player_progression`
+Per-player seasonal progression: current XP, tier, prestige level, lifetime XP.
+
+#### `player_currency`
+Clash Shards balances.
+
+#### `currency_transactions`
+Full transaction ledger for all Clash Shards earned and spent.
+
+#### `xp_awards`
+XP award audit log.
+
+### Quest Tables
+
+#### `quest_templates`
+Quest definitions with objective types: `win_matches`, `play_matches`, `deal_damage`, etc.
+
+#### `daily_quests`
+Player daily quest assignments with difficulty, progress tracking, and expiration.
+
+#### `quest_statistics`
+Quest completion statistics.
+
+### Achievement Tables
+
+#### `achievements`
+Achievement definitions with categories (`combat`, `progression`, `social`, `collection`, `mastery`) and tiers (`bronze`, `silver`, `gold`, `platinum`, `diamond`).
+
+#### `player_achievements`
+Per-player achievement progress and unlock status.
+
+#### `achievement_statistics`
+Per-player achievement stats tracking.
+
+### Shop & Cosmetics Tables
+
+#### `cosmetic_items`
+Shop items with categories (`character`, `sticker`, `victory_pose`, `profile_badge`, `profile_frame`) and rarities (`common`, `rare`, `epic`, `legendary`, `prestige`).
+
+#### `player_inventory`
+Owned cosmetics per player.
+
+#### `player_loadouts`
+Equipped cosmetics per character.
+
+#### `cosmetic_nfts`
+KRC-721 NFT minting records with on-chain transaction data.
+
+#### `shop_purchases`
+Purchase records.
+
+#### `shop_rotations`
+Weekly featured item rotations.
+
+### Treasury Tables
+
+#### `treasury_distributions`
+Weekly distribution records.
+
+#### `treasury_deposits`
+Incoming deposit records.
+
+#### `treasury_balance_snapshots`
+Balance tracking snapshots for auditing.
+
+#### `distribution_payouts`
+Individual payout records per distribution.
+
+### Security & Infrastructure Tables
+
+#### `session_tokens`
+Authentication session tokens.
+
+#### `rate_limits`
+API rate limiting records.
+
+#### `security_audit_log`
+Security event logging.
+
+#### `matchmaking_queue`
+Active matchmaking queue entries.
+
+#### `blockchain_anchors`
+On-chain data anchoring for leaderboard ranks, prestige levels, etc.
+
+#### `verification_badges`
+Blockchain verification badges.
+
+### Additional Tables
+
+#### `characters`
+Character definitions stored in the database.
+
+#### `power_surges`
+Power Surge card selections per match/round with transaction IDs.
+
+#### `survival_runs`
+Survival mode run results.
+
+#### `survival_sessions`
+Anti-cheat session tracking for survival mode.
+
+#### `survival_daily_plays`
+Daily play limit tracking (max 3 per day).
 
 ### Realtime Channels
 
@@ -1825,7 +1916,7 @@ KaspaClash uses Supabase Realtime for live updates:
 ---
 
 <a id="development-guide"></a>
-## 🛠 Development Guide
+## Development Guide
 
 ### Local Development Workflow
 
@@ -1837,6 +1928,7 @@ npm run dev
 2. **Access the app:**
 - Main app: http://localhost:3000
 - API routes: http://localhost:3000/api/*
+- In-app docs: http://localhost:3000/docs
 
 3. **Debugging:**
 - Use React DevTools for component state
@@ -1847,32 +1939,33 @@ npm run dev
 
 ```bash
 # Development
-npm run dev          # Start dev server with hot reload
+npm run dev          # Start dev server with Turbopack
 npm run build        # Build for production
 npm run start        # Start production server
 
+# Testing
+npm run test         # Run Vitest in watch mode
+npm run test:run     # Run all tests once
+
 # Code Quality
 npm run lint         # Run ESLint
-npm run lint:fix     # Fix auto-fixable issues
-npm run type-check   # TypeScript type checking (if configured)
 
 # Database
-# (Run SQL files manually in Supabase dashboard)
+npm run seed:cosmetics  # Seed cosmetic items
 ```
 
 ### Environment-Specific Behavior
 
 **Development Mode:**
-- Uses Kaspa testnet by default
+- Uses Kaspa testnet-10 by default
 - Shows debug overlays in Phaser
 - Verbose logging enabled
-- Hot module replacement for fast iteration
+- Hot module replacement via Turbopack
 
 **Production Mode:**
-- Mainnet support 
+- Supports both testnet-10 and mainnet (auto-detected from wallet)
 - Optimized bundles
 - Error boundaries active
-- Analytics tracking 
 
 ### Testing Game Mechanics
 
@@ -1886,7 +1979,7 @@ Test combat without blockchain:
 #### Matchmaking Testing
 Requires two browser sessions:
 1. Open two incognito windows
-2. Connect different wallets 
+2. Connect different wallets
 3. Both join queue simultaneously
 4. Test match flow
 
@@ -1899,7 +1992,7 @@ Requires two browser sessions:
 ---
 
 <a id="deployment"></a>
-## 🚢 Deployment
+## Deployment
 
 ### Vercel Deployment (Recommended)
 
@@ -1924,29 +2017,36 @@ vercel --prod
 
 ### Environment Variables Checklist
 
-Required for production:
-- ✅ NEXT_PUBLIC_SUPABASE_URL
-- ✅ NEXT_PUBLIC_SUPABASE_ANON_KEY
-- ✅ DATABASE_URL
-- ✅ NEXT_PUBLIC_BETTING_VAULT_ADDRESS_MAINNET
-- ✅ BETTING_VAULT_PRIVATE_KEY_MAINNET
-- ✅ NEXT_PUBLIC_BETTING_VAULT_ADDRESS_TESTNET
-- ✅ BETTING_VAULT_PRIVATE_KEY_TESTNET
+**Required for production:**
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `DATABASE_URL`
+- `NEXT_PUBLIC_BETTING_VAULT_ADDRESS_MAINNET`
+- `BETTING_VAULT_PRIVATE_KEY_MAINNET`
+- `NEXT_PUBLIC_BETTING_VAULT_ADDRESS_TESTNET`
+- `BETTING_VAULT_PRIVATE_KEY_TESTNET`
 
-Recommended / optional:
-- ⭕ NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
-- ⭕ CLOUDINARY_API_KEY
-- ⭕ CLOUDINARY_API_SECRET
-- ⭕ RELAYER_PRIVATE_KEY
-- ⭕ KASPA_RPC_URL
-- ⭕ KASPA_RPC_URL_TESTNET
-- ⭕ NODE_ENV
+**Recommended / optional:**
+- `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`
+- `CLOUDINARY_API_KEY`
+- `CLOUDINARY_API_SECRET`
+- `RELAYER_PRIVATE_KEY`
+- `KASPA_RPC_URL`
+- `KASPA_RPC_URL_TESTNET`
+- `NODE_ENV`
+
+### Cron Jobs
+
+Configure the following cron jobs in your hosting platform:
+
+- **Bot Match Payouts:** `POST /api/cron/bot-match-payout` -- processes pending bot match payouts
+- **Weekly Distribution:** `POST /api/cron/weekly-distribution` -- triggers treasury distributions every Monday at 00:00 UTC
 
 ### Custom Domain Setup
 
 In Vercel dashboard:
-1. Go to Project Settings → Domains
-2. Add your domain (e.g., `kaspaclash.gg`)
+1. Go to Project Settings -> Domains
+2. Add your domain 
 3. Configure DNS records as instructed
 4. Enable automatic HTTPS
 
@@ -1957,11 +2057,12 @@ In Vercel dashboard:
 - **Compression:** Gzip/Brotli enabled by default
 - **Caching:** Static assets cached with CDN
 - **WASM Loading:** Kaspa WASM loaded asynchronously
+- **Turbopack:** Used in development for fast hot module replacement
 
 ---
 
 <a id="ai-attribution"></a>
-## 🤖 AI Attribution
+## AI Attribution
 
 KaspaClash is an **AI-augmented development project**, demonstrating how modern engineering workflows can be supercharged by generative intelligence. By utilizing AI as a strategic "force multiplier," we have delivered a high-fidelity, blockchain-integrated experience that pushes the boundaries of solo development.
 
@@ -1982,7 +2083,7 @@ In accordance with hackathon guidelines, AI tools were utilized to accelerate as
 ---
 
 <a id="contributing"></a>
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! KaspaClash is open source under the MIT License.
 
@@ -2013,28 +2114,28 @@ git push origin feature/amazing-feature
 - **Naming:** Use descriptive names (no abbreviations)
 - **Comments:** Document complex logic and game mechanics
 - **Types:** Use TypeScript strictly, avoid `any`
-- **Testing:** Test all game logic thoroughly
+- **Testing:** Test all game logic thoroughly with Vitest
 - **Commits:** Use conventional commit messages
 
 ### Areas for Contribution
 
-- 🎮 New game modes (tournaments, teams, draft pick, combo challenge)
-- 🎨 Additional characters with unique abilities (currently 20 characters)
-- 🛍️ Character customization & loadout system (equip owned cosmetics)
-- 🔗 Blockchain verification for achievements & prestige levels
-- 🌐 Internationalization (i18n)
-- ♿ Accessibility improvements
-- 📱 Mobile UX enhancements
-- 🔊 Sound effect refinements
-- 📊 Analytics and telemetry
-- 🧪 Test coverage
-- 📚 Additional documentation
-- 🎭 More cosmetic items and weekly featured rotations
+- New game modes (tournaments, teams, draft pick, combo challenge)
+- Additional characters with unique abilities (currently 20 characters)
+- Character customization & loadout system enhancements
+- Blockchain verification for achievements & prestige levels
+- Internationalization (i18n)
+- Accessibility improvements
+- Mobile UX enhancements
+- Sound effect refinements
+- Analytics and telemetry
+- Test coverage expansion
+- Additional documentation
+- More cosmetic items and weekly featured rotations
 
 ---
 
 <a id="license"></a>
-## 📄 License
+## License
 
 **MIT License**
 
@@ -2048,7 +2149,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **Kaspa Community** - For building the fastest PoW blockchain
 - **Kaspathon Organizers** - For hosting this incredible hackathon
@@ -2059,28 +2160,21 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## 📞 Contact & Links
+## Contact & Links
 
-- **Live Demo:** [https://kaspaclash.vercel.app](https://kaspaclash.vercel.app) _(example)_
-- **GitHub:** [https://github.com/yourusername/KaspaClash](https://github.com/yourusername/KaspaClash)
-- **Twitter/X:** [@KaspaClash](#) _(if applicable)_
-- **Discord:** Join the [Kaspa Community Discord](https://discord.gg/kaspa)
+- **Live Demo:** [https://kaspaclash.vercel.app](https://kaspaclash.vercel.app)
+- **GitHub:** [https://github.com/zaikaman/KaspaClash](https://github.com/zaikaman/KaspaClash)
 - **Kaspathon:** [https://kaspathon.com](https://kaspathon.com)
 
 ---
 
-## 🎉 Built for Kaspathon 2026
+## Built for Kaspathon 2026
 
-**Show us your Kode-fu! ⚔️**
-
-This project was created for Kaspathon 2026, showcasing how Kaspa's lightning-fast block times enable entirely new categories of blockchain applications. KaspaClash proves that real-time gaming on a PoW blockchain isn't just possible—it's practical, scalable, and fun.
-
-**Thank you for checking out KaspaClash! May your blocks be fast and your combos legendary. 🥋✨**
+This project was created for Kaspathon 2026, showcasing how Kaspa's lightning-fast block times enable entirely new categories of blockchain applications. KaspaClash proves that real-time gaming on a PoW blockchain isn't just possible -- it's practical, scalable, and fun.
 
 ---
 
 <p align="center">
   <img src="https://img.shields.io/badge/Powered%20by-Kaspa-49D9D9?style=for-the-badge" alt="Powered by Kaspa" />
   <img src="https://img.shields.io/badge/Built%20with-AI-FF6B6B?style=for-the-badge" alt="Built with AI" />
-  <img src="https://img.shields.io/badge/Made%20with-❤️-red?style=for-the-badge" alt="Made with Love" />
 </p>
