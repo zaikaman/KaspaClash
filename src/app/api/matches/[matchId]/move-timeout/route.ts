@@ -171,6 +171,48 @@ export async function POST(
         console.log(`[MoveTimeout] P1 has move: ${p1HasMove} (${round.player1_move}), P2 has move: ${p2HasMove} (${round.player2_move})`);
         console.log(`[MoveTimeout] Request from address: ${body.address}, is_bot match: ${match.is_bot}`);
 
+        // GRACE PERIOD: If only one player submitted and the deadline just barely passed,
+        // wait a few seconds and re-check. This handles the case where a player clicked
+        // their move near the deadline but the Kaspa transaction is still being confirmed.
+        // Without this, the opponent's client fires move-timeout instantly at 0s and the
+        // server penalizes the in-flight player before their tx lands.
+        const MOVE_GRACE_MS = 10000; // 10s grace for in-flight transactions
+        const timeSinceDeadline = now - deadline;
+        const onePlayerMissing = (p1HasMove && !p2HasMove) || (!p1HasMove && p2HasMove);
+
+        if (onePlayerMissing && timeSinceDeadline < MOVE_GRACE_MS && !match.is_bot) {
+            console.log(`[MoveTimeout] *** One player missing move, only ${Math.floor(timeSinceDeadline / 1000)}s past deadline. Waiting ${Math.ceil((MOVE_GRACE_MS - timeSinceDeadline) / 1000)}s for in-flight tx...`);
+
+            // Wait for the remaining grace period, then re-fetch the round
+            await new Promise(resolve => setTimeout(resolve, MOVE_GRACE_MS - timeSinceDeadline));
+
+            // Re-fetch the round to see if the move landed during the grace period
+            const { data: refreshedRound } = await supabase
+                .from("rounds")
+                .select("*")
+                .eq("id", round.id)
+                .single();
+
+            if (refreshedRound) {
+                const refreshed = refreshedRound as unknown as RoundWithDeadline;
+                p1HasMove = !!refreshed.player1_move;
+                p2HasMove = !!refreshed.player2_move;
+                console.log(`[MoveTimeout] *** After grace period - P1 has move: ${p1HasMove}, P2 has move: ${p2HasMove}`);
+
+                // If both moves are now in, or round already resolved, no action needed
+                if ((p1HasMove && p2HasMove) || refreshed.winner_address) {
+                    console.log(`[MoveTimeout] *** Round resolved during grace period`);
+                    return NextResponse.json({
+                        success: true,
+                        data: {
+                            result: "no_action",
+                            reason: "Round resolved during grace period",
+                        },
+                    });
+                }
+            }
+        }
+
         // SPECIAL CASE: Bot match where player timed out - submit bot move first
         if (match.is_bot && !p1HasMove && !p2HasMove) {
             console.log(`[MoveTimeout] *** Bot match with no moves - submitting bot move before handling timeout`);

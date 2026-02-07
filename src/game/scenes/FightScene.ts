@@ -97,9 +97,6 @@ export class FightScene extends Phaser.Scene {
   private moveDeadlineAt: number = 0; // Server-synchronized move deadline timestamp
   private localMoveSubmitted: boolean = false; // Track if local player submitted move this round
   private moveInFlight: boolean = false; // Track if move transaction is being processed (wallet signing / API call)
-  private pendingTimerExpired: boolean = false; // Timer expired while move was in-flight; deferred until tx resolves
-  private moveGraceDeadlineAt: number = 0; // Safety fallback: max wait for in-flight tx before firing timeout
-  private static readonly MOVE_GRACE_MS = 15000; // 15s max grace for in-flight transactions
 
   // Real-time deadline tracking (all use Date.now() so they work across tab switches)
   private countdownEndsAt: number = 0; // When the 3-2-1 FIGHT countdown ends
@@ -621,14 +618,6 @@ export class FightScene extends Phaser.Scene {
         this.timerExpiredHandled = true;
         this.onTimerExpired();
       }
-    }
-
-    // === IN-FLIGHT GRACE PERIOD SAFETY FALLBACK ===
-    // If we deferred the timeout for an in-flight transaction but the grace period expired,
-    // fire the timeout now. This prevents infinite waiting if the tx never resolves.
-    if (this.pendingTimerExpired && this.moveGraceDeadlineAt > 0 && now >= this.moveGraceDeadlineAt) {
-      console.log(`[FightScene] *** In-flight grace period expired, firing deferred timeout`);
-      this.onTimerExpired();
     }
 
     // === STUNNED AUTO-SUBMIT ===
@@ -2407,8 +2396,6 @@ export class FightScene extends Phaser.Scene {
     this.turnTimer = 20;
     this.localMoveSubmitted = false;
     this.moveInFlight = false;
-    this.pendingTimerExpired = false;
-    this.moveGraceDeadlineAt = 0;
     this.timerExpiredHandled = false;
     this.turnIndicatorText.setText("Select your move!");
 
@@ -2461,7 +2448,7 @@ export class FightScene extends Phaser.Scene {
   }
 
   private onTimerExpired(): void {
-    console.log(`[FightScene] *** onTimerExpired called - phase: ${this.phase}, localMoveSubmitted: ${this.localMoveSubmitted}, moveInFlight: ${this.moveInFlight}, pendingTimerExpired: ${this.pendingTimerExpired}, Timestamp: ${Date.now()}`);
+    console.log(`[FightScene] *** onTimerExpired called - phase: ${this.phase}, localMoveSubmitted: ${this.localMoveSubmitted}, moveInFlight: ${this.moveInFlight}, Timestamp: ${Date.now()}`);
 
     // If phase changed away from selecting (e.g. round resolved), don't process
     if (this.phase !== "selecting") {
@@ -2472,42 +2459,25 @@ export class FightScene extends Phaser.Scene {
     // Mark as handled to prevent duplicate calls from update() loop
     this.timerExpiredHandled = true;
 
-    // GRACE PERIOD: If the player has initiated a move but the transaction hasn't confirmed yet
-    // (wallet signing or network delay), defer the timeout API call instead of penalizing them.
-    // We do NOT extend moveDeadlineAt — the timer stays at 0s and buttons are already disabled.
-    // We only delay emitting game:timerExpired until the transaction resolves or the grace expires.
-    if (this.moveInFlight && !this.localMoveSubmitted && !this.pendingTimerExpired) {
-      console.log(`[FightScene] *** Move is in-flight, deferring timeout until transaction resolves (max ${FightScene.MOVE_GRACE_MS / 1000}s)`);
-      this.pendingTimerExpired = true;
-      this.moveGraceDeadlineAt = Date.now() + FightScene.MOVE_GRACE_MS;
-      this.turnIndicatorText.setText("Confirming transaction...");
-      this.turnIndicatorText.setColor("#f59e0b");
-      return;
-    }
-
     // Update UI to show timeout state
-    // Different message based on whether we submitted or not
     if (this.localMoveSubmitted) {
       this.turnIndicatorText.setText("Enforcing deadline...");
       this.turnIndicatorText.setColor("#22c55e");
-    } else if (this.pendingTimerExpired) {
-      // Grace period expired and transaction still didn't confirm
-      this.turnIndicatorText.setText("Transaction timed out...");
-      this.turnIndicatorText.setColor("#ff4444");
+    } else if (this.moveInFlight) {
+      // Move was clicked but transaction is still being processed.
+      // The server-side move-timeout API has a grace period that will wait
+      // for the transaction to land before penalizing.
+      this.turnIndicatorText.setText("Confirming transaction...");
+      this.turnIndicatorText.setColor("#f59e0b");
     } else {
       this.turnIndicatorText.setText("Time's up! Checking server...");
       this.turnIndicatorText.setColor("#ff8800");
     }
 
-    // Clear deferred state
-    this.pendingTimerExpired = false;
-    this.moveGraceDeadlineAt = 0;
-
     // Emit timeout event for server-side enforcement
-    // The MatchGameClient will call the move-timeout API to determine consequences:
-    // - If we haven't submitted and opponent has: we forfeit the round
-    // - If neither has submitted: match is cancelled
-    // - If we've already submitted: no action (already handled)
+    // The server move-timeout API has a built-in grace period: if one player's
+    // move is missing and the deadline just barely passed, it waits up to 10s
+    // for the in-flight transaction to land before penalizing.
     console.log(`[FightScene] *** Emitting game:timerExpired event`);
     EventBus.emit("game:timerExpired", {
       matchId: this.config.matchId,
@@ -3019,20 +2989,6 @@ export class FightScene extends Phaser.Scene {
         this.localMoveSubmitted = true;
         this.moveInFlight = false; // Transaction completed successfully
 
-        // If we had a deferred timeout (timer expired while tx was in-flight),
-        // now fire it to enforce the deadline against the opponent
-        if (this.pendingTimerExpired) {
-          console.log(`[FightScene] *** Move confirmed while timeout was deferred, firing deferred timeout now`);
-          this.pendingTimerExpired = false;
-          this.moveGraceDeadlineAt = 0;
-          // Emit the deferred timerExpired — our move is now recorded server-side,
-          // so the timeout API will see we submitted and only penalize the opponent if they didn't
-          EventBus.emit("game:timerExpired", {
-            matchId: this.config.matchId,
-            playerRole: this.config.playerRole,
-          });
-        }
-
         // Update UI to show waiting state, but don't destroy the timer
         this.turnIndicatorText.setText("Waiting for opponent...");
         this.turnIndicatorText.setColor("#22c55e");
@@ -3328,18 +3284,6 @@ export class FightScene extends Phaser.Scene {
 
       // Clear in-flight state since the transaction failed
       this.moveInFlight = false;
-
-      // If we had a deferred timeout (timer expired while tx was in-flight),
-      // fire it now since the transaction failed
-      if (this.pendingTimerExpired) {
-        console.log(`[FightScene] *** Move error while timeout was deferred, firing deferred timeout now`);
-        this.pendingTimerExpired = false;
-        this.moveGraceDeadlineAt = 0;
-        EventBus.emit("game:timerExpired", {
-          matchId: this.config.matchId,
-          playerRole: this.config.playerRole,
-        });
-      }
 
       // Hide transaction prompt
       this.hideTransactionPrompt();
@@ -3914,8 +3858,6 @@ export class FightScene extends Phaser.Scene {
     this.isWaitingForOpponent = false;
     this.localMoveSubmitted = false; // Reset for new round
     this.moveInFlight = false;
-    this.pendingTimerExpired = false;
-    this.moveGraceDeadlineAt = 0;
     this.turnIndicatorText.setText("Select your move!");
     this.turnIndicatorText.setColor("#40e0d0");
 
