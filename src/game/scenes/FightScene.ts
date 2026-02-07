@@ -2934,6 +2934,8 @@ export class FightScene extends Phaser.Scene {
 
     // Listen for cancel events
     EventBus.onEvent("game:rejectionWaiting", ({ message }) => {
+      // Spectators should never see rejection waiting state
+      if (this.config.isSpectator) return;
       this.showFloatingText(message, GAME_DIMENSIONS.CENTER_X, GAME_DIMENSIONS.CENTER_Y - 100, "#f97316");
       this.turnIndicatorText.setText(message);
     });
@@ -3056,6 +3058,9 @@ export class FightScene extends Phaser.Scene {
 
     // Listen for opponent move rejection
     EventBus.on("game:moveRejected", (data: unknown) => {
+      // Spectators should never react to move rejection events
+      if (this.config.isSpectator) return;
+
       const payload = data as { player: "player1" | "player2"; rejectedAt: number };
 
       // Only show message if opponent rejected (not us)
@@ -3241,6 +3246,9 @@ export class FightScene extends Phaser.Scene {
 
     // Listen for local rejection waiting (we rejected, waiting for opponent)
     EventBus.on("game:rejectionWaiting", (data: unknown) => {
+      // Spectators should never see rejection waiting state
+      if (this.config.isSpectator) return;
+
       const payload = data as { message: string };
       this.isWaitingForOpponent = true;
       this.turnIndicatorText.setText("Waiting for opponent...");
@@ -3251,6 +3259,9 @@ export class FightScene extends Phaser.Scene {
     // Listen for move error (e.g. wallet rejected but failed to record rejection)
     // This allows the user to try again if the rejection recording failed
     EventBus.on("game:moveError", (data: unknown) => {
+      // Spectators should never see move error state
+      if (this.config.isSpectator) return;
+
       const payload = data as { error: string };
       console.log("[FightScene] Move error:", payload.error);
 

@@ -114,7 +114,7 @@ export class StatsOverlay extends Phaser.GameObjects.Container {
         this.addStatRow(col2X, gridY, "Energy", stats.maxEnergy.toString(), colors.secondary);
 
         this.addStatRow(col1X, gridY + 50, "Regen", `${stats.energyRegen}/turn`, "#ffffff");
-        this.addStatRow(col2X, gridY + 50, "Guard", `${(1 - stats.blockEffectiveness) * 100}% Block`, "#ffffff"); // Convert 0.4 effectiveness to 60% block
+        this.addStatRow(col2X, gridY + 50, "Guard", `${Math.round((1 - stats.blockEffectiveness) * 100)}% Block`, "#ffffff"); // Convert 0.4 effectiveness to 60% block
 
         // Modifiers Section
         const modY = gridY + 110;
