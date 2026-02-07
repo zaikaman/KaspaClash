@@ -13,7 +13,12 @@
 > **A real-time blockchain-powered fighting game showcasing Kaspa's lightning-fast block times through competitive PvP combat, live betting, and on-chain matchmaking.**
 
 <div align="center">
-  <a href="https://kaspaclash.vercel.app"><strong>PLAY NOW →</strong></a>
+  <a href="https://kaspaclash.vercel.app">
+    <img src="https://img.shields.io/badge/PLAY-NOW-00D9FF?style=for-the-badge" alt="PLAY NOW" />
+  </a>
+  <a href="https://www.youtube.com/watch?v=kJABePYlJEM">
+    <img src="https://img.shields.io/badge/WATCH-TRAILER-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="WATCH TRAILER" />
+  </a>
 </div>
 
 ![KaspaClash Banner](https://kaspaclash.vercel.app/logo.webp)
