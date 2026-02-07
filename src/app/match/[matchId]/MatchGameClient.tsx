@@ -322,7 +322,7 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
   }, [address, playerRole, match.id, match.status, needsReconnect]);
 
 
-  // Handle page unload - notify disconnect
+  // Handle page unload and tab visibility - notify disconnect/reconnect
   useEffect(() => {
     if (!address || !match.id) return;
 
@@ -332,10 +332,34 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
       navigator.sendBeacon(`/api/matches/${match.id}/disconnect`, data);
     };
 
+    const handleVisibilityChange = () => {
+      // Only send disconnect/reconnect for active matches
+      if (match.status === "completed") return;
+
+      if (document.visibilityState === "hidden") {
+        // Player switched tab - treat as disconnect
+        console.log("[MatchGameClient] Tab hidden, sending disconnect");
+        const data = JSON.stringify({ address, action: "disconnect" });
+        navigator.sendBeacon(`/api/matches/${match.id}/disconnect`, data);
+      } else if (document.visibilityState === "visible") {
+        // Player returned to tab - treat as reconnect
+        console.log("[MatchGameClient] Tab visible, sending reconnect");
+        fetch(`/api/matches/${match.id}/disconnect`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address, action: "reconnect" }),
+        }).catch((err) => {
+          console.error("[MatchGameClient] Reconnect on tab visible failed:", err);
+        });
+      }
+    };
+
     window.addEventListener("beforeunload", handleBeforeUnload);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       // Also notify disconnect when component unmounts
       fetch(`/api/matches/${match.id}/disconnect`, {
         method: "POST",
@@ -344,7 +368,7 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
         keepalive: true,
       }).catch(() => { });
     };
-  }, [address, match.id]);
+  }, [address, match.id, match.status]);
 
   // Initialize match store
   useEffect(() => {
@@ -620,6 +644,10 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
         return;
       }
 
+      // Notify FightScene that a move is in-flight (wallet signing + API call in progress)
+      // This enables the grace period if the timer expires while the transaction is being processed
+      EventBus.emit("game:moveInFlight", { player: playerRoleRef.current });
+
       try {
         // Use real Kaspa transaction for immutable move recording
         const walletStartTime = Date.now();
@@ -676,6 +704,7 @@ export function MatchGameClient({ match }: MatchGameClientProps) {
         } else {
           // Transaction failed - user likely rejected the wallet popup
           console.error("Transaction failed:", result.error);
+          EventBus.emit("game:moveInFlight", { player: playerRoleRef.current, cancelled: true });
           EventBus.emit("game:moveError", { error: result.error || "Failed to create transaction" });
 
           // Only notify server of rejection if we haven't already submitted a move

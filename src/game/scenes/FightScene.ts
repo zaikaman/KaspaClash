@@ -96,6 +96,9 @@ export class FightScene extends Phaser.Scene {
   private isWaitingForOpponent: boolean = false;
   private moveDeadlineAt: number = 0; // Server-synchronized move deadline timestamp
   private localMoveSubmitted: boolean = false; // Track if local player submitted move this round
+  private moveInFlight: boolean = false; // Track if move transaction is being processed (wallet signing / API call)
+  private moveInFlightGraceMs: number = 15000; // 15s grace period for in-flight transactions when timer expires
+  private moveGraceDeadlineAt: number = 0; // Extended deadline when move is in-flight at timer expiry
 
   // Real-time deadline tracking (all use Date.now() so they work across tab switches)
   private countdownEndsAt: number = 0; // When the 3-2-1 FIGHT countdown ends
@@ -2394,6 +2397,8 @@ export class FightScene extends Phaser.Scene {
     this.selectedMove = null;
     this.turnTimer = 20;
     this.localMoveSubmitted = false;
+    this.moveInFlight = false;
+    this.moveGraceDeadlineAt = 0;
     this.timerExpiredHandled = false;
     this.turnIndicatorText.setText("Select your move!");
 
@@ -2446,11 +2451,28 @@ export class FightScene extends Phaser.Scene {
   }
 
   private onTimerExpired(): void {
-    console.log(`[FightScene] *** onTimerExpired called - phase: ${this.phase}, localMoveSubmitted: ${this.localMoveSubmitted}, Timestamp: ${Date.now()}`);
+    console.log(`[FightScene] *** onTimerExpired called - phase: ${this.phase}, localMoveSubmitted: ${this.localMoveSubmitted}, moveInFlight: ${this.moveInFlight}, Timestamp: ${Date.now()}`);
 
     // If phase changed away from selecting (e.g. round resolved), don't process
     if (this.phase !== "selecting") {
       console.warn(`[FightScene] *** Timer expired but phase is not 'selecting' (phase: ${this.phase}), returning early`);
+      return;
+    }
+
+    // GRACE PERIOD: If the player has initiated a move but the transaction hasn't confirmed yet
+    // (wallet signing or network delay), grant extra time instead of penalizing them.
+    if (this.moveInFlight && !this.localMoveSubmitted && this.moveGraceDeadlineAt === 0) {
+      console.log(`[FightScene] *** Move is in-flight, granting ${this.moveInFlightGraceMs / 1000}s grace period for transaction confirmation`);
+      this.moveGraceDeadlineAt = Date.now() + this.moveInFlightGraceMs;
+      // Extend the displayed deadline so the update() timer shows the grace period
+      this.moveDeadlineAt = this.moveGraceDeadlineAt;
+      this.timerExpiredHandled = false; // Allow update() to re-trigger when grace period ends
+      this.turnIndicatorText.setText("Confirming transaction...");
+      this.turnIndicatorText.setColor("#f59e0b");
+      // Show grace timer in yellow
+      if (this.roundTimerText) {
+        this.roundTimerText.setColor("#f59e0b");
+      }
       return;
     }
 
@@ -2462,10 +2484,17 @@ export class FightScene extends Phaser.Scene {
     if (this.localMoveSubmitted) {
       this.turnIndicatorText.setText("Enforcing deadline...");
       this.turnIndicatorText.setColor("#22c55e");
+    } else if (this.moveGraceDeadlineAt > 0) {
+      // Grace period expired and transaction still didn't confirm
+      this.turnIndicatorText.setText("Transaction timed out...");
+      this.turnIndicatorText.setColor("#ff4444");
     } else {
       this.turnIndicatorText.setText("Time's up! Checking server...");
       this.turnIndicatorText.setColor("#ff8800");
     }
+
+    // Reset grace deadline
+    this.moveGraceDeadlineAt = 0;
 
     // Disable buttons
     // Disable buttons - Handled by UI state
@@ -2962,6 +2991,20 @@ export class FightScene extends Phaser.Scene {
       }
     });
 
+    // Listen for move in-flight (player clicked move, transaction is being processed)
+    EventBus.on("game:moveInFlight", (data: unknown) => {
+      const payload = data as { player: string; cancelled?: boolean };
+      if (payload.player === this.config.playerRole) {
+        if (payload.cancelled) {
+          console.log(`[FightScene] Move in-flight cancelled for ${payload.player}`);
+          this.moveInFlight = false;
+        } else {
+          console.log(`[FightScene] Move in-flight for ${payload.player}`);
+          this.moveInFlight = true;
+        }
+      }
+    });
+
     // Listen for move confirmation (when player signs transaction)
     EventBus.on("game:moveConfirmed", (data: unknown) => {
       const payload = data as { player: string; txId?: string };
@@ -2971,6 +3014,8 @@ export class FightScene extends Phaser.Scene {
       if (payload.player === this.config.playerRole) {
         // Mark that we submitted (tracked locally for UI purposes)
         this.localMoveSubmitted = true;
+        this.moveInFlight = false; // Transaction completed successfully
+        this.moveGraceDeadlineAt = 0; // Clear grace period
 
         // Update UI to show waiting state, but don't destroy the timer
         this.turnIndicatorText.setText("Waiting for opponent...");
@@ -3264,6 +3309,9 @@ export class FightScene extends Phaser.Scene {
 
       const payload = data as { error: string };
       console.log("[FightScene] Move error:", payload.error);
+
+      // Clear in-flight state since the transaction failed
+      this.moveInFlight = false;
 
       // Hide transaction prompt
       this.hideTransactionPrompt();
@@ -3837,6 +3885,8 @@ export class FightScene extends Phaser.Scene {
     this.selectedMove = null;
     this.isWaitingForOpponent = false;
     this.localMoveSubmitted = false; // Reset for new round
+    this.moveInFlight = false;
+    this.moveGraceDeadlineAt = 0;
     this.turnIndicatorText.setText("Select your move!");
     this.turnIndicatorText.setColor("#40e0d0");
 

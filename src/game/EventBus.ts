@@ -53,6 +53,7 @@ export interface GameEvents {
   // New Game Engine events
   "game:submitMove": { matchId: string; moveType: string; playerRole: string };
   "game:moveError": { error: string };
+  "game:moveInFlight": { player: string };
   "game:roundStarting": any;
   "game:moveSubmitted": any;
   "game:moveConfirmed": any;
