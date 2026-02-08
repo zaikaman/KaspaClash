@@ -171,17 +171,17 @@ export async function POST(
         console.log(`[MoveTimeout] P1 has move: ${p1HasMove} (${round.player1_move}), P2 has move: ${p2HasMove} (${round.player2_move})`);
         console.log(`[MoveTimeout] Request from address: ${body.address}, is_bot match: ${match.is_bot}`);
 
-        // GRACE PERIOD: If only one player submitted and the deadline just barely passed,
+        // GRACE PERIOD: If any moves are missing and the deadline just barely passed,
         // wait a few seconds and re-check. This handles the case where a player clicked
         // their move near the deadline but the Kaspa transaction is still being confirmed.
-        // Without this, the opponent's client fires move-timeout instantly at 0s and the
-        // server penalizes the in-flight player before their tx lands.
+        // Without this, the opponent's (or same player's) client fires move-timeout
+        // instantly at 0s and the server penalizes before the in-flight tx lands in the DB.
         const MOVE_GRACE_MS = 10000; // 10s grace for in-flight transactions
         const timeSinceDeadline = now - deadline;
-        const onePlayerMissing = (p1HasMove && !p2HasMove) || (!p1HasMove && p2HasMove);
+        const anyMoveMissing = !p1HasMove || !p2HasMove;
 
-        if (onePlayerMissing && timeSinceDeadline < MOVE_GRACE_MS && !match.is_bot) {
-            console.log(`[MoveTimeout] *** One player missing move, only ${Math.floor(timeSinceDeadline / 1000)}s past deadline. Waiting ${Math.ceil((MOVE_GRACE_MS - timeSinceDeadline) / 1000)}s for in-flight tx...`);
+        if (anyMoveMissing && timeSinceDeadline < MOVE_GRACE_MS && !match.is_bot) {
+            console.log(`[MoveTimeout] *** Move(s) missing (P1: ${p1HasMove}, P2: ${p2HasMove}), only ${Math.floor(timeSinceDeadline / 1000)}s past deadline. Waiting ${Math.ceil((MOVE_GRACE_MS - timeSinceDeadline) / 1000)}s for in-flight tx...`);
 
             // Wait for the remaining grace period, then re-fetch the round
             await new Promise(resolve => setTimeout(resolve, MOVE_GRACE_MS - timeSinceDeadline));
