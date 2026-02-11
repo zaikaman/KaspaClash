@@ -17,6 +17,8 @@
 
 ![KaspaClash Banner](https://kaspaclash.vercel.app/logo.webp)
 
+![KaspaClash Landing](https://kaspaclash.vercel.app/assets/landing-page.png)
+
 ---
 
 ## Overview
@@ -50,6 +52,9 @@ Traditional blockchain games suffer from:
 ## Key Features
 
 ### 🎮 Core Gameplay
+
+![Main Menu](https://kaspaclash.vercel.app/assets/main-menu.png)
+![Combat Interface](https://kaspaclash.vercel.app/assets/combat-interface.png)
 - **Turn-Based Combat:** Strategic rock-paper-scissors style fighting where every move is a verified Kaspa transaction
 - **Power Surge Cards:** 15 unique round boosts with balanced trade-offs — each selection is also an on-chain transaction
 - **20 Unique Characters:** 4 archetypes (Speed, Tech, Tank, Precision) with tier-based scaling (Common → Legendary)
@@ -58,18 +63,25 @@ Traditional blockchain games suffer from:
   - **Private Rooms:** 6-character room codes with P2P wagering
   - **Practice Mode:** Offline training against AI
   - **Survival Mode:** Endless waves with difficulty scaling (max 3 daily plays)
+  ![Survival Mode](https://kaspaclash.vercel.app/assets/survival.webp)
   - **Spectator Mode:** Watch live matches with real-time betting
   - **Bot Battles:** 24/7 automated matches with betting support
 
 ### 📈 Progression & Rewards
+
+![Battle Pass](https://kaspaclash.vercel.app/assets/battle-pass.png)
 - **Battle Pass:** 50 tiers with XP from matches, quests, and achievements
 - **Daily Quests:** 3 rotating objectives (Easy/Medium/Hard)
+![Daily Quests](https://kaspaclash.vercel.app/assets/daily-quests.png)
 - **Achievement System:** 5 categories × 5 tiers (Bronze → Diamond)
+![Achievements](https://kaspaclash.vercel.app/assets/achievements.png)
 - **Prestige System:** Reset at tier 50 for permanent XP/currency multipliers
 - **Clash Shards Currency:** In-game economy with full transaction ledger
 - **Season System:** Seasonal content with progression resets
 
 ### 🛒 Cosmetic Shop & NFTs
+
+![Shop](https://kaspaclash.vercel.app/assets/shop.png)
 - **Client-Side NFT Cosmetics:** Each purchase triggers a **1 KAS transaction** with KRC-721 NFT metadata embedded in the payload, inscribing your cosmetic on-chain
 - **Categories:** Characters, skins, stickers, victory poses, profile badges/frames
 - **Rarity Tiers:** Common, Rare, Epic, Legendary
@@ -79,7 +91,9 @@ Traditional blockchain games suffer from:
 - **Dual Network Support:** Auto-detects testnet-10 or mainnet from connected wallet
 - **True On-Chain Combat:** Every Punch, Kick, and Block is a confirmed blockchain transaction
 - **Live Betting:** Spectators bet on match outcomes with instant confirmations (min 1 KAS)
+![Player Betting](https://kaspaclash.vercel.app/assets/players-betting.png)
 - **Bot Betting:** Fixed 2x odds on automated bot matches with 1% house fee
+![Bot Betting](https://kaspaclash.vercel.app/assets/bots-betting.png)
 - **Automated Payouts:** Instant KAS payouts to winners via cron jobs
 - **Treasury System:** Weekly KAS distributions to top leaderboard players funded by betting fees and cosmetic purchases
 
@@ -206,6 +220,8 @@ Turn-based with simultaneous move submission. Resolution matrix:
 - Insufficient energy = auto-block
 
 ### Power Surge Cards (15 Unique)
+
+![Power Surge Cards](https://kaspaclash.vercel.app/assets/power-surge-cards.png)
 At the start of each round, both players see 3 random cards. Selecting one costs 1 KAS (on-chain). Effects last one round only.
 
 | Card | Effect |
