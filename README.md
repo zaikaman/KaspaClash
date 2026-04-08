@@ -2170,6 +2170,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 - **Live Demo:** [https://kaspaclash.vercel.app](https://kaspaclash.vercel.app)
 - **GitHub:** [https://github.com/zaikaman/KaspaClash](https://github.com/zaikaman/KaspaClash)
 - **Kaspathon:** [https://kaspathon.com](https://kaspathon.com)
+- **Kaspa Wallet:** kaspa:qqaf7f7sqwc2r04svz7vm2dcvmpkhcu7u8dr4tr9n3xq79gttv9l6xzt0jfyj
 
 ---
 
